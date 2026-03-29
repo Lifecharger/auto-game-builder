@@ -111,8 +111,9 @@ def start_background_services():
     def _run_api_server():
         import time
         api_port = int(settings.get("port", 8000))
+        # Only kill port holder on first start, not on restarts
+        _kill_port_holder(api_port)
         while True:
-            _kill_port_holder(api_port)
             log_file = open(os.path.join(api_dir, "server_crash.log"), "w")
             host = settings.get("host", "0.0.0.0")
             port = str(settings.get("port", 8000))
