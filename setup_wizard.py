@@ -384,6 +384,7 @@ def _offer_agent_setup() -> bool:
     print("  You can re-run this wizard anytime to reconfigure.")
     print()
 
+    input("  Press Enter to exit...")
     return True
 
 
