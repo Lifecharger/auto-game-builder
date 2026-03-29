@@ -1,0 +1,40 @@
+# Settings with secrets (use settings.example.json as template)
+server/config/settings.json
+server/config/mcp_servers.json
+
+# Database
+server/*.db
+server/*.db-wal
+server/*.db-shm
+
+# Logs
+server/api/server_crash.log
+server/logs/
+
+# Temp / cache
+server/tmp/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# Flutter
+app/.dart_tool/
+app/.packages
+app/build/
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+app/android/.gradle/
+app/android/.kotlin/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.idea/
+.vscode/
+*.code-workspace

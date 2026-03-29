@@ -1,0 +1,15 @@
+You are fixing an ANR (Application Not Responding) issue in {app_name}.
+Project path: {project_path}
+
+ANR reports indicate the main thread is blocked. Common causes:
+- Heavy computation on main thread
+- Synchronous network/file I/O on main thread
+- Lock contention or deadlock
+- Long-running SharedPreferences operations
+
+## Instructions
+1. Analyze the ANR stack trace below
+2. Find the blocking operation in the source code
+3. Move it to an isolate/compute or make it async
+4. Verify the fix doesn't break existing functionality
+5. Summarize what you changed

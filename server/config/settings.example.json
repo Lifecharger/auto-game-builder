@@ -1,0 +1,35 @@
+{
+  "server": {
+    "host": "0.0.0.0",
+    "port": 8000
+  },
+  "paths": {
+    "projects_root": "~/Projects",
+    "keys_dir": "",
+    "tools_dir": "",
+    "service_account_key": ""
+  },
+  "ai_agents": {
+    "claude_path": "",
+    "gemini_path": "",
+    "codex_path": "",
+    "aider_path": ""
+  },
+  "engines": {
+    "godot_path": "",
+    "flutter_path": ""
+  },
+  "system": {
+    "bash_path": "",
+    "cloudflared_path": "",
+    "npx_path": ""
+  },
+  "cloudflare": {
+    "tunnel_enabled": false,
+    "kv_namespace_id": "",
+    "account_id": ""
+  },
+  "services": {
+    "ollama_url": "http://localhost:11434"
+  }
+}

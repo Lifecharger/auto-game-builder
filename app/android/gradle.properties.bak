@@ -1,0 +1,4 @@
+org.gradle.jvmargs=-Xmx4G -XX:MaxMetaspaceSize=2G -XX:ReservedCodeCacheSize=256m -XX:+HeapDumpOnOutOfMemoryError
+android.useAndroidX=true
+kotlin.incremental=false
+org.gradle.caching=false
