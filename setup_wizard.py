@@ -353,11 +353,12 @@ def run_wizard():
         print("        Gemini: https://github.com/google-gemini/gemini-cli")
 
     # Let user override/provide paths for agents not found
-    print()
-    for name in list(agents.keys()):
-        if not agents[name]:
-            manual = _ask(f"  Path to {name.title()} (if installed elsewhere)", "")
-            if manual and os.path.isfile(manual):
+    missing_agents = [n for n in agents if not agents[n]]
+    if missing_agents:
+        print(f"\n  Enter paths for missing agents, or press Enter to skip:")
+        for name in missing_agents:
+            manual = _ask(f"    {name.title()} path", "")
+            if manual:
                 agents[name] = manual
                 _print_status(name.title(), manual)
 
@@ -371,18 +372,17 @@ def run_wizard():
     for name, path in engines.items():
         _print_status(name.title(), path)
 
-    # Let user provide paths for engines not found
-    print()
+    # Let user provide/override engine paths
+    print(f"\n  Enter paths or press Enter to {'keep' if any(engines.values()) else 'skip'}:")
     for name in list(engines.keys()):
-        if not engines[name]:
-            manual = _ask(f"  Path to {name.title()} (if installed elsewhere)", "")
+        current = engines[name]
+        if current:
+            override = _ask(f"    {name.title()} path", current)
+            engines[name] = override
+        else:
+            manual = _ask(f"    {name.title()} path", "")
             if manual:
                 engines[name] = manual
-                _print_status(name.title(), manual)
-        else:
-            override = _ask(f"  {name.title()} path (Enter to keep detected)", engines[name])
-            if override != engines[name]:
-                engines[name] = override
 
     # Also detect system tools
     system_tools = {
