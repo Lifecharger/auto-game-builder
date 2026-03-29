@@ -352,7 +352,16 @@ def run_wizard():
         print("        Claude: https://docs.anthropic.com/en/docs/claude-code")
         print("        Gemini: https://github.com/google-gemini/gemini-cli")
 
-    # ── Step 3: Detect Game Engines ────────────────────────────
+    # Let user override/provide paths for agents not found
+    print()
+    for name in list(agents.keys()):
+        if not agents[name]:
+            manual = _ask(f"  Path to {name.title()} (if installed elsewhere)", "")
+            if manual and os.path.isfile(manual):
+                agents[name] = manual
+                _print_status(name.title(), manual)
+
+    # ── Step 3: Game Engines ──────────────────────────────────
     _print_header("Step 3: Game Engines")
 
     engines = {
@@ -361,6 +370,19 @@ def run_wizard():
     }
     for name, path in engines.items():
         _print_status(name.title(), path)
+
+    # Let user provide paths for engines not found
+    print()
+    for name in list(engines.keys()):
+        if not engines[name]:
+            manual = _ask(f"  Path to {name.title()} (if installed elsewhere)", "")
+            if manual:
+                engines[name] = manual
+                _print_status(name.title(), manual)
+        else:
+            override = _ask(f"  {name.title()} path (Enter to keep detected)", engines[name])
+            if override != engines[name]:
+                engines[name] = override
 
     # Also detect system tools
     system_tools = {
