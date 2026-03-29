@@ -370,7 +370,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           _buildCodeBlock(
               'cd auto-game-builder && pip install -r server/requirements.txt'),
           _buildStep(4, 'Run the setup wizard:'),
-          _buildCodeBlock('python server/setup_wizard.py'),
+          _buildCodeBlock('python setup_wizard.py'),
           _buildStep(5, 'Start the server:'),
           _buildCodeBlock('python server/main.py'),
           _buildStep(6, 'Enter the URL shown after setup below:'),

@@ -274,6 +274,9 @@ def archive_old_logs():
 
 def main():
     if not settings_exist():
+        # Run setup wizard from repo root
+        root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        sys.path.insert(0, root_dir)
         from setup_wizard import run_wizard
         run_wizard()
 

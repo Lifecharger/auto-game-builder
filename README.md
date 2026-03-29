@@ -21,10 +21,10 @@ A self-hosted game project management system for indie developers. Manage builds
 
 ### Server Setup
 ```bash
-git clone https://github.com/cagatayozer/auto-game-builder.git
+git clone https://github.com/Lifecharger/auto-game-builder.git
 cd auto-game-builder
 pip install -r server/requirements.txt
-python server/setup_wizard.py
+python setup_wizard.py
 python server/main.py
 ```
 

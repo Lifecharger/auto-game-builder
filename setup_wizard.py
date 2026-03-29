@@ -8,16 +8,17 @@ import subprocess
 import sys
 import time
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+_ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+_SERVER_DIR = os.path.join(_ROOT_DIR, "server")
+_CONFIG_DIR = os.path.join(_SERVER_DIR, "config")
+
+sys.path.insert(0, _SERVER_DIR)
 
 from config.settings_loader import (
     _detect_bash,
     _detect_tool,
     save_settings,
 )
-
-_SERVER_DIR = os.path.dirname(os.path.abspath(__file__))
-_CONFIG_DIR = os.path.join(_SERVER_DIR, "config")
 
 
 # ── Helpers ────────────────────────────────────────────────────────
