@@ -582,11 +582,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
 
     // Find start_server.py relative to exe
-    final exeDir = File(Platform.resolvedExecutable).parent.path;
+    final exeDir = File(Platform.resolvedExecutable).parent;
+    final sep = Platform.pathSeparator;
     final candidates = [
-      '$exeDir/start_server.py',
-      '${File(exeDir).parent.path}/start_server.py',
-      '${File(File(exeDir).parent.path).parent.path}/start_server.py',
+      '${exeDir.path}${sep}start_server.py',
+      '${exeDir.parent.path}${sep}start_server.py',
+      '${exeDir.parent.parent.path}${sep}start_server.py',
     ];
 
     String? scriptPath;

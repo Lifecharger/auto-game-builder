@@ -47,18 +47,18 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   /// Try to auto-detect the server URL from local settings.json
   Future<void> _tryAutoDetectServer() async {
     try {
-      // Look for settings.json relative to the exe location (Windows)
-      // or in known locations
+      // Look for settings.json relative to the exe location
       final candidates = <String>[];
-      final exePath = Platform.resolvedExecutable;
-      final exeDir = File(exePath).parent.path;
+      final exeDir = File(Platform.resolvedExecutable).parent;
+      final sep = Platform.pathSeparator;
+      final settingsRel = '${sep}server${sep}config${sep}settings.json';
 
       // Same directory as exe (when exe is in repo root)
-      candidates.add('$exeDir/server/config/settings.json');
+      candidates.add('${exeDir.path}$settingsRel');
       // Parent directory (when exe is in a subfolder)
-      candidates.add('${File(exeDir).parent.path}/server/config/settings.json');
+      candidates.add('${exeDir.parent.path}$settingsRel');
       // Two levels up (when exe is in build/windows/...)
-      candidates.add('${File(File(exeDir).parent.path).parent.path}/server/config/settings.json');
+      candidates.add('${exeDir.parent.parent.path}$settingsRel');
 
       for (final path in candidates) {
         final file = File(path);
