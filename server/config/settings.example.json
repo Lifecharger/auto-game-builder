@@ -32,5 +32,8 @@
   },
   "services": {
     "ollama_url": "http://localhost:11434"
+  },
+  "developer": {
+    "developer_name": ""
   }
 }

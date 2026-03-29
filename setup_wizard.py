@@ -506,12 +506,19 @@ def run_wizard():
     for name, path in system_tools.items():
         _print_status(name, path)
 
-    # ── Step 4: Configure Paths ────────────────────────────────
-    _print_header("Step 4: Paths")
+    # ── Step 4: Configure Paths & Identity ──────────────────────
+    _print_header("Step 4: Paths & Developer Identity")
 
     projects_root = _ask("Projects root directory", "~/Projects")
     keys_dir = _ask("Keys directory (for signing keystores)", "")
     tools_dir = _ask("Tools directory (Python scripts for asset generation)", "")
+
+    print()
+    print("  \033[36mDeveloper identity\033[0m — used for Android package names (com.yourname.appname)")
+    developer_name = _ask("  Developer/org name (lowercase, no spaces)", "")
+    if developer_name:
+        developer_name = developer_name.lower().replace(" ", "").replace("-", "")
+        print(f"    Package pattern: com.{developer_name}.*")
 
     # ── Step 5: Optional Credentials ───────────────────────────
     _print_header("Step 5: Credentials (all optional — press Enter to skip)")
@@ -589,6 +596,7 @@ def run_wizard():
         "kv_namespace_id": kv_namespace_id,
         "account_id": account_id,
         "ollama_url": ollama_url,
+        "developer_name": developer_name,
     }
 
     save_settings(settings)

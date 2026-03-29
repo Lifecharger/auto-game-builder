@@ -168,6 +168,9 @@ def save_settings(settings_dict: dict) -> None:
         "services": {
             "ollama_url": settings_dict.get("ollama_url", "http://localhost:11434"),
         },
+        "developer": {
+            "developer_name": settings_dict.get("developer_name", ""),
+        },
     }
     os.makedirs(_CONFIG_DIR, exist_ok=True)
     with open(_SETTINGS_PATH, "w", encoding="utf-8") as f:

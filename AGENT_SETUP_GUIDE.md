@@ -229,7 +229,27 @@ If this fails, read the error and fix it. Common issues:
 - Missing C++ build tools on Windows: Install Visual Studio Build Tools
 - Old pip: Run `python -m pip install --upgrade pip`
 
-### 5. Flutter SDK (for building the app from source)
+### 5. Developer Identity (for building from source)
+
+If the user provided a `developer_name` in settings.json, update the Android package name so their builds use `com.DEVNAME.appname` instead of the default `com.lifecharger.appmanager`.
+
+**How to change the Android package name:**
+```bash
+cd app
+flutter pub add --dev change_app_package_name
+flutter pub run change_app_package_name:main com.DEVNAME.autogamebuilder
+```
+
+Replace `DEVNAME` with the value from `settings.json` → `developer.developer_name`.
+
+This updates:
+- `android/app/build.gradle.kts` (namespace + applicationId)
+- `AndroidManifest.xml` (package)
+- Kotlin directory structure + package declaration
+
+**Only do this for users building from source.** The Play Store version keeps `com.lifecharger.appmanager`.
+
+### 6. Flutter SDK (for building the app from source)
 
 The mobile/desktop app is built with Flutter. If Flutter is not installed:
 
