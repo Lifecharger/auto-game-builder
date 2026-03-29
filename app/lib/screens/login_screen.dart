@@ -17,6 +17,17 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _loading = false;
   String? _error;
 
+  @override
+  void initState() {
+    super.initState();
+    // On platforms without Google Sign-In (Windows, Linux), skip to onboarding
+    if (!AuthService.instance.isSupported) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _navigateTo(const OnboardingScreen());
+      });
+    }
+  }
+
   void _navigateTo(Widget screen) {
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => screen),

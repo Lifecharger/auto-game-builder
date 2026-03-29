@@ -23,12 +23,17 @@ class AuthService {
   String? get userEmail => _currentUser?.email;
   String? get userPhoto => _currentUser?.photoUrl;
 
+  /// Whether Google Sign-In is supported on this platform.
+  bool get isSupported {
+    if (kIsWeb) return true;
+    // google_sign_in supports Android, iOS, macOS, web — NOT Windows/Linux
+    return Platform.isAndroid || Platform.isIOS || Platform.isMacOS;
+  }
+
   GoogleSignIn _getGoogleSignIn() {
     if (_googleSignIn != null) return _googleSignIn!;
 
-    // Use serverClientId on platforms that need the web client ID
-    // (Windows, web). On Android, the google-services.json handles it.
-    final bool needsWebClientId = kIsWeb || (!kIsWeb && Platform.isWindows);
+    final bool needsWebClientId = kIsWeb || (!kIsWeb && !Platform.isAndroid);
 
     _googleSignIn = GoogleSignIn(
       scopes: _scopes,
@@ -44,20 +49,26 @@ class AuthService {
 
   /// Attempt a silent sign-in (uses cached credentials).
   Future<GoogleSignInAccount?> silentSignIn() async {
-    final gsi = _getGoogleSignIn();
+    if (!isSupported) return null;
     try {
+      final gsi = _getGoogleSignIn();
       _currentUser = await gsi.signInSilently();
       return _currentUser;
     } catch (e) {
-      // Silent sign-in failed — user will need interactive sign-in
       return null;
     }
   }
 
   /// Interactive sign-in flow.
   Future<GoogleSignInAccount?> signIn() async {
-    final gsi = _getGoogleSignIn();
+    if (!isSupported) {
+      throw UnsupportedError(
+        'Google Sign-In is not supported on this platform. '
+        'Use manual server URL entry instead.',
+      );
+    }
     try {
+      final gsi = _getGoogleSignIn();
       _currentUser = await gsi.signIn();
       return _currentUser;
     } catch (e) {
@@ -67,13 +78,15 @@ class AuthService {
 
   /// Sign out and clear cached credentials.
   Future<void> signOut() async {
-    final gsi = _getGoogleSignIn();
-    await gsi.signOut();
+    if (!isSupported) return;
+    try {
+      final gsi = _getGoogleSignIn();
+      await gsi.signOut();
+    } catch (_) {}
     _currentUser = null;
   }
 
   /// Returns auth headers suitable for Google API calls.
-  /// Returns null if user is not signed in or auth fails.
   Future<Map<String, String>?> getAuthHeaders() async {
     final account = _currentUser;
     if (account == null) return null;
