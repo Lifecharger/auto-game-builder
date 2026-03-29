@@ -384,6 +384,12 @@ def _offer_agent_setup() -> bool:
     print("  You can re-run this wizard anytime to reconfigure.")
     print()
 
+    print("  \033[1mWhat to do now:\033[0m")
+    print("    1. Open Claude, Gemini, or Codex in a terminal")
+    print("    2. Paste the prompt above (already copied to clipboard)")
+    print("    3. Let the agent configure everything for you")
+    print("    4. Once done, run:  python server/main.py")
+    print()
     input("  Press Enter to exit...")
     return True
 
