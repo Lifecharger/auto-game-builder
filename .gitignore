@@ -35,6 +35,9 @@ app/android/.kotlin/
 *.pdb
 data/
 
+# Signing keys (auto-generated or user-provided)
+keys/
+
 # Worker config with account details
 worker/wrangler.toml
 

@@ -444,6 +444,70 @@ def create_new_app(body: AppCreate):
         with open(claude_md_path, "w", encoding="utf-8") as f:
             f.writelines(lines)
 
+    # Generate package name from developer identity
+    s = get_settings()
+    dev_name = s.get("developer_name", "").lower().replace(" ", "").replace("-", "")
+    clean_slug = slug.replace("-", "")
+    package_name = f"com.{dev_name}.{clean_slug}" if dev_name else ""
+
+    # Auto-generate signing keystore for Android apps
+    keystore_path = ""
+    if body.app_type in ("flutter", "godot") and package_name:
+        keys_dir = s.get("keys_dir", "")
+        if not keys_dir:
+            keys_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "keys")
+        os.makedirs(keys_dir, exist_ok=True)
+
+        keystore_name = f"{slug}-upload.jks"
+        keystore_path = os.path.join(keys_dir, keystore_name)
+        key_alias = clean_slug
+        key_password = f"{body.name.replace(' ', '')}2025!"
+
+        if not os.path.isfile(keystore_path):
+            try:
+                keytool_cmd = [
+                    "keytool", "-genkeypair",
+                    "-v",
+                    "-keystore", keystore_path,
+                    "-keyalg", "RSA",
+                    "-keysize", "2048",
+                    "-validity", "18250",  # 50 years
+                    "-alias", key_alias,
+                    "-storepass", key_password,
+                    "-keypass", key_password,
+                    "-dname", f"CN={body.name}, O={dev_name or 'Developer'}, C=US",
+                ]
+                subprocess.run(
+                    keytool_cmd, capture_output=True, text=True, timeout=30,
+                    creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+                )
+
+                # Save key.properties in the project (for Flutter)
+                if body.app_type == "flutter":
+                    key_props_dir = os.path.join(project_path_win, "android")
+                    os.makedirs(key_props_dir, exist_ok=True)
+                    key_props_path = os.path.join(key_props_dir, "key.properties")
+                    with open(key_props_path, "w") as f:
+                        f.write(f"storePassword={key_password}\n")
+                        f.write(f"keyPassword={key_password}\n")
+                        f.write(f"keyAlias={key_alias}\n")
+                        f.write(f"storeFile={keystore_path.replace(os.sep, '/')}\n")
+
+                # Save key info to txt for reference
+                key_info_path = os.path.join(keys_dir, f"{slug}-keyinfo.txt")
+                with open(key_info_path, "w") as f:
+                    f.write(f"App: {body.name}\n")
+                    f.write(f"Package: {package_name}\n")
+                    f.write(f"Keystore: {keystore_path}\n")
+                    f.write(f"Alias: {key_alias}\n")
+                    f.write(f"Password: {key_password}\n")
+                    f.write(f"Validity: 50 years\n")
+                    f.write(f"Created: {datetime.now().isoformat()}\n")
+
+                print(f"[AppManager] Generated keystore: {keystore_path}")
+            except Exception as e:
+                print(f"[AppManager] Keystore generation failed: {e}")
+
     # Create DB entry
     app_id = db().create_app(
         name=body.name,
@@ -451,12 +515,20 @@ def create_new_app(body: AppCreate):
         project_path=project_path,
         app_type=body.app_type,
         current_version="0.0.1",
+        package_name=package_name,
         status="idle",
         publish_status="development",
         fix_strategy=body.fix_strategy,
     )
 
-    return {"id": app_id, "slug": slug, "project_path": project_path_win, "ok": True}
+    return {
+        "id": app_id,
+        "slug": slug,
+        "project_path": project_path_win,
+        "package_name": package_name,
+        "keystore_path": keystore_path,
+        "ok": True,
+    }
 
 
 def _read_project_version(a) -> str:
