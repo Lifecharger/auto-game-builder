@@ -446,8 +446,9 @@ def create_new_app(body: AppCreate):
 
     # Generate package name from developer identity
     s = get_settings()
-    dev_name = s.get("developer_name", "").lower().replace(" ", "").replace("-", "")
-    clean_slug = slug.replace("-", "")
+    import re as _re
+    dev_name = _re.sub(r'[^a-z0-9]', '', s.get("developer_name", "").lower())
+    clean_slug = _re.sub(r'[^a-z0-9]', '', slug.lower())
     package_name = f"com.{dev_name}.{clean_slug}" if dev_name else ""
 
     # Auto-generate signing keystore for Android apps
