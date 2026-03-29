@@ -365,7 +365,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           _buildStep(1, 'Install Python 3.10+ on your PC'),
           _buildStep(2, 'Open a terminal and run:'),
           _buildCodeBlock(
-              'git clone https://github.com/cagatayozer/auto-game-builder.git'),
+              'git clone https://github.com/Lifecharger/auto-game-builder.git'),
           _buildStep(3, 'Install dependencies:'),
           _buildCodeBlock(
               'cd auto-game-builder && pip install -r server/requirements.txt'),
