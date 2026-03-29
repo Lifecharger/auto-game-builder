@@ -90,6 +90,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               await AppConfig.setBaseUrl(url);
               if (mounted) {
                 _urlController.text = url;
+                if (_detectedWorkerUrl.isNotEmpty) {
+                  _workerUrlController.text = _detectedWorkerUrl;
+                }
                 setState(() {
                   _connectionResult = true;
                   _connectedServerName = url;
@@ -101,9 +104,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               return;
             }
           } catch (_) {
-            // Server not running — still prefill the URL
+            // Server not running — still prefill the URLs
             if (mounted) {
               _urlController.text = url;
+              if (_detectedWorkerUrl.isNotEmpty) {
+                _workerUrlController.text = _detectedWorkerUrl;
+              }
             }
           }
           return;
