@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher.dart';
 import '../theme.dart';
 import '../config.dart';
 import '../services/auth_service.dart';
@@ -20,6 +22,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final _pageController = PageController();
   final _urlController = TextEditingController();
   final _setupUrlController = TextEditingController();
+  final _workerUrlController = TextEditingController();
 
   int _currentPage = 0;
   bool _testing = false;
@@ -27,6 +30,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   String? _connectionError;
   String _connectedServerName = '';
   bool _showSetupPage = false;
+  String _detectedWorkerUrl = '';
+
+  bool get _isDesktop =>
+      Platform.isWindows || Platform.isLinux || Platform.isMacOS;
 
   // Total pages: connect + (optional setup) + success
   int get _pageCount => _showSetupPage ? 3 : 2;
@@ -63,6 +70,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           // Use localhost instead of 0.0.0.0 for connecting
           final connectHost = (host == '0.0.0.0') ? 'localhost' : host;
           final url = 'http://$connectHost:$port';
+
+          // Extract worker URL from cloudflare section if available
+          final workerUrl =
+              json['cloudflare']?['worker_url'] as String? ?? '';
+          if (workerUrl.isNotEmpty && mounted) {
+            setState(() {
+              _detectedWorkerUrl = workerUrl;
+            });
+            await AppConfig.setWorkerUrl(workerUrl);
+          }
 
           // Test if server is actually running
           try {
@@ -102,6 +119,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     _pageController.dispose();
     _urlController.dispose();
     _setupUrlController.dispose();
+    _workerUrlController.dispose();
     super.dispose();
   }
 
@@ -296,6 +314,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   // Page 1: Connect to Your Server
   // ---------------------------------------------------------------------------
   Widget _buildConnectPage() {
+    if (_isDesktop) {
+      return _buildDesktopConnectPage();
+    } else {
+      return _buildMobileConnectPage();
+    }
+  }
+
+  /// Desktop connect page: direct server URL (same as before)
+  Widget _buildDesktopConnectPage() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -383,6 +410,164 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               success: _connectionResult!,
               error: _connectionError,
               onContinue: () => _onConnectSuccess(_urlController.text.trim()),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Mobile (Android) connect page: Worker URL field
+  Widget _buildMobileConnectPage() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 32),
+          const Center(
+            child: Icon(
+              Icons.cloud_outlined,
+              size: 56,
+              color: AppColors.accent,
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Center(
+            child: Text(
+              'Connect to Your Server',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Center(
+            child: Text(
+              'Enter your Worker URL to connect remotely',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey.shade400,
+              ),
+            ),
+          ),
+          const SizedBox(height: 32),
+
+          // Worker URL field
+          TextField(
+            controller: _workerUrlController,
+            decoration: const InputDecoration(
+              hintText: 'https://auto-game-builder.you.workers.dev',
+              prefixIcon: Icon(Icons.cloud),
+              labelText: 'Worker URL',
+            ),
+            keyboardType: TextInputType.url,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) =>
+                _testConnection(_workerUrlController.text),
+          ),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.only(left: 4),
+            child: Text(
+              'Get this URL from the desktop app or your server admin',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade500,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // OR divider — allow direct URL too
+          Row(
+            children: [
+              Expanded(child: Divider(color: Colors.grey.shade700)),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Text(
+                  'OR',
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+              Expanded(child: Divider(color: Colors.grey.shade700)),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Direct server URL field (for LAN usage)
+          TextField(
+            controller: _urlController,
+            decoration: const InputDecoration(
+              hintText: 'http://192.168.1.100:8000',
+              prefixIcon: Icon(Icons.link),
+              labelText: 'Direct Server URL (LAN)',
+            ),
+            keyboardType: TextInputType.url,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => _testConnection(_urlController.text),
+          ),
+          const SizedBox(height: 16),
+
+          // Test connection button
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: ElevatedButton.icon(
+              onPressed: _testing
+                  ? null
+                  : () {
+                      // Prefer worker URL if filled, otherwise use direct URL
+                      final workerUrl = _workerUrlController.text.trim();
+                      final directUrl = _urlController.text.trim();
+                      if (workerUrl.isNotEmpty) {
+                        _testConnection(workerUrl);
+                      } else if (directUrl.isNotEmpty) {
+                        _testConnection(directUrl);
+                      }
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.bgCard,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  side: BorderSide(color: Colors.grey.shade700),
+                ),
+              ),
+              icon: _testing
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.wifi_tethering, size: 20),
+              label: Text(_testing ? 'Testing...' : 'Test Connection'),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Connection result
+          if (_connectionResult != null)
+            _buildConnectionResult(
+              success: _connectionResult!,
+              error: _connectionError,
+              onContinue: () {
+                // Save the worker URL if that's what was used
+                final workerUrl = _workerUrlController.text.trim();
+                if (workerUrl.isNotEmpty) {
+                  AppConfig.setWorkerUrl(workerUrl);
+                  _onConnectSuccess(workerUrl);
+                } else {
+                  _onConnectSuccess(_urlController.text.trim());
+                }
+              },
             ),
         ],
       ),
@@ -506,11 +691,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   // Final Page: You're All Set!
   // ---------------------------------------------------------------------------
   Widget _buildSuccessPage() {
-    return Padding(
+    const playStoreUrl =
+        'https://play.google.com/store/apps/details?id=com.lifecharger.appmanager';
+
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
+          const SizedBox(height: 24),
           Container(
             width: 96,
             height: 96,
@@ -542,7 +730,166 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             ),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 40),
+          const SizedBox(height: 32),
+
+          // Desktop-only: "Connect your phone" section
+          if (_isDesktop) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: AppColors.bgCard,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade700),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.phone_android,
+                          color: AppColors.info, size: 22),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Connect your phone',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Worker URL display
+                  if (_detectedWorkerUrl.isNotEmpty) ...[
+                    Text(
+                      'Worker URL',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade500,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: AppColors.bgDark,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey.shade700),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: SelectableText(
+                              _detectedWorkerUrl,
+                              style: const TextStyle(
+                                fontFamily: 'monospace',
+                                fontSize: 14,
+                                color: AppColors.accent,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            onPressed: () {
+                              Clipboard.setData(
+                                  ClipboardData(text: _detectedWorkerUrl));
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Worker URL copied'),
+                                  backgroundColor: AppColors.success,
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.copy, size: 18),
+                            color: Colors.grey.shade400,
+                            tooltip: 'Copy URL',
+                            constraints: const BoxConstraints(),
+                            padding: const EdgeInsets.all(4),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Enter this URL in the phone app to connect remotely',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade500,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ] else ...[
+                    Text(
+                      'No Worker URL detected in settings.json.\n'
+                      'Set up a Cloudflare Worker to enable remote access.',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey.shade500,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
+                  Divider(color: Colors.grey.shade700),
+                  const SizedBox(height: 12),
+
+                  // Play Store section
+                  const Text(
+                    'Scan to install on your phone',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.white70,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  InkWell(
+                    onTap: () => _openExternalUrl(playStoreUrl),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: AppColors.bgDark,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey.shade700),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.open_in_new,
+                              size: 16, color: AppColors.info),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              playStoreUrl,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.info,
+                                decoration: TextDecoration.underline,
+                                decorationColor: AppColors.info,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 32),
+          ],
+
           SizedBox(
             width: double.infinity,
             height: 52,
@@ -568,6 +915,22 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _openExternalUrl(String url) async {
+    final uri = Uri.parse(url);
+    try {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not open link'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
   }
 
   // ---------------------------------------------------------------------------

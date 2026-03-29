@@ -8,8 +8,8 @@ import 'theme.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/issues_screen.dart';
 import 'screens/control_screen.dart';
-import 'screens/pipeline_screen.dart';
 import 'screens/chat_logs_screen.dart';
+import 'screens/settings_screen.dart';
 import 'screens/login_screen.dart';
 
 void main() async {
@@ -64,8 +64,8 @@ class _MainShellState extends State<MainShell> {
     DashboardScreen(),
     IssuesScreen(),
     ControlScreen(),
-    PipelineScreen(),
     ChatLogsScreen(),
+    SettingsScreen(),
   ];
 
   @override
@@ -160,12 +160,12 @@ class _MainShellState extends State<MainShell> {
             label: 'Control',
           ),
           const BottomNavigationBarItem(
-            icon: Icon(Icons.auto_awesome),
-            label: 'Pipeline',
-          ),
-          const BottomNavigationBarItem(
             icon: Icon(Icons.forum),
             label: 'Chat & Logs',
+          ),
+          const BottomNavigationBarItem(
+            icon: Icon(Icons.settings),
+            label: 'Settings',
           ),
         ],
       ),

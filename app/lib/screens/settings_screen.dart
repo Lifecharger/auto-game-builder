@@ -1,4 +1,6 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -20,10 +22,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   final _urlController = TextEditingController();
   final _consoleUrlController = TextEditingController();
+  final _workerUrlController = TextEditingController();
   bool _testing = false;
   bool? _connectionResult;
   String _version = '';
   String _playStoreUrl = '';
+  bool _editingWorkerUrl = false;
+
+  bool get _isDesktop =>
+      Platform.isWindows || Platform.isLinux || Platform.isMacOS;
 
   final AuthService _auth = AuthService.instance;
   final BillingService _billing = BillingService.instance;
@@ -33,6 +40,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     _urlController.text = AppConfig.baseUrl;
+    _workerUrlController.text = AppConfig.workerUrl;
     PackageInfo.fromPlatform().then((info) {
       if (mounted) {
         setState(() {
@@ -61,6 +69,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void dispose() {
     _urlController.dispose();
     _consoleUrlController.dispose();
+    _workerUrlController.dispose();
     super.dispose();
   }
 
@@ -322,6 +331,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 16),
 
+            // Server Connection (Worker URL) card
+            _buildServerConnectionCard(),
+            const SizedBox(height: 16),
+
             // Google Play links card
             Card(
               child: Padding(
@@ -545,6 +558,290 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ),
     );
+  }
+
+  Widget _buildServerConnectionCard() {
+    final workerUrl = AppConfig.workerUrl;
+    final hasWorkerUrl = workerUrl.isNotEmpty;
+
+    if (_isDesktop) {
+      // Windows/desktop: read-only display
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.cloud_sync, color: AppColors.info),
+                  SizedBox(width: 8),
+                  Text(
+                    'Server Connection',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Worker URL',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey.shade500,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Container(
+                width: double.infinity,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: AppColors.bgDark,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade700),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        hasWorkerUrl ? workerUrl : 'Not configured',
+                        style: TextStyle(
+                          fontFamily: hasWorkerUrl ? 'monospace' : null,
+                          fontSize: 13,
+                          color: hasWorkerUrl
+                              ? Colors.white
+                              : Colors.grey.shade600,
+                        ),
+                      ),
+                    ),
+                    if (hasWorkerUrl)
+                      IconButton(
+                        onPressed: () {
+                          Clipboard.setData(ClipboardData(text: workerUrl));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Worker URL copied'),
+                              backgroundColor: AppColors.success,
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.copy, size: 18),
+                        color: Colors.grey.shade400,
+                        tooltip: 'Copy',
+                        constraints: const BoxConstraints(),
+                        padding: const EdgeInsets.all(4),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                hasWorkerUrl
+                    ? 'Auto-detected from settings.json (read-only)'
+                    : 'Set cloudflare.worker_url in server/config/settings.json',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Server URL',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey.shade500,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Container(
+                width: double.infinity,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: AppColors.bgDark,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade700),
+                ),
+                child: Text(
+                  AppConfig.baseUrl.isNotEmpty
+                      ? AppConfig.baseUrl
+                      : 'Not connected',
+                  style: TextStyle(
+                    fontFamily: AppConfig.baseUrl.isNotEmpty ? 'monospace' : null,
+                    fontSize: 13,
+                    color: AppConfig.baseUrl.isNotEmpty
+                        ? Colors.white
+                        : Colors.grey.shade600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Android/mobile: editable worker URL
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.cloud_sync, color: AppColors.info),
+                SizedBox(width: 8),
+                Text(
+                  'Server Connection',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (!_editingWorkerUrl && hasWorkerUrl) ...[
+              // Show current worker URL with Edit button
+              Text(
+                'Worker URL',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey.shade500,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Container(
+                width: double.infinity,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: AppColors.bgDark,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade700),
+                ),
+                child: Text(
+                  workerUrl,
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 13,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    _workerUrlController.text = workerUrl;
+                    setState(() => _editingWorkerUrl = true);
+                  },
+                  icon: const Icon(Icons.edit, size: 18),
+                  label: const Text('Edit Worker URL'),
+                ),
+              ),
+            ] else ...[
+              // Edit mode or no URL set
+              TextField(
+                controller: _workerUrlController,
+                decoration: const InputDecoration(
+                  hintText: 'https://auto-game-builder.you.workers.dev',
+                  prefixIcon: Icon(Icons.cloud),
+                  labelText: 'Worker URL',
+                ),
+                keyboardType: TextInputType.url,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Get this URL from the desktop app or your server admin',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  if (_editingWorkerUrl)
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () {
+                          setState(() => _editingWorkerUrl = false);
+                        },
+                        child: const Text('Cancel'),
+                      ),
+                    ),
+                  if (_editingWorkerUrl) const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: _saveWorkerUrl,
+                      icon: const Icon(Icons.save, size: 18),
+                      label: const Text('Save'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            const SizedBox(height: 12),
+            Text(
+              'Server URL',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade500,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Container(
+              width: double.infinity,
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: AppColors.bgDark,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey.shade700),
+              ),
+              child: Text(
+                AppConfig.baseUrl.isNotEmpty
+                    ? AppConfig.baseUrl
+                    : 'Not connected',
+                style: TextStyle(
+                  fontFamily: AppConfig.baseUrl.isNotEmpty ? 'monospace' : null,
+                  fontSize: 13,
+                  color: AppConfig.baseUrl.isNotEmpty
+                      ? Colors.white
+                      : Colors.grey.shade600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _saveWorkerUrl() async {
+    final url = _workerUrlController.text.trim();
+    if (url.isEmpty) return;
+    await AppConfig.setWorkerUrl(url);
+    if (mounted) {
+      setState(() => _editingWorkerUrl = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Worker URL saved'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    }
   }
 
   Widget _tipItem(String text) {

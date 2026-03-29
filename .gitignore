@@ -35,6 +35,9 @@ app/android/.kotlin/
 *.pdb
 data/
 
+# Worker config with account details
+worker/wrangler.toml
+
 # OS
 .DS_Store
 Thumbs.db

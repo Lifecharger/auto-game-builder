@@ -1,0 +1,15 @@
+# Auto Game Builder — Worker Configuration
+# Copy this file to wrangler.toml and fill in your values.
+# wrangler.toml is gitignored — your account details stay private.
+
+name = "auto-game-builder"
+main = "index.js"
+compatibility_date = "2024-01-01"
+
+# Your Cloudflare account ID (from: wrangler whoami)
+# account_id = "YOUR_ACCOUNT_ID"
+
+# KV namespace binding — the worker reads "tunnel_url" from this
+[[kv_namespaces]]
+binding = "AGB_KV"
+id = "YOUR_KV_NAMESPACE_ID"

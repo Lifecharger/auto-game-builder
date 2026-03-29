@@ -181,6 +181,43 @@ Use the returned namespace ID in settings.json under `cloudflare.kv_namespace_id
 
 If the user doesn't need remote access (only local network), set `tunnel_enabled` to `false` and leave the IDs empty.
 
+### 3b. Deploy Cloudflare Worker (for phone access)
+
+The worker gives the user a permanent URL that always proxies to their PC server, even when the tunnel URL changes on restart.
+
+**Steps:**
+1. Copy the worker config template:
+   ```bash
+   cd worker
+   cp wrangler.toml.example wrangler.toml
+   ```
+
+2. Edit `wrangler.toml` — fill in `account_id` and the KV namespace `id` (same values from settings.json).
+
+3. Deploy the worker:
+   ```bash
+   cd worker
+   wrangler deploy
+   ```
+
+4. The output shows the worker URL (e.g., `https://auto-game-builder.USERNAME.workers.dev`).
+
+5. Save this URL in settings.json under a new field:
+   ```json
+   "cloudflare": {
+       "tunnel_enabled": true,
+       "kv_namespace_id": "...",
+       "account_id": "...",
+       "worker_url": "https://auto-game-builder.USERNAME.workers.dev"
+   }
+   ```
+
+6. The user enters this worker URL in the phone app. It never changes.
+
+**How it works:**
+- Server starts → Cloudflare tunnel → gets dynamic URL → writes to KV
+- Phone connects to worker URL → worker reads KV → proxies to tunnel → reaches PC
+
 ### 4. Python Dependencies
 
 Run from the repo root:

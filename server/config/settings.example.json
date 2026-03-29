@@ -27,7 +27,8 @@
   "cloudflare": {
     "tunnel_enabled": false,
     "kv_namespace_id": "",
-    "account_id": ""
+    "account_id": "",
+    "worker_url": ""
   },
   "services": {
     "ollama_url": "http://localhost:11434"

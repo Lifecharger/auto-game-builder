@@ -163,6 +163,7 @@ def save_settings(settings_dict: dict) -> None:
             "tunnel_enabled": settings_dict.get("tunnel_enabled", False),
             "kv_namespace_id": settings_dict.get("kv_namespace_id", ""),
             "account_id": settings_dict.get("account_id", ""),
+            "worker_url": settings_dict.get("worker_url", ""),
         },
         "services": {
             "ollama_url": settings_dict.get("ollama_url", "http://localhost:11434"),
