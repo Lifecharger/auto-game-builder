@@ -290,76 +290,81 @@ def _offer_agent_repair(detections: dict, errors: list[str]):
             print(f"  Agent failed: {e}")
 
 
-# ── Agent Configuration Prompt ─────────────────────────────────────
+# ── Agent-Assisted Configuration ──────────────────────────────────
 
-def _generate_agent_prompt(settings: dict) -> str:
-    """Generate a prompt the user can paste into their AI agent to auto-configure."""
-    server_dir = _SERVER_DIR
+def _generate_agent_prompt() -> str:
+    """Generate a comprehensive prompt for an AI agent to configure everything."""
+    guide_path = os.path.join(_ROOT_DIR, "AGENT_SETUP_GUIDE.md")
     config_path = os.path.join(_CONFIG_DIR, "settings.json")
+    example_path = os.path.join(_CONFIG_DIR, "settings.example.json")
     mcp_path = os.path.join(_CONFIG_DIR, "mcp_servers.json")
+    req_path = os.path.join(_SERVER_DIR, "requirements.txt")
 
-    missing = []
-    if not settings.get("flutter_path"):
-        missing.append("Flutter SDK")
-    if not settings.get("godot_path"):
-        missing.append("Godot engine")
-    if not settings.get("claude_path") and not settings.get("gemini_path") and not settings.get("codex_path"):
-        missing.append("AI agent (Claude, Gemini, or Codex)")
-    if not settings.get("cloudflared_path"):
-        missing.append("cloudflared (for remote access)")
+    prompt = f"""Configure Auto Game Builder on my machine. Follow the guide exactly.
 
-    # Check for missing credentials
-    mcp_data = {}
-    if os.path.isfile(mcp_path):
-        with open(mcp_path, "r") as f:
-            mcp_data = json.load(f)
-    if not mcp_data.get("pixellab", {}).get("_api_key"):
-        missing.append("PixelLab API key")
-    if not mcp_data.get("elevenlabs", {}).get("_api_key"):
-        missing.append("ElevenLabs API key")
-
-    prompt = f"""I just installed Auto Game Builder at: {os.path.dirname(server_dir)}
-The server config is at: {config_path}
-The MCP config is at: {mcp_path}
+PROJECT ROOT: {_ROOT_DIR}
+GUIDE FILE: {guide_path}
 OS: {platform.system()} {platform.release()}
+Python: {sys.version.split()[0]}
 
-Please help me complete the setup:
+YOUR TASK:
+1. Read the guide file at {guide_path} — it explains everything.
+2. Install Python dependencies: pip install -r {req_path}
+3. Search my system for all tools (claude, gemini, codex, aider, flutter, godot, bash, cloudflared, npx, wrangler).
+4. Create {config_path} using {example_path} as template. Fill in every tool path you found.
+5. Ask me for projects_root (where I keep game projects).
+6. Ask me for optional API keys (PixelLab, ElevenLabs) — I can skip these.
+7. Ask me for optional Cloudflare config — I can skip this too.
+8. Create {mcp_path} with all MCP servers configured (see guide for format).
+9. Verify the setup works by running the test command from the guide.
+10. Report what you configured and what's still missing.
 
-1. FIND MISSING TOOLS — Search my system for these and update settings.json with correct paths:
-{chr(10).join(f'   - {m}' for m in missing) if missing else '   (All tools detected!)'}
-
-2. VERIFY SETTINGS — Read {config_path} and check all paths are valid (files exist). Fix any broken paths.
-
-3. MCP SERVERS — Read {mcp_path} and:
-   - If PixelLab has no _api_key, ask me for it or skip
-   - If ElevenLabs has no _api_key, ask me for it or skip
-   - Verify command-based servers (mobile, elevenlabs) can run
-
-4. TEST — After fixing, run: cd "{server_dir}" && python -c "from config.settings_loader import get_settings; s=get_settings(); print('OK:', {{k:bool(v) for k,v in s.items() if 'path' in k}})"
-
-5. REPORT what you found and fixed.
-
-Settings format (JSON with sections: server, paths, ai_agents, engines, system, cloudflare, services).
-Do NOT change the host, port, or projects_root unless they're broken."""
+IMPORTANT: Read {guide_path} first — it has the exact JSON formats, search strategies, and rules."""
 
     return prompt
 
 
-def _offer_agent_configure(settings: dict):
-    """Offer to generate a prompt for the user's AI agent to finish setup."""
-    _print_header("Agent-Assisted Configuration")
-    print("  Want your AI agent to find missing tools and fix paths?")
-    print("  This generates a prompt you can paste into Claude, Gemini, or Codex.")
+def _copy_to_clipboard(text: str) -> bool:
+    """Try to copy text to system clipboard. Returns True on success."""
+    try:
+        if platform.system() == "Windows":
+            subprocess.run(["clip"], input=text.encode("utf-8"),
+                         creationflags=subprocess.CREATE_NO_WINDOW, check=True)
+            return True
+        elif platform.system() == "Darwin":
+            subprocess.run(["pbcopy"], input=text.encode("utf-8"), check=True)
+            return True
+        else:
+            subprocess.run(["xclip", "-selection", "clipboard"],
+                         input=text.encode("utf-8"), check=True)
+            return True
+    except Exception:
+        return False
+
+
+def _offer_agent_setup() -> bool:
+    """Offer agent-assisted setup at the beginning. Returns True if user chose agent mode."""
+    _print_header("Setup Method")
+    print("  How would you like to configure Auto Game Builder?")
+    print()
+    print("    \033[36m1)\033[0m Let your AI agent do it (recommended)")
+    print("       Generates a prompt — paste it into Claude, Gemini, or Codex")
+    print("       and the agent will find tools, set paths, and configure everything.")
+    print()
+    print("    \033[36m2)\033[0m Manual setup")
+    print("       Walk through each step interactively.")
     print()
 
-    if not _ask_bool("Generate agent configuration prompt?", True):
-        return
+    choice = input("  Choose [1/2]: ").strip()
+    if choice != "1":
+        return False
 
-    prompt = _generate_agent_prompt(settings)
+    # Agent mode
+    prompt = _generate_agent_prompt()
 
     print()
     print("  \033[1m" + "─" * 58 + "\033[0m")
-    print("  \033[1m  Copy the prompt below and paste it into your AI agent:\033[0m")
+    print("  \033[1m  PASTE THIS INTO YOUR AI AGENT:\033[0m")
     print("  \033[1m" + "─" * 58 + "\033[0m")
     print()
     print(prompt)
@@ -367,24 +372,19 @@ def _offer_agent_configure(settings: dict):
     print("  \033[1m" + "─" * 58 + "\033[0m")
     print()
 
-    # Try to copy to clipboard
-    try:
-        if platform.system() == "Windows":
-            subprocess.run(["clip"], input=prompt.encode("utf-8"),
-                         creationflags=subprocess.CREATE_NO_WINDOW, check=True)
-            print("  \033[32m[OK]\033[0m Copied to clipboard!")
-        elif platform.system() == "Darwin":
-            subprocess.run(["pbcopy"], input=prompt.encode("utf-8"), check=True)
-            print("  \033[32m[OK]\033[0m Copied to clipboard!")
-        else:
-            # Linux — try xclip
-            subprocess.run(["xclip", "-selection", "clipboard"],
-                         input=prompt.encode("utf-8"), check=True)
-            print("  \033[32m[OK]\033[0m Copied to clipboard!")
-    except Exception:
+    if _copy_to_clipboard(prompt):
+        print("  \033[32m[OK]\033[0m Copied to clipboard!")
+    else:
         print("  \033[33mTip:\033[0m Select and copy the prompt above manually.")
 
     print()
+    print("  After your agent finishes, start the server with:")
+    print(f"    python {os.path.join(_SERVER_DIR, 'main.py')}")
+    print()
+    print("  You can re-run this wizard anytime to reconfigure.")
+    print()
+
+    return True
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -402,6 +402,12 @@ def run_wizard():
     print()
     print("  This wizard will configure your server by detecting tools,")
     print("  installing MCP servers, and setting up credentials.")
+    print()
+
+    # ── Agent or Manual? ──────────────────────────────────────
+    if _offer_agent_setup():
+        return  # Agent mode — user will paste prompt into their agent
+
     print("  Press Enter to accept defaults. All credentials are optional.")
     print()
 
@@ -581,17 +587,14 @@ def run_wizard():
     save_settings(settings)
     print("    \033[32m[OK]\033[0m config/settings.json saved")
 
-    # ── Step 10: Agent-Assisted Configuration ──────────────────
-    _offer_agent_configure(settings)
-
-    # ── Step 11: Self-Test ─────────────────────────────────────
+    # ── Step 9: Self-Test ──────────────────────────────────────
     test_ok = False
     if _ask_bool("Run a quick server health check?", True):
         test_ok = _self_test(host, port)
         if not test_ok:
             errors.append("Server health check failed")
 
-    # ── Step 12: Agent Repair (if needed) ──────────────────────
+    # ── Step 10: Agent Repair (if needed) ─────────────────────
     if errors:
         _offer_agent_repair(all_detections, errors)
 
