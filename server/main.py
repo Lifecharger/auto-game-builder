@@ -281,9 +281,18 @@ def main():
     start_background_services()
     atexit.register(cleanup)
 
-    from ui.app import AppManagerApp
-    app = AppManagerApp()
-    app.mainloop()
+    settings = get_settings()
+    port = settings.get("port", 8000)
+    print(f"[AutoGameBuilder] Server running at http://localhost:{port}")
+    print("[AutoGameBuilder] Press Ctrl+C to stop")
+
+    # Keep the process alive (API server runs in background thread)
+    try:
+        while True:
+            import time
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("\n[AutoGameBuilder] Shutting down...")
 
 
 if __name__ == "__main__":

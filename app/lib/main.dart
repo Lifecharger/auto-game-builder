@@ -39,7 +39,7 @@ class AppManagerMobile extends StatelessWidget {
     return ChangeNotifierProvider(
       create: (_) => AppState()..loadApps(),
       child: MaterialApp(
-        title: 'AppManager',
+        title: 'Auto Game Builder',
         debugShowCheckedModeBanner: false,
         theme: buildAppTheme(),
         home: AppConfig.baseUrl.isEmpty

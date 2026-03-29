@@ -98,28 +98,6 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"[Startup] Pipeline engine init warning: {e}")
         app.state.pipeline = None
-    # Initialize Grok auto-downloader with 6-hour schedule
-    try:
-        from core.grok_downloader import GrokDownloader
-        app.state.grok_dl = GrokDownloader()
-
-        def _grok_scheduler():
-            import time as _time
-            # Run immediately on startup, then every 6 hours
-            while True:
-                try:
-                    print("[GrokScheduler] Running scheduled download (last 3 days)...")
-                    result = app.state.grok_dl.run(since_hours=72)
-                    print(f"[GrokScheduler] Result: {result}")
-                except Exception as e:
-                    print(f"[GrokScheduler] Error: {e}")
-                _time.sleep(6 * 3600)  # 6 hours
-
-        grok_thread = threading.Thread(target=_grok_scheduler, daemon=True)
-        grok_thread.start()
-        print("[Startup] Grok auto-downloader scheduled (every 6 hours)")
-    except Exception as e:
-        print(f"[Startup] Grok downloader init warning: {e}")
     # Auto-setup MCP presets if not yet populated
     if not _load_mcp_servers():
         try:
@@ -414,7 +392,7 @@ def create_new_app(body: AppCreate):
         lines.append("  - Use PixelLab MCP tools if available (create_character, topdown_tilesets, tiles_pro, create_map_object, etc.)\n")
         _td = get_settings().get("tools_dir", "")
         if _td:
-            lines.append(f"  - Use Python scripts in `{_td}/`: pixellab_generate_image.py, pixellab_generate_background.py, pixellab_generate_ui.py, grok_generate_image.py\n")
+            lines.append(f"  - Use Python scripts in `{_td}/`: pixellab_generate_image.py, pixellab_generate_background.py, pixellab_generate_ui.py\n")
         lines.append("- If you cannot generate the asset (no credits, rate limited, tool error), mark the task as \"failed\" — do NOT substitute a placeholder\n")
         lines.append("- This rule applies to ALL assets: icons, sprites, backgrounds, UI elements, buttons, textures, tiles\n")
         lines.append("- NEVER use animation fallbacks (static sprites, single-frame \"animations\", or skipping animations). If a task needs an animation, GENERATE IT using PixelLab MCP (animate_character) or SDK tools. If generation fails, mark the task as \"failed\".\n")
@@ -3168,51 +3146,6 @@ def pipeline_reject(body: PipelineRejectRequest):
     if "error" in result:
         raise HTTPException(400, result["error"])
     return result
-
-
-@app.get("/api/pipeline/grok/status")
-def grok_downloader_status():
-    """Get Grok downloader status."""
-    if not hasattr(app.state, "grok_dl"):
-        from core.grok_downloader import GrokDownloader
-        app.state.grok_dl = GrokDownloader()
-    return app.state.grok_dl.get_status()
-
-
-@app.post("/api/pipeline/grok/run")
-def grok_downloader_run():
-    """Run Grok favorites download (last 3 days, skips downloaded)."""
-    if not hasattr(app.state, "grok_dl"):
-        from core.grok_downloader import GrokDownloader
-        app.state.grok_dl = GrokDownloader()
-    dl = app.state.grok_dl
-    if dl._running:
-        return {"error": "Already running"}
-
-    def _run():
-        dl.run(since_hours=72)  # Last 3 days
-
-    thread = threading.Thread(target=_run, daemon=True)
-    thread.start()
-    return {"ok": True, "message": "Grok download started (last 3 days)"}
-
-
-@app.post("/api/pipeline/grok/seed")
-def grok_downloader_seed():
-    """Catalog all existing favorites without downloading. Prevents re-downloads."""
-    if not hasattr(app.state, "grok_dl"):
-        from core.grok_downloader import GrokDownloader
-        app.state.grok_dl = GrokDownloader()
-    dl = app.state.grok_dl
-    if dl._running:
-        return {"error": "Already running"}
-
-    def _seed():
-        dl.seed_history()
-
-    thread = threading.Thread(target=_seed, daemon=True)
-    thread.start()
-    return {"ok": True, "message": "Seeding history — cataloging all existing favorites"}
 
 
 @app.post("/api/pipeline/generate-music")

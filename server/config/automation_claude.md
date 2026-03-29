@@ -32,7 +32,7 @@ Every task you generate MUST be completable in a SINGLE session (max 30 minutes 
   - `pixellab_generate_image.py` — pixel art sprites, icons, items
   - `pixellab_generate_background.py` — full game backgrounds (topdown, sidescroller, parallax, menu, battle, isometric)
   - `pixellab_generate_ui.py` — UI elements (buttons, health bars, panels)
-  - `grok_generate_image.py` — photorealistic or stylized images via Grok AI
+
 - If you cannot generate the asset (no credits, rate limited, tool error), mark the task as "failed" with a clear explanation. Do NOT substitute a colored rectangle or placeholder file.
 - If a task requires art you cannot generate, create a follow-up task specifically for asset generation.
 - NEVER use animation fallbacks (static sprites, single-frame "animations", or skipping animations). If a task needs an animation, GENERATE IT using PixelLab MCP (animate_character) or SDK tools. If generation fails, mark the task as "failed".
