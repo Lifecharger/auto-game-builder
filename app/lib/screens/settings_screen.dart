@@ -35,6 +35,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final AuthService _auth = AuthService.instance;
   final BillingService _billing = BillingService.instance;
   bool _billingReady = false;
+  bool _serverRunning = false;
+  Process? _serverProcess;
 
   @override
   void initState() {
@@ -331,6 +333,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 16),
 
+            // Server Control (desktop only)
+            if (_isDesktop) _buildServerControlCard(),
+
             // Server Connection (Worker URL) card
             _buildServerConnectionCard(),
             const SizedBox(height: 16),
@@ -551,6 +556,139 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     _aboutItem('Backend', 'FastAPI'),
                     _aboutItem('Developer', 'LifeCharger'),
                   ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _toggleServer() async {
+    if (_serverRunning && _serverProcess != null) {
+      _serverProcess!.kill();
+      _serverProcess = null;
+      setState(() => _serverRunning = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Server stopped'),
+            backgroundColor: AppColors.warning,
+          ),
+        );
+      }
+      return;
+    }
+
+    // Find start_server.py relative to exe
+    final exeDir = File(Platform.resolvedExecutable).parent.path;
+    final candidates = [
+      '$exeDir/start_server.py',
+      '${File(exeDir).parent.path}/start_server.py',
+      '${File(File(exeDir).parent.path).parent.path}/start_server.py',
+    ];
+
+    String? scriptPath;
+    for (final c in candidates) {
+      if (File(c).existsSync()) {
+        scriptPath = c;
+        break;
+      }
+    }
+
+    if (scriptPath == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('start_server.py not found'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+      return;
+    }
+
+    try {
+      _serverProcess = await Process.start(
+        'python',
+        [scriptPath],
+        mode: ProcessStartMode.detached,
+      );
+      setState(() => _serverRunning = true);
+
+      // Wait a moment then test connection
+      await Future.delayed(const Duration(seconds: 3));
+      final ok = await ApiService.healthCheck();
+      if (mounted) {
+        setState(() => _serverRunning = ok);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(ok ? 'Server started!' : 'Server started but health check failed'),
+            backgroundColor: ok ? AppColors.success : AppColors.warning,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to start server: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  Widget _buildServerControlCard() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  _serverRunning ? Icons.dns : Icons.dns_outlined,
+                  color: _serverRunning ? AppColors.success : Colors.grey,
+                ),
+                const SizedBox(width: 8),
+                const Text(
+                  'Server',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _serverRunning
+                        ? AppColors.success.withAlpha(30)
+                        : Colors.grey.withAlpha(30),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    _serverRunning ? 'Running' : 'Stopped',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: _serverRunning ? AppColors.success : Colors.grey,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _toggleServer,
+                icon: Icon(_serverRunning ? Icons.stop : Icons.play_arrow),
+                label: Text(_serverRunning ? 'Stop Server' : 'Start Server'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _serverRunning ? AppColors.error : AppColors.success,
+                  foregroundColor: Colors.white,
                 ),
               ),
             ),
