@@ -37,7 +37,9 @@ Install from [Google Play](https://play.google.com/store/apps/details?id=com.lif
 ```bash
 cd app
 flutter pub get
-flutter run
+flutter build windows --release   # Windows desktop
+flutter build apk --release       # Android APK
+flutter build appbundle --release  # Android AAB (Google Play)
 ```
 
 ## Prerequisites

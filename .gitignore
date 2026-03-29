@@ -29,6 +29,12 @@ app/.flutter-plugins-dependencies
 app/android/.gradle/
 app/android/.kotlin/
 
+# Windows build output in root (from flutter build)
+*.exe
+*.dll
+*.pdb
+data/
+
 # OS
 .DS_Store
 Thumbs.db

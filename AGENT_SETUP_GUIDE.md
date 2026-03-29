@@ -192,7 +192,58 @@ If this fails, read the error and fix it. Common issues:
 - Missing C++ build tools on Windows: Install Visual Studio Build Tools
 - Old pip: Run `python -m pip install --upgrade pip`
 
-### 4. Verification
+### 5. Flutter SDK (for building the app from source)
+
+The mobile/desktop app is built with Flutter. If Flutter is not installed:
+
+**Windows:**
+```bash
+git clone https://github.com/flutter/flutter.git -b stable C:\flutter
+set PATH=C:\flutter\bin;%PATH%
+flutter doctor
+```
+
+**macOS:**
+```bash
+git clone https://github.com/flutter/flutter.git -b stable ~/flutter
+export PATH="$HOME/flutter/bin:$PATH"
+flutter doctor
+```
+
+**Linux:**
+```bash
+git clone https://github.com/flutter/flutter.git -b stable ~/flutter
+export PATH="$HOME/flutter/bin:$PATH"
+flutter doctor
+```
+
+After installing, run `flutter doctor` to check for any missing dependencies (Android SDK, etc).
+
+**Building the Windows desktop app:**
+```bash
+cd app
+flutter pub get
+flutter build windows --release
+```
+The exe will be at `app/build/windows/x64/runner/Release/app_manager_mobile.exe`
+
+**Building the Android APK:**
+```bash
+cd app
+flutter pub get
+flutter build apk --release
+```
+The APK will be at `app/build/app/outputs/flutter-apk/app-release.apk`
+
+**Building the Android AAB (for Google Play):**
+```bash
+cd app
+flutter pub get
+flutter build appbundle --release
+```
+The AAB will be at `app/build/app/outputs/bundle/release/app-release.aab`
+
+### 6. Verification
 
 After configuring, verify the setup works:
 
