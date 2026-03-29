@@ -9,8 +9,7 @@ A self-hosted game project management system for indie developers. Manage builds
 - **Issue Tracking**: Create issues, queue them for AI auto-fix, track results
 - **Task Automation**: Continuous automation loops with configurable intervals
 - **MCP Integration**: PixelLab (pixel art), ElevenLabs (audio), Mobile (device testing)
-- **Asset Pipeline**: Automated asset processing and cataloging
-- **Remote Access**: Cloudflare tunnel for phone-to-PC connection
+- **Remote Access**: Cloudflare Worker proxy for permanent phone-to-PC connection
 
 ## Architecture
 
