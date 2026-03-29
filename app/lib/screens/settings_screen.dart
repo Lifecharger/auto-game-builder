@@ -100,6 +100,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       final content = await File(path).readAsString();
       final json = jsonDecode(content) as Map<String, dynamic>;
+
+      // Sync worker URL and server URL from settings.json into AppConfig
+      final workerUrl = (json['cloudflare'] as Map<String, dynamic>?)?['worker_url'] as String? ?? '';
+      if (workerUrl.isNotEmpty && AppConfig.workerUrl.isEmpty) {
+        await AppConfig.setWorkerUrl(workerUrl);
+        _workerUrlController.text = workerUrl;
+      }
+      final host = (json['server'] as Map<String, dynamic>?)?['host'] as String? ?? '0.0.0.0';
+      final port = (json['server'] as Map<String, dynamic>?)?['port'] ?? 8000;
+      final connectHost = (host == '0.0.0.0') ? 'localhost' : host;
+      final serverUrl = 'http://$connectHost:$port';
+      if (AppConfig.baseUrl.isEmpty) {
+        await AppConfig.setBaseUrl(serverUrl);
+        _urlController.text = serverUrl;
+      }
+
       if (mounted) {
         setState(() {
           _serverSettings = json;
