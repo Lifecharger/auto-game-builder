@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/app_model.dart';
@@ -148,6 +150,36 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     await _loadBuildCount();
     if (mounted && context.read<AppState>().error == null) {
       setState(() => _lastSyncedAt = DateTime.now());
+    }
+  }
+
+  Future<void> _scanProjects() async {
+    try {
+      final resp = await http.post(
+        Uri.parse('${ApiService.baseUrl}/api/apps/scan'),
+        headers: {'Content-Type': 'application/json'},
+      ).timeout(const Duration(seconds: 30));
+      if (!mounted) return;
+      final data = jsonDecode(resp.body);
+      final imported = data['imported'] ?? 0;
+      final found = data['found'] ?? 0;
+      final skipped = data['skipped'] ?? 0;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Scanned $found folders: $imported imported, $skipped skipped'),
+          backgroundColor: imported > 0 ? AppColors.success : AppColors.info,
+        ),
+      );
+      if (imported > 0) await _refresh();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Scan error: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
     }
   }
 
@@ -485,13 +517,13 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _refresh,
+            icon: const Icon(Icons.radar),
+            tooltip: 'Scan for projects',
+            onPressed: _scanProjects,
           ),
           IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () => Navigator.push(context,
-              MaterialPageRoute(builder: (_) => const SettingsScreen())),
+            icon: const Icon(Icons.refresh),
+            onPressed: _refresh,
           ),
         ],
       ),

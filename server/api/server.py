@@ -324,6 +324,80 @@ def set_app_mcp(app_id: int, body: AppMcpUpdate):
 
     return {"ok": True}
 
+@app.post("/api/apps/scan")
+def scan_projects():
+    """Scan projects_root for existing projects and register them."""
+    from core.app_detector import AppDetector
+    detector = AppDetector()
+    s = get_settings()
+    projects_root = s.get("projects_root", os.path.join(str(Path.home()), "Projects"))
+
+    if not os.path.isdir(projects_root):
+        return {"ok": False, "error": f"Projects root not found: {projects_root}", "found": 0, "imported": 0}
+
+    found = 0
+    imported = 0
+    skipped = []
+    results = []
+
+    for entry in sorted(os.listdir(projects_root)):
+        project_path = os.path.join(projects_root, entry)
+        if not os.path.isdir(project_path):
+            continue
+        # Skip hidden/system folders
+        if entry.startswith(".") or entry.startswith("_"):
+            continue
+
+        found += 1
+        slug = detector.generate_slug(entry)
+
+        # Skip if already registered
+        existing = db().get_app_by_slug(slug)
+        if existing:
+            skipped.append(entry)
+            continue
+
+        # Detect project type
+        info = detector.detect(project_path)
+        if info["app_type"] == "custom":
+            # Check if it's really a project or just a random folder
+            has_code = any(
+                os.path.isfile(os.path.join(project_path, f))
+                for f in ["pubspec.yaml", "project.godot", "package.json", "pyproject.toml", "Cargo.toml"]
+            )
+            if not has_code:
+                skipped.append(entry)
+                continue
+
+        # Register in DB
+        app_id = db().create_app(
+            name=entry,
+            slug=slug,
+            project_path=project_path,
+            app_type=info["app_type"],
+            current_version=info.get("version", ""),
+            package_name=info.get("package_name", ""),
+            status="idle",
+            publish_status="development",
+        )
+        imported += 1
+        results.append({
+            "id": app_id,
+            "name": entry,
+            "type": info["app_type"],
+            "version": info.get("version", ""),
+            "package": info.get("package_name", ""),
+        })
+
+    return {
+        "ok": True,
+        "found": found,
+        "imported": imported,
+        "skipped": len(skipped),
+        "apps": results,
+    }
+
+
 @app.post("/api/apps")
 def create_new_app(body: AppCreate):
     """Create a new app: makes folder, tasklist.json, and DB entry."""
