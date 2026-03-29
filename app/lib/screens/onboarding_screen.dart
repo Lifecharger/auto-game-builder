@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -29,6 +30,72 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   // Total pages: connect + (optional setup) + success
   int get _pageCount => _showSetupPage ? 3 : 2;
+
+  @override
+  void initState() {
+    super.initState();
+    _tryAutoDetectServer();
+  }
+
+  /// Try to auto-detect the server URL from local settings.json
+  Future<void> _tryAutoDetectServer() async {
+    try {
+      // Look for settings.json relative to the exe location (Windows)
+      // or in known locations
+      final candidates = <String>[];
+      final exePath = Platform.resolvedExecutable;
+      final exeDir = File(exePath).parent.path;
+
+      // Same directory as exe (when exe is in repo root)
+      candidates.add('$exeDir/server/config/settings.json');
+      // Parent directory (when exe is in a subfolder)
+      candidates.add('${File(exeDir).parent.path}/server/config/settings.json');
+      // Two levels up (when exe is in build/windows/...)
+      candidates.add('${File(File(exeDir).parent.path).parent.path}/server/config/settings.json');
+
+      for (final path in candidates) {
+        final file = File(path);
+        if (await file.exists()) {
+          final content = await file.readAsString();
+          final json = jsonDecode(content);
+          final host = json['server']?['host'] ?? '0.0.0.0';
+          final port = json['server']?['port'] ?? 8000;
+          // Use localhost instead of 0.0.0.0 for connecting
+          final connectHost = (host == '0.0.0.0') ? 'localhost' : host;
+          final url = 'http://$connectHost:$port';
+
+          // Test if server is actually running
+          try {
+            final resp = await http.get(Uri.parse('$url/api/health'))
+                .timeout(const Duration(seconds: 2));
+            if (resp.statusCode == 200) {
+              // Server is running! Auto-connect
+              await AppConfig.setBaseUrl(url);
+              if (mounted) {
+                _urlController.text = url;
+                setState(() {
+                  _connectionResult = true;
+                  _connectedServerName = url;
+                });
+                // Skip straight to success page
+                _currentPage = _showSetupPage ? 2 : 1;
+                _pageController.jumpToPage(_currentPage);
+              }
+              return;
+            }
+          } catch (_) {
+            // Server not running — still prefill the URL
+            if (mounted) {
+              _urlController.text = url;
+            }
+          }
+          return;
+        }
+      }
+    } catch (_) {
+      // Auto-detect failed silently — user enters URL manually
+    }
+  }
 
   @override
   void dispose() {
