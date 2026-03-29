@@ -138,7 +138,50 @@ MCP (Model Context Protocol) servers extend AI agent capabilities. Configure wha
 - Mobile MCP: Run `npx -y @mobilenext/mobile-mcp --version` (needs Node.js)
 - ElevenLabs: Run `uvx elevenlabs-mcp --help` (needs Python uv: https://docs.astral.sh/uv/)
 
-### 3. Python Dependencies
+### 3. Cloudflare Setup (for remote access)
+
+If the user wants to access the server from their phone over the internet, they need Cloudflare Tunnel.
+
+**Install cloudflared:**
+- Windows: `winget install Cloudflare.cloudflared`
+- macOS: `brew install cloudflared`
+- Linux: See https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/
+
+**Install and authenticate wrangler** (for KV — stores the tunnel URL so the phone can find the server):
+```bash
+npm install -g wrangler
+wrangler login
+```
+`wrangler login` opens a browser for Cloudflare OAuth. After login, `wrangler whoami` shows the account.
+
+**Get the account_id:**
+```bash
+wrangler whoami
+```
+Look for the Account ID in the output.
+
+**Get or create a KV namespace:**
+```bash
+wrangler kv namespace list
+```
+If none exist, create one:
+```bash
+wrangler kv namespace create "auto_game_builder"
+```
+Use the returned namespace ID in settings.json under `cloudflare.kv_namespace_id`.
+
+**Settings to fill:**
+```json
+"cloudflare": {
+    "tunnel_enabled": true,
+    "kv_namespace_id": "the-namespace-id",
+    "account_id": "the-account-id"
+}
+```
+
+If the user doesn't need remote access (only local network), set `tunnel_enabled` to `false` and leave the IDs empty.
+
+### 4. Python Dependencies
 
 Run from the repo root:
 ```bash
