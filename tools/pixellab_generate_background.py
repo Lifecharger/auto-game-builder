@@ -4,27 +4,27 @@ Supports top-down maps, sidescroller scenes, parallax layers, and menu screens.
 
 Usage:
     # Top-down map background
-    python "C:/General Tools/pixellab_generate_background.py" -d "forest clearing with river" --preset topdown -o forest.png
+    python pixellab_generate_background.py -d "forest clearing with river" --preset topdown -o forest.png
 
     # Sidescroller scene
-    python "C:/General Tools/pixellab_generate_background.py" -d "underground cave with crystals" --preset sidescroller -o cave.png
+    python pixellab_generate_background.py -d "underground cave with crystals" --preset sidescroller -o cave.png
 
     # Parallax layers (generates 3 layers: far, mid, near)
-    python "C:/General Tools/pixellab_generate_background.py" -d "mountain sunset landscape" --preset parallax -o mountains.png
+    python pixellab_generate_background.py -d "mountain sunset landscape" --preset parallax -o mountains.png
 
     # Menu/title screen
-    python "C:/General Tools/pixellab_generate_background.py" -d "dark castle entrance with torches" --preset menu -o title_bg.png
+    python pixellab_generate_background.py -d "dark castle entrance with torches" --preset menu -o title_bg.png
 
     # Custom size
-    python "C:/General Tools/pixellab_generate_background.py" -d "ocean with islands" -W 400 -H 300 --view "high top-down" -o ocean.png
+    python pixellab_generate_background.py -d "ocean with islands" -W 400 -H 300 --view "high top-down" -o ocean.png
 
     # Batch: generate multiple variations
-    python "C:/General Tools/pixellab_generate_background.py" -d "enchanted forest" --preset topdown --variations 3 -o enchanted.png
+    python pixellab_generate_background.py -d "enchanted forest" --preset topdown --variations 3 -o enchanted.png
 """
 import argparse
 import os
 import sys
-sys.path.insert(0, r"C:\General Tools")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from pixellab_client import get_client
 
 PRESETS = {

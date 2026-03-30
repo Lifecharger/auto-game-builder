@@ -2,11 +2,11 @@
 Convert a PNG sprite to a JavaScript pixel array for HTML games.
 
 Usage:
-    python "C:/General Tools/png_to_pixel_array.py" -i sprite.png
-    python "C:/General Tools/png_to_pixel_array.py" -i sprite.png -o output.js
-    python "C:/General Tools/png_to_pixel_array.py" -i sprite.png --format python
-    python "C:/General Tools/png_to_pixel_array.py" -i sprite.png --max-colors 16
-    python "C:/General Tools/png_to_pixel_array.py" -i sprite.png --downscale 32
+    python png_to_pixel_array.py -i sprite.png
+    python png_to_pixel_array.py -i sprite.png -o output.js
+    python png_to_pixel_array.py -i sprite.png --format python
+    python png_to_pixel_array.py -i sprite.png --max-colors 16
+    python png_to_pixel_array.py -i sprite.png --downscale 32
 
 Outputs a 2D array where each cell is a hex color (0xRRGGBB) or 0 for transparent.
 """

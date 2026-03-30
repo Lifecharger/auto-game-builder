@@ -2,10 +2,11 @@
 Check PixelLab account balance.
 
 Usage:
-    python "C:/General Tools/pixellab_balance.py"
+    python pixellab_balance.py
 """
+import os
 import sys
-sys.path.insert(0, r"C:\General Tools")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from pixellab_client import get_balance
 
 result = get_balance()

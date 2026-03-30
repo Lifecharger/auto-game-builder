@@ -2,9 +2,9 @@
 Generate videos using Grok (xAI) via chat API with browser cookies.
 
 Usage:
-    python "C:/General Tools/grok_generate_video.py" -d "a cat riding a bicycle through a park"
-    python "C:/General Tools/grok_generate_video.py" -d "ocean waves at sunset" --aspect 16:9 --length 10
-    python "C:/General Tools/grok_generate_video.py" -d "knight fighting dragon" --resolution 720p -o fight.mp4
+    python grok_generate_video.py -d "a cat riding a bicycle through a park"
+    python grok_generate_video.py -d "ocean waves at sunset" --aspect 16:9 --length 10
+    python grok_generate_video.py -d "knight fighting dragon" --resolution 720p -o fight.mp4
 
 Aspect ratios: 2:3, 3:2, 16:9, 9:16, 1:1
 Resolutions: 480p, 720p
@@ -18,7 +18,9 @@ import uuid
 import time
 import requests
 
-HISTORY_FILE = r"C:\AppManager\config\grok_download_history.json"
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+_REPO_ROOT = os.path.dirname(_SCRIPT_DIR)  # tools/ is one level below repo root
+HISTORY_FILE = os.path.join(_REPO_ROOT, "server", "config", "grok_download_history.json")
 DOWNLOADS_DIR = os.path.join(os.path.expanduser("~"), "Downloads", "grok-generated")
 CHAT_URL = "https://grok.com/rest/app-chat/conversations/new"
 MEDIA_CREATE_URL = "https://grok.com/rest/media/post/create"

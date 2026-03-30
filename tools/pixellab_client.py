@@ -12,7 +12,9 @@ import requests
 from pathlib import Path
 from pixellab.client import PixelLabClient
 
-MCP_SERVERS_FILE = Path(r"C:\AppManager\config\mcp_servers.json")
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+_REPO_ROOT = os.path.dirname(_SCRIPT_DIR)  # tools/ is one level below repo root
+MCP_SERVERS_FILE = Path(os.path.join(_REPO_ROOT, "server", "config", "mcp_servers.json"))
 API_V1 = "https://api.pixellab.ai/v1"
 API_V2 = "https://api.pixellab.ai/v2"
 

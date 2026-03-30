@@ -2,13 +2,14 @@
 Generate pixel art image using PixelLab Pixflux (SDK).
 
 Usage:
-    python "C:/General Tools/pixellab_generate_image.py" -d "cute wizard with blue robes" -W 64 -H 64 -o wizard.png
-    python "C:/General Tools/pixellab_generate_image.py" -d "wooden barrel" -W 32 -H 32 --no-background -o barrel.png
-    python "C:/General Tools/pixellab_generate_image.py" -d "knight in armor" -W 48 -H 48 --view side --direction south -o knight.png
+    python pixellab_generate_image.py -d "cute wizard with blue robes" -W 64 -H 64 -o wizard.png
+    python pixellab_generate_image.py -d "wooden barrel" -W 32 -H 32 --no-background -o barrel.png
+    python pixellab_generate_image.py -d "knight in armor" -W 48 -H 48 --view side --direction south -o knight.png
 """
 import argparse
+import os
 import sys
-sys.path.insert(0, r"C:\General Tools")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from pixellab_client import get_client
 
 

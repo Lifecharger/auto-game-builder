@@ -2,13 +2,14 @@
 Generate UI elements using PixelLab v2 API (not in SDK).
 
 Usage:
-    python "C:/General Tools/pixellab_generate_ui.py" -d "medieval stone button with gold trim" -W 64 -H 32 -o button.png
-    python "C:/General Tools/pixellab_generate_ui.py" -d "health bar red and green" -W 128 -H 16 -o healthbar.png
-    python "C:/General Tools/pixellab_generate_ui.py" -d "inventory slot dark wood frame" -W 32 -H 32 --no-background -o slot.png
+    python pixellab_generate_ui.py -d "medieval stone button with gold trim" -W 64 -H 32 -o button.png
+    python pixellab_generate_ui.py -d "health bar red and green" -W 128 -H 16 -o healthbar.png
+    python pixellab_generate_ui.py -d "inventory slot dark wood frame" -W 32 -H 32 --no-background -o slot.png
 """
 import argparse
+import os
 import sys
-sys.path.insert(0, r"C:\General Tools")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from pixellab_client import api_post, save_base64_image
 
 

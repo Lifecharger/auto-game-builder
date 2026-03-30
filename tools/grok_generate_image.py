@@ -2,9 +2,9 @@
 Generate images using Grok (xAI) via WebSocket API with browser cookies.
 
 Usage:
-    python "C:/General Tools/grok_generate_image.py" -d "a knight fighting a dragon" -o knight.png
-    python "C:/General Tools/grok_generate_image.py" -d "cute pixel art cat" --aspect 1:1 -o cat.png
-    python "C:/General Tools/grok_generate_image.py" -d "fantasy landscape" --aspect 16:9 --count 4 -o landscape.png
+    python grok_generate_image.py -d "a knight fighting a dragon" -o knight.png
+    python grok_generate_image.py -d "cute pixel art cat" --aspect 1:1 -o cat.png
+    python grok_generate_image.py -d "fantasy landscape" --aspect 16:9 --count 4 -o landscape.png
 
 Aspect ratios: 2:3, 3:2, 16:9, 9:16, 1:1, 4:3, 3:4
 """
@@ -17,7 +17,9 @@ import time
 import threading
 import websocket
 
-HISTORY_FILE = r"C:\AppManager\config\grok_download_history.json"
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+_REPO_ROOT = os.path.dirname(_SCRIPT_DIR)  # tools/ is one level below repo root
+HISTORY_FILE = os.path.join(_REPO_ROOT, "server", "config", "grok_download_history.json")
 DOWNLOADS_DIR = os.path.join(os.path.expanduser("~"), "Downloads", "grok-generated")
 
 

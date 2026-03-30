@@ -1,14 +1,27 @@
-import os, sys, time, json, glob
+import os, sys, time, json, glob, argparse
 import cv2
 import numpy as np
 from PIL import Image
 from rembg import remove, new_session
 
+parser = argparse.ArgumentParser(
+    description="Extract frames from MP4 videos and remove backgrounds using rembg."
+)
+parser.add_argument(
+    "--characters-dir", required=True,
+    help="Characters directory (output destination and secondary MP4 source)"
+)
+parser.add_argument(
+    "--downloads-dir", required=True,
+    help="Downloads directory (primary MP4 source)"
+)
+args = parser.parse_args()
+
+CHARACTERS_DIR = args.characters_dir
+DOWNLOADS_DIR = args.downloads_dir
+
 print("Loading rembg model...")
 session = new_session("u2net")
-
-CHARACTERS_DIR = "C:/Projects/Pixel Guy/assets/characters"
-DOWNLOADS_DIR = "C:/Users/caca_/Downloads"
 
 def extract_and_process(mp4_path, output_dir):
     os.makedirs(output_dir, exist_ok=True)

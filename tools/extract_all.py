@@ -1,5 +1,5 @@
 """Extract frames from MP4 videos, remove background using u2net directly (no rembg)."""
-import os, sys, time, json, glob
+import os, sys, time, json, glob, argparse
 
 # Add cuDNN/cuBLAS DLL paths BEFORE importing onnxruntime
 cudnn_bin = os.path.expanduser("~/AppData/Roaming/Python/Python314/site-packages/nvidia/cudnn/bin")
@@ -30,8 +30,21 @@ input_name = ort_session.get_inputs()[0].name
 print(f"Model loaded! Using: {ort_session.get_providers()}")
 sys.stdout.flush()
 
-CHARACTERS_DIR = "C:/Projects/Pixel Guy/assets/characters"
-DOWNLOADS_DIR = "C:/Users/caca_/Downloads"
+parser = argparse.ArgumentParser(
+    description="Extract frames from all MP4 videos and remove backgrounds."
+)
+parser.add_argument(
+    "--characters-dir", required=True,
+    help="Characters directory (output destination and secondary MP4 source)"
+)
+parser.add_argument(
+    "--downloads-dir", required=True,
+    help="Downloads directory (primary MP4 source)"
+)
+args = parser.parse_args()
+
+CHARACTERS_DIR = args.characters_dir
+DOWNLOADS_DIR = args.downloads_dir
 
 
 def remove_bg(pil_img):

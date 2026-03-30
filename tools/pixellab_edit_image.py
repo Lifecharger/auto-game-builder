@@ -2,13 +2,14 @@
 Edit/inpaint pixel art using PixelLab v2 API.
 
 Usage:
-    python "C:/General Tools/pixellab_edit_image.py" -i sprite.png -m mask.png -d "add a red cape" -o edited.png
+    python pixellab_edit_image.py -i sprite.png -m mask.png -d "add a red cape" -o edited.png
 
 Mask: white = area to regenerate, black = keep as-is.
 """
 import argparse
+import os
 import sys
-sys.path.insert(0, r"C:\General Tools")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from pixellab_client import api_post, image_to_base64, save_base64_image
 
 

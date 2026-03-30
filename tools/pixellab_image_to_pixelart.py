@@ -2,11 +2,12 @@
 Convert a regular image to pixel art using PixelLab v2 API.
 
 Usage:
-    python "C:/General Tools/pixellab_image_to_pixelart.py" -i photo.png -o pixelart.png -W 64 -H 64
+    python pixellab_image_to_pixelart.py -i photo.png -o pixelart.png -W 64 -H 64
 """
 import argparse
+import os
 import sys
-sys.path.insert(0, r"C:\General Tools")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from pixellab_client import api_post, image_to_base64, save_base64_image
 
 

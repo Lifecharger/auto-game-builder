@@ -1,15 +1,32 @@
-import os, sys, time, json, shutil
+import os, sys, time, json, shutil, argparse
 import cv2
 import numpy as np
 from PIL import Image
 from rembg import remove, new_session
 
+parser = argparse.ArgumentParser(
+    description="Extract turntable video frames, remove backgrounds, and copy to project directories."
+)
+parser.add_argument(
+    "--characters-src", required=True,
+    help="Source directory containing character MP4 videos and PNG portraits"
+)
+parser.add_argument(
+    "--pixel-guy-dir", required=True,
+    help="Pixel Guy characters output directory"
+)
+parser.add_argument(
+    "--elven-duty-dir", required=True,
+    help="Elven Duty assets output directory"
+)
+args = parser.parse_args()
+
+CHARACTERS_SRC = args.characters_src
+PIXEL_GUY_DIR = args.pixel_guy_dir
+ELVEN_DUTY_DIR = args.elven_duty_dir
+
 print("Loading rembg model...")
 session = new_session("u2net")
-
-CHARACTERS_SRC = "C:/Users/caca_/Desktop/Characters"
-PIXEL_GUY_DIR = "C:/Projects/Pixel Guy/assets/characters"
-ELVEN_DUTY_DIR = "C:/Projects/Elven Duty/assets"
 
 videos = [
     ("warior360.mp4", "warrior_turntable"),
