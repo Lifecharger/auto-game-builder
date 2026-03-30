@@ -1651,7 +1651,7 @@ Return ONLY flat JSON, no nested objects."""
                 mcp_config_path = server_dir / "config" / "mcp_servers.json"
                 if mcp_config_path.is_file():
                     try:
-                        with open(mcp_config_path) as f:
+                        with open(mcp_config_path, encoding="utf-8") as f:
                             mcp = json.load(f)
                         api_key = mcp.get("elevenlabs", {}).get("_api_key", "")
                     except Exception:

@@ -252,7 +252,7 @@ APP_MCP_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 def _load_app_mcp() -> dict:
     if os.path.isfile(APP_MCP_FILE):
         try:
-            with open(APP_MCP_FILE, "r") as f:
+            with open(APP_MCP_FILE, "r", encoding="utf-8") as f:
                 return json.load(f)
         except (json.JSONDecodeError, IOError):
             pass
@@ -758,7 +758,7 @@ def create_issue(body: IssueCreate):
         directives = []
         if os.path.isfile(DIRECTIVES_FILE):
             try:
-                with open(DIRECTIVES_FILE, "r") as f:
+                with open(DIRECTIVES_FILE, "r", encoding="utf-8") as f:
                     directives = json.load(f)
             except Exception:
                 directives = []
@@ -792,11 +792,14 @@ def delete_issue(issue_id: int):
 
 def _issue_dict(i) -> dict:
     return {
-        "id": i.id, "app_id": i.app_id, "title": i.title,
-        "description": i.description, "category": i.category,
+        "id": i.id, "app_id": i.app_id,
+        "title": _repair_mojibake(i.title or ""),
+        "description": _repair_mojibake(i.description or ""),
+        "category": i.category,
         "priority": i.priority, "status": i.status,
         "source": i.source, "assigned_ai": i.assigned_ai,
-        "fix_prompt": i.fix_prompt, "fix_result": i.fix_result,
+        "fix_prompt": _repair_mojibake(i.fix_prompt or ""),
+        "fix_result": _repair_mojibake(i.fix_result or ""),
         "created_at": i.created_at, "updated_at": i.updated_at,
     }
 
@@ -939,6 +942,32 @@ def _get_tasklist_lock(path: str) -> threading.Lock:
         return _tasklist_locks[path]
 
 
+def _repair_mojibake(text: str) -> str:
+    """Fix UTF-8 text that was corrupted by being read as cp1252/latin-1.
+
+    Detects the telltale 'Ã' or 'â€' patterns (multi-byte UTF-8 chars misread
+    as single-byte Windows encoding) and reverses the damage by re-encoding
+    back to cp1252 bytes and decoding as UTF-8.
+    """
+    if not isinstance(text, str) or not text:
+        return text
+    # Common mojibake signatures: â€" (em-dash), â€™ (right quote), Ã© (é), etc.
+    if "\u00e2\u0080" in text or "\u00c3" in text:
+        try:
+            return text.encode("cp1252").decode("utf-8")
+        except (UnicodeDecodeError, UnicodeEncodeError):
+            pass
+    return text
+
+
+def _repair_task_text(task: dict) -> dict:
+    """Repair mojibake in user-visible text fields of a task."""
+    for key in ("title", "description", "response", "ai_response"):
+        if key in task and isinstance(task[key], str):
+            task[key] = _repair_mojibake(task[key])
+    return task
+
+
 def _load_tasklist(a) -> list:
     path = _tasklist_path(a)
     if os.path.isfile(path):
@@ -974,9 +1003,12 @@ def _load_tasklist(a) -> list:
                     return []
             tasks = data.get("tasks", data) if isinstance(data, dict) else data
             # Normalize "done" → "completed" (some AI agents use "done" instead)
+            # Also repair any mojibake from prior encoding bugs (UTF-8 read as cp1252)
             for t in tasks:
-                if isinstance(t, dict) and t.get("status", "").lower() == "done":
-                    t["status"] = "completed"
+                if isinstance(t, dict):
+                    if t.get("status", "").lower() == "done":
+                        t["status"] = "completed"
+                    _repair_task_text(t)
             return tasks
         except Exception:
             pass
@@ -1534,7 +1566,7 @@ def deathpin_status():
     tasks_file = os.path.join(DEATHPIN_DIR, "tasks.json")
     result = {"running": False, "total": 0, "completed": 0, "pending": 0, "in_progress": 0}
     try:
-        with open(tasks_file, "r") as f:
+        with open(tasks_file, "r", encoding="utf-8") as f:
             data = json.load(f)
         tasks = data.get("tasks", [])
         result["total"] = len(tasks)
@@ -1562,7 +1594,7 @@ def deathpin_status():
 def deathpin_tasks(status: Optional[str] = None, limit: int = 50):
     tasks_file = os.path.join(DEATHPIN_DIR, "tasks.json")
     try:
-        with open(tasks_file, "r") as f:
+        with open(tasks_file, "r", encoding="utf-8") as f:
             data = json.load(f)
         tasks = data.get("tasks", [])
         if status:
@@ -1586,7 +1618,7 @@ def send_directive(body: DirectiveCreate):
     directives = []
     if os.path.isfile(DIRECTIVES_FILE):
         try:
-            with open(DIRECTIVES_FILE, "r") as f:
+            with open(DIRECTIVES_FILE, "r", encoding="utf-8") as f:
                 directives = json.load(f)
         except (json.JSONDecodeError, Exception):
             directives = []
@@ -1606,7 +1638,7 @@ def get_directives():
     if not os.path.isfile(DIRECTIVES_FILE):
         return []
     try:
-        with open(DIRECTIVES_FILE, "r") as f:
+        with open(DIRECTIVES_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception:
         return []
@@ -1712,7 +1744,7 @@ def _automation_subprocess_env() -> dict:
 def _load_automation_configs() -> dict:
     if os.path.isfile(AUTOMATIONS_FILE):
         try:
-            with open(AUTOMATIONS_FILE, "r") as f:
+            with open(AUTOMATIONS_FILE, "r", encoding="utf-8") as f:
                 return json.load(f)
         except Exception:
             pass
@@ -1979,7 +2011,7 @@ tl = os.path.join('$PROJECT_DIR', 'tasklist.json')
 if not os.path.isfile(tl):
     sys.exit(0)
 try:
-    with open(tl) as f:
+    with open(tl, encoding="utf-8") as f:
         data = json.load(f)
 except (json.JSONDecodeError, IOError):
     sys.exit(0)
@@ -2000,7 +2032,7 @@ if changed:
     shutil.copy2(tl, tl + '.bak')
     payload = json.dumps(data, indent=2, ensure_ascii=False)
     fd, tmp = tempfile.mkstemp(dir=os.path.dirname(tl), suffix='.tmp')
-    with os.fdopen(fd, 'w') as f:
+    with os.fdopen(fd, 'w', encoding='utf-8') as f:
         f.write(payload)
     os.replace(tmp, tl)
 " 2>/dev/null || true
@@ -2133,7 +2165,7 @@ tl = os.path.join('$PROJECT_DIR', 'tasklist.json')
 if not os.path.isfile(tl):
     sys.exit(0)
 try:
-    with open(tl) as f:
+    with open(tl, encoding="utf-8") as f:
         data = json.load(f)
 except (json.JSONDecodeError, IOError):
     sys.exit(0)
@@ -2154,7 +2186,7 @@ if changed:
     shutil.copy2(tl, tl + '.bak')
     payload = json.dumps(data, indent=2, ensure_ascii=False)
     fd, tmp = tempfile.mkstemp(dir=os.path.dirname(tl), suffix='.tmp')
-    with os.fdopen(fd, 'w') as f:
+    with os.fdopen(fd, 'w', encoding='utf-8') as f:
         f.write(payload)
     os.replace(tmp, tl)
 " 2>/dev/null || true
@@ -2260,7 +2292,7 @@ tl = os.path.join('$PROJECT_DIR', 'tasklist.json')
 if not os.path.isfile(tl):
     sys.exit(0)
 try:
-    with open(tl) as f:
+    with open(tl, encoding="utf-8") as f:
         data = json.load(f)
 except (json.JSONDecodeError, IOError):
     sys.exit(0)
@@ -2282,7 +2314,7 @@ if changed:
     shutil.copy2(tl, tl + '.bak')
     payload = json.dumps(data, indent=2, ensure_ascii=False)
     fd, tmp = tempfile.mkstemp(dir=os.path.dirname(tl), suffix='.tmp')
-    with os.fdopen(fd, 'w') as f:
+    with os.fdopen(fd, 'w', encoding='utf-8') as f:
         f.write(payload)
     os.replace(tmp, tl)
 " 2>/dev/null || true
@@ -2695,7 +2727,7 @@ def automation_status(app_id: int):
     comp_log = os.path.join(log_dir, "completions.log")
     if os.path.isfile(comp_log):
         try:
-            with open(comp_log, "r") as f:
+            with open(comp_log, "r", encoding="utf-8") as f:
                 log_lines = [l.strip() for l in f.readlines()[-20:]]
         except Exception:
             pass
@@ -2776,7 +2808,7 @@ def agent_chat(body: ChatRequest):
             gdd_path = os.path.join(a.project_path, "gdd.md")
             if os.path.isfile(gdd_path):
                 try:
-                    with open(gdd_path, "r") as f:
+                    with open(gdd_path, "r", encoding="utf-8") as f:
                         gdd = f.read().strip()
                     if gdd:
                         context += f"\nProject design document:\n{gdd}\n"
@@ -3013,7 +3045,7 @@ MCP_PRESETS = {
 
 def _load_mcp_servers() -> dict:
     if os.path.isfile(MCP_SERVERS_FILE):
-        with open(MCP_SERVERS_FILE, "r") as f:
+        with open(MCP_SERVERS_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
     return {}
 
@@ -3093,7 +3125,7 @@ def auto_setup_mcp_presets():
         mcp_file = os.path.join(a.project_path, "mcp_config.json")
         if os.path.isfile(mcp_file):
             try:
-                with open(mcp_file, "r") as f:
+                with open(mcp_file, "r", encoding="utf-8") as f:
                     data = json.load(f)
                 for name, cfg in data.get("mcpServers", {}).items():
                     auth_header = cfg.get("headers", {}).get("Authorization", "")

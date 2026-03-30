@@ -153,7 +153,7 @@ def _build_context(project_path: str, output_path: str):
         lines.append("Flutter/Dart project")
         # Read app name from pubspec
         try:
-            with open(os.path.join(project_path, "pubspec.yaml"), 'r') as f:
+            with open(os.path.join(project_path, "pubspec.yaml"), 'r', encoding='utf-8') as f:
                 for line in f:
                     if line.startswith("name:"):
                         lines.append(f"App: {line.split(':')[1].strip()}")
@@ -176,7 +176,7 @@ def _build_context(project_path: str, output_path: str):
     claude_md = os.path.join(project_path, "CLAUDE.md")
     if os.path.isfile(claude_md):
         try:
-            with open(claude_md, 'r') as f:
+            with open(claude_md, 'r', encoding='utf-8') as f:
                 content = f.read(500)  # first 500 chars only
             if content.strip():
                 lines.append(f"Notes: {content.strip()[:300]}")
@@ -185,7 +185,7 @@ def _build_context(project_path: str, output_path: str):
 
     # Write context
     try:
-        with open(output_path, 'w') as f:
+        with open(output_path, 'w', encoding='utf-8') as f:
             f.write('\n'.join(lines) + '\n')
     except Exception:
         pass
