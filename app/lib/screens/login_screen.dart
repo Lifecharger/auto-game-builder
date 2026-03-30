@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../theme.dart';
 import '../config.dart';
 import '../services/auth_service.dart';
@@ -212,6 +213,21 @@ class _LoginScreenState extends State<LoginScreen> {
                       color: Colors.grey.shade500,
                       fontSize: 14,
                     ),
+                  ),
+                ),
+
+                const SizedBox(height: 32),
+
+                // GitHub link
+                TextButton.icon(
+                  onPressed: () => launchUrl(
+                    Uri.parse('https://github.com/Lifecharger/auto-game-builder'),
+                    mode: LaunchMode.externalApplication,
+                  ),
+                  icon: const Icon(Icons.code, size: 18),
+                  label: const Text('View on GitHub'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.grey.shade500,
                   ),
                 ),
               ],

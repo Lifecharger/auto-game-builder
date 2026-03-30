@@ -620,18 +620,56 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           ),
           const SizedBox(height: 24),
 
+          // GitHub link
+          Center(
+            child: InkWell(
+              onTap: () => _openExternalUrl(
+                  'https://github.com/Lifecharger/auto-game-builder'),
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.bgDark,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade700),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.code, size: 18, color: AppColors.info),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'View on GitHub',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: AppColors.info,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(Icons.open_in_new,
+                        size: 14, color: Colors.grey.shade500),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+
           _buildStep(1, 'Install Python 3.10+ on your PC'),
-          _buildStep(2, 'Open a terminal and run:'),
+          _buildStep(2, 'Clone the repository:'),
           _buildCodeBlock(
               'git clone https://github.com/Lifecharger/auto-game-builder.git'),
           _buildStep(3, 'Install dependencies:'),
           _buildCodeBlock(
-              'cd auto-game-builder && pip install -r server/requirements.txt'),
+              'cd auto-game-builder\npip install -r server/requirements.txt'),
           _buildStep(4, 'Run the setup wizard:'),
           _buildCodeBlock('python setup_wizard.py'),
           _buildStep(5, 'Start the server:'),
           _buildCodeBlock('python server/main.py'),
-          _buildStep(6, 'Enter the URL shown after setup below:'),
+          _buildStep(6,
+              'Enter the URL shown in the terminal (e.g. http://192.168.1.100:8000):'),
 
           const SizedBox(height: 16),
 
