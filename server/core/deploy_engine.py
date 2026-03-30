@@ -81,6 +81,21 @@ BUILD_TARGETS = {
 
 
 class DeployEngine:
+    @staticmethod
+    def _resolve_flutter_root(project_path: str) -> str:
+        """Find the directory containing pubspec.yaml for Flutter projects.
+
+        If pubspec.yaml is not at project_path, check common subdirectories.
+        Returns the resolved path, or project_path unchanged as fallback.
+        """
+        if os.path.isfile(os.path.join(project_path, "pubspec.yaml")):
+            return project_path
+        for subdir in ("app", "src", "client", "frontend", "mobile"):
+            candidate = os.path.join(project_path, subdir)
+            if os.path.isfile(os.path.join(candidate, "pubspec.yaml")):
+                return candidate
+        return project_path
+
     def __init__(self, db: DBManager, settings: dict):
         self.db = db
         self.settings = settings
@@ -221,8 +236,39 @@ class DeployEngine:
             self._active_deploys[app_id].update(kwargs)
             self._emit("deploy_status", app_id, self._active_deploys[app_id])
 
+    def _validate_project_path(self, app: App) -> App:
+        """Validate project_path has the expected build files; auto-correct if found in a subfolder."""
+        marker = {
+            "flutter": "pubspec.yaml",
+            "godot": "export_presets.cfg",
+        }.get(app.app_type)
+        if not marker:
+            return app
+
+        if os.path.isfile(os.path.join(app.project_path, marker)):
+            return app
+
+        # Search one level of subdirectories
+        try:
+            for entry in os.scandir(app.project_path):
+                if entry.is_dir() and os.path.isfile(os.path.join(entry.path, marker)):
+                    corrected = entry.path.replace("/", "\\")
+                    self.db.update_app(app.id, project_path=corrected)
+                    self._update_status(
+                        app.id, message=f"Auto-corrected project path to {corrected}"
+                    )
+                    # Return updated app object
+                    return self.db.get_app(app.id) or app
+        except OSError:
+            pass
+
+        return app
+
     def _run_deploy(self, app: App, track: str, build_target: str, upload: bool, max_retries: int):
         try:
+            # Validate project path before anything else
+            app = self._validate_project_path(app)
+
             targets = BUILD_TARGETS.get(app.app_type, {})
             target_info = targets.get(build_target, {})
             target_label = target_info.get("label", build_target)
@@ -376,7 +422,8 @@ class DeployEngine:
         return None
 
     def _bump_flutter_version(self, app: App) -> Optional[str]:
-        pubspec = os.path.join(app.project_path, "pubspec.yaml")
+        flutter_root = self._resolve_flutter_root(app.project_path)
+        pubspec = os.path.join(flutter_root, "pubspec.yaml")
         if not os.path.isfile(pubspec):
             return None
         with open(pubspec, "r") as f:
@@ -606,12 +653,14 @@ class DeployEngine:
 
             else:
                 # FLUTTER BUILDS: Use pipes (Flutter doesn't have the daemon problem)
+                # Resolve the actual Flutter root (pubspec.yaml may be in a subdirectory)
+                flutter_cwd = self._resolve_flutter_root(app.project_path) if app.app_type == "flutter" else app.project_path
                 process = subprocess.Popen(
                     cmd,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
                     text=True,
-                    cwd=app.project_path,
+                    cwd=flutter_cwd,
                 )
                 self._active_processes[app.id] = process
 
@@ -694,7 +743,25 @@ class DeployEngine:
 
         if app.app_type == "flutter":
             cmd_args = target_info.get("cmd_args", ["build", "appbundle", "--release"])
-            return [self.settings.get("flutter_path", "") or "flutter"] + cmd_args
+            flutter = self.settings.get("flutter_path", "") or "flutter"
+            # On Windows, resolve to .exe or .bat if the path has no extension
+            if os.name == "nt" and not flutter.endswith((".exe", ".bat", ".cmd")):
+                for ext in (".exe", ".bat", ".cmd"):
+                    candidate = flutter + ext
+                    if os.path.isfile(candidate):
+                        flutter = candidate
+                        break
+                else:
+                    # Bare command name (e.g. "flutter") — resolve via PATH
+                    import shutil
+                    resolved = shutil.which(flutter)
+                    if resolved:
+                        flutter = resolved
+            # .bat/.cmd files can't be executed directly via CreateProcess on Windows;
+            # they must go through cmd.exe (WinError 193 otherwise)
+            if os.name == "nt" and flutter.endswith((".bat", ".cmd")):
+                return ["cmd", "/c", flutter] + cmd_args
+            return [flutter] + cmd_args
         elif app.app_type == "godot":
             godot = self.settings.get("godot_path", "") or "godot"
             preset = target_info.get("preset", "Android")
@@ -712,8 +779,10 @@ class DeployEngine:
         if app.app_type == "godot":
             relative = relative.format(slug=app.slug)
 
+        # Flutter build output is relative to the Flutter project root
+        base = self._resolve_flutter_root(app.project_path) if app.app_type == "flutter" else app.project_path
         return os.path.normpath(
-            os.path.join(app.project_path, relative)
+            os.path.join(base, relative)
         ).replace("\\", "/")
 
     def _wait_for_build(self, build_id: int, timeout: int = 600):
