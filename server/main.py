@@ -111,8 +111,8 @@ def start_background_services():
     def _run_api_server():
         import time
         api_port = int(settings.get("port", 8000))
-        # Only kill port holder on first start, not on restarts
         _kill_port_holder(api_port)
+        last_pid = None
         while True:
             log_file = open(os.path.join(api_dir, "server_crash.log"), "w")
             host = settings.get("host", "0.0.0.0")
@@ -124,11 +124,15 @@ def start_background_services():
                 creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
             )
             _background_procs.append(proc)
+            last_pid = proc.pid
             print(f"[AppManager] API server started (pid={proc.pid})")
             proc.wait()
-            _background_procs.remove(proc)
-            print("[AppManager] API server stopped. Restarting in 3s...")
-            time.sleep(3)
+            if proc in _background_procs:
+                _background_procs.remove(proc)
+            print("[AppManager] API server stopped. Restarting in 5s...")
+            time.sleep(5)
+            # Clear the port before restarting
+            _kill_port_holder(api_port)
 
     threading.Thread(target=_run_api_server, daemon=True).start()
 
