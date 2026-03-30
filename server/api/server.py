@@ -675,7 +675,7 @@ def _read_project_version(a) -> str:
             flutter_root = _resolve_flutter_root(a.project_path)
             pubspec = os.path.join(flutter_root, "pubspec.yaml")
             if os.path.isfile(pubspec):
-                with open(pubspec, "r") as f:
+                with open(pubspec, "r", encoding="utf-8") as f:
                     content = f.read()
                 match = _re.search(r"version:\s*(\d+\.\d+\.\d+\+\d+)", content)
                 if match:
@@ -683,7 +683,7 @@ def _read_project_version(a) -> str:
         elif a.app_type == "godot":
             cfg = os.path.join(a.project_path, "export_presets.cfg")
             if os.path.isfile(cfg):
-                with open(cfg, "r") as f:
+                with open(cfg, "r", encoding="utf-8") as f:
                     content = f.read()
                 name_match = _re.search(r'version/name="([^"]+)"', content)
                 code_match = _re.search(r'version/code=(\d+)', content)

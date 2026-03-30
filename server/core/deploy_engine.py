@@ -396,7 +396,7 @@ class DeployEngine:
         pubspec = os.path.join(flutter_root, "pubspec.yaml")
         if not os.path.isfile(pubspec):
             return None
-        with open(pubspec, "r") as f:
+        with open(pubspec, "r", encoding="utf-8") as f:
             content = f.read()
         match = re.search(r"version:\s*(\d+)\.(\d+)\.(\d+)\+(\d+)", content)
         if not match:
@@ -414,7 +414,7 @@ class DeployEngine:
         export_cfg = os.path.join(app.project_path, "export_presets.cfg")
         if not os.path.isfile(export_cfg):
             return None
-        with open(export_cfg, "r") as f:
+        with open(export_cfg, "r", encoding="utf-8") as f:
             content = f.read()
         code_match = re.search(r'version/code=(\d+)', content)
         name_match = re.search(r'version/name="(\d+\.\d+\.\d+)"', content)
@@ -464,7 +464,7 @@ class DeployEngine:
                     try:
                         existing = ""
                         if os.path.isfile(bv_path):
-                            with open(bv_path, "r") as f:
+                            with open(bv_path, "r", encoding="utf-8") as f:
                                 existing = f.read().strip()
                         if existing != build_version:
                             version_changed = True
