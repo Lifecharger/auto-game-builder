@@ -357,26 +357,55 @@ def scan_projects():
             skipped.append(entry)
             continue
 
-        # Detect project type (also check one level deep for monorepos)
+        # Detect project type (also check subfolders for monorepos)
         info = detector.detect(project_path)
         if info["app_type"] == "custom":
-            marker_files = ["pubspec.yaml", "project.godot", "package.json",
-                            "pyproject.toml", "Cargo.toml", "requirements.txt",
-                            "main.py", "setup_wizard.py"]
-            has_code = any(
-                os.path.isfile(os.path.join(project_path, f))
-                for f in marker_files
-            )
-            if not has_code:
+            # Check subfolders for known project types
+            type_markers = {
+                "pubspec.yaml": "flutter",
+                "project.godot": "godot",
+                "package.json": "react_native",
+                "pyproject.toml": "python",
+                "requirements.txt": "python",
+            }
+            extra_markers = ["Cargo.toml", "main.py", "setup_wizard.py"]
+
+            # First check root for python markers
+            for marker, mtype in type_markers.items():
+                if os.path.isfile(os.path.join(project_path, marker)):
+                    if mtype == "python" or info["app_type"] == "custom":
+                        info["app_type"] = mtype
+                    break
+
+            # If still custom, check one level deep
+            if info["app_type"] == "custom":
+                for sub in os.listdir(project_path):
+                    sub_path = os.path.join(project_path, sub)
+                    if not os.path.isdir(sub_path) or sub.startswith("."):
+                        continue
+                    for marker, mtype in type_markers.items():
+                        if os.path.isfile(os.path.join(sub_path, marker)):
+                            info["app_type"] = mtype
+                            break
+                    if info["app_type"] != "custom":
+                        break
+
+            # If still custom, check if it has any code at all
+            if info["app_type"] == "custom":
                 has_code = any(
-                    os.path.isfile(os.path.join(project_path, sub, f))
-                    for sub in os.listdir(project_path)
-                    if os.path.isdir(os.path.join(project_path, sub)) and not sub.startswith(".")
-                    for f in marker_files
+                    os.path.isfile(os.path.join(project_path, f))
+                    for f in extra_markers
                 )
-            if not has_code:
-                skipped.append(entry)
-                continue
+                if not has_code:
+                    has_code = any(
+                        os.path.isfile(os.path.join(project_path, sub, f))
+                        for sub in os.listdir(project_path)
+                        if os.path.isdir(os.path.join(project_path, sub)) and not sub.startswith(".")
+                        for f in extra_markers
+                    )
+                if not has_code:
+                    skipped.append(entry)
+                    continue
 
         # Register in DB
         app_id = db().create_app(
