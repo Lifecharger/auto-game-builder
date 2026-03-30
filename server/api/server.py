@@ -357,14 +357,23 @@ def scan_projects():
             skipped.append(entry)
             continue
 
-        # Detect project type
+        # Detect project type (also check one level deep for monorepos)
         info = detector.detect(project_path)
         if info["app_type"] == "custom":
-            # Check if it's really a project or just a random folder
+            marker_files = ["pubspec.yaml", "project.godot", "package.json",
+                            "pyproject.toml", "Cargo.toml", "requirements.txt",
+                            "main.py", "setup_wizard.py"]
             has_code = any(
                 os.path.isfile(os.path.join(project_path, f))
-                for f in ["pubspec.yaml", "project.godot", "package.json", "pyproject.toml", "Cargo.toml"]
+                for f in marker_files
             )
+            if not has_code:
+                has_code = any(
+                    os.path.isfile(os.path.join(project_path, sub, f))
+                    for sub in os.listdir(project_path)
+                    if os.path.isdir(os.path.join(project_path, sub)) and not sub.startswith(".")
+                    for f in marker_files
+                )
             if not has_code:
                 skipped.append(entry)
                 continue
