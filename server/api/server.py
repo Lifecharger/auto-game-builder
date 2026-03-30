@@ -2217,7 +2217,7 @@ INSTRUCTIONS:
    - Set "completed_by" to "{ai_agent}"
 5. Do not leave this task in "in_progress" at the end of the run.
 6. If this is a buildable project, verify the build still works.
-7. If this task is too large to finish in one session, mark it "divided" (not "failed") with response listing the sub-tasks you created. Create those sub-tasks as separate entries in tasklist.json with status "pending".{idea_generation_rules}"""
+7. If this task is too large to finish in one session: FIRST create the sub-tasks as new entries in tasklist.json with status "pending" and SAVE. THEN mark this task "divided" with response listing the sub-task IDs. Sub-tasks MUST exist before marking divided.{idea_generation_rules}"""
     automation_instructions = _load_automation_instructions()
     prompt = f"""{prompt}
 

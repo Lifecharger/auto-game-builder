@@ -46,10 +46,10 @@ Every task you generate MUST be completable in a SINGLE session (max 30 minutes 
 ## Handling Oversized Tasks
 When you pick up a pending task that is TOO BIG to finish in one session:
 1. Do NOT attempt it and waste the session
-2. Immediately mark its "status" to "divided" with response listing the sub-tasks you created
-3. Create those sub-tasks as separate new entries in tasklist.json (status "pending", type same as parent)
-4. Each sub-task must be micro-sized (completable in 30 min)
-5. Then pick one of the new sub-tasks and work on it
+2. FIRST create the sub-tasks as new entries in tasklist.json (status "pending", type same as parent). Each sub-task must be micro-sized (completable in 30 min). Write them to the file and SAVE immediately.
+3. THEN mark the parent task's "status" to "divided" with response listing the sub-task IDs you created. SAVE immediately.
+4. Then pick one of the new sub-tasks and work on it.
+CRITICAL: Sub-tasks MUST exist in tasklist.json BEFORE you mark the parent as "divided". If you mark divided without creating sub-tasks, the task is lost.
 
 Signs a task is too big:
 - It mentions multiple screens, systems, or features
