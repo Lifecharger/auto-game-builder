@@ -60,10 +60,6 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
-  bool _updateAvailable = false;
-  bool _updateDismissed = false;
-  bool _updating = false;
-  String? _updateStatus;
 
   final _screens = const [
     DashboardScreen(),
@@ -85,31 +81,64 @@ class _MainShellState extends State<MainShell> {
   Future<void> _checkForUpdate() async {
     final hasUpdate = await UpdateChecker.instance.check();
     if (hasUpdate && mounted) {
-      setState(() => _updateAvailable = true);
+      _showUpdateDialog();
     }
   }
 
-  Future<void> _doPull() async {
-    setState(() { _updating = true; _updateStatus = 'Pulling...'; });
-    final result = await UpdateChecker.instance.pull();
-    if (mounted) {
-      setState(() { _updating = false; _updateStatus = result; });
-    }
-  }
-
-  Future<void> _doPullAndRebuild() async {
-    setState(() { _updating = true; _updateStatus = 'Pulling...'; });
-    final pullResult = await UpdateChecker.instance.pull();
-    if (!mounted) return;
-    if (pullResult.contains('fatal') || pullResult.contains('Error')) {
-      setState(() { _updating = false; _updateStatus = pullResult; });
-      return;
-    }
-    setState(() => _updateStatus = 'Building...');
-    final buildResult = await UpdateChecker.instance.rebuild();
-    if (mounted) {
-      setState(() { _updating = false; _updateStatus = buildResult; });
-    }
+  void _showUpdateDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.system_update, size: 40, color: AppColors.info),
+        title: const Text('Update Available'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'v${UpdateChecker.instance.latestVersion}',
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'A new version is available on GitHub.\nPull the latest code and rebuild to update.',
+              style: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Later'),
+          ),
+          FilledButton.icon(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final result = await UpdateChecker.instance.pull();
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(result), duration: const Duration(seconds: 3)),
+                );
+              }
+            },
+            icon: const Icon(Icons.download, size: 18),
+            label: const Text('Pull Only'),
+          ),
+          FilledButton.icon(
+            onPressed: () {
+              Navigator.pop(ctx);
+              UpdateChecker.instance.launchUpdateAndExit();
+            },
+            icon: const Icon(Icons.build, size: 18),
+            label: const Text('Pull & Rebuild'),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.info,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -145,77 +174,6 @@ class _MainShellState extends State<MainShell> {
               ),
             ),
           ),
-          // Update available banner (desktop only)
-          if (_updateAvailable && !_updateDismissed)
-            Container(
-              color: AppColors.info,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              child: SafeArea(
-                bottom: false,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.system_update, color: Colors.white, size: 16),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'v${UpdateChecker.instance.latestVersion} available',
-                            style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
-                          ),
-                        ),
-                        if (_updateStatus != null)
-                          Flexible(
-                            child: Text(
-                              _updateStatus!,
-                              style: const TextStyle(color: Colors.white70, fontSize: 11),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        const SizedBox(width: 4),
-                        if (!_updating) ...[
-                          TextButton(
-                            onPressed: _doPull,
-                            style: TextButton.styleFrom(
-                              foregroundColor: Colors.white,
-                              backgroundColor: Colors.white24,
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              minimumSize: Size.zero,
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
-                            child: const Text('Pull', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                          ),
-                          const SizedBox(width: 6),
-                          TextButton(
-                            onPressed: _doPullAndRebuild,
-                            style: TextButton.styleFrom(
-                              foregroundColor: Colors.white,
-                              backgroundColor: Colors.white24,
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              minimumSize: Size.zero,
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
-                            child: const Text('Pull & Rebuild', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                          ),
-                        ] else
-                          const SizedBox(
-                            width: 16, height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                          ),
-                        const SizedBox(width: 6),
-                        IconButton(
-                          onPressed: () => setState(() => _updateDismissed = true),
-                          icon: const Icon(Icons.close, color: Colors.white, size: 16),
-                          constraints: const BoxConstraints(),
-                          padding: const EdgeInsets.all(4),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
           Expanded(
             child: IndexedStack(
               index: _currentIndex,

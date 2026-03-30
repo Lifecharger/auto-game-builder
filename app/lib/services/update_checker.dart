@@ -75,7 +75,7 @@ class UpdateChecker {
     return null;
   }
 
-  /// Run git pull in the repo root.
+  /// Run git pull in the repo root (safe while app is running).
   Future<String> pull() async {
     final root = repoRoot;
     if (root == null) return 'Could not find git repo';
@@ -98,57 +98,28 @@ class UpdateChecker {
     }
   }
 
-  /// Resolve flutter executable from server settings or PATH.
-  String _resolveFlutter() {
-    if (repoRoot != null) {
-      final sep = Platform.pathSeparator;
-      final settingsPath = '$repoRoot${sep}server${sep}config${sep}settings.json';
-      final file = File(settingsPath);
-      if (file.existsSync()) {
-        try {
-          final content = file.readAsStringSync();
-          final match = RegExp(r'"flutter_path"\s*:\s*"([^"]+)"').firstMatch(content);
-          if (match != null) {
-            final path = match.group(1)!;
-            if (File(path).existsSync()) return path;
-            // Try .bat/.exe variants on Windows
-            if (Platform.isWindows) {
-              for (final ext in ['.bat', '.exe']) {
-                if (File('$path$ext').existsSync()) return '$path$ext';
-              }
-            }
-          }
-        } catch (_) {}
-      }
-    }
-    return 'flutter';
-  }
-
-  /// Run flutter build windows --release in the app/ subdirectory.
-  Future<String> rebuild() async {
+  /// Launch update.py script and exit the app.
+  /// The script pulls, rebuilds, and relaunches the exe.
+  Future<String> launchUpdateAndExit() async {
     final root = repoRoot;
     if (root == null) return 'Could not find git repo';
 
-    final appDir = '$root${Platform.pathSeparator}app';
-    if (!Directory(appDir).existsSync()) {
-      return 'app/ directory not found in repo';
+    final updateScript = '$root${Platform.pathSeparator}update.py';
+    if (!File(updateScript).existsSync()) {
+      return 'update.py not found in repo root';
     }
 
-    final flutter = _resolveFlutter();
-
     try {
-      final result = await Process.run(
-        flutter,
-        ['build', 'windows', '--release'],
-        workingDirectory: appDir,
-        runInShell: true,
+      // Launch update.py in a visible terminal window
+      await Process.start(
+        'cmd',
+        ['/c', 'start', 'cmd', '/k', 'python', updateScript, root],
+        workingDirectory: root,
+        mode: ProcessStartMode.detached,
       );
-      final output = '${result.stdout}'.trim();
-      final error = '${result.stderr}'.trim();
-      if (result.exitCode != 0) {
-        return error.isNotEmpty ? error : 'Build failed (exit ${result.exitCode})';
-      }
-      return output.contains('Built') ? 'Build complete. Restart the app.' : output;
+
+      // Exit the app so the exe is unlocked for rebuild
+      exit(0);
     } catch (e) {
       return 'Error: $e';
     }
