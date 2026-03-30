@@ -1,11 +1,11 @@
 {
-  "18": {
-    "app_id": 18,
+  "7": {
+    "app_id": 7,
     "ai_agent": "claude",
     "interval_minutes": 5,
     "prompt": "",
     "max_session_minutes": 60,
     "mcp_servers": [],
-    "created_at": "2026-03-30T03:45:43.334921"
+    "created_at": "2026-03-31T00:36:03.680954"
   }
 }

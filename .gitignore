@@ -6,6 +6,15 @@ server/config/mcp_servers.json
 server/*.db
 server/*.db-wal
 server/*.db-shm
+server/database/*.db
+server/database/*.db-wal
+server/database/*.db-shm
+
+# App MCP config (per-user runtime)
+server/config/app_mcp.json
+
+# Windows shortcuts
+*.lnk
 
 # Logs
 server/api/server_crash.log
