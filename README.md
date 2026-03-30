@@ -96,6 +96,12 @@ Template files with empty values are committed for reference:
 
 If you're an AI agent configuring this project, read [`AGENT_SETUP_GUIDE.md`](AGENT_SETUP_GUIDE.md) for complete instructions on JSON formats, tool search strategies, and configuration rules.
 
+## Contributing
+
+Contributions are welcome! Whether it's bug fixes, new features, documentation improvements, or translations — all pull requests are thoroughly reviewed. Feel free to open an issue to discuss ideas before submitting.
+
+**Maintainer:** Cagatay Ozer ([@Lifecharger](https://github.com/Lifecharger))
+
 ## Your Creations
 
 Games and apps you build with Auto Game Builder are **entirely yours**. You own all rights to your creations — sell them, publish them, modify them, do whatever you want. No attribution required, no revenue sharing, no restrictions. Auto Game Builder is just the tool; what you make with it belongs to you.
