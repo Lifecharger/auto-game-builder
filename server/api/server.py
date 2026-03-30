@@ -656,12 +656,24 @@ def create_new_app(body: AppCreate):
     }
 
 
+def _resolve_flutter_root(project_path: str) -> str:
+    """Find the directory containing pubspec.yaml, checking subdirectories if needed."""
+    if os.path.isfile(os.path.join(project_path, "pubspec.yaml")):
+        return project_path
+    for subdir in ("app", "src", "client", "frontend", "mobile"):
+        candidate = os.path.join(project_path, subdir)
+        if os.path.isfile(os.path.join(candidate, "pubspec.yaml")):
+            return candidate
+    return project_path
+
+
 def _read_project_version(a) -> str:
     """Read the actual version from project files (pubspec.yaml or export_presets.cfg)."""
     import re as _re
     try:
         if a.app_type == "flutter":
-            pubspec = os.path.join(a.project_path, "pubspec.yaml")
+            flutter_root = _resolve_flutter_root(a.project_path)
+            pubspec = os.path.join(flutter_root, "pubspec.yaml")
             if os.path.isfile(pubspec):
                 with open(pubspec, "r") as f:
                     content = f.read()
@@ -1605,10 +1617,11 @@ def dashboard():
     for a in apps:
         open_count = db().count_issues(a.id, status="open")
         total_open += open_count
+        version = _read_project_version(a) or a.current_version
         app_summaries.append({
             "id": a.id, "name": a.name, "slug": a.slug,
             "app_type": a.app_type, "status": a.status,
-            "publish_status": a.publish_status, "current_version": a.current_version,
+            "publish_status": a.publish_status, "current_version": version,
             "open_issues": open_count, "fix_strategy": a.fix_strategy,
             "icon_path": a.icon_path,
         })

@@ -236,38 +236,8 @@ class DeployEngine:
             self._active_deploys[app_id].update(kwargs)
             self._emit("deploy_status", app_id, self._active_deploys[app_id])
 
-    def _validate_project_path(self, app: App) -> App:
-        """Validate project_path has the expected build files; auto-correct if found in a subfolder."""
-        marker = {
-            "flutter": "pubspec.yaml",
-            "godot": "export_presets.cfg",
-        }.get(app.app_type)
-        if not marker:
-            return app
-
-        if os.path.isfile(os.path.join(app.project_path, marker)):
-            return app
-
-        # Search one level of subdirectories
-        try:
-            for entry in os.scandir(app.project_path):
-                if entry.is_dir() and os.path.isfile(os.path.join(entry.path, marker)):
-                    corrected = entry.path.replace("/", "\\")
-                    self.db.update_app(app.id, project_path=corrected)
-                    self._update_status(
-                        app.id, message=f"Auto-corrected project path to {corrected}"
-                    )
-                    # Return updated app object
-                    return self.db.get_app(app.id) or app
-        except OSError:
-            pass
-
-        return app
-
     def _run_deploy(self, app: App, track: str, build_target: str, upload: bool, max_retries: int):
         try:
-            # Validate project path before anything else
-            app = self._validate_project_path(app)
 
             targets = BUILD_TARGETS.get(app.app_type, {})
             target_info = targets.get(build_target, {})
