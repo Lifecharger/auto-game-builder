@@ -58,7 +58,7 @@ def _kill_orphaned_processes():
                 # Check name patterns
                 for pattern in orphan_name_patterns:
                     if pattern.lower() in name:
-                        print(f"[AppManager] Killing orphaned {name} (pid={proc.pid})")
+                        print(f"[AutoGameBuilder] Killing orphaned {name} (pid={proc.pid})")
                         _kill_process_tree_by_pid(proc.pid)
                         killed.append(proc.pid)
                         break
@@ -66,16 +66,16 @@ def _kill_orphaned_processes():
                     # Check cmdline patterns
                     for pattern in orphan_cmdline_patterns:
                         if pattern in cmdline:
-                            print(f"[AppManager] Killing orphaned process (pid={proc.pid}): ...{pattern}...")
+                            print(f"[AutoGameBuilder] Killing orphaned process (pid={proc.pid}): ...{pattern}...")
                             _kill_process_tree_by_pid(proc.pid)
                             killed.append(proc.pid)
                             break
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 pass
     except Exception as e:
-        print(f"[AppManager] Orphan cleanup error: {e}")
+        print(f"[AutoGameBuilder] Orphan cleanup error: {e}")
 
-    print(f"[AppManager] Orphan process cleanup done ({len(killed)} killed)")
+    print(f"[AutoGameBuilder] Orphan process cleanup done ({len(killed)} killed)")
 
 
 def start_background_services():
@@ -99,14 +99,14 @@ def start_background_services():
                 if f":{port}" in line and "LISTENING" in line:
                     pid = int(line.strip().split()[-1])
                     if pid != os.getpid():
-                        print(f"[AppManager] Killing old process on port {port} (pid={pid})")
+                        print(f"[AutoGameBuilder] Killing old process on port {port} (pid={pid})")
                         subprocess.run(
                             ["taskkill", "/PID", str(pid), "/F"],
                             capture_output=True,
                             creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
                         )
         except Exception as e:
-            print(f"[AppManager] Port cleanup warning: {e}")
+            print(f"[AutoGameBuilder] Port cleanup warning: {e}")
 
     def _run_api_server():
         import time
@@ -125,11 +125,11 @@ def start_background_services():
             )
             _background_procs.append(proc)
             last_pid = proc.pid
-            print(f"[AppManager] API server started (pid={proc.pid})")
+            print(f"[AutoGameBuilder] API server started (pid={proc.pid})")
             proc.wait()
             if proc in _background_procs:
                 _background_procs.remove(proc)
-            print("[AppManager] API server stopped. Restarting in 5s...")
+            print("[AutoGameBuilder] API server stopped. Restarting in 5s...")
             time.sleep(5)
             # Clear the port before restarting
             _kill_port_holder(api_port)
@@ -143,7 +143,7 @@ def start_background_services():
 
         time.sleep(3)
         if not os.path.isfile(cloudflared):
-            print("[AppManager] cloudflared not found, tunnel skipped")
+            print("[AutoGameBuilder] cloudflared not found, tunnel skipped")
             return
 
         restart_delay = 5  # seconds between restart attempts
@@ -158,7 +158,7 @@ def start_background_services():
                 creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
             )
             _background_procs.append(tunnel_proc)
-            print(f"[AppManager] Cloudflare tunnel started (pid={tunnel_proc.pid})")
+            print(f"[AutoGameBuilder] Cloudflare tunnel started (pid={tunnel_proc.pid})")
 
             # Read output lines to find the tunnel URL
             tunnel_url = None
@@ -173,13 +173,13 @@ def start_background_services():
                     break
 
             if tunnel_url:
-                print(f"[AppManager] Tunnel URL: {tunnel_url}")
+                print(f"[AutoGameBuilder] Tunnel URL: {tunnel_url}")
                 consecutive_failures = 0  # reset on success
                 # Push to Cloudflare KV so the phone app can find us
                 try:
                     kv_ns = settings.get("kv_namespace_id", "")
                     if not kv_ns:
-                        print("[AppManager] KV namespace ID not configured, skipping KV write")
+                        print("[AutoGameBuilder] KV namespace ID not configured, skipping KV write")
                     else:
                         wrangler = settings.get("wrangler_path", "") or shutil.which("wrangler") or "wrangler"
                         kv_cmd = [
@@ -192,11 +192,11 @@ def start_background_services():
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                             creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
                         )
-                        print("[AppManager] Tunnel URL registered to KV")
+                        print("[AutoGameBuilder] Tunnel URL registered to KV")
                 except Exception as e:
-                    print(f"[AppManager] KV write failed: {e}")
+                    print(f"[AutoGameBuilder] KV write failed: {e}")
             else:
-                print("[AppManager] Could not detect tunnel URL")
+                print("[AutoGameBuilder] Could not detect tunnel URL")
                 consecutive_failures += 1
 
             # Drain output and wait for the process to exit
@@ -214,7 +214,7 @@ def start_background_services():
                 # Tunnel was working but crashed — count as a failure now
                 consecutive_failures += 1
             delay = min(restart_delay * (2 ** min(consecutive_failures, 4)), max_delay)
-            print(f"[AppManager] Cloudflare tunnel exited (code={exit_code}). Restarting in {delay}s...")
+            print(f"[AutoGameBuilder] Cloudflare tunnel exited (code={exit_code}). Restarting in {delay}s...")
             time.sleep(delay)
 
     threading.Thread(target=_run_tunnel, daemon=True).start()
@@ -242,7 +242,7 @@ def archive_old_logs():
         db = DBManager(db_path)
         apps = db.get_all_apps()
     except Exception as e:
-        print(f"[AppManager] Log archiver: can't load apps: {e}")
+        print(f"[AutoGameBuilder] Log archiver: can't load apps: {e}")
         return
 
     for app in apps:
@@ -272,9 +272,9 @@ def archive_old_logs():
                     if basename not in existing_names:
                         zf.write(f, basename)
                     os.remove(f)
-            print(f"[AppManager] Archived {len(old_logs)} old logs for {app.name}")
+            print(f"[AutoGameBuilder] Archived {len(old_logs)} old logs for {app.name}")
         except Exception as e:
-            print(f"[AppManager] Log archive error ({app.name}): {e}")
+            print(f"[AutoGameBuilder] Log archive error ({app.name}): {e}")
 
 
 def main():

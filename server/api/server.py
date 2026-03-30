@@ -617,9 +617,9 @@ def create_new_app(body: AppCreate):
                     f.write(f"Validity: 50 years\n")
                     f.write(f"Created: {datetime.now().isoformat()}\n")
 
-                print(f"[AppManager] Generated keystore: {keystore_path}")
+                print(f"[AutoGameBuilder] Generated keystore: {keystore_path}")
             except Exception as e:
-                print(f"[AppManager] Keystore generation failed: {e}")
+                print(f"[AutoGameBuilder] Keystore generation failed: {e}")
 
     # Create DB entry
     app_id = db().create_app(
