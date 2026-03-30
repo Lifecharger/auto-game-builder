@@ -1960,6 +1960,8 @@ ENDPROMPT
 
     {ai_cmd}
     EXIT_CODE=${{PIPESTATUS[0]}}
+    # Kill orphaned MCP stdio servers (e.g. elevenlabs-mcp) left by claude
+    pkill -f "elevenlabs-mcp" 2>/dev/null || true
     rm -f "$PROMPT_FILE"
 
     echo ">>> SESSION $SESSION finished (exit: $EXIT_CODE) at $(date) <<<"
@@ -2114,6 +2116,8 @@ ENDPROMPT
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] One-shot run started ({ai_agent})" >> "$LOG_DIR/completions.log"
 {ai_cmd}
 EXIT_CODE=${{PIPESTATUS[0]}}
+# Kill orphaned MCP stdio servers (e.g. elevenlabs-mcp) left by claude
+pkill -f "elevenlabs-mcp" 2>/dev/null || true
 rm -f "$PROMPT_FILE"
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] One-shot run completed (exit: $EXIT_CODE)" >> "$LOG_DIR/completions.log"
 
@@ -2239,6 +2243,8 @@ ENDPROMPT
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Task #{task_id} run started ({ai_agent}): {task_title}" >> "$LOG_DIR/completions.log"
 {ai_cmd}
 EXIT_CODE=${{PIPESTATUS[0]}}
+# Kill orphaned MCP stdio servers (e.g. elevenlabs-mcp) left by claude
+pkill -f "elevenlabs-mcp" 2>/dev/null || true
 rm -f "$PROMPT_FILE"
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Task #{task_id} run completed (exit: $EXIT_CODE)" >> "$LOG_DIR/completions.log"
 
@@ -2285,7 +2291,7 @@ def _build_ai_command(ai_agent: str, timeout: int, claude_bin: str, gemini_bin: 
     local_model = "ollama/qwen2.5-coder:7b"
 
     if ai_agent == "claude":
-        return f'''timeout {timeout} "{claude_bin}" \\
+        return f'''timeout --kill-after=30 {timeout} "{claude_bin}" \\
         -p \\
         --dangerously-skip-permissions \\
         --verbose \\
