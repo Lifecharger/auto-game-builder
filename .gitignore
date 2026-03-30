@@ -38,6 +38,16 @@ data/
 # Signing keys (auto-generated or user-provided)
 keys/
 
+# Per-app runtime data
+tasklist.json
+tasklist.json.bak
+task_attachments/
+task_archives/
+auto_build_logs/
+
+# Automation scripts (auto-generated per app)
+server/automations/*.sh
+
 # Worker config with account details
 worker/wrangler.toml
 

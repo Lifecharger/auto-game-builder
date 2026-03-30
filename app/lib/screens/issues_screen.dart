@@ -2089,6 +2089,7 @@ class _ItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final taskId = item['id'];
     final title = item['title'] ?? '';
     final description = (item['description'] ?? '').toString().trim();
     final aiResponse = (item['ai_response'] ?? '').toString().trim();
@@ -2128,11 +2129,26 @@ class _ItemCard extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          title,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 15,
+                        Text.rich(
+                          TextSpan(
+                            children: [
+                              if (taskId != null)
+                                TextSpan(
+                                  text: '#$taskId  ',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
+                                    color: Colors.grey.shade500,
+                                  ),
+                                ),
+                              TextSpan(
+                                text: title,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 15,
+                                ),
+                              ),
+                            ],
                           ),
                           maxLines: isExpanded ? null : 2,
                           overflow: isExpanded ? null : TextOverflow.ellipsis,

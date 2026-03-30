@@ -61,10 +61,14 @@ This is the main config file. Create it from `settings.example.json` or edit the
   "cloudflare": {
     "tunnel_enabled": false,
     "kv_namespace_id": "",
-    "account_id": ""
+    "account_id": "",
+    "worker_url": ""
   },
   "services": {
     "ollama_url": "http://localhost:11434"
+  },
+  "developer": {
+    "developer_name": ""
   }
 }
 ```
@@ -241,7 +245,7 @@ flutter pub add --dev change_app_package_name
 flutter pub run change_app_package_name:main com.DEVNAME.autogamebuilder
 ```
 
-Replace `DEVNAME` with the value from `settings.json` → `developer.developer_name`.
+Replace `DEVNAME` with the value from `settings.json` → `developer_name` (under the `developer` section).
 
 This updates:
 - `android/app/build.gradle.kts` (namespace + applicationId)
@@ -283,7 +287,7 @@ cd app
 flutter pub get
 flutter build windows --release
 ```
-The exe will be at `app/build/windows/x64/runner/Release/app_manager_mobile.exe`
+The exe will be at `app/build/windows/x64/runner/Release/` (named after the project).
 
 **Building the Android APK:**
 ```bash
@@ -336,7 +340,10 @@ curl http://localhost:8000/api/health
 2. **Never hardcode** user-specific paths. Always use `which`/`where` to detect.
 3. **API keys are optional** — if the user doesn't have one, leave the field empty. Don't make one up.
 4. **Don't modify** any Python code, Dart code, or server logic. Only edit `settings.json` and `mcp_servers.json`.
-5. **Use the correct JSON structure** — settings.json has nested sections (server, paths, ai_agents, engines, system, cloudflare, services). Don't flatten it.
+5. **Use the correct JSON structure** — settings.json has nested sections (server, paths, ai_agents, engines, system, cloudflare, services, developer). Don't flatten it.
 6. **Test paths exist** before writing them. Run `test -f /path/to/tool` or equivalent.
 7. **On Windows**, be aware that `where` returns multiple lines. Use the first result.
-8. **Report** a summary of what you found, what you configured, and what's still missing.
+8. **On Windows**, Flutter is often a bash script (`flutter`) not an exe. The deploy engine handles `.bat` resolution automatically — just point `flutter_path` to the SDK's `bin/flutter`.
+9. **File encoding**: Always use `encoding="utf-8"` when reading/writing files in Python on Windows. The default locale encoding (e.g. cp1254 for Turkish) will silently corrupt non-ASCII characters.
+10. **Monorepo layout**: The Flutter app is in `app/`, not the repo root. `pubspec.yaml` is at `app/pubspec.yaml`. The server handles this automatically via `_resolve_flutter_root()`.
+11. **Report** a summary of what you found, what you configured, and what's still missing.

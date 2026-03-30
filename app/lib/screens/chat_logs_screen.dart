@@ -14,17 +14,14 @@ class ChatLogsScreen extends StatelessWidget {
         children: [
           Material(
             color: AppColors.bgCard,
-            child: SafeArea(
-              bottom: false,
-              child: TabBar(
-                indicatorColor: AppColors.accent,
-                labelColor: AppColors.accent,
-                unselectedLabelColor: Colors.grey,
-                tabs: const [
-                  Tab(icon: Icon(Icons.chat_bubble_outline, size: 20), text: 'Chat'),
-                  Tab(icon: Icon(Icons.article_outlined, size: 20), text: 'Logs'),
-                ],
-              ),
+            child: TabBar(
+              indicatorColor: AppColors.accent,
+              labelColor: AppColors.accent,
+              unselectedLabelColor: Colors.grey,
+              tabs: const [
+                Tab(icon: Icon(Icons.chat_bubble_outline, size: 20), text: 'Chat'),
+                Tab(icon: Icon(Icons.article_outlined, size: 20), text: 'Logs'),
+              ],
             ),
           ),
           const Expanded(

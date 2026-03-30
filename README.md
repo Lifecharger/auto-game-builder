@@ -66,14 +66,9 @@ To access your server from your phone over the internet:
    - macOS: `brew install cloudflared`
    - Linux: [Cloudflare docs](https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/)
 
-2. **Install wrangler** (for Cloudflare KV — stores your tunnel URL):
+2. **Install and authenticate wrangler** (for Cloudflare KV — stores your tunnel URL):
    ```bash
    npm install -g wrangler
-   wrangler login
-   ```
-
-3. **Authenticate wrangler**:
-   ```bash
    wrangler login
    ```
    This opens a browser to authenticate with your Cloudflare account. After login, the setup wizard can auto-configure tunnel settings.
@@ -82,8 +77,8 @@ To access your server from your phone over the internet:
 - **PixelLab** — AI pixel art generation. Get API key at [pixellab.ai/dashboard](https://pixellab.ai/dashboard)
 - **ElevenLabs** — AI audio/music. Get API key at [elevenlabs.io](https://elevenlabs.io). Requires [uv](https://docs.astral.sh/uv/) (`pip install uv`)
 - **Mobile MCP** — Device testing. Requires Node.js
-- **Godot MCP** — Cloud-based, included with Claude Max subscription
-- **Cloudflare MCP** — Cloud-based, included with Claude Max subscription
+- **Godot MCP** — Cloud-based, requires [Claude Max](https://claude.ai) subscription
+- **Cloudflare MCP** — Cloud-based, requires [Claude Max](https://claude.ai) subscription
 
 ## Configuration
 
@@ -102,7 +97,19 @@ If you're an AI agent configuring this project, read [`AGENT_SETUP_GUIDE.md`](AG
 
 Contributions are welcome! Whether it's bug fixes, new features, documentation improvements, or translations — all pull requests are thoroughly reviewed. Feel free to open an issue to discuss ideas before submitting.
 
+If you build something you think every user would benefit from, open a pull request — we'd love to see it.
+
 **Maintainer:** Cagatay Ozer ([@Lifecharger](https://github.com/Lifecharger))
+
+## Make It Yours
+
+This project is meant to be forked and customized. Change the app name, the theme, the package name, the features — whatever fits your workflow. The setup wizard handles developer identity and package naming so your build is truly yours, not a clone.
+
+Some ideas:
+- Add your own AI prompts and automation scripts
+- Swap the color scheme in `app/lib/theme.dart`
+- Add new build targets or deploy pipelines
+- Integrate your own MCP servers for specialized tools
 
 ## Your Creations
 

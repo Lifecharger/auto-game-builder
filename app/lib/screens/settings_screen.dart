@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../config.dart';
 import '../services/api_service.dart';
@@ -19,10 +18,7 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  static const _consoleUrlKey = 'google_console_url';
-
   final _urlController = TextEditingController();
-  final _consoleUrlController = TextEditingController();
   final _workerUrlController = TextEditingController();
   bool _testing = false;
   bool? _connectionResult;
@@ -56,11 +52,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         });
       }
     });
-    SharedPreferences.getInstance().then((prefs) {
-      if (mounted) {
-        _consoleUrlController.text = prefs.getString(_consoleUrlKey) ?? '';
-      }
-    });
     _auth.silentSignIn().then((_) {
       if (mounted) setState(() {});
     });
@@ -75,7 +66,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void dispose() {
     _urlController.dispose();
-    _consoleUrlController.dispose();
     _workerUrlController.dispose();
     for (final c in _settingsControllers.values) {
       c.dispose();
@@ -207,20 +197,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         );
       }
-    }
-  }
-
-  Future<void> _saveConsoleUrl() async {
-    final url = _consoleUrlController.text.trim();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_consoleUrlKey, url);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Console URL saved'),
-          backgroundColor: AppColors.success,
-        ),
-      );
     }
   }
 
@@ -442,134 +418,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _buildServerConnectionCard(),
             const SizedBox(height: 16),
 
-            // Google Play links card
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Row(
-                      children: [
-                        Icon(Icons.shop, color: AppColors.success),
-                        SizedBox(width: 8),
-                        Text(
-                          'Google Play',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: () => _openUrl(_playStoreUrl),
-                        icon: const Icon(Icons.open_in_new),
-                        label: const Text('Open in Google Play'),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    const Row(
-                      children: [
-                        Icon(Icons.admin_panel_settings, color: AppColors.info),
-                        SizedBox(width: 8),
-                        Text(
-                          'Play Console',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Paste your internal testing page URL below',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _consoleUrlController,
-                      decoration: const InputDecoration(
-                        hintText: 'https://play.google.com/console/...',
-                        prefixIcon: Icon(Icons.link),
-                      ),
-                      keyboardType: TextInputType.url,
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () {
-                              final url = _consoleUrlController.text.trim();
-                              if (url.isEmpty) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Paste a Console URL first'),
-                                    backgroundColor: AppColors.warning,
-                                  ),
-                                );
-                                return;
-                              }
-                              _openUrl(url);
-                            },
-                            icon: const Icon(Icons.open_in_new),
-                            label: const Text('Open Console'),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: FilledButton.icon(
-                            onPressed: _saveConsoleUrl,
-                            icon: const Icon(Icons.save),
-                            label: const Text('Save'),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Hint card
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Row(
-                      children: [
-                        Icon(Icons.lightbulb_outline, color: AppColors.warning),
-                        SizedBox(width: 8),
-                        Text(
-                          'Tips',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    _tipItem('For local dev, use your machine\'s IP address'),
-                    _tipItem('For remote access, use a Cloudflare tunnel URL'),
-                    _tipItem('The URL should point to the FastAPI backend'),
-                    _tipItem('Default port is 8000'),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Donate card
-            if (_billingReady && _billing.isAvailable)
+            // Donate card (always show on Android)
+            if (!_isDesktop)
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(16),
@@ -601,23 +451,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       SizedBox(
                         width: double.infinity,
                         child: FilledButton.icon(
-                          onPressed: () async {
-                            try {
-                              await _billing.donate();
-                            } catch (e) {
-                              if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('Purchase failed: $e'),
-                                    backgroundColor: AppColors.error,
-                                  ),
-                                );
-                              }
-                            }
-                          },
+                          onPressed: (_billingReady && _billing.isAvailable)
+                              ? () async {
+                                  try {
+                                    await _billing.donate();
+                                  } catch (e) {
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text('Purchase failed: $e'),
+                                          backgroundColor: AppColors.error,
+                                        ),
+                                      );
+                                    }
+                                  }
+                                }
+                              : () {
+                                  _openUrl(_playStoreUrl);
+                                },
                           icon: const Icon(Icons.coffee),
                           label: Text(
-                            'Buy me a coffee  ${_billing.donatePrice ?? ''}',
+                            (_billingReady && _billing.isAvailable)
+                                ? 'Buy me a coffee  ${_billing.donatePrice ?? ''}'
+                                : 'Buy me a coffee',
                           ),
                           style: FilledButton.styleFrom(
                             backgroundColor: AppColors.warning,
@@ -629,8 +485,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ),
               ),
-            if (_billingReady && _billing.isAvailable)
-              const SizedBox(height: 16),
+            if (!_isDesktop) const SizedBox(height: 16),
 
             // About card
             Card(
@@ -1264,24 +1119,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       );
     }
-  }
-
-  Widget _tipItem(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('  -  ', style: TextStyle(color: Colors.grey.shade500)),
-          Expanded(
-            child: Text(
-              text,
-              style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   Widget _aboutItem(String label, String value) {
