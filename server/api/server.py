@@ -319,7 +319,7 @@ def set_app_mcp(app_id: int, body: AppMcpUpdate):
         a = db().get_app(app_id)
         script = _generate_auto_build_script(a, configs[key])
         script_path = os.path.join(AUTOMATIONS_DIR, f"{a.slug}_auto.sh")
-        with open(script_path, "w", newline="\n") as f:
+        with open(script_path, "w", newline="\n", encoding="utf-8") as f:
             f.write(script)
 
     return {"ok": True}
@@ -2355,7 +2355,7 @@ def create_automation(body: AutomationCreate):
     # Generate the script
     script = _generate_auto_build_script(a, config)
     script_path = os.path.join(AUTOMATIONS_DIR, f"{a.slug}_auto.sh")
-    with open(script_path, "w", newline="\n") as f:
+    with open(script_path, "w", newline="\n", encoding="utf-8") as f:
         f.write(script)
 
     # Save script path to app
@@ -2380,7 +2380,7 @@ def update_automation(app_id: int, body: AutomationUpdate):
     if a:
         script = _generate_auto_build_script(a, configs[key])
         script_path = os.path.join(AUTOMATIONS_DIR, f"{a.slug}_auto.sh")
-        with open(script_path, "w", newline="\n") as f:
+        with open(script_path, "w", newline="\n", encoding="utf-8") as f:
             f.write(script)
 
     return {"ok": True}
@@ -2529,7 +2529,7 @@ def run_once_automation(app_id: int):
     config = configs[key]
     one_shot = _generate_one_shot_script(a, config)
     one_shot_path = os.path.join(AUTOMATIONS_DIR, f"{a.slug}_oneshot.sh")
-    with open(one_shot_path, "w", newline="\n") as f:
+    with open(one_shot_path, "w", newline="\n", encoding="utf-8") as f:
         f.write(one_shot)
 
     bash_exe = _get_tool_paths()["bash_exe"]
@@ -2599,7 +2599,7 @@ def run_specific_task(app_id: int, task_id: int):
     one_shot = _generate_task_script(a, config, task)
     script_name = f"{a.slug}_task_{task_id}.sh"
     one_shot_path = os.path.join(AUTOMATIONS_DIR, script_name)
-    with open(one_shot_path, "w", newline="\n") as f:
+    with open(one_shot_path, "w", newline="\n", encoding="utf-8") as f:
         f.write(one_shot)
 
     bash_exe = _get_tool_paths()["bash_exe"]
