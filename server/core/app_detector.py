@@ -48,7 +48,9 @@ class AppDetector:
         if result["app_type"] == "flutter":
             result["package_name"] = self._detect_flutter_package(project_path)
         elif result["app_type"] == "react_native":
-            result["package_name"] = self._detect_flutter_package(project_path)  # same manifest
+            result["package_name"] = self._detect_flutter_package(project_path)
+        elif result["app_type"] == "godot":
+            result["package_name"] = self._detect_godot_package(project_path)
 
         return result
 
@@ -81,6 +83,19 @@ class AppDetector:
                 with open(manifest, "r", encoding="utf-8") as f:
                     content = f.read()
                 match = re.search(r'package="([^"]+)"', content)
+                if match:
+                    return match.group(1)
+            except Exception:
+                pass
+        return ""
+
+    def _detect_godot_package(self, project_path: str) -> str:
+        cfg = os.path.join(project_path, "export_presets.cfg")
+        if os.path.isfile(cfg):
+            try:
+                with open(cfg, "r", encoding="utf-8") as f:
+                    content = f.read()
+                match = re.search(r'package/unique_name="([^"]+)"', content)
                 if match:
                     return match.group(1)
             except Exception:
