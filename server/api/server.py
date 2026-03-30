@@ -407,6 +407,18 @@ def scan_projects():
                     skipped.append(entry)
                     continue
 
+        # If no package name found, check subfolders
+        if not info.get("package_name") and info["app_type"] in ("flutter", "react_native"):
+            for sub in os.listdir(project_path):
+                sub_path = os.path.join(project_path, sub)
+                if os.path.isdir(sub_path) and not sub.startswith("."):
+                    sub_info = detector.detect(sub_path)
+                    if sub_info.get("package_name"):
+                        info["package_name"] = sub_info["package_name"]
+                        if not info.get("version") and sub_info.get("version"):
+                            info["version"] = sub_info["version"]
+                        break
+
         # Register in DB
         app_id = db().create_app(
             name=entry,
