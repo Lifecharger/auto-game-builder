@@ -276,19 +276,18 @@ class DeployEngine:
                         fixed = self._auto_fix_build(app, build)
                     if not fixed:
                         # Don't give up on first auto-fix failure — still retry the build
-                        # (the hang might have been transient: stale process, file lock, etc.)
+                        # (failure might be transient: stale process, file lock, network, etc.)
                         if was_hung:
                             self._update_status(
                                 app.id, phase="retrying",
                                 message=f"No script errors found. Retrying build (attempt {attempt + 1})..."
                             )
-                            continue
-                        self._update_status(
-                            app.id, phase="failed",
-                            message="Build failed and auto-fix could not apply changes"
-                        )
-                        self.db.update_app(app.id, status="error")
-                        return
+                        else:
+                            self._update_status(
+                                app.id, phase="retrying",
+                                message=f"Auto-fix could not apply changes. Retrying build (attempt {attempt + 1})..."
+                            )
+                        continue
                 else:
                     self._update_status(
                         app.id, phase="failed",

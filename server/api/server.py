@@ -82,7 +82,7 @@ def _cleanup_stale_db_state(db_inst: DBManager):
 async def lifespan(app: FastAPI):
     app.state.db = DBManager(DB_PATH)
     _cleanup_stale_db_state(app.state.db)
-    settings = app.state.db.get_all_settings()
+    settings = get_settings()
     app.state.internet = InternetMonitor(
         check_url=settings.get("internet_check_url", "https://api.anthropic.com"),
         interval=int(settings.get("internet_check_interval", "30")),
