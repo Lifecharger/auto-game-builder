@@ -96,6 +96,10 @@ Template files with empty values are committed for reference:
 
 If you're an AI agent configuring this project, read [`AGENT_SETUP_GUIDE.md`](AGENT_SETUP_GUIDE.md) for complete instructions on JSON formats, tool search strategies, and configuration rules.
 
+## Your Creations
+
+Games and apps you build with Auto Game Builder are **entirely yours**. You own all rights to your creations — sell them, publish them, modify them, do whatever you want. No attribution required, no revenue sharing, no restrictions. Auto Game Builder is just the tool; what you make with it belongs to you.
+
 ## License
 
-This project is licensed under the GNU General Public License v3.0 — see [LICENSE](LICENSE) for details.
+This project (Auto Game Builder itself) is licensed under the GNU General Public License v3.0 — see [LICENSE](LICENSE) for details. This license applies to the tool, not to what you create with it.
