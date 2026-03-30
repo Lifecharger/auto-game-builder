@@ -7,5 +7,14 @@
     "max_session_minutes": 60,
     "mcp_servers": [],
     "created_at": "2026-03-31T00:36:03.680954"
+  },
+  "15": {
+    "app_id": 15,
+    "ai_agent": "claude",
+    "interval_minutes": 5,
+    "prompt": "",
+    "max_session_minutes": 60,
+    "mcp_servers": [],
+    "created_at": "2026-03-31T01:17:36.151006"
   }
 }

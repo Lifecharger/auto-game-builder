@@ -972,7 +972,12 @@ def _load_tasklist(a) -> list:
                         return []
                 else:
                     return []
-            return data.get("tasks", data) if isinstance(data, dict) else data
+            tasks = data.get("tasks", data) if isinstance(data, dict) else data
+            # Normalize "done" → "completed" (some AI agents use "done" instead)
+            for t in tasks:
+                if isinstance(t, dict) and t.get("status", "").lower() == "done":
+                    t["status"] = "completed"
+            return tasks
         except Exception:
             pass
     return []

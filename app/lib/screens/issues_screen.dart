@@ -46,7 +46,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
   Set<int> _postponedAppIds = {};
   static const _postponedAppsKey = 'postponed_app_ids';
 
-  static const _statusOptions = ['all', 'pending', 'in_progress', 'completed', 'built', 'failed'];
+  static const _statusOptions = ['all', 'in_progress', 'pending', 'failed', 'divided', 'completed', 'built'];
   static const _typeOptions = ['all', 'issue', 'bug', 'fix', 'feature', 'idea'];
 
   static const _promptHistoryKey = 'idea_prompt_history';
@@ -340,14 +340,22 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
           _loadError = result.error ?? 'Failed to load tasks';
         }
 
-        // Sort: active items first (pending/in_progress), then by date newest first
+        // Normalize "done" → "completed" (some agents use "done" instead)
+        for (final item in items) {
+          if ((item['status'] ?? '').toString().toLowerCase() == 'done') {
+            item['status'] = 'completed';
+          }
+        }
+
+        // Sort: status groups first, then by task ID (highest first) within each group
         int statusWeight(String s) {
           switch (s) {
             case 'in_progress': return 0;
             case 'pending': return 1;
             case 'failed': return 2;
-            case 'completed': return 3;
-            case 'built': return 4;
+            case 'divided': return 3;
+            case 'completed': return 4;
+            case 'built': return 5;
             default: return 1;
           }
         }
@@ -356,11 +364,6 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
           final bStatus = (b['status'] ?? 'pending').toString();
           final sw = statusWeight(aStatus).compareTo(statusWeight(bStatus));
           if (sw != 0) return sw;
-          final aDate = a['created_at']?.toString() ?? '';
-          final bDate = b['created_at']?.toString() ?? '';
-          if (aDate.isNotEmpty && bDate.isNotEmpty) {
-            return bDate.compareTo(aDate);
-          }
           return (b['id'] as int? ?? 0).compareTo(a['id'] as int? ?? 0);
         });
 

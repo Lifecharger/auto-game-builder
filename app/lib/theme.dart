@@ -78,8 +78,10 @@ class AppColors {
       case 'pending': return warning;
       case 'in_progress': return info;
       case 'completed': return success;
+      case 'done': return success;
       case 'built': return const Color(0xFF9B59B6);
       case 'failed': return error;
+      case 'divided': return const Color(0xFF3498DB);
       default: return Colors.grey;
     }
   }
