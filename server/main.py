@@ -114,7 +114,7 @@ def start_background_services():
         _kill_port_holder(api_port)
         last_pid = None
         while True:
-            log_file = open(os.path.join(api_dir, "server_crash.log"), "w")
+            log_file = open(os.path.join(api_dir, "server_crash.log"), "w", encoding="utf-8")
             host = settings.get("host", "0.0.0.0")
             port = str(settings.get("port", 8000))
             proc = subprocess.Popen(

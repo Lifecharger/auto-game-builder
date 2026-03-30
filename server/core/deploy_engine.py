@@ -390,7 +390,7 @@ class DeployEngine:
         build_num += 1
         new_version = f"{major}.{minor}.{patch}+{build_num}"
         content = re.sub(r"version:\s*\d+\.\d+\.\d+\+\d+", f"version: {new_version}", content)
-        with open(pubspec, "w") as f:
+        with open(pubspec, "w", encoding="utf-8") as f:
             f.write(content)
         return new_version
 
@@ -413,7 +413,7 @@ class DeployEngine:
             content = re.sub(r'version/name="[^"]*"', f'version/name="{new_name}"', content)
         else:
             new_name = f"1.0.{code}"
-        with open(export_cfg, "w") as f:
+        with open(export_cfg, "w", encoding="utf-8") as f:
             f.write(content)
         return f"{new_name}+{code}"
 
@@ -452,7 +452,7 @@ class DeployEngine:
                                 existing = f.read().strip()
                         if existing != build_version:
                             version_changed = True
-                            with open(bv_path, "w") as f:
+                            with open(bv_path, "w", encoding="utf-8") as f:
                                 f.write(build_version)
                     except Exception:
                         pass
@@ -541,7 +541,7 @@ class DeployEngine:
                 # never gets EOF because the Gradle daemon holds it open.
                 # This caused builds to hang forever despite the AAB being ready.
                 log_file_path = os.path.join(app.project_path, "build", "build_log.txt")
-                with open(log_file_path, "w") as log_f:
+                with open(log_file_path, "w", encoding="utf-8") as log_f:
                     process = subprocess.Popen(
                         cmd,
                         stdout=log_f,

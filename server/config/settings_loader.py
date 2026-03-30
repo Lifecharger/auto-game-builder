@@ -158,6 +158,7 @@ def save_settings(settings_dict: dict) -> None:
             "bash_path": settings_dict.get("bash_path", ""),
             "cloudflared_path": settings_dict.get("cloudflared_path", ""),
             "npx_path": settings_dict.get("npx_path", ""),
+            "wrangler_path": settings_dict.get("wrangler_path", ""),
         },
         "cloudflare": {
             "tunnel_enabled": settings_dict.get("tunnel_enabled", False),

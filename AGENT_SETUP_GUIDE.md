@@ -55,7 +55,8 @@ This is the main config file. Create it from `settings.example.json` or edit the
   "system": {
     "bash_path": "",
     "cloudflared_path": "",
-    "npx_path": ""
+    "npx_path": "",
+    "wrangler_path": ""
   },
   "cloudflare": {
     "tunnel_enabled": false,

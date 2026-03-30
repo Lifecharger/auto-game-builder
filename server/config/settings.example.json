@@ -22,7 +22,8 @@
   "system": {
     "bash_path": "",
     "cloudflared_path": "",
-    "npx_path": ""
+    "npx_path": "",
+    "wrangler_path": ""
   },
   "cloudflare": {
     "tunnel_enabled": false,

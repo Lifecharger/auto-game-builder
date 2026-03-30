@@ -261,7 +261,7 @@ def _load_app_mcp() -> dict:
 
 def _save_app_mcp(data: dict):
     os.makedirs(os.path.dirname(APP_MCP_FILE), exist_ok=True)
-    with open(APP_MCP_FILE, "w") as f:
+    with open(APP_MCP_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
 
@@ -299,7 +299,7 @@ def set_app_mcp(app_id: int, body: AppMcpUpdate):
         if mcp_data["mcpServers"]:
             mcp_file = os.path.join(a.project_path, "mcp_config.json")
             os.makedirs(os.path.dirname(mcp_file), exist_ok=True)
-            with open(mcp_file, "w") as f:
+            with open(mcp_file, "w", encoding="utf-8") as f:
                 json.dump(mcp_data, f, indent=2)
             db().update_app(app_id, mcp_config_path=mcp_file)
     else:
@@ -612,7 +612,7 @@ def create_new_app(body: AppCreate):
                     key_props_dir = os.path.join(project_path_win, "android")
                     os.makedirs(key_props_dir, exist_ok=True)
                     key_props_path = os.path.join(key_props_dir, "key.properties")
-                    with open(key_props_path, "w") as f:
+                    with open(key_props_path, "w", encoding="utf-8") as f:
                         f.write(f"storePassword={key_password}\n")
                         f.write(f"keyPassword={key_password}\n")
                         f.write(f"keyAlias={key_alias}\n")
@@ -620,7 +620,7 @@ def create_new_app(body: AppCreate):
 
                 # Save key info to txt for reference
                 key_info_path = os.path.join(keys_dir, f"{slug}-keyinfo.txt")
-                with open(key_info_path, "w") as f:
+                with open(key_info_path, "w", encoding="utf-8") as f:
                     f.write(f"App: {body.name}\n")
                     f.write(f"Package: {package_name}\n")
                     f.write(f"Keystore: {keystore_path}\n")
@@ -751,7 +751,7 @@ def create_issue(body: IssueCreate):
             except Exception:
                 directives = []
         directives.append(directive)
-        with open(DIRECTIVES_FILE, "w") as f:
+        with open(DIRECTIVES_FILE, "w", encoding="utf-8") as f:
             json.dump(directives, f, indent=2)
 
     return {"id": issue_id, "queued": True, "ok": True}
@@ -1580,7 +1580,7 @@ def send_directive(body: DirectiveCreate):
         "created_at": datetime.now().isoformat(),
         "read": False,
     })
-    with open(DIRECTIVES_FILE, "w") as f:
+    with open(DIRECTIVES_FILE, "w", encoding="utf-8") as f:
         json.dump(directives, f, indent=2)
     return {"ok": True, "total_directives": len(directives)}
 
@@ -1702,7 +1702,7 @@ def _load_automation_configs() -> dict:
 
 
 def _save_automation_configs(configs: dict):
-    with open(AUTOMATIONS_FILE, "w") as f:
+    with open(AUTOMATIONS_FILE, "w", encoding="utf-8") as f:
         json.dump(configs, f, indent=2)
 
 
@@ -1744,7 +1744,7 @@ def _resolve_mcp_config(a, config: dict, project_path_unix: str) -> str:
         if mcp_data["mcpServers"]:
             mcp_file = os.path.join(a.project_path, "mcp_config.json")
             os.makedirs(os.path.dirname(mcp_file), exist_ok=True)
-            with open(mcp_file, "w") as f:
+            with open(mcp_file, "w", encoding="utf-8") as f:
                 json.dump(mcp_data, f, indent=2)
             return f"{project_path_unix}/mcp_config.json"
     elif a.mcp_config_path:
@@ -2996,7 +2996,7 @@ def _load_mcp_servers() -> dict:
 
 def _save_mcp_servers(servers: dict):
     os.makedirs(MCP_CONFIG_DIR, exist_ok=True)
-    with open(MCP_SERVERS_FILE, "w") as f:
+    with open(MCP_SERVERS_FILE, "w", encoding="utf-8") as f:
         json.dump(servers, f, indent=2)
 
 
