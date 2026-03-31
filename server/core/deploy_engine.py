@@ -277,6 +277,10 @@ class DeployEngine:
                 # Check if build hung vs failed
                 was_hung = build and build.log_output and "[HUNG]" in build.log_output
 
+                # Don't auto-fix if build was cancelled by user
+                if self._is_cancelled(app.id):
+                    return
+
                 if attempt <= max_retries:
                     if was_hung:
                         self._update_status(
@@ -789,6 +793,9 @@ class DeployEngine:
 
     def _auto_fix_hung_build(self, app: App) -> bool:
         """Spawn Claude to diagnose and fix a hung build (especially Godot)."""
+        if self._is_cancelled(app.id):
+            return False
+
         claude_md = ""
         claude_md_path = os.path.join(app.project_path, "CLAUDE.md")
         if os.path.isfile(claude_md_path):
@@ -873,6 +880,8 @@ DIAGNOSE AND FIX (Engine Specialist + DevOps Knowledge):
 
     def _auto_fix_build(self, app: App, build) -> bool:
         """Run Claude to fix build errors. Returns True if fix was applied."""
+        if self._is_cancelled(app.id):
+            return False
         if not build or not build.log_output:
             return False
 
