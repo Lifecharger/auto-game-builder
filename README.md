@@ -84,9 +84,10 @@ To access your server from your phone over the internet:
    This opens a browser to authenticate with your Cloudflare account. After login, the setup wizard can auto-configure tunnel settings.
 
 ### MCP Servers (optional, for AI capabilities)
-- **PixelLab** — AI pixel art generation. Get API key at [pixellab.ai/dashboard](https://pixellab.ai/dashboard)
-- **ElevenLabs** — AI audio/music. Get API key at [elevenlabs.io](https://elevenlabs.io). Requires [uv](https://docs.astral.sh/uv/) (`pip install uv`)
-- **Mobile MCP** — Device testing. Requires Node.js
+- **[PixelLab](https://github.com/pixellab-code/pixellab-mcp)** — AI pixel art generation. Get API key at [pixellab.ai/dashboard](https://pixellab.ai/dashboard)
+- **[ElevenLabs](https://github.com/elevenlabs/elevenlabs-mcp)** — AI audio/music. Get API key at [elevenlabs.io](https://elevenlabs.io). Requires [uv](https://docs.astral.sh/uv/) (`pip install uv`)
+- **[Meshy AI](https://github.com/pasie15/meshy-ai-mcp-server)** — 3D model generation (text-to-3D, image-to-3D, rigging, animation). Get API key at [meshy.ai](https://www.meshy.ai/)
+- **[Mobile MCP](https://github.com/mobile-next/mobile-mcp)** — Device testing. Requires Node.js
 - **Godot MCP** — Cloud-based, requires [Claude Max](https://claude.ai) subscription
 - **Cloudflare MCP** — Cloud-based, requires [Claude Max](https://claude.ai) subscription
 
