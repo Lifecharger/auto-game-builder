@@ -4,6 +4,16 @@
 
 A self-hosted game project management system for indie developers. Manage builds, deployments, AI-powered bug fixes, and automation — all from your phone.
 
+## See It in Action
+
+**[Lifecharger on Google Play](https://play.google.com/store/apps/developer?id=Lifecharger)** — [Arcade Snake](https://play.google.com/store/apps/details?id=com.lifecharger.arcadesnake) was built and deployed entirely through Auto Game Builder's automation pipeline. Check it out as a demo of what this tool can do.
+
+**[In-Progress APKs (Google Drive)](https://drive.google.com/drive/folders/1p29egH2JkXLpU-o7IqdnH5IIsy2a9sE3?usp=drive_link)** — Raw development builds of games and apps currently being made with Auto Game Builder. **Fair warning:**
+- These are **not playtested** — expect rough edges and broken flows
+- These are **not audited** — no security or quality review has been done
+- Several are **in the middle of a refactor** by Claude Code (via Auto Game Builder) using templates from [Claude Code Game Studios](https://github.com/Donchitos/Claude-Code-Game-Studios) — features may be half-implemented or temporarily broken as the AI agents restructure and improve them
+- Treat these as a snapshot of active development, not finished products
+
 ## Features
 
 - **Multi-Agent AI**: Use Claude, Gemini, Codex, or Aider to fix bugs, implement features, and automate tasks
