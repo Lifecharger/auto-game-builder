@@ -125,6 +125,10 @@ Some ideas:
 
 Games and apps you build with Auto Game Builder are **entirely yours**. You own all rights to your creations — sell them, publish them, modify them, do whatever you want. No attribution required, no revenue sharing, no restrictions. Auto Game Builder is just the tool; what you make with it belongs to you.
 
+## Roadmap
+
+- [ ] **Meshy MCP Integration** — 3D model generation (text-to-3D, image-to-3D, auto-rigging, animation) via [Meshy AI](https://www.meshy.ai/)
+
 ## License
 
 This project (Auto Game Builder itself) is licensed under the GNU General Public License v3.0 — see [LICENSE](LICENSE) for details. This license applies to the tool, not to what you create with it.
