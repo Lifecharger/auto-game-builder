@@ -127,7 +127,9 @@ Games and apps you build with Auto Game Builder are **entirely yours**. You own 
 
 ## Roadmap
 
-- [ ] **Meshy MCP Integration** — 3D model generation (text-to-3D, image-to-3D, auto-rigging, animation) via [Meshy AI](https://www.meshy.ai/)
+- [x] **Meshy MCP Integration** — 3D model generation (text-to-3D, image-to-3D, auto-rigging, animation) via [Meshy AI](https://www.meshy.ai/)
+- [ ] **Experimental Unity Support** — Unity engine project creation, build pipeline, and deployment
+- [ ] **Genre Selection & Database** — Genre-based project templates with curated mechanics, assets, and configurations
 
 ## License
 
