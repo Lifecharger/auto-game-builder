@@ -79,9 +79,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final exeDir = File(Platform.resolvedExecutable).parent;
     final sep = Platform.pathSeparator;
     final rel = '${sep}server${sep}config${sep}settings.json';
-    for (final base in [exeDir, exeDir.parent, exeDir.parent.parent]) {
-      final p = '${base.path}$rel';
+    // Walk up to 8 levels from exe dir to find the project root
+    Directory dir = exeDir;
+    for (int i = 0; i < 8; i++) {
+      final p = '${dir.path}$rel';
       if (File(p).existsSync()) return p;
+      final parent = dir.parent;
+      if (parent.path == dir.path) break; // reached filesystem root
+      dir = parent;
     }
     return null;
   }
@@ -94,10 +99,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final json = jsonDecode(content) as Map<String, dynamic>;
 
       // Sync worker URL and server URL from settings.json into AppConfig
+      // Always update from settings.json on desktop (settings.json is the source of truth)
       final workerUrl = (json['cloudflare'] as Map<String, dynamic>?)?['worker_url'] as String? ?? '';
-      if (workerUrl.isNotEmpty && AppConfig.workerUrl.isEmpty) {
+      if (workerUrl.isNotEmpty) {
         await AppConfig.setWorkerUrl(workerUrl);
+        await AppConfig.setBaseUrl(workerUrl);
         _workerUrlController.text = workerUrl;
+        _urlController.text = workerUrl;
+      }
+      // Also sync API key from settings.json on desktop
+      final apiKey = (json['security'] as Map<String, dynamic>?)?['api_key'] as String? ?? '';
+      if (apiKey.isNotEmpty) {
+        await AppConfig.setApiKey(apiKey);
       }
       final host = (json['server'] as Map<String, dynamic>?)?['host'] as String? ?? '0.0.0.0';
       final port = (json['server'] as Map<String, dynamic>?)?['port'] ?? 8000;
