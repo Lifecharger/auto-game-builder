@@ -7,6 +7,10 @@ import shutil
 import subprocess
 import atexit
 import threading
+import hmac
+import hashlib
+import secrets
+import json
 import psutil
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -182,6 +186,7 @@ def start_background_services():
                         print("[AutoGameBuilder] KV namespace ID not configured, skipping KV write")
                     else:
                         wrangler = settings.get("wrangler_path", "") or shutil.which("wrangler") or "wrangler"
+                        # Write tunnel URL
                         kv_cmd = [
                             wrangler, "kv", "key", "put",
                             "--namespace-id", kv_ns,
@@ -192,7 +197,23 @@ def start_background_services():
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                             creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
                         )
-                        print("[AutoGameBuilder] Tunnel URL registered to KV")
+                        # Write HMAC signature of tunnel URL for anti-poisoning
+                        hmac_secret = settings.get("hmac_secret", "")
+                        if hmac_secret:
+                            sig = hmac.new(
+                                hmac_secret.encode(), tunnel_url.encode(), hashlib.sha256
+                            ).hexdigest()
+                            sig_cmd = [
+                                wrangler, "kv", "key", "put",
+                                "--namespace-id", kv_ns,
+                                "tunnel_sig", sig, "--remote",
+                            ]
+                            subprocess.run(
+                                sig_cmd, timeout=30, shell=True,
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+                            )
+                        print("[AutoGameBuilder] Tunnel URL + signature registered to KV")
                 except Exception as e:
                     print(f"[AutoGameBuilder] KV write failed: {e}")
             else:
@@ -277,6 +298,33 @@ def archive_old_logs():
             print(f"[AutoGameBuilder] Log archive error ({app.name}): {e}")
 
 
+def _ensure_security_keys():
+    """Auto-generate API key and HMAC secret if not already set."""
+    config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "settings.json")
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            config = json.load(f)
+    except Exception:
+        return
+
+    security = config.setdefault("security", {})
+    changed = False
+    if not security.get("api_key"):
+        security["api_key"] = secrets.token_urlsafe(32)
+        changed = True
+        print(f"[AutoGameBuilder] Generated new API key")
+    if not security.get("hmac_secret"):
+        security["hmac_secret"] = secrets.token_urlsafe(32)
+        changed = True
+        print(f"[AutoGameBuilder] Generated new HMAC secret")
+
+    if changed:
+        with open(config_path, "w", encoding="utf-8") as f:
+            json.dump(config, f, indent=2)
+        # Force settings reload so the rest of startup sees new keys
+        get_settings(force_reload=True)
+
+
 def main():
     if not settings_exist():
         # Run setup wizard from repo root
@@ -285,6 +333,7 @@ def main():
         from setup_wizard import run_wizard
         run_wizard()
 
+    _ensure_security_keys()
     archive_old_logs()
     start_background_services()
     atexit.register(cleanup)

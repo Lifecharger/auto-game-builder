@@ -36,5 +36,9 @@
   },
   "developer": {
     "developer_name": ""
+  },
+  "security": {
+    "api_key": "",
+    "hmac_secret": ""
   }
 }

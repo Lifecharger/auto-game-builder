@@ -22,6 +22,38 @@ A self-hosted game project management system for indie developers. Manage builds
 - **Task Automation**: Continuous automation loops with configurable intervals
 - **MCP Integration**: PixelLab (pixel art), ElevenLabs (audio), Mobile (device testing)
 - **Remote Access**: Cloudflare Worker proxy for permanent phone-to-PC connection
+- **End-to-End Security**: API key authentication + HMAC-signed tunnel URLs protect both phone and PC
+
+## Security
+
+Auto Game Builder takes security seriously. Your development PC is exposed to the internet via Cloudflare tunnels, so multiple layers of protection are in place:
+
+### How It Works
+
+```
+Phone ──X-API-Key──> Worker ──verify HMAC──> Tunnel ──validate key──> PC Server
+```
+
+| Layer | Threat | Protection |
+|-------|--------|------------|
+| **API Key Authentication** | Unauthorized access to your server | Every request requires a shared secret (`X-API-Key` header). Both the Cloudflare Worker and the PC server independently validate it. |
+| **HMAC-Signed Tunnel URLs** | KV poisoning / man-in-the-middle | When the server writes its tunnel URL to Cloudflare KV, it also writes an HMAC-SHA256 signature. The Worker verifies this signature before proxying — a poisoned URL fails verification. |
+| **QR Code Pairing** | Secure key exchange | The API key is transferred from PC to phone via QR code scan (physical/local channel). The key never travels through the internet during setup. |
+| **Worker Secrets** | Key leakage | API key and HMAC secret are stored as Cloudflare Worker secrets (encrypted, never visible in dashboards or logs). |
+
+### Pairing Your Phone
+
+1. **Start the server** — keys are auto-generated on first run and saved to `settings.json`
+2. **On the desktop app** — go to Settings > "Show Pairing QR Code"
+3. **On your phone** — go to Settings > "Scan QR Code to Pair"
+4. Done. Your phone is now authenticated for all future requests.
+
+### What's Protected
+
+- All `/api/*` endpoints require a valid API key (except `/api/health`)
+- The Worker rejects requests without a valid key before they ever reach your PC
+- Tunnel URLs in KV are cryptographically signed — even with Cloudflare account access, an attacker cannot redirect traffic without the HMAC secret
+- The health endpoint no longer leaks the raw tunnel URL
 
 ## Architecture
 
@@ -82,6 +114,16 @@ To access your server from your phone over the internet:
    wrangler login
    ```
    This opens a browser to authenticate with your Cloudflare account. After login, the setup wizard can auto-configure tunnel settings.
+
+3. **Deploy the worker and set secrets** (after first server start generates keys):
+   ```bash
+   cd worker && npx wrangler deploy
+   # Read keys from server/config/settings.json, then:
+   echo "YOUR_API_KEY" | npx wrangler secret put API_KEY
+   echo "YOUR_HMAC_SECRET" | npx wrangler secret put HMAC_SECRET
+   ```
+
+4. **Pair your phone** — see [Security > Pairing Your Phone](#pairing-your-phone) above
 
 ### MCP Servers (optional, for AI capabilities)
 - **[PixelLab](https://github.com/pixellab-code/pixellab-mcp)** — AI pixel art generation. Get API key at [pixellab.ai/dashboard](https://pixellab.ai/dashboard)

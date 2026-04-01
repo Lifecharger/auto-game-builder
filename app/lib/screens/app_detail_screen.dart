@@ -1574,6 +1574,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
       case 'elevenlabs': return Icons.mic;
       case 'godot': return Icons.videogame_asset;
       case 'cloudflare': return Icons.cloud;
+      case 'meshy': return Icons.view_in_ar;
       default: return Icons.hub;
     }
   }

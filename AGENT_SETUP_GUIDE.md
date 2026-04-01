@@ -69,9 +69,15 @@ This is the main config file. Create it from `settings.example.json` or edit the
   },
   "developer": {
     "developer_name": ""
+  },
+  "security": {
+    "api_key": "",
+    "hmac_secret": ""
   }
 }
 ```
+
+> **Note:** Leave `security.api_key` and `security.hmac_secret` empty — they are auto-generated on first server start. See [3c. Security Setup](#3c-security-setup-api-key--hmac-signing) for post-setup steps.
 
 **How to find each value:**
 
@@ -220,8 +226,40 @@ The worker gives the user a permanent URL that always proxies to their PC server
 6. The user enters this worker URL in the phone app. It never changes.
 
 **How it works:**
-- Server starts → Cloudflare tunnel → gets dynamic URL → writes to KV
-- Phone connects to worker URL → worker reads KV → proxies to tunnel → reaches PC
+- Server starts → Cloudflare tunnel → gets dynamic URL → writes URL + HMAC signature to KV
+- Phone connects to worker URL → worker verifies API key + HMAC signature → proxies to tunnel → PC server validates API key again
+
+### 3c. Security Setup (API key + HMAC signing)
+
+The server auto-generates an API key and HMAC secret on first start. These are stored in `settings.json` under `security`:
+
+```json
+"security": {
+    "api_key": "auto-generated-on-first-run",
+    "hmac_secret": "auto-generated-on-first-run"
+}
+```
+
+**After the first server start**, you must push these secrets to the Cloudflare Worker:
+
+```bash
+cd worker
+# Read the values from server/config/settings.json → security section
+echo "THE_API_KEY" | npx wrangler secret put API_KEY
+echo "THE_HMAC_SECRET" | npx wrangler secret put HMAC_SECRET
+```
+
+**How security works:**
+- **API key**: Shared secret between phone and server. The phone sends it as `X-API-Key` header. Both the Worker and the server validate it independently. Transferred via QR code scan (never through the internet).
+- **HMAC signature**: When the server writes the tunnel URL to KV, it also writes `HMAC-SHA256(hmac_secret, tunnel_url)` as `tunnel_sig`. The Worker verifies this signature before proxying. This prevents KV poisoning attacks where an attacker redirects traffic to a malicious server.
+- **QR pairing**: The desktop app shows a QR code containing the API key + worker URL (base64-encoded JSON). The phone app scans it to configure itself. This avoids transmitting the key over the internet.
+
+**Protected endpoints:**
+- All `/api/*` routes require `X-API-Key` header (except `/api/health` and `/api/pair`)
+- `/api/pair` returns the pairing QR data (accessible from localhost for desktop app)
+- `/worker/health` is public but no longer leaks the raw tunnel URL
+
+**If the user doesn't need remote access**, security is optional — set `tunnel_enabled: false` and leave security keys empty. The server allows all requests when no API key is configured (local-only mode).
 
 ### 4. Python Dependencies
 

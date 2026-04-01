@@ -2,7 +2,9 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../config.dart';
 import '../services/api_service.dart';
@@ -927,6 +929,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
               const SizedBox(height: 12),
+              // Pairing QR code button (desktop only)
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: _showPairingQr,
+                  icon: const Icon(Icons.qr_code, size: 20),
+                  label: const Text('Show Pairing QR Code'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.accent,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
               Text(
                 'Server URL',
                 style: TextStyle(
@@ -971,20 +986,64 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Row(
+            Row(
               children: [
-                Icon(Icons.cloud_sync, color: AppColors.info),
-                SizedBox(width: 8),
-                Text(
-                  'Server Connection',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+                const Icon(Icons.cloud_sync, color: AppColors.info),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Server Connection',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                // Pairing status badge
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppConfig.isPaired
+                        ? AppColors.success.withValues(alpha: 0.15)
+                        : AppColors.warning.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        AppConfig.isPaired ? Icons.lock : Icons.lock_open,
+                        size: 14,
+                        color: AppConfig.isPaired ? AppColors.success : AppColors.warning,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        AppConfig.isPaired ? 'Paired' : 'Not paired',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: AppConfig.isPaired ? AppColors.success : AppColors.warning,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 12),
+            // QR Scan pairing button
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: _scanQrToPair,
+                icon: const Icon(Icons.qr_code_scanner, size: 20),
+                label: Text(AppConfig.isPaired ? 'Re-pair with QR Code' : 'Scan QR Code to Pair'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppConfig.isPaired ? Colors.grey.shade700 : AppColors.accent,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
             if (!_editingWorkerUrl && hasWorkerUrl) ...[
               // Show current worker URL with Edit button
               Text(
@@ -1106,6 +1165,83 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  void _showPairingQr() {
+    // Read API key from server settings.json (desktop only)
+    final apiKey = (_serverSettings?['security']
+            as Map<String, dynamic>?)?['api_key'] as String? ??
+        '';
+    final workerUrl = (_serverSettings?['cloudflare']
+            as Map<String, dynamic>?)?['worker_url'] as String? ??
+        '';
+
+    if (apiKey.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No API key found — restart the server to generate one'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    final pairData = base64Encode(
+      utf8.encode(jsonEncode({'api_key': apiKey, 'worker_url': workerUrl})),
+    );
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Scan this QR from your phone'),
+        content: SizedBox(
+          width: 280,
+          height: 280,
+          child: Center(
+            child: QrImageView(
+              data: pairData,
+              version: QrVersions.auto,
+              size: 260,
+              backgroundColor: Colors.white,
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Done'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _scanQrToPair() async {
+    final result = await Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        builder: (_) => const _QrScanScreen(),
+      ),
+    );
+    if (result == null || !mounted) return;
+    try {
+      await AppConfig.applyPairingData(result);
+      _workerUrlController.text = AppConfig.workerUrl;
+      _urlController.text = AppConfig.baseUrl;
+      setState(() => _editingWorkerUrl = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Paired successfully!'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Invalid QR code: $e'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+
   Future<void> _saveWorkerUrl() async {
     final url = _workerUrlController.text.trim();
     if (url.isEmpty) return;
@@ -1130,6 +1266,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Text(label, style: TextStyle(color: Colors.grey.shade400)),
           Text(value, style: const TextStyle(fontWeight: FontWeight.w500)),
         ],
+      ),
+    );
+  }
+}
+
+
+/// Full-screen QR scanner for pairing.
+class _QrScanScreen extends StatefulWidget {
+  const _QrScanScreen();
+
+  @override
+  State<_QrScanScreen> createState() => _QrScanScreenState();
+}
+
+class _QrScanScreenState extends State<_QrScanScreen> {
+  bool _scanned = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Scan Pairing QR Code')),
+      body: MobileScanner(
+        onDetect: (capture) {
+          if (_scanned) return;
+          final barcode = capture.barcodes.firstOrNull;
+          if (barcode?.rawValue == null) return;
+          _scanned = true;
+          Navigator.of(context).pop(barcode!.rawValue);
+        },
       ),
     );
   }

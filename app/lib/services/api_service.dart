@@ -39,6 +39,7 @@ class ApiService {
   static Map<String, String> get _headers => {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
+        if (AppConfig.apiKey.isNotEmpty) 'X-API-Key': AppConfig.apiKey,
       };
 
   /// GET with automatic retry + exponential backoff (1s, 2s, 4s).
