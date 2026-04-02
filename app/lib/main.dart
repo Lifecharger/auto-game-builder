@@ -60,6 +60,7 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
+  DateTime? _lastBackPress;
 
   final _screens = const [
     DashboardScreen(),
@@ -149,7 +150,32 @@ class _MainShellState extends State<MainShell> {
 
     final showOffline = appState.showOfflineBanner;
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        // If not on Dashboard, go to Dashboard first
+        if (_currentIndex != 0) {
+          setState(() => _currentIndex = 0);
+          context.read<AppState>().setActiveTab(0);
+          return;
+        }
+        // On Dashboard: require double-tap back to exit
+        final now = DateTime.now();
+        if (_lastBackPress != null &&
+            now.difference(_lastBackPress!) < const Duration(seconds: 2)) {
+          SystemNavigator.pop();
+          return;
+        }
+        _lastBackPress = now;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Press back again to exit'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      },
+      child: Scaffold(
       body: Column(
         children: [
           AnimatedContainer(
@@ -234,6 +260,7 @@ class _MainShellState extends State<MainShell> {
           ),
         ],
       ),
+    ),
     );
   }
 }

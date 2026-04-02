@@ -10,29 +10,32 @@ class ChatLogsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return DefaultTabController(
       length: 2,
-      child: Column(
-        children: [
-          Material(
-            color: AppColors.bgCard,
-            child: TabBar(
-              indicatorColor: AppColors.accent,
-              labelColor: AppColors.accent,
-              unselectedLabelColor: Colors.grey,
-              tabs: const [
-                Tab(icon: Icon(Icons.chat_bubble_outline, size: 20), text: 'Chat'),
-                Tab(icon: Icon(Icons.article_outlined, size: 20), text: 'Logs'),
-              ],
+      child: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            Material(
+              color: AppColors.bgCard,
+              child: TabBar(
+                indicatorColor: AppColors.accent,
+                labelColor: AppColors.accent,
+                unselectedLabelColor: Colors.grey,
+                tabs: const [
+                  Tab(icon: Icon(Icons.chat_bubble_outline, size: 20), text: 'Chat'),
+                  Tab(icon: Icon(Icons.article_outlined, size: 20), text: 'Logs'),
+                ],
+              ),
             ),
-          ),
-          const Expanded(
-            child: TabBarView(
-              children: [
-                ChatScreen(),
-                LogsScreen(),
-              ],
+            const Expanded(
+              child: TabBarView(
+                children: [
+                  ChatScreen(),
+                  LogsScreen(),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -999,7 +999,8 @@ def _repair_mojibake(text: str) -> str:
     if not isinstance(text, str) or not text:
         return text
     # Common mojibake signatures: â€" (em-dash), â€™ (right quote), Ã© (é), etc.
-    if "\u00e2\u0080" in text or "\u00c3" in text:
+    # \u00e2\u0080 = Latin-1 decoded; \u00e2\u20ac = CP1252 decoded (0x80 → €)
+    if "\u00e2\u0080" in text or "\u00e2\u20ac" in text or "\u00c3" in text:
         try:
             return text.encode("cp1252").decode("utf-8")
         except (UnicodeDecodeError, UnicodeEncodeError):

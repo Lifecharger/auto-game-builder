@@ -41,6 +41,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
   List<dynamic> _mcpPresets = [];
   Set<String> _appMcpServers = {};
   bool _mcpLoading = true;
+  bool _mcpExpanded = false;
 
   // Build preferences
   String _buildTarget = 'aab';
@@ -1580,71 +1581,109 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
   }
 
   Widget _buildMcpCard() {
+    final activeCount = _appMcpServers.length;
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(children: [
-              Icon(Icons.hub, size: 18, color: Colors.purple.shade200),
-              const SizedBox(width: 8),
-              const Text('MCP Servers',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            ]),
-            const SizedBox(height: 4),
-            Text('Tool servers available for all AI runs on this app',
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
-            const SizedBox(height: 8),
-            if (_mcpLoading)
-              const Center(child: Padding(
-                padding: EdgeInsets.all(12),
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ))
-            else
-              ..._mcpPresets.map((p) {
-                final name = p['name']?.toString() ?? '';
-                final label = p['label']?.toString() ?? name;
-                final desc = p['description']?.toString() ?? '';
-                final active = _appMcpServers.contains(name);
-                return SwitchListTile(
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  secondary: Icon(_mcpIcon(name), size: 20,
-                    color: active ? Colors.purple.shade200 : Colors.grey.shade600),
-                  title: Text(label, style: const TextStyle(fontSize: 14)),
-                  subtitle: Text(desc,
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
-                  value: active,
-                  onChanged: (sel) async {
-                    setState(() {
-                      if (sel) {
-                        _appMcpServers.add(name);
-                      } else {
-                        _appMcpServers.remove(name);
-                      }
-                    });
-                    final result = await ApiService.setAppMcp(
-                      widget.appId, _appMcpServers.toList());
-                    if (mounted && !result.ok) {
-                      // Revert on failure
-                      setState(() {
-                        if (sel) {
-                          _appMcpServers.remove(name);
-                        } else {
-                          _appMcpServers.add(name);
-                        }
-                      });
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                        content: Text(result.error ?? 'Failed to update MCP'),
-                        backgroundColor: AppColors.error,
-                      ));
-                    }
-                  },
-                );
-              }),
-          ],
-        ),
+      child: Column(
+        children: [
+          InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () => setState(() => _mcpExpanded = !_mcpExpanded),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(children: [
+                Icon(Icons.hub, size: 18, color: Colors.purple.shade200),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _mcpLoading
+                        ? 'MCP Servers'
+                        : 'MCP Servers ($activeCount active)',
+                    style: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                Icon(
+                  _mcpExpanded
+                      ? Icons.expand_less
+                      : Icons.expand_more,
+                  color: Colors.grey.shade500,
+                ),
+              ]),
+            ),
+          ),
+          AnimatedCrossFade(
+            firstChild: const SizedBox.shrink(),
+            secondChild: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Tool servers available for all AI runs on this app',
+                      style: TextStyle(
+                          fontSize: 11, color: Colors.grey.shade500)),
+                  const SizedBox(height: 8),
+                  if (_mcpLoading)
+                    const Center(child: Padding(
+                      padding: EdgeInsets.all(12),
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ))
+                  else
+                    ..._mcpPresets.map((p) {
+                      final name = p['name']?.toString() ?? '';
+                      final label = p['label']?.toString() ?? name;
+                      final desc = p['description']?.toString() ?? '';
+                      final active = _appMcpServers.contains(name);
+                      return SwitchListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        secondary: Icon(_mcpIcon(name), size: 20,
+                          color: active
+                              ? Colors.purple.shade200
+                              : Colors.grey.shade600),
+                        title: Text(label,
+                            style: const TextStyle(fontSize: 14)),
+                        subtitle: Text(desc,
+                          style: TextStyle(
+                              fontSize: 11, color: Colors.grey.shade500)),
+                        value: active,
+                        onChanged: (sel) async {
+                          setState(() {
+                            if (sel) {
+                              _appMcpServers.add(name);
+                            } else {
+                              _appMcpServers.remove(name);
+                            }
+                          });
+                          final result = await ApiService.setAppMcp(
+                            widget.appId, _appMcpServers.toList());
+                          if (mounted && !result.ok) {
+                            setState(() {
+                              if (sel) {
+                                _appMcpServers.remove(name);
+                              } else {
+                                _appMcpServers.add(name);
+                              }
+                            });
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                    result.error ?? 'Failed to update MCP'),
+                                backgroundColor: AppColors.error,
+                              ),
+                            );
+                          }
+                        },
+                      );
+                    }),
+                ],
+              ),
+            ),
+            crossFadeState: _mcpExpanded
+                ? CrossFadeState.showSecond
+                : CrossFadeState.showFirst,
+            duration: const Duration(milliseconds: 200),
+          ),
+        ],
       ),
     );
   }

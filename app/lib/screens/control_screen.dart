@@ -617,7 +617,7 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
                       Center(child: Text('No automations configured',
                         style: TextStyle(color: Colors.grey, fontSize: 16)))])
                   : ListView.builder(
-                      padding: const EdgeInsets.all(12),
+                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 80),
                       itemCount: _automations.length,
                       itemBuilder: (context, index) {
                         final auto = _automations[index];
