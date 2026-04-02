@@ -1,5 +1,5 @@
 """
-Shared PixelLab client — auto-reads API key from AppManager config.
+Shared PixelLab client — auto-reads API key from Auto Game Builder config.
 
 Supports both SDK (v1) and direct API calls (v1 + v2).
 
@@ -20,7 +20,7 @@ API_V2 = "https://api.pixellab.ai/v2"
 
 
 def get_api_key() -> str:
-    """Read PixelLab API key from AppManager's mcp_servers.json."""
+    """Read PixelLab API key from Auto Game Builder's mcp_servers.json."""
     if MCP_SERVERS_FILE.is_file():
         with open(MCP_SERVERS_FILE, "r") as f:
             servers = json.load(f)
