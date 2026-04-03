@@ -20,7 +20,7 @@ Every task you generate MUST be completable in a SINGLE session (max 30 minutes 
 - Tasks like "fix colony screen" — instead break into: "add colony list UI nodes", "connect colony data to UI labels", "add colony selection signal handler", etc.
 
 ### Task Generation Rules:
-1. Generate 3-5 micro-tasks per session (not 1-3 big ones)
+1. Generate as many micro-tasks as you can identify — there is no cap. Create every useful task you see.
 2. Each task title must start with a verb: Add, Fix, Create, Connect, Remove, Rename, Refactor, Update, Extract
 3. Each task description must specify EXACTLY which file(s) to modify
 4. If an improvement needs multiple steps, create separate tasks for each step — they will be done in sequence by future sessions
@@ -59,10 +59,9 @@ Signs a task is too big:
 - Previous attempts failed on this task (check the response field for failure history)
 
 ## Session Efficiency
-- Pick ONE pending task, do it, mark it done, generate ideas, stop
-- Do not attempt to do multiple tasks in a single session unless they are trivially small
-- If a task is taking too long or seems bigger than expected, STOP immediately — mark it "divided", create micro sub-tasks, then move on
-- Never spend more than 20 minutes on a single task. If you're stuck, divide it and split it.
+- Work through as many pending tasks as you can within the session timeout.
+- If a task is taking too long or seems bigger than expected, mark it "divided", create micro sub-tasks, then move on to the next task.
+- If you're stuck on a task for more than 20 minutes, divide it and move on.
 
 ## Game Studio Quality Standards
 

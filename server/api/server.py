@@ -1924,12 +1924,11 @@ You MUST follow these steps IN ORDER for EVERY task. Skipping any step is a fail
     elif focus_roll <= 85:
         session_focus = "CODE QUALITY"
         studio_knowledge = _load_studio_knowledge("code_quality")
-        session_focus_details = f"""Generate tasks about CODE QUALITY (max 3 tasks):
+        session_focus_details = f"""Generate tasks about CODE QUALITY:
 - Null checks after await, is_instance_valid guards
 - Signal cleanup in _exit_tree
 - Memory leaks, resource cleanup
 - Error handling at system boundaries
-- Do NOT generate more than 3 code quality tasks. Quality over quantity.
 {studio_knowledge}"""
     else:
         session_focus = "POLISH / NEW IDEAS"
@@ -1974,15 +1973,13 @@ If you start a task but cannot complete it in this run, update tasklist.json imm
 - Set "completed_by" to "{ai_agent}"
 - Write the blocker/error clearly in "response"
 
-STEP 5 - GENERATE NEW TASKS (ONLY IF NEEDED):
-Count the remaining pending tasks in tasklist.json.
-- If there are 5 or MORE pending tasks: DO NOT generate new tasks. Focus on completing existing ones.
-- If there are FEWER than 5 pending tasks: Generate 3-5 new tasks based on this session's focus area.
+STEP 5 - GENERATE NEW TASKS:
+After completing existing tasks, generate new tasks based on this session's focus area.
 Add them to tasklist.json with status "pending" and a clear title + description.
+Generate as many tasks as you see fit — there is no limit. Create every useful task you can identify.
 
 IMPORTANT — TASK PRIORITY RULES (always apply):
 - Crashes and build failures are ALWAYS top priority regardless of focus area.
-- Never generate more than 1 code-quality task (null checks, signal cleanup, etc.) per session.
 - ALWAYS work on existing pending tasks before generating new ones.
 - Work on oldest tasks first (lowest ID).
 
@@ -4138,6 +4135,28 @@ Every asset must be AI-generated (PixelLab, ElevenLabs, Grok tools)."""
         lines.append("- **Meshy AI MCP available** — use for 3D model generation: `create_text_to_3d_task`, `create_image_to_3d_task`, `create_text_to_texture_task`, `create_remesh_task`, `create_rigging_task`, `create_animation_task`.\n")
     with open(claude_md_path, "w", encoding="utf-8") as f:
         f.writelines(lines)
+
+    # Create initial gdd.md with available info so it exists from the start
+    gdd_path = os.path.join(project_path_win, "gdd.md")
+    gdd_lines = [f"# {project_name} — Game Design Document\n\n"]
+    gdd_lines.append("## 1. Overview\n")
+    overview_parts = [f"**{project_name}**"]
+    if body.concept:
+        overview_parts.append(f" — {body.concept.strip()}")
+    overview_parts.append(f"\n\n- **Platform:** {body.platform}\n")
+    overview_parts.append(f"- **Engine:** {body.app_type}\n")
+    if body.genre:
+        overview_parts.append(f"- **Genre:** {body.genre}\n")
+    gdd_lines.extend(overview_parts)
+    gdd_lines.append("\n## 2. Player Fantasy / User Value\n*To be defined during brainstorm.*\n")
+    gdd_lines.append("\n## 3. Core Loop / Core Flow\n*To be defined during brainstorm.*\n")
+    gdd_lines.append("\n## 4. Detailed Mechanics / Features\n*To be defined during brainstorm.*\n")
+    gdd_lines.append("\n## 5. Formulas & Data\n*To be defined during brainstorm.*\n")
+    gdd_lines.append("\n## 6. Edge Cases & Error Handling\n*To be defined during brainstorm.*\n")
+    gdd_lines.append("\n## 7. Dependencies & Technical Notes\n*To be defined during brainstorm.*\n")
+    gdd_lines.append("\n## 8. Monetization & Retention\n*To be defined during brainstorm.*\n")
+    with open(gdd_path, "w", encoding="utf-8") as f:
+        f.writelines(gdd_lines)
 
     # Create DB entry
     app_id = db().create_app(

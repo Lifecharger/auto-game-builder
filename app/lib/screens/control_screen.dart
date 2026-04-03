@@ -22,16 +22,62 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
   bool _appInForeground = true;
   static const _myTabIndex = 2;
 
+  // Filters (app category uses same SharedPreferences keys as issues screen)
+  String _appCategory = 'in_progress';
+  Set<int> _completedAppIds = {};
+  static const _completedAppsKey = 'completed_app_ids';
+  Set<int> _postponedAppIds = {};
+  static const _postponedAppsKey = 'postponed_app_ids';
+  String _statusFilter = 'all'; // all, running, stopped
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    Future.microtask(() => _loadAutomations());
+    Future.microtask(() async {
+      await _loadAppCategories();
+      _loadAutomations();
+    });
     _pollTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (!mounted || !_appInForeground) return;
       if (context.read<AppState>().activeTabIndex != _myTabIndex) return;
       _loadAutomations(silent: true);
     });
+  }
+
+  Future<void> _loadAppCategories() async {
+    final prefs = await SharedPreferences.getInstance();
+    final ids = prefs.getStringList(_completedAppsKey) ?? [];
+    final postponedIds = prefs.getStringList(_postponedAppsKey) ?? [];
+    if (mounted) {
+      setState(() {
+        _completedAppIds = ids.map((e) => int.tryParse(e) ?? 0).where((e) => e > 0).toSet();
+        _postponedAppIds = postponedIds.map((e) => int.tryParse(e) ?? 0).where((e) => e > 0).toSet();
+      });
+    }
+  }
+
+  List<AutomationModel> get _filteredAutomations {
+    var list = _automations;
+
+    // Filter by app category
+    if (_appCategory == 'completed') {
+      list = list.where((a) => _completedAppIds.contains(a.appId)).toList();
+    } else if (_appCategory == 'postponed') {
+      list = list.where((a) => _postponedAppIds.contains(a.appId) && !_completedAppIds.contains(a.appId)).toList();
+    } else {
+      // in_progress: exclude both completed and postponed
+      list = list.where((a) => !_completedAppIds.contains(a.appId) && !_postponedAppIds.contains(a.appId)).toList();
+    }
+
+    // Filter by running status
+    if (_statusFilter == 'running') {
+      list = list.where((a) => a.running).toList();
+    } else if (_statusFilter == 'stopped') {
+      list = list.where((a) => !a.running).toList();
+    }
+
+    return list;
   }
 
   @override
@@ -328,14 +374,20 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
   }
 
   void _showCreateSheet() {
-    final apps = context.read<AppState>().apps;
+    final allApps = context.read<AppState>().apps;
+    // Filter out apps that already have an automation
+    final existingAppIds = _automations.map((a) => a.appId).toSet();
+    final apps = allApps.where((a) => !existingAppIds.contains(a.id)).toList();
     int? selectedAppId;
+    String? selectedAppName;
     String aiAgent = 'claude';
     int intervalMinutes = 10;
     int maxSessionMinutes = 18;
     final promptController = TextEditingController();
+    final searchController = TextEditingController();
     bool submitting = false;
     bool fullAuto = true;
+    String searchQuery = '';
     // MCP servers are configured per-app on the app detail page
 
     showModalBottomSheet(
@@ -349,6 +401,9 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
         return StatefulBuilder(
           builder: (ctx, setSheetState) {
             final mq = MediaQuery.of(ctx);
+            final filtered = searchQuery.isEmpty
+                ? apps
+                : apps.where((a) => a.name.toLowerCase().contains(searchQuery.toLowerCase())).toList();
             return SingleChildScrollView(
               padding: EdgeInsets.only(
                 left: 20, right: 20, top: 20,
@@ -361,15 +416,67 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
                   const Text('New Automation',
                         style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 16),
-                    DropdownButtonFormField<int>(
-                      value: selectedAppId,
-                      decoration: const InputDecoration(
-                        hintText: 'Select app', prefixIcon: Icon(Icons.apps)),
-                      dropdownColor: AppColors.bgCard,
-                      items: apps.map((app) => DropdownMenuItem(
-                        value: app.id, child: Text(app.name))).toList(),
-                      onChanged: (val) => setSheetState(() => selectedAppId = val),
+                    // App selector with search
+                    TextField(
+                      controller: searchController,
+                      decoration: InputDecoration(
+                        hintText: selectedAppName ?? 'Search apps...',
+                        prefixIcon: const Icon(Icons.search, size: 20),
+                        suffixIcon: selectedAppId != null
+                            ? IconButton(
+                                icon: const Icon(Icons.clear, size: 18),
+                                onPressed: () => setSheetState(() {
+                                  selectedAppId = null;
+                                  selectedAppName = null;
+                                  searchController.clear();
+                                  searchQuery = '';
+                                }),
+                              )
+                            : null,
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      onChanged: (v) => setSheetState(() {
+                        searchQuery = v;
+                        if (selectedAppId != null) {
+                          selectedAppId = null;
+                          selectedAppName = null;
+                        }
+                      }),
                     ),
+                    if (selectedAppId == null) ...[
+                      const SizedBox(height: 4),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxHeight: 150),
+                        child: filtered.isEmpty
+                            ? Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                child: Text(
+                                  apps.isEmpty ? 'All apps already have automations' : 'No apps match',
+                                  style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
+                                ),
+                              )
+                            : ListView.builder(
+                                shrinkWrap: true,
+                                itemCount: filtered.length,
+                                itemBuilder: (_, i) {
+                                  final app = filtered[i];
+                                  return ListTile(
+                                    dense: true,
+                                    visualDensity: VisualDensity.compact,
+                                    title: Text(app.name, style: const TextStyle(fontSize: 14)),
+                                    subtitle: Text(app.appType, style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                                    onTap: () => setSheetState(() {
+                                      selectedAppId = app.id;
+                                      selectedAppName = app.name;
+                                      searchController.clear();
+                                      searchQuery = '';
+                                    }),
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
                     const SizedBox(height: 12),
                     const Text('AI Agent', style: TextStyle(fontWeight: FontWeight.w600)),
                     const SizedBox(height: 8),
@@ -575,6 +682,8 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
 
   @override
   Widget build(BuildContext context) {
+    final filtered = _filteredAutomations;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Control'),
@@ -608,32 +717,116 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
                     ],
                   ),
                 )
-              : RefreshIndicator(
-              color: AppColors.accent,
-              onRefresh: _loadAutomations,
-              child: _automations.isEmpty
-                  ? ListView(children: const [
-                      SizedBox(height: 200),
-                      Center(child: Text('No automations configured',
-                        style: TextStyle(color: Colors.grey, fontSize: 16)))])
-                  : ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 80),
-                      itemCount: _automations.length,
-                      itemBuilder: (context, index) {
-                        final auto = _automations[index];
-                        return _AutomationCard(
-                          key: ValueKey(auto.appId),
-                          automation: auto,
-                          agentColor: AppColors.agentColor(auto.aiAgent),
-                          onToggle: () => _toggleAutomation(auto),
-                          onRunOnce: () => _runOnceAutomation(auto),
-                          onDelete: () => _deleteAutomation(auto),
-                          onGdd: () => _showGddSheet(auto.appId, auto.appName),
-                          onEdit: () => _showEditSheet(auto),
-                        );
-                      },
+              : Column(
+                  children: [
+                    // App category segmented button
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                      child: SegmentedButton<String>(
+                        segments: const [
+                          ButtonSegment(
+                            value: 'in_progress',
+                            label: Text('In Progress'),
+                            icon: Icon(Icons.code, size: 18),
+                          ),
+                          ButtonSegment(
+                            value: 'postponed',
+                            label: Text('Postponed'),
+                            icon: Icon(Icons.pause_circle_outline, size: 18),
+                          ),
+                          ButtonSegment(
+                            value: 'completed',
+                            label: Text('Completed'),
+                            icon: Icon(Icons.check_circle_outline, size: 18),
+                          ),
+                        ],
+                        selected: {_appCategory},
+                        onSelectionChanged: (selection) {
+                          setState(() => _appCategory = selection.first);
+                        },
+                        style: ButtonStyle(
+                          backgroundColor: WidgetStateProperty.resolveWith((states) {
+                            if (states.contains(WidgetState.selected)) {
+                              if (_appCategory == 'completed') {
+                                return AppColors.success.withValues(alpha: 0.2);
+                              } else if (_appCategory == 'postponed') {
+                                return AppColors.warning.withValues(alpha: 0.2);
+                              }
+                              return AppColors.info.withValues(alpha: 0.2);
+                            }
+                            return null;
+                          }),
+                        ),
+                      ),
                     ),
-            ),
+                    // Status filter chips
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+                      child: SizedBox(
+                        height: 36,
+                        child: ListView(
+                          scrollDirection: Axis.horizontal,
+                          children: ['all', 'running', 'stopped'].map((status) {
+                            final selected = _statusFilter == status;
+                            final color = status == 'running'
+                                ? AppColors.success
+                                : status == 'stopped'
+                                    ? Colors.grey
+                                    : AppColors.accent;
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: FilterChip(
+                                label: Text(status[0].toUpperCase() + status.substring(1)),
+                                selected: selected,
+                                selectedColor: color.withValues(alpha: 0.3),
+                                checkmarkColor: color,
+                                side: BorderSide(
+                                  color: selected ? color : Colors.grey.shade700,
+                                ),
+                                onSelected: (_) {
+                                  setState(() => _statusFilter = selected ? 'all' : status);
+                                },
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ),
+                    // Automation list
+                    Expanded(
+                      child: RefreshIndicator(
+                        color: AppColors.accent,
+                        onRefresh: _loadAutomations,
+                        child: filtered.isEmpty
+                            ? ListView(children: [
+                                const SizedBox(height: 200),
+                                Center(child: Text(
+                                  _automations.isEmpty
+                                      ? 'No automations configured'
+                                      : 'No automations match filters',
+                                  style: const TextStyle(color: Colors.grey, fontSize: 16),
+                                ))])
+                            : ListView.builder(
+                                padding: const EdgeInsets.fromLTRB(12, 4, 12, 80),
+                                itemCount: filtered.length,
+                                itemBuilder: (context, index) {
+                                  final auto = filtered[index];
+                                  return _AutomationCard(
+                                    key: ValueKey(auto.appId),
+                                    automation: auto,
+                                    agentColor: AppColors.agentColor(auto.aiAgent),
+                                    onToggle: () => _toggleAutomation(auto),
+                                    onRunOnce: () => _runOnceAutomation(auto),
+                                    onDelete: () => _deleteAutomation(auto),
+                                    onGdd: () => _showGddSheet(auto.appId, auto.appName),
+                                    onEdit: () => _showEditSheet(auto),
+                                  );
+                                },
+                              ),
+                      ),
+                    ),
+                  ],
+                ),
     );
   }
 }

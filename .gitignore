@@ -37,6 +37,8 @@ app/.flutter-plugins
 app/.flutter-plugins-dependencies
 app/android/.gradle/
 app/android/.kotlin/
+app/assets/generated/
+app/asset_descriptor.json
 
 # Windows build output in root (from flutter build)
 *.exe
