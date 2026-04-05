@@ -775,8 +775,14 @@ class DeployEngine:
             tl_path = os.path.join(app.project_path, "tasklist.json")
             if not os.path.isfile(tl_path):
                 return
-            with open(tl_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
+            # Try UTF-8 first, fall back to latin-1 for files with mixed encoding
+            raw = open(tl_path, "rb").read()
+            try:
+                text = raw.decode("utf-8")
+            except UnicodeDecodeError:
+                print(f"[DeployEngine] Tasklist {tl_path} has encoding issues, fixing with latin-1 fallback")
+                text = raw.decode("latin-1")
+            data = json.loads(text)
             tasks = data.get("tasks", data) if isinstance(data, dict) else data
             changed = False
             for t in (tasks if isinstance(tasks, list) else []):
@@ -789,7 +795,7 @@ class DeployEngine:
                 with open(tl_path, "w", encoding="utf-8") as f:
                     f.write(payload)
         except Exception as e:
-            print(f"[DeployEngine] Failed to mark tasks as built: {e}")
+            print(f"[DeployEngine] Failed to mark tasks as built for {app.name}: {e}")
 
     def _auto_fix_hung_build(self, app: App) -> bool:
         """Spawn Claude to diagnose and fix a hung build (especially Godot)."""

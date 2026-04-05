@@ -72,3 +72,6 @@ desktop.ini
 .vscode/
 *.code-workspace
 server/automations/configs.json
+
+# Character Creator (Godot project, WIP)
+tools/character_creator/
