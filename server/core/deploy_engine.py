@@ -1,11 +1,13 @@
-"""Deploy engine: build apps (Flutter/Godot), auto-fix on failure, upload to Google Play."""
+"""Deploy engine: build apps (Flutter/Godot/Phaser), auto-fix on failure, upload to Google Play."""
 
 import os
 import re
+import shlex
 import subprocess
 import threading
 import time
 import json
+import traceback
 from datetime import datetime
 from typing import Callable, Optional
 
@@ -75,6 +77,28 @@ BUILD_TARGETS = {
             "label": "Linux",
             "preset": "Linux",
             "output": "build/{slug}.x86_64",
+        },
+    },
+    "phaser": {
+        "apk": {
+            "label": "APK",
+            "gradle_task": "assembleRelease",
+            "output": "android/app/build/outputs/apk/release/app-release.apk",
+        },
+        "aab": {
+            "label": "AAB",
+            "gradle_task": "bundleRelease",
+            "output": "android/app/build/outputs/bundle/release/app-release.aab",
+        },
+        "debug": {
+            "label": "Debug APK",
+            "gradle_task": "assembleDebug",
+            "output": "android/app/build/outputs/apk/debug/app-debug.apk",
+        },
+        "web": {
+            "label": "Web (dist/)",
+            "gradle_task": None,  # web build only, no Android wrapping
+            "output": "dist",
         },
     },
 }
@@ -391,6 +415,8 @@ class DeployEngine:
                 return self._bump_flutter_version(app)
             elif app.app_type == "godot":
                 return self._bump_godot_version(app)
+            elif app.app_type == "phaser":
+                return self._bump_phaser_version(app)
         except Exception as e:
             self._update_status(app.id, message=f"Version bump warning: {e}")
         return None
@@ -412,6 +438,46 @@ class DeployEngine:
         content = re.sub(r"version:\s*\d+\.\d+\.\d+\+\d+", f"version: {new_version}", content)
         with open(pubspec, "w", encoding="utf-8") as f:
             f.write(content)
+        return new_version
+
+    def _bump_phaser_version(self, app: App) -> Optional[str]:
+        """Bump patch version in package.json + Android versionCode/versionName.
+
+        Google Play requires a strictly-increasing versionCode per upload, so we
+        bump android/app/build.gradle each build (once it exists from cap add android).
+        """
+        pkg_json = os.path.join(app.project_path, "package.json")
+        if not os.path.isfile(pkg_json):
+            return None
+        with open(pkg_json, "r", encoding="utf-8") as f:
+            content = f.read()
+        match = re.search(r'"version":\s*"(\d+)\.(\d+)\.(\d+)"', content)
+        if not match:
+            return None
+        major, minor, patch = int(match.group(1)), int(match.group(2)), int(match.group(3))
+        patch += 1
+        new_version = f"{major}.{minor}.{patch}"
+        content = re.sub(
+            r'"version":\s*"\d+\.\d+\.\d+"',
+            f'"version": "{new_version}"',
+            content, count=1,
+        )
+        with open(pkg_json, "w", encoding="utf-8") as f:
+            f.write(content)
+
+        # Bump Android versionCode + versionName if the Android project exists.
+        # (First build is pre-cap-add-android, so this is skipped then.)
+        gradle = os.path.join(app.project_path, "android", "app", "build.gradle")
+        if os.path.isfile(gradle):
+            with open(gradle, "r", encoding="utf-8") as f:
+                gc = f.read()
+            vcode_match = re.search(r'versionCode\s+(\d+)', gc)
+            if vcode_match:
+                new_vcode = int(vcode_match.group(1)) + 1
+                gc = re.sub(r'versionCode\s+\d+', f'versionCode {new_vcode}', gc, count=1)
+            gc = re.sub(r'versionName\s+"[^"]*"', f'versionName "{new_version}"', gc, count=1)
+            with open(gradle, "w", encoding="utf-8") as f:
+                f.write(gc)
         return new_version
 
     def _bump_godot_version(self, app: App) -> Optional[str]:
@@ -538,6 +604,7 @@ class DeployEngine:
         start = time.time()
         output_lines = []
         hung = False
+        process = None
 
         # Godot builds serialize via lock to avoid gradle daemon conflicts
         if is_godot:
@@ -634,6 +701,8 @@ class DeployEngine:
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
                     text=True,
+                    encoding="utf-8",
+                    errors="replace",
                     cwd=flutter_cwd,
                 )
                 self._active_processes[app.id] = process
@@ -649,7 +718,11 @@ class DeployEngine:
                     clean = re.sub(r"\x1b\[[0-9;]*m", "", line.rstrip())
                     output_lines.append(clean)
 
-                process.wait(timeout=600)
+                try:
+                    process.wait(timeout=600)
+                except subprocess.TimeoutExpired:
+                    hung = True
+                    self._kill_build_tree(process)
 
             duration = int(time.time() - start)
             # For Godot: success = output file exists (don't rely on exit code since we kill the process)
@@ -663,7 +736,7 @@ class DeployEngine:
                         pass
                 success = build_file_exists and file_fresh and not self._shutting_down and not self._is_cancelled(app.id) and not hung
             else:
-                success = process.returncode == 0 and not self._shutting_down and not self._is_cancelled(app.id)
+                success = process.returncode == 0 and not self._shutting_down and not self._is_cancelled(app.id) and not hung
 
             self.db.update_build(
                 build_id,
@@ -674,10 +747,17 @@ class DeployEngine:
                 completed_at=datetime.now().isoformat(),
             )
         except Exception as e:
+            # Kill the build process if it's still running to prevent zombies
+            try:
+                if process and process.poll() is None:
+                    self._kill_build_tree(process)
+            except Exception:
+                pass
+            tb = traceback.format_exc()
             self.db.update_build(
                 build_id,
                 status="failed",
-                log_output=f"Error: {e}\n" + "\n".join(output_lines[-100:]),
+                log_output=f"Error: {e}\nCmd: {cmd}\nCwd: {flutter_cwd if not is_godot else app.project_path}\nTraceback:\n{tb}\n" + "\n".join(output_lines[-100:]),
                 duration_seconds=int(time.time() - start),
                 completed_at=datetime.now().isoformat(),
             )
@@ -741,6 +821,30 @@ class DeployEngine:
             preset = target_info.get("preset", "Android")
             output = target_info.get("output", f"build/{app.slug}.aab").format(slug=app.slug)
             return [godot, "--headless", "--export-release", preset, output]
+        elif app.app_type == "phaser":
+            # Phaser runs a shell pipeline: npm install → vite build → cap sync → gradle
+            pp = shlex.quote(app.project_path)
+            gradle_task = target_info.get("gradle_task")
+            if gradle_task is None:
+                # Web-only target — just build the dist/ folder
+                shell_cmd = (
+                    f'cd {pp} && '
+                    f'npm install && '
+                    f'npm run build'
+                )
+            else:
+                shell_cmd = (
+                    f'export TERM=dumb && '
+                    f'cd {pp} && '
+                    f'npm install && '
+                    f'npm run build && '
+                    f'{{ [ -d "android" ] || npx cap add android; }} && '
+                    f'npx cap sync android && '
+                    f'cd android && '
+                    f'./gradlew {gradle_task} --console=plain --no-daemon'
+                )
+            bash_exe = self.settings.get("bash_path", "") or "bash"
+            return [bash_exe, "-l", "-c", shell_cmd]
 
         return ["echo", "Unsupported app type"]
 
@@ -776,7 +880,8 @@ class DeployEngine:
             if not os.path.isfile(tl_path):
                 return
             # Try UTF-8 first, fall back to latin-1 for files with mixed encoding
-            raw = open(tl_path, "rb").read()
+            with open(tl_path, "rb") as f:
+                raw = f.read()
             try:
                 text = raw.decode("utf-8")
             except UnicodeDecodeError:
@@ -839,13 +944,17 @@ DIAGNOSE AND FIX (Engine Specialist + DevOps Knowledge):
         try:
             bash_exe = self.settings.get("bash_path", "") or "bash"
             claude_bin_unix = to_unix_path(claude_path)
-            cmd = f'cd "{project_path_unix}" && "{claude_bin_unix}" -p --dangerously-skip-permissions --verbose {mcp_flag}'
+            pp_q = shlex.quote(project_path_unix)
+            cb_q = shlex.quote(claude_bin_unix)
+            cmd = f'cd {pp_q} && {cb_q} -p --dangerously-skip-permissions --verbose {mcp_flag}'
             process = subprocess.Popen(
                 [bash_exe, "-l", "-c", cmd],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 cwd=app.project_path,
             )
             stdout, _ = process.communicate(input=prompt, timeout=300)
@@ -854,8 +963,9 @@ DIAGNOSE AND FIX (Engine Specialist + DevOps Knowledge):
             if exit_code == 0:
                 try:
                     git_result = subprocess.run(
-                        [bash_exe, "-c", f'cd "{project_path_unix}" && git status --porcelain 2>/dev/null'],
-                        capture_output=True, text=True, timeout=10, cwd=app.project_path,
+                        [bash_exe, "-c", f'cd {pp_q} && git status --porcelain 2>/dev/null'],
+                        capture_output=True, text=True, encoding="utf-8",
+                        errors="replace", timeout=10, cwd=app.project_path,
                     )
                     if git_result.returncode == 0 and git_result.stdout.strip():
                         has_changes = True
@@ -937,13 +1047,17 @@ INSTRUCTIONS (Lead Programmer + Engine Specialist Knowledge):
         try:
             bash_exe = self.settings.get("bash_path", "") or "bash"
             claude_bin_unix = to_unix_path(claude_path)
-            cmd = f'cd "{project_path_unix}" && "{claude_bin_unix}" -p --dangerously-skip-permissions --verbose {mcp_flag}'
+            pp_q = shlex.quote(project_path_unix)
+            cb_q = shlex.quote(claude_bin_unix)
+            cmd = f'cd {pp_q} && {cb_q} -p --dangerously-skip-permissions --verbose {mcp_flag}'
             process = subprocess.Popen(
                 [bash_exe, "-l", "-c", cmd],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 cwd=app.project_path,
             )
             stdout, _ = process.communicate(input=prompt, timeout=300)
@@ -953,8 +1067,9 @@ INSTRUCTIONS (Lead Programmer + Engine Specialist Knowledge):
                 # Check if Claude actually modified any files
                 try:
                     git_result = subprocess.run(
-                        [bash_exe, "-c", f'cd "{project_path_unix}" && git status --porcelain 2>/dev/null'],
-                        capture_output=True, text=True, timeout=10, cwd=app.project_path,
+                        [bash_exe, "-c", f'cd {pp_q} && git status --porcelain 2>/dev/null'],
+                        capture_output=True, text=True, encoding="utf-8",
+                        errors="replace", timeout=10, cwd=app.project_path,
                     )
                     if git_result.returncode == 0 and git_result.stdout.strip():
                         has_changes = True
@@ -1029,9 +1144,6 @@ INSTRUCTIONS (Lead Programmer + Engine Specialist Knowledge):
                 service.edits().commit(packageName=package, editId=edit_id).execute()
 
                 result = {"ok": True, "version_code": version_code}
-
-            except Exception as e:
-                upload_error = str(e)
 
             except Exception as e:
                 upload_error = str(e)

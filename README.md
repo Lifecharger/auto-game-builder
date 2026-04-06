@@ -17,7 +17,7 @@ A self-hosted game project management system for indie developers. Manage builds
 ## Features
 
 - **Multi-Agent AI**: Use Claude, Gemini, Codex, or Aider to fix bugs, implement features, and automate tasks
-- **Build & Deploy**: One-tap builds for Flutter and Godot projects, auto-upload to Google Play
+- **Build & Deploy**: One-tap builds for Flutter, Godot, and Phaser (Capacitor) projects, auto-upload to Google Play
 - **Issue Tracking**: Create issues, queue them for AI auto-fix, track results
 - **Task Automation**: Continuous automation loops with configurable intervals
 - **MCP Integration**: PixelLab (pixel art), ElevenLabs (audio), Mobile (device testing)
@@ -98,7 +98,7 @@ flutter build appbundle --release  # Android AAB (Google Play)
 ### Optional (for full functionality)
 - **Flutter SDK** — [flutter.dev](https://flutter.dev/docs/get-started/install) (for building Flutter games)
 - **Godot Engine** — [godotengine.org](https://godotengine.org/download) (for building Godot games)
-- **Node.js** — [nodejs.org](https://nodejs.org/) (for Mobile MCP and wrangler)
+- **Node.js** — [nodejs.org](https://nodejs.org/) (for Phaser/Capacitor builds, Mobile MCP, and wrangler)
 
 ### Remote Access (phone outside local network)
 To access your server from your phone over the internet:
@@ -171,6 +171,7 @@ Games and apps you build with Auto Game Builder are **entirely yours**. You own 
 ## Roadmap
 
 - [x] **Meshy MCP Integration** — 3D model generation (text-to-3D, image-to-3D, auto-rigging, animation) via [Meshy AI](https://www.meshy.ai/)
+- [x] **Phaser Engine Support** — Full build pipeline for Phaser (TypeScript) games wrapped with Capacitor for Android (npm, Vite, Gradle)
 - [ ] **Experimental Unity Support** — Unity engine project creation, build pipeline, and deployment
 - [ ] **Genre Selection & Database** — Genre-based project templates with curated mechanics, assets, and configurations
 
