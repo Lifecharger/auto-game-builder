@@ -27,7 +27,9 @@ void main() async {
   // Try silent sign-in (non-blocking if it fails)
   try {
     await AuthService.instance.silentSignIn();
-  } catch (_) {}
+  } catch (e) {
+    debugPrint('Silent sign-in failed: $e');
+  }
 
   runApp(const AppManagerMobile());
 }

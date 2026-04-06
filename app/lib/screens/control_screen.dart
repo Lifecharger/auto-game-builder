@@ -604,6 +604,7 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('Edit: ${auto.appName}',
+                      maxLines: 1, overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 16),
                   const Text('AI Agent', style: TextStyle(fontWeight: FontWeight.w600)),
@@ -1027,6 +1028,7 @@ class _AutomationCardState extends State<_AutomationCard> {
                   color: auto.running ? AppColors.success : Colors.grey)),
               const SizedBox(width: 10),
               Expanded(child: Text(auto.appName,
+                maxLines: 1, overflow: TextOverflow.ellipsis,
                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),

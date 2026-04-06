@@ -107,6 +107,10 @@ class AITools:
             while True:
                 if timeout and (time.time() - start) > timeout:
                     process.kill()
+                    try:
+                        process.wait(timeout=10)
+                    except Exception:
+                        pass
                     output_chunks.append(current_line.decode("utf-8", errors="replace"))
                     return -1, "".join(output_chunks) + "\n[TIMEOUT]"
 

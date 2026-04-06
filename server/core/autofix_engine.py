@@ -262,38 +262,35 @@ class AutoFixEngine:
         self._emit("session_started", session_id)
 
         # Open log file
-        log_file = open(log_path, "w", encoding="utf-8")
         start_time = time.time()
+        with open(log_path, "w", encoding="utf-8") as log_file:
+            def on_output(line: str):
+                # Strip ANSI codes
+                clean = re.sub(r"\x1b\[[0-9;]*m", "", line)
+                log_file.write(clean + "\n")
+                log_file.flush()
+                self._emit("output_line", clean)
 
-        def on_output(line: str):
-            # Strip ANSI codes
-            clean = re.sub(r"\x1b\[[0-9;]*m", "", line)
-            log_file.write(clean + "\n")
-            log_file.flush()
-            self._emit("output_line", clean)
-
-        # Run AI
-        timeout = int(self.settings.get("session_timeout", "1200"))
-        if ai_tool == "claude":
-            exit_code, output = self.ai_tools.run_claude(
-                prompt, app.project_path, app.mcp_config_path, on_output, timeout
-            )
-        elif ai_tool == "codex":
-            exit_code, output = self.ai_tools.run_codex(
-                prompt, app.project_path, on_output, timeout
-            )
-        elif ai_tool == "gemini":
-            exit_code, output = self.ai_tools.run_gemini(
-                prompt, app.project_path, on_output, timeout
-            )
-        elif ai_tool == "local":
-            exit_code, output = self.ai_tools.run_local(
-                prompt, app.project_path, on_output, timeout
-            )
-        else:
-            exit_code, output = -1, f"Unknown AI tool: {ai_tool}"
-
-        log_file.close()
+            # Run AI
+            timeout = int(self.settings.get("session_timeout", "1200"))
+            if ai_tool == "claude":
+                exit_code, output = self.ai_tools.run_claude(
+                    prompt, app.project_path, app.mcp_config_path, on_output, timeout
+                )
+            elif ai_tool == "codex":
+                exit_code, output = self.ai_tools.run_codex(
+                    prompt, app.project_path, on_output, timeout
+                )
+            elif ai_tool == "gemini":
+                exit_code, output = self.ai_tools.run_gemini(
+                    prompt, app.project_path, on_output, timeout
+                )
+            elif ai_tool == "local":
+                exit_code, output = self.ai_tools.run_local(
+                    prompt, app.project_path, on_output, timeout
+                )
+            else:
+                exit_code, output = -1, f"Unknown AI tool: {ai_tool}"
         duration = int(time.time() - start_time)
 
         # Get changed files (git)

@@ -571,6 +571,7 @@ class PipelineEngine:
             total = len(files_to_tag)
             tagged = 0
             failed = 0
+            counter_lock = threading.Lock()
             self._update_op(op_id, phase="tagging", total=total, processed=0,
                             message=f"Tagging {total} files...")
 
@@ -586,7 +587,8 @@ class PipelineEngine:
                         metadata = self._generate_full_metadata(file_path, self._gemini_api_key, genai, types)
 
                     if metadata is None:
-                        failed += 1
+                        with counter_lock:
+                            failed += 1
                         return
 
                     # Write metadata
@@ -600,10 +602,12 @@ class PipelineEngine:
                     with open(sidecar, "w", encoding="utf-8") as f:
                         json.dump(metadata, f, indent=2, ensure_ascii=False)
 
-                    tagged += 1
+                    with counter_lock:
+                        tagged += 1
                 except Exception as e:
                     print(f"[PipelineEngine] Tag error for {file_path.name}: {e}")
-                    failed += 1
+                    with counter_lock:
+                        failed += 1
 
             with ThreadPoolExecutor(max_workers=2) as pool:
                 futures = []

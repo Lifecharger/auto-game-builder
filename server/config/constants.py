@@ -23,6 +23,16 @@ TECH_STACKS = {
         "package_detect": None,
         "scaffold_cmd": None,
     },
+    "phaser": {
+        "name": "Phaser (Web + Android)",
+        "detect_file": "capacitor.config.ts",
+        "version_file": "package.json",
+        "version_pattern": r'"version":\s*"(.+)"',
+        "default_build_cmd": 'npm install && npm run build && npx cap sync android && cd android && gradlew.bat bundleRelease',
+        "default_build_output": "android/app/build/outputs/bundle/release/app-release.aab",
+        "package_detect": "capacitor.config.ts",
+        "scaffold_cmd": None,  # scaffolding is custom, handled in create_new_app
+    },
     "react_native": {
         "name": "React Native",
         "detect_file": "package.json",

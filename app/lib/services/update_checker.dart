@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -50,8 +51,8 @@ class UpdateChecker {
         latestVersion = '$remoteVersion+${match.group(2)}';
         return true;
       }
-    } catch (_) {
-      // Network error, timeout, etc. — silently ignore
+    } catch (e) {
+      debugPrint('Update check failed: $e');
     }
 
     return false;

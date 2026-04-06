@@ -1,5 +1,6 @@
+import 'dart:async';
 import 'dart:io' show Platform;
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:google_sign_in/google_sign_in.dart';
 
 class AuthService {
@@ -15,6 +16,7 @@ class AuthService {
   ];
 
   GoogleSignIn? _googleSignIn;
+  StreamSubscription<GoogleSignInAccount?>? _userChangedSub;
   GoogleSignInAccount? _currentUser;
 
   GoogleSignInAccount? get currentUser => _currentUser;
@@ -40,7 +42,7 @@ class AuthService {
       serverClientId: needsWebClientId ? _webClientId : null,
     );
 
-    _googleSignIn!.onCurrentUserChanged.listen((GoogleSignInAccount? account) {
+    _userChangedSub = _googleSignIn!.onCurrentUserChanged.listen((GoogleSignInAccount? account) {
       _currentUser = account;
     });
 
@@ -82,8 +84,16 @@ class AuthService {
     try {
       final gsi = _getGoogleSignIn();
       await gsi.signOut();
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Sign-out error: $e');
+    }
     _currentUser = null;
+  }
+
+  /// Clean up resources.
+  void dispose() {
+    _userChangedSub?.cancel();
+    _userChangedSub = null;
   }
 
   /// Returns auth headers suitable for Google API calls.

@@ -107,6 +107,8 @@ class AppColors {
         return Icons.terminal;
       case 'web':
         return Icons.web;
+      case 'phaser':
+        return Icons.sports_esports;
       default:
         return Icons.apps;
     }

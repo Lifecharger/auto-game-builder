@@ -1,5 +1,6 @@
 """Build engine for Flutter and Godot apps."""
 
+import shlex
 import subprocess
 import threading
 import time
@@ -105,15 +106,34 @@ class BuildEngine:
         flutter = self.settings.get("flutter_path", "") or "flutter"
         godot = self.settings.get("godot_path", "") or "godot"
 
+        pp = shlex.quote(app.project_path)
         if app.app_type == "flutter":
             if build_type == "appbundle":
-                return f'cd "{app.project_path}" && flutter build appbundle --release'
+                return f'cd {pp} && flutter build appbundle --release'
             elif build_type == "apk":
-                return f'cd "{app.project_path}" && flutter build apk --release'
+                return f'cd {pp} && flutter build apk --release'
             elif build_type == "debug":
-                return f'cd "{app.project_path}" && flutter build apk --debug'
+                return f'cd {pp} && flutter build apk --debug'
         elif app.app_type == "godot":
-            return f'"{godot}" --headless --export-release "Android" build/{app.slug}.apk'
+            return f'{shlex.quote(godot)} --headless --export-release "Android" build/{app.slug}.apk'
+        elif app.app_type == "phaser":
+            # Runs via bash -l -c. Commands use bash-native syntax / forward slashes.
+            # npm install is idempotent; npx cap add android runs once (only if missing).
+            # Gradle task varies by build_type.
+            gradle_task = {
+                "appbundle": "bundleRelease",
+                "apk": "assembleRelease",
+                "debug": "assembleDebug",
+            }.get(build_type, "bundleRelease")
+            return (
+                f'cd {pp} && '
+                f'npm install && '
+                f'npm run build && '
+                f'{{ [ -d "android" ] || npx cap add android; }} && '
+                f'npx cap sync android && '
+                f'cd android && '
+                f'./gradlew {gradle_task}'
+            )
 
         return "echo 'No build command configured'"
 
@@ -134,5 +154,18 @@ class BuildEngine:
             return os.path.normpath(
                 os.path.join(app.project_path, f"build/{app.slug}.apk")
             ).replace("\\", "/")
+        elif app.app_type == "phaser":
+            if build_type == "appbundle":
+                return os.path.normpath(
+                    os.path.join(app.project_path, "android/app/build/outputs/bundle/release/app-release.aab")
+                ).replace("\\", "/")
+            elif build_type == "debug":
+                return os.path.normpath(
+                    os.path.join(app.project_path, "android/app/build/outputs/apk/debug/app-debug.apk")
+                ).replace("\\", "/")
+            else:
+                return os.path.normpath(
+                    os.path.join(app.project_path, "android/app/build/outputs/apk/release/app-release.apk")
+                ).replace("\\", "/")
 
         return ""

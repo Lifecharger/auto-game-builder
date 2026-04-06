@@ -1,9 +1,12 @@
 """Detect app type, version, and package name from a project folder."""
 
+import logging
 import os
 import re
 import shutil
 from config.constants import TECH_STACKS
+
+logger = logging.getLogger(__name__)
 
 ICONS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "icons")
 
@@ -51,6 +54,8 @@ class AppDetector:
             result["package_name"] = self._detect_flutter_package(project_path)
         elif result["app_type"] == "godot":
             result["package_name"] = self._detect_godot_package(project_path)
+        elif result["app_type"] == "phaser":
+            result["package_name"] = self._detect_phaser_package(project_path)
 
         return result
 
@@ -60,7 +65,8 @@ class AppDetector:
                 content = f.read()
             match = re.search(pattern, content)
             return match.group(1).strip() if match else ""
-        except Exception:
+        except Exception as e:
+            logger.debug("Failed to parse version from %s: %s", file_path, e)
             return ""
 
     def _detect_flutter_package(self, project_path: str) -> str:
@@ -74,8 +80,8 @@ class AppDetector:
                     match = re.search(r'applicationId\s*[=:]\s*["\']([^"\'\s]+)', content)
                     if match:
                         return match.group(1)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("Failed to read %s: %s", gradle_name, e)
 
         manifest = os.path.join(project_path, "android", "app", "src", "main", "AndroidManifest.xml")
         if os.path.isfile(manifest):
@@ -85,8 +91,8 @@ class AppDetector:
                 match = re.search(r'package="([^"]+)"', content)
                 if match:
                     return match.group(1)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Failed to read AndroidManifest: %s", e)
         return ""
 
     def _detect_godot_package(self, project_path: str) -> str:
@@ -98,8 +104,22 @@ class AppDetector:
                 match = re.search(r'package/unique_name="([^"]+)"', content)
                 if match:
                     return match.group(1)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Failed to read export_presets.cfg: %s", e)
+        return ""
+
+    def _detect_phaser_package(self, project_path: str) -> str:
+        # Capacitor's appId lives in capacitor.config.ts
+        cfg = os.path.join(project_path, "capacitor.config.ts")
+        if os.path.isfile(cfg):
+            try:
+                with open(cfg, "r", encoding="utf-8") as f:
+                    content = f.read()
+                match = re.search(r"appId:\s*['\"]([^'\"]+)['\"]", content)
+                if match:
+                    return match.group(1)
+            except Exception as e:
+                logger.debug("Failed to read capacitor.config.ts: %s", e)
         return ""
 
     def extract_icon(self, project_path: str, slug: str, app_type: str = "flutter") -> str:
@@ -135,8 +155,8 @@ class AppDetector:
                 try:
                     shutil.copy2(candidate, dest)
                     return dest
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("Failed to copy icon %s: %s", candidate, e)
         return ""
 
     def generate_slug(self, name: str) -> str:

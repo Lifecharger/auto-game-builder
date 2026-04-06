@@ -1,14 +1,11 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../config.dart';
 import '../models/app_model.dart';
 import '../models/build_model.dart';
 import '../services/api_service.dart';
 import '../theme.dart';
+import '../widgets/app_build_card.dart';
 
 class AppDetailScreen extends StatefulWidget {
   final int appId;
@@ -34,45 +31,14 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
   String? _claudeMdError;
   bool _gddEnhancing = false;
   bool _claudeMdEnhancing = false;
+  Timer? _enhanceTimer;
   Map<String, dynamic>? _deployStatus;
-  bool _deploying = false;
 
   // MCP
   List<dynamic> _mcpPresets = [];
   Set<String> _appMcpServers = {};
   bool _mcpLoading = true;
   bool _mcpExpanded = false;
-
-  // Build preferences
-  String _buildTarget = 'aab';
-  bool _uploadAfterBuild = false;
-  String _buildTrack = 'internal';
-
-  static const Map<String, List<Map<String, String>>> _buildTargets = {
-    'flutter': [
-      {'key': 'apk', 'label': 'APK', 'icon': 'phone_android'},
-      {'key': 'aab', 'label': 'AAB', 'icon': 'inventory_2'},
-      {'key': 'exe', 'label': 'Windows', 'icon': 'desktop_windows'},
-      {'key': 'web', 'label': 'Web', 'icon': 'web'},
-      {'key': 'ios', 'label': 'iOS', 'icon': 'phone_iphone'},
-    ],
-    'godot': [
-      {'key': 'apk', 'label': 'APK', 'icon': 'phone_android'},
-      {'key': 'aab', 'label': 'AAB', 'icon': 'inventory_2'},
-      {'key': 'windows', 'label': 'Windows', 'icon': 'desktop_windows'},
-      {'key': 'web', 'label': 'Web', 'icon': 'web'},
-      {'key': 'linux', 'label': 'Linux', 'icon': 'computer'},
-    ],
-  };
-
-  static const Map<String, IconData> _targetIcons = {
-    'phone_android': Icons.phone_android,
-    'inventory_2': Icons.inventory_2,
-    'desktop_windows': Icons.desktop_windows,
-    'web': Icons.web,
-    'phone_iphone': Icons.phone_iphone,
-    'computer': Icons.computer,
-  };
 
   static const List<String> _aiAgents = ['', 'claude', 'gemini', 'codex', 'local'];
   static const Map<String, String> _aiLabels = {
@@ -86,33 +52,12 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
   @override
   void initState() {
     super.initState();
-    _loadBuildPrefs();
     _loadData();
-  }
-
-  Future<void> _loadBuildPrefs() async {
-    final prefs = await SharedPreferences.getInstance();
-    final target = prefs.getString('build_target_${widget.appId}');
-    final upload = prefs.getBool('build_upload_${widget.appId}');
-    final track = prefs.getString('build_track_${widget.appId}');
-    if (mounted) {
-      setState(() {
-        if (target != null) _buildTarget = target;
-        if (upload != null) _uploadAfterBuild = upload;
-        if (track != null) _buildTrack = track;
-      });
-    }
-  }
-
-  Future<void> _saveBuildPrefs() async {
-    final prefs = await SharedPreferences.getInstance();
-    prefs.setString('build_target_${widget.appId}', _buildTarget);
-    prefs.setBool('build_upload_${widget.appId}', _uploadAfterBuild);
-    prefs.setString('build_track_${widget.appId}', _buildTrack);
   }
 
   @override
   void dispose() {
+    _enhanceTimer?.cancel();
     super.dispose();
   }
 
@@ -151,9 +96,6 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
         return;
       }
 
-      final deployStatus = deployResult.data;
-      final phase = deployStatus?['phase'] ?? 'none';
-      final isActive = phase != 'none' && phase != 'done' && phase != 'failed';
       final app = appResult.data;
       setState(() {
         _app = app;
@@ -177,17 +119,11 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
         if (app != null) {
           _selectedStrategy = app.fixStrategy;
         }
-        _deployStatus = deployStatus;
-        if (isActive && !_deploying) {
-          _deploying = true;
-        }
+        _deployStatus = deployResult.data;
         _mcpPresets = presetsResult.data ?? [];
         _appMcpServers = Set<String>.from(appMcpResult.data ?? []);
         _mcpLoading = false;
       });
-      if (isActive && _deploying) {
-        _pollDeployStatus();
-      }
     }
   }
 
@@ -222,7 +158,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
     final descController = TextEditingController();
     bool submitting = false;
 
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: AppColors.bgCard,
@@ -274,7 +210,10 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
           },
         );
       },
-    );
+    ).whenComplete(() {
+      titleController.dispose();
+      descController.dispose();
+    });
   }
 
   @override
@@ -319,8 +258,14 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                       _buildInfoCard(),
                       const SizedBox(height: 16),
                       if (_app!.appType.toLowerCase() == 'flutter' ||
-                          _app!.appType.toLowerCase() == 'godot')
-                        _buildUnifiedBuildCard(),
+                          _app!.appType.toLowerCase() == 'godot' ||
+                          _app!.appType.toLowerCase() == 'phaser')
+                        AppBuildCard(
+                          appId: widget.appId,
+                          appType: _app!.appType,
+                          initialDeployStatus: _deployStatus,
+                          onDataReload: _loadData,
+                        ),
                       if (_app!.appType.toLowerCase() == 'python')
                         _buildPythonCard(),
                       if (_app!.appType.toLowerCase() == 'web')
@@ -341,322 +286,6 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                     ],
                   ),
                 ),
-    );
-  }
-
-  Future<void> _startBuild() async {
-    final result = await ApiService.deployApp(
-      widget.appId,
-      track: _buildTrack,
-      buildTarget: _buildTarget,
-      upload: _uploadAfterBuild && _buildTarget == 'aab',
-    );
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(result.ok ? result.data! : result.error!),
-        backgroundColor: result.ok ? AppColors.success : AppColors.error,
-      ));
-      if (result.ok) {
-        setState(() => _deploying = true);
-        _pollDeployStatus();
-      }
-    }
-  }
-
-  Future<void> _pollDeployStatus() async {
-    final deadline = DateTime.now().add(const Duration(minutes: 30));
-    while (_deploying && mounted) {
-      await Future.delayed(const Duration(seconds: 3));
-      if (!_deploying || !mounted) return;
-      if (DateTime.now().isAfter(deadline)) {
-        if (mounted) {
-          setState(() {
-            _deploying = false;
-            _deployStatus = {
-              'phase': 'failed',
-              'message': 'Build polling timed out after 30 minutes - check server logs',
-            };
-          });
-        }
-        return;
-      }
-      final result = await ApiService.getDeployStatus(widget.appId);
-      if (!mounted) return;
-      final status = result.data;
-      setState(() => _deployStatus = status);
-      final phase = status?['phase'] ?? 'none';
-      if (phase == 'done' || phase == 'failed' || phase == 'none') {
-        setState(() => _deploying = false);
-        if (phase == 'done') _loadData();
-        break;
-      }
-    }
-  }
-
-  Future<void> _cancelBuild() async {
-    setState(() => _deploying = false);
-    // Cancel build/deploy AND stop any automation processes for this app
-    await Future.wait([
-      ApiService.cancelDeploy(widget.appId),
-      ApiService.stopAutomation(widget.appId),
-    ]);
-    if (mounted) {
-      setState(() {
-        _deployStatus = {
-          'phase': 'failed',
-          'message': 'Build cancelled',
-        };
-      });
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Build cancelled'),
-        backgroundColor: AppColors.success,
-      ));
-    }
-  }
-
-  Future<void> _retryUpload() async {
-    final track = _deployStatus?['track'] ?? 'internal';
-    setState(() => _deploying = true);
-    try {
-      final response = await http.post(
-        Uri.parse('${AppConfig.baseUrl}/api/apps/${widget.appId}/deploy/retry-upload'),
-        headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
-        body: jsonEncode({'track': track}),
-      ).timeout(const Duration(minutes: 5));
-      if (mounted) {
-        final ok = response.statusCode == 200;
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(ok ? 'Re-upload started' : 'Failed to start re-upload'),
-          backgroundColor: ok ? AppColors.success : AppColors.error,
-        ));
-        if (ok) _pollDeployStatus();
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _deploying = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Error: $e'),
-          backgroundColor: AppColors.error,
-        ));
-      }
-    }
-  }
-
-  Widget _buildUnifiedBuildCard() {
-    final appType = _app!.appType.toLowerCase();
-    final targets = _buildTargets[appType] ?? [];
-    final phase = _deployStatus?['phase'] ?? 'none';
-    final message = _deployStatus?['message'] ?? '';
-    final isActive = _deploying && phase != 'none' && phase != 'done' && phase != 'failed';
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header
-            Row(
-              children: [
-                const Icon(Icons.build_circle, color: AppColors.accent),
-                const SizedBox(width: 8),
-                const Text('Build & Deploy', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              ],
-            ),
-            const SizedBox(height: 14),
-
-            // Build target chips
-            Text('Build Target', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade400)),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: targets.map((t) {
-                final key = t['key']!;
-                final label = t['label']!;
-                final iconKey = t['icon']!;
-                final selected = _buildTarget == key;
-                return GestureDetector(
-                  onTap: isActive ? null : () {
-                    setState(() => _buildTarget = key);
-                    _saveBuildPrefs();
-                  },
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: selected ? AppColors.accent.withValues(alpha: 0.25) : AppColors.bgDark,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: selected ? AppColors.accent : Colors.grey.shade700,
-                        width: selected ? 1.5 : 1,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(_targetIcons[iconKey] ?? Icons.build, size: 16,
-                            color: selected ? AppColors.accent : Colors.grey.shade400),
-                        const SizedBox(width: 6),
-                        Text(label, style: TextStyle(fontSize: 13,
-                            color: selected ? AppColors.accent : Colors.grey.shade300,
-                            fontWeight: selected ? FontWeight.w600 : FontWeight.normal)),
-                      ],
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 14),
-
-            // Upload toggle (only for AAB)
-            Row(
-              children: [
-                SizedBox(
-                  height: 24, width: 24,
-                  child: Checkbox(
-                    value: _uploadAfterBuild && _buildTarget == 'aab',
-                    onChanged: _buildTarget != 'aab' || isActive ? null : (v) {
-                      setState(() => _uploadAfterBuild = v ?? false);
-                      _saveBuildPrefs();
-                    },
-                    activeColor: AppColors.accent,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text('Upload to Google Play',
-                    style: TextStyle(fontSize: 13,
-                        color: _buildTarget == 'aab' ? Colors.grey.shade200 : Colors.grey.shade600)),
-              ],
-            ),
-
-            // Track selector (only when upload is on)
-            if (_uploadAfterBuild && _buildTarget == 'aab') ...[
-              const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                child: SegmentedButton<String>(
-                  segments: const [
-                    ButtonSegment(value: 'internal', label: Text('Internal')),
-                    ButtonSegment(value: 'alpha', label: Text('Alpha')),
-                    ButtonSegment(value: 'beta', label: Text('Beta')),
-                    ButtonSegment(value: 'production', label: Text('Prod')),
-                  ],
-                  selected: {_buildTrack},
-                  onSelectionChanged: isActive ? null : (set) {
-                    setState(() => _buildTrack = set.first);
-                    _saveBuildPrefs();
-                  },
-                  style: ButtonStyle(
-                    backgroundColor: WidgetStateProperty.resolveWith((states) {
-                      if (states.contains(WidgetState.selected)) {
-                        return AppColors.accent.withValues(alpha: 0.3);
-                      }
-                      return AppColors.bgDark;
-                    }),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                ),
-              ),
-              if (_buildTrack == 'production')
-                Padding(
-                  padding: const EdgeInsets.only(top: 6),
-                  child: Text('Warning: This publishes to all users!',
-                      style: TextStyle(color: AppColors.error, fontSize: 11)),
-                ),
-            ],
-            const SizedBox(height: 14),
-
-            // Build button
-            if (!isActive)
-              SizedBox(
-                width: double.infinity, height: 44,
-                child: FilledButton.icon(
-                  onPressed: () => _startBuild(),
-                  icon: const Icon(Icons.rocket_launch, size: 18),
-                  label: Text(_uploadAfterBuild && _buildTarget == 'aab'
-                      ? 'Build & Deploy' : 'Build'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: _buildTrack == 'production' && _uploadAfterBuild && _buildTarget == 'aab'
-                        ? AppColors.error : AppColors.accent,
-                  ),
-                ),
-              ),
-
-            // Status: Active build
-            if (isActive) ...[
-              LinearProgressIndicator(
-                color: AppColors.accent,
-                backgroundColor: AppColors.bgDark,
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      '${phase.toUpperCase()}: $message',
-                      style: TextStyle(fontSize: 13, color: Colors.grey.shade300),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  TextButton.icon(
-                    onPressed: _cancelBuild,
-                    icon: const Icon(Icons.stop_circle_outlined, size: 16),
-                    label: const Text('Stop'),
-                    style: TextButton.styleFrom(
-                      foregroundColor: AppColors.error,
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-
-            // Status: Done
-            if (!isActive && phase == 'done') ...[
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  const Icon(Icons.check_circle, color: AppColors.success, size: 18),
-                  const SizedBox(width: 6),
-                  Expanded(child: Text(message, style: const TextStyle(fontSize: 13, color: AppColors.success))),
-                ],
-              ),
-            ],
-
-            // Status: Failed
-            if (!isActive && phase == 'failed') ...[
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  const Icon(Icons.error, color: AppColors.error, size: 18),
-                  const SizedBox(width: 6),
-                  Expanded(child: Text(message, style: const TextStyle(fontSize: 13, color: AppColors.error))),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  FilledButton.tonalIcon(
-                    onPressed: () => _retryUpload(),
-                    icon: const Icon(Icons.refresh, size: 18),
-                    label: const Text('Retry Upload'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.warning.withValues(alpha: 0.2),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  FilledButton.tonalIcon(
-                    onPressed: () => _startBuild(),
-                    icon: const Icon(Icons.replay, size: 18),
-                    label: const Text('Rebuild'),
-                  ),
-                ],
-              ),
-            ],
-          ],
-        ),
-      ),
     );
   }
 
@@ -936,7 +565,8 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
           const SnackBar(content: Text('Could not open link'), backgroundColor: AppColors.error),
         );
       }
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Failed to launch URL: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Could not open link'), backgroundColor: AppColors.error),
@@ -1041,7 +671,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
           },
         );
       },
-    );
+    ).whenComplete(() => controller.dispose());
   }
 
   Widget _infoChip(String label, String value, Color color) {
@@ -1279,7 +909,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
           },
         );
       },
-    );
+    ).whenComplete(() => controller.dispose());
   }
 
   Widget _buildGddCard() {
@@ -1435,7 +1065,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
           },
         );
       },
-    );
+    ).whenComplete(() => gddController.dispose());
   }
 
   /// Fire-and-forget enhance for both GDD and CLAUDE.md.
@@ -1481,11 +1111,22 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
       }
       // Poll for completion every 10 seconds
       _pollEnhanceStatus(isGdd, label);
+    }).catchError((e) {
+      if (!mounted) return;
+      setState(() {
+        if (isGdd) _gddEnhancing = false;
+        else _claudeMdEnhancing = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('$label enhance error: $e'),
+        backgroundColor: AppColors.error,
+      ));
     });
   }
 
   void _pollEnhanceStatus(bool isGdd, String label) {
-    Timer.periodic(const Duration(seconds: 10), (timer) async {
+    _enhanceTimer?.cancel();
+    _enhanceTimer = Timer.periodic(const Duration(seconds: 10), (timer) async {
       if (!mounted) { timer.cancel(); return; }
       final result = await ApiService.getEnhanceStatus(widget.appId);
       if (!mounted) { timer.cancel(); return; }
@@ -1702,9 +1343,20 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
             child: Padding(
               padding: const EdgeInsets.all(24),
               child: Center(
-                child: Text(
-                  'No tasks',
-                  style: TextStyle(color: Colors.grey.shade500),
+                child: Column(
+                  children: [
+                    Icon(Icons.task_alt, size: 32, color: Colors.grey.shade600),
+                    const SizedBox(height: 8),
+                    Text(
+                      'No tasks yet',
+                      style: TextStyle(color: Colors.grey.shade500),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Tap + to create one',
+                      style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -1799,9 +1451,20 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
             child: Padding(
               padding: const EdgeInsets.all(24),
               child: Center(
-                child: Text(
-                  'No builds',
-                  style: TextStyle(color: Colors.grey.shade500),
+                child: Column(
+                  children: [
+                    Icon(Icons.build_circle_outlined, size: 32, color: Colors.grey.shade600),
+                    const SizedBox(height: 8),
+                    Text(
+                      'No builds yet',
+                      style: TextStyle(color: Colors.grey.shade500),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Start a build from the card above',
+                      style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                    ),
+                  ],
                 ),
               ),
             ),

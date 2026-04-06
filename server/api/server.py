@@ -3,6 +3,8 @@
 import os
 import sys
 import json
+import secrets
+import shlex
 import subprocess
 import signal
 import threading
@@ -547,6 +549,7 @@ def create_new_app(body: AppCreate):
     if not os.path.isfile(claude_md_path):
         is_godot = body.app_type == "godot"
         is_flutter = body.app_type == "flutter"
+        is_phaser = body.app_type == "phaser"
         lines = [f"# {body.name}\n"]
         lines.append("## Conventions\n")
         lines.append("### Global Rules\n")
@@ -612,6 +615,30 @@ def create_new_app(body: AppCreate):
             lines.append("- For each problem found (crash, layout issue, missing element, broken navigation, off-screen content), create a separate new task in tasklist.json with a clear description.\n")
             lines.append("- If everything works fine, report \"All tests passed\" with no new tasks created.\n")
             lines.append("- IGNORE on emulator: dynamic price loading, Google Play Billing, Google sign-in, cloud save, IAP functionality. These only work on real devices.\n")
+        if is_phaser:
+            lines.append("\n### Phaser 3 + TypeScript + Vite + Capacitor\n")
+            lines.append("- Engine: **Phaser 3** (2D game framework) with **TypeScript** (strict mode) and **Vite** (build tool).\n")
+            lines.append("- Mobile wrapper: **Capacitor** produces a signed Android AAB from the web build. Output path: `android/app/build/outputs/bundle/release/app-release.aab`.\n")
+            lines.append("- Signing: keystore + passwords are wired into `capacitor.config.ts` at scaffold time. That file is gitignored — contains secrets.\n")
+            lines.append("- **NEVER use setTimeout / setInterval** for game logic. Use `this.time.delayedCall()` and `this.time.addEvent()` — they are scene-scoped and auto-torn-down on scene shutdown.\n")
+            lines.append("- **NEVER use raw tweens outside scenes.** Use `this.tweens.add()` — auto-killed on scene shutdown.\n")
+            lines.append("- **Object pooling is mandatory** for projectiles, particles, enemies spawned at runtime. Use `Phaser.GameObjects.Group` or a simple typed array pool. Never allocate mid-gameplay.\n")
+            lines.append("- **Scene lifecycle:** every Scene MUST register cleanup via `this.events.once('shutdown', cleanup, this)`. Release pools, websockets, custom timers, audio refs. Phaser handles its own display objects.\n")
+            lines.append("- **Assets via TextureManager:** `this.load.image(key, path)` in `preload()`, reference by key. Never keep raw Image refs in long-lived state.\n")
+            lines.append("- **TypeScript is strict**: no `any`, no unused locals/params (tsconfig enforces this). Fix the warning — don't suppress it.\n")
+            lines.append("- **Portrait mobile first**: game width 400, height 700 in `main.ts`. Use `Phaser.Scale.FIT` + `CENTER_BOTH`.\n")
+            lines.append("- **Input**: use `pointerdown` / `pointermove` on the scene input — works for both touch and mouse.\n")
+            lines.append("\n### Phaser Build Commands\n")
+            lines.append("- Dev server: `npm run dev` (opens on http://localhost:5173/)\n")
+            lines.append("- Type check + prod build: `npm run build` (outputs to `dist/`)\n")
+            lines.append("- First-time Android setup: `npx cap add android` (creates `android/` folder — only needed once)\n")
+            lines.append("- Sync web build into Android: `npm run cap:sync`\n")
+            lines.append("- Build AAB for Play Store: `npm run android:aab`\n")
+            lines.append("- Open Android Studio for debugging: `npm run cap:open`\n")
+            lines.append("\n### Testing (Phaser)\n")
+            lines.append("- Test in browser first via `npm run dev` — fastest iteration loop.\n")
+            lines.append("- For device testing, build debug APK (`npm run android:apk`), install via mobile MCP.\n")
+            lines.append("- For each problem found (crash, layout issue, missing element, broken navigation, off-screen content), create a separate new task in tasklist.json.\n")
         with open(claude_md_path, "w", encoding="utf-8") as f:
             f.writelines(lines)
 
@@ -624,7 +651,9 @@ def create_new_app(body: AppCreate):
 
     # Auto-generate signing keystore for Android apps
     keystore_path = ""
-    if body.app_type in ("flutter", "godot") and package_name:
+    key_alias = ""
+    key_password = ""
+    if body.app_type in ("flutter", "godot", "phaser") and package_name:
         keys_dir = s.get("keys_dir", "")
         if not keys_dir:
             keys_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "keys")
@@ -633,7 +662,7 @@ def create_new_app(body: AppCreate):
         keystore_name = f"{slug}-upload.jks"
         keystore_path = os.path.join(keys_dir, keystore_name)
         key_alias = clean_slug
-        key_password = f"{body.name.replace(' ', '')}2025!"
+        key_password = secrets.token_urlsafe(16)
 
         if not os.path.isfile(keystore_path):
             try:
@@ -679,6 +708,24 @@ def create_new_app(body: AppCreate):
                 print(f"[AutoGameBuilder] Generated keystore: {keystore_path}")
             except Exception as e:
                 print(f"[AutoGameBuilder] Keystore generation failed: {e}")
+
+    # Scaffold Phaser project template files
+    if body.app_type == "phaser":
+        try:
+            from core.phaser_scaffold import scaffold_phaser_project
+            keystore_exists = bool(keystore_path) and os.path.isfile(keystore_path)
+            scaffold_phaser_project(
+                project_path=project_path_win,
+                slug=slug,
+                app_name=body.name,
+                package_name=package_name,
+                keystore_path=keystore_path if keystore_exists else None,
+                key_alias=key_alias if keystore_exists else None,
+                key_password=key_password if keystore_exists else None,
+            )
+            print(f"[AutoGameBuilder] Scaffolded Phaser project at: {project_path_win}")
+        except Exception as e:
+            print(f"[AutoGameBuilder] Phaser scaffold failed: {e}")
 
     # Create DB entry
     app_id = db().create_app(
@@ -734,6 +781,23 @@ def _read_project_version(a) -> str:
                     content = f.read()
                 name_match = _re.search(r'version/name="([^"]+)"', content)
                 code_match = _re.search(r'version/code=(\d+)', content)
+                if name_match and code_match:
+                    return f"{name_match.group(1)}+{code_match.group(1)}"
+                elif name_match:
+                    return name_match.group(1)
+        elif a.app_type == "phaser":
+            pkg_json = os.path.join(a.project_path, "package.json")
+            if os.path.isfile(pkg_json):
+                with open(pkg_json, "r", encoding="utf-8") as f:
+                    content = f.read()
+                name_match = _re.search(r'"version":\s*"(\d+\.\d+\.\d+)"', content)
+                # Pair with Android versionCode if available, for parity with flutter/godot format
+                gradle = os.path.join(a.project_path, "android", "app", "build.gradle")
+                code_match = None
+                if os.path.isfile(gradle):
+                    with open(gradle, "r", encoding="utf-8") as f:
+                        gc = f.read()
+                    code_match = _re.search(r'versionCode\s+(\d+)', gc)
                 if name_match and code_match:
                     return f"{name_match.group(1)}+{code_match.group(1)}"
                 elif name_match:
@@ -1148,14 +1212,21 @@ def add_app_task(app_id: int, body: TaskCreate):
         }
 
         # Save image attachments to disk
+        MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024  # 10 MB per attachment
+        MAX_ATTACHMENTS = 10
         if body.attachments:
             import base64
+            if len(body.attachments) > MAX_ATTACHMENTS:
+                raise HTTPException(status_code=400, detail=f"Too many attachments (max {MAX_ATTACHMENTS})")
             attach_dir = os.path.join(a.project_path, "task_attachments", str(new_id))
             os.makedirs(attach_dir, exist_ok=True)
             saved_paths = []
             for idx, b64 in enumerate(body.attachments):
                 try:
                     img_bytes = base64.b64decode(b64)
+                    if len(img_bytes) > MAX_ATTACHMENT_SIZE:
+                        logger.warning("Attachment %d exceeds size limit (%d bytes), skipping", idx, len(img_bytes))
+                        continue
                     img_path = os.path.join(attach_dir, f"image_{idx}.png")
                     with open(img_path, "wb") as img_f:
                         img_f.write(img_bytes)
@@ -1217,10 +1288,8 @@ def update_app_task(app_id: int, task_id: int, updates: dict):
 
 @app.delete("/api/apps/{app_id}/tasks/{task_id}")
 def delete_app_task(app_id: int, task_id: int):
-    print(f"DEBUG: DELETE task {task_id} from app {app_id}")
     a = db().get_app(app_id)
     if not a:
-        print(f"DEBUG: App {app_id} not found")
         raise HTTPException(404, "App not found")
     lock = _get_tasklist_lock(_tasklist_path(a))
     with lock:
@@ -1228,20 +1297,17 @@ def delete_app_task(app_id: int, task_id: int):
 
         task_to_delete = next((t for t in tasks if t.get("id") == task_id), None)
         if not task_to_delete:
-            print(f"DEBUG: Task {task_id} not found in {a.slug}")
             raise HTTPException(404, "Task not found")
 
         title = task_to_delete.get("title")
-        print(f"DEBUG: Deleting task '{title}'")
 
         new_tasks = [t for t in tasks if t.get("id") != task_id]
         _save_tasklist(a, new_tasks)
-    
+
     # Also delete DB issue if it exists (matched by title and app_id)
     issues = db().get_issues(app_id=app_id)
     for i in issues:
         if i.title == title:
-            print(f"DEBUG: Deleting DB issue {i.id}")
             db().delete_issue(i.id)
             break
             
@@ -1604,6 +1670,9 @@ def enhance_status(app_id: int):
     status = _enhance_status.get(app_id)
     if not status:
         return {"status": "idle"}
+    # Evict terminal statuses after they've been read once
+    if status.get("status") in ("done", "failed"):
+        _enhance_status.pop(app_id, None)
     return status
 
 
@@ -2543,7 +2612,7 @@ def start_automation(app_id: int):
         bash_exe = _get_tool_paths()["bash_exe"]
         script_unix = to_unix_path(script_path)
         proc = subprocess.Popen(
-            [bash_exe, "-l", "-c", f"cd '{to_unix_path(a.project_path)}' && '{script_unix}'"],
+            [bash_exe, "-l", "-c", f"cd {shlex.quote(to_unix_path(a.project_path))} && {shlex.quote(script_unix)}"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             env=_automation_subprocess_env(),
@@ -2642,7 +2711,7 @@ def run_once_automation(app_id: int):
             _stop_tracked_proc(_running_oneshots.pop(app_id))
 
         proc = subprocess.Popen(
-            [bash_exe, "-l", "-c", f"cd '{to_unix_path(a.project_path)}' && '{script_unix}'"],
+            [bash_exe, "-l", "-c", f"cd {shlex.quote(to_unix_path(a.project_path))} && {shlex.quote(script_unix)}"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             env=_automation_subprocess_env(),
@@ -2714,7 +2783,7 @@ def run_specific_task(app_id: int, task_id: int):
             _stop_tracked_proc(old_proc)
 
         proc = subprocess.Popen(
-            [bash_exe, "-l", "-c", f"cd '{to_unix_path(a.project_path)}' && '{script_unix}'"],
+            [bash_exe, "-l", "-c", f"cd {shlex.quote(to_unix_path(a.project_path))} && {shlex.quote(script_unix)}"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             env=_automation_subprocess_env(),

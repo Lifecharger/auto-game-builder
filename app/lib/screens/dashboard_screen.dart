@@ -160,6 +160,15 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         headers: {'Content-Type': 'application/json'},
       ).timeout(const Duration(seconds: 30));
       if (!mounted) return;
+      if (resp.statusCode != 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Scan failed: server returned ${resp.statusCode}'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+        return;
+      }
       final data = jsonDecode(resp.body);
       final imported = data['imported'] ?? 0;
       final found = data['found'] ?? 0;
@@ -189,6 +198,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       case 'godot': return 'Game project with export targets (Windows, Android, Web)';
       case 'python': return 'Python project with script runner and pip management';
       case 'web': return 'Web app with static hosting deploy support';
+      case 'phaser': return 'Phaser 3 + TypeScript game, wrapped as Android AAB via Capacitor';
       default: return '';
     }
   }
@@ -235,7 +245,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
-                      children: ['flutter', 'godot', 'python', 'web'].map((t) {
+                      children: ['flutter', 'godot', 'python', 'phaser'].map((t) {
                         return ChoiceChip(
                           label: Text(t[0].toUpperCase() + t.substring(1)),
                           selected: t == appType,
@@ -392,7 +402,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
-                      children: ['godot', 'flutter'].map((t) {
+                      children: ['godot', 'flutter', 'phaser'].map((t) {
                         return ChoiceChip(
                           label: Text(t[0].toUpperCase() + t.substring(1)),
                           selected: t == appType,
