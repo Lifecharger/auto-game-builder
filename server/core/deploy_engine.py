@@ -832,9 +832,18 @@ class DeployEngine:
                     f'npm install && '
                     f'npm run build'
                 )
+                bash_exe = self.settings.get("bash_path", "") or "bash"
+                return [bash_exe, "-l", "-c", shell_cmd]
             else:
+                # Android target — web build + cap sync + gradle
+                # On Windows, Gradle 8.7's native-platform crashes with "could not
+                # get console handle (errno 6)" when spawned from subprocess because
+                # NativeServices checks the console BEFORE reading gradle.properties.
+                # Fix: set GRADLE_OPTS so the gradlew script passes the flag to the
+                # JVM at startup, before any Gradle code runs.
                 shell_cmd = (
                     f'export TERM=dumb && '
+                    f'export GRADLE_OPTS="-Dorg.gradle.native=false" && '
                     f'cd {pp} && '
                     f'npm install && '
                     f'npm run build && '
