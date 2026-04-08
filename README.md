@@ -1,6 +1,7 @@
 # Auto Game Builder
 
 [![Google Play](https://img.shields.io/badge/Google%20Play-Download-green?logo=google-play)](https://play.google.com/store/apps/details?id=com.lifecharger.appmanager)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
 A self-hosted game project management system for indie developers. Manage builds, deployments, AI-powered bug fixes, and automation — all from your phone.
 
@@ -16,13 +17,74 @@ A self-hosted game project management system for indie developers. Manage builds
 
 ## Features
 
-- **Multi-Agent AI**: Use Claude, Gemini, Codex, or Aider to fix bugs, implement features, and automate tasks
-- **Build & Deploy**: One-tap builds for Flutter, Godot, and Phaser (Capacitor) projects, auto-upload to Google Play
-- **Issue Tracking**: Create issues, queue them for AI auto-fix, track results
-- **Task Automation**: Continuous automation loops with configurable intervals
-- **MCP Integration**: PixelLab (pixel art), ElevenLabs (audio), Mobile (device testing)
-- **Remote Access**: Cloudflare Worker proxy for permanent phone-to-PC connection
-- **End-to-End Security**: API key authentication + HMAC-signed tunnel URLs protect both phone and PC
+### Multi-Agent AI
+- **Claude Code**, **Gemini CLI**, **Codex CLI**, and **Aider** for bug fixes, feature implementation, and task automation
+- **Local AI** via Aider + Ollama for offline/private work (default model: `qwen2.5-coder:7b`)
+- Smart prompt templates per engine (Flutter, Godot, generic) with code quality standards baked in
+
+### Game Studio
+- **Brainstorm** — AI-generated game concepts with full GDD (Game Design Document) scaffolding
+- **Design Review** — Specialist critique of game mechanics, balance, and UX
+- **Code Review** — Automated code quality audits per engine
+- **Document Enhancement** — AI-powered improvement of GDD and CLAUDE.md files
+- Built-in knowledge base: brainstorming frameworks, GDD templates, gameplay/UX guidance, visual audit standards, polish checklists
+
+### Build & Deploy
+- **One-tap builds** for Flutter, Godot, Phaser (Capacitor), and React Native projects
+- **Build targets**: AAB, APK, EXE (Windows), IPA (iOS), APP (macOS), Web
+- **Google Play deployment** — automatic version bumping, AAB upload, track selection (internal/alpha/beta/production)
+- **Python projects** supported for `python -m build` workflows
+- Auto-detected build commands and output paths per engine
+
+### Issue Tracking & Auto-Fix
+- Create issues (bug, ANR, crash, improvement, feature, idea) with priority levels
+- Queue issues for AI auto-fix with engine-specific prompt templates
+- Session tracking with 20-minute timeout, internet-aware scheduling
+- ANR report parsing from Google Play Console crash data
+
+### Task Automation
+- Continuous automation loops with configurable intervals
+- One-shot and per-task execution scripts
+- Background process management with auto-restart on failure
+
+### Asset Pipeline
+- **Grok favorites scanning** — auto-imports generated images/videos
+- **Video-to-image matching** via OpenCV for frame extraction
+- **AI tagging** — Gemini-powered asset descriptions and categorization
+- **Safety rating** — kid-friendly, teen, or adult content classification
+- **Collections** — group assets by theme/genre
+- **Cloud storage** — push processed assets to Cloudflare R2
+- **Music generation** — via ElevenLabs integration
+
+### MCP Integration
+Extend AI agent capabilities with Model Context Protocol servers:
+- **[PixelLab](https://github.com/pixellab-code/pixellab-mcp)** — AI pixel art generation (characters, tilesets, UI, backgrounds)
+- **[ElevenLabs](https://github.com/elevenlabs/elevenlabs-mcp)** — AI audio, music, and sound effects
+- **[Meshy AI](https://github.com/pasie15/meshy-ai-mcp-server)** — 3D model generation (text-to-3D, image-to-3D, rigging, animation)
+- **[Mobile MCP](https://github.com/mobile-next/mobile-mcp)** — Device testing and automation
+- **Godot MCP** — Godot engine tools (cloud, requires Claude Max)
+- **Cloudflare MCP** — Cloudflare management (cloud, requires Claude Max)
+- Per-app MCP assignment — each project gets its own set of MCP servers
+- Preset auto-setup and custom server registration via API
+
+### Remote Access
+- **Cloudflare Worker** proxy for a permanent phone-to-PC URL
+- **Cloudflare Tunnel** with auto-registration to KV
+- Access your server from anywhere — the URL never changes even when the tunnel restarts
+
+### AI Chat
+- Conversational AI endpoint with context-aware specialist routing
+- Automatically loads relevant knowledge (brainstorm, code quality, visual audit, polish, gameplay) based on the question
+
+### Asset Generation Tools
+Python scripts in `tools/` for standalone asset workflows:
+- **PixelLab** — pixel art generation, UI elements, backgrounds, image-to-pixel conversion, inpainting
+- **Meshy AI** — text-to-3D, image-to-3D, retexturing, remeshing, rigging, animation
+- **Grok (xAI)** — image and video generation
+- **ElevenLabs** — audio generation
+- **Mixamo** — bulk animation download
+- **Blender** — automatic mesh splitting
+- **Video/Image utilities** — frame extraction, pixel array conversion, asset extraction
 
 ## Security
 
@@ -57,8 +119,28 @@ Phone ──X-API-Key──> Worker ──verify HMAC──> Tunnel ──valida
 
 ## Architecture
 
-- **Server** (`server/`): Python/FastAPI backend that runs on your development PC
-- **App** (`app/`): Flutter mobile app (Android + Windows) that connects to your server
+```
+auto-game-builder/
+  server/              Python/FastAPI backend (runs on your dev PC)
+    api/server.py        REST API (apps, issues, tasks, builds, studio, pipeline, chat)
+    core/                Engine modules (build, deploy, autofix, pipeline, AI tools)
+    config/              Settings, MCP servers, studio knowledge base
+    database/            SQLite with WAL mode (thread-safe, auto-migrating)
+  app/                 Flutter mobile app (Android + Windows)
+  worker/              Cloudflare Worker proxy (JS)
+  tools/               Asset generation scripts (Python)
+```
+
+### Supported Tech Stacks
+
+| Engine | Detection | Build Targets | Scaffold |
+|--------|-----------|---------------|----------|
+| **Flutter** | `pubspec.yaml` | AAB, APK, EXE, IPA, Web | `flutter create` |
+| **Godot 4.x** | `project.godot` | APK, AAB, Windows, Web, Linux | — |
+| **Phaser** | `capacitor.config.ts` | AAB, APK, Web | Custom template |
+| **React Native** | `package.json` | AAB, APK | `npx react-native init` |
+| **Python** | `pyproject.toml` | `dist/` | — |
+| **Custom** | Manual | User-defined | — |
 
 ## Quick Start
 
@@ -93,12 +175,13 @@ flutter build appbundle --release  # Android AAB (Google Play)
   - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) (recommended)
   - [Gemini CLI](https://github.com/google-gemini/gemini-cli)
   - [Codex CLI](https://github.com/openai/codex)
-  - [Aider](https://aider.chat/)
+  - [Aider](https://aider.chat/) (also powers local AI mode with Ollama)
 
 ### Optional (for full functionality)
 - **Flutter SDK** — [flutter.dev](https://flutter.dev/docs/get-started/install) (for building Flutter games)
 - **Godot Engine** — [godotengine.org](https://godotengine.org/download) (for building Godot games)
-- **Node.js** — [nodejs.org](https://nodejs.org/) (for Phaser/Capacitor builds, Mobile MCP, and wrangler)
+- **Node.js** — [nodejs.org](https://nodejs.org/) (for Phaser/Capacitor builds, React Native, Mobile MCP, wrangler)
+- **Ollama** — [ollama.com](https://ollama.com/) (for local/offline AI via Aider)
 
 ### Remote Access (phone outside local network)
 To access your server from your phone over the internet:
@@ -133,6 +216,26 @@ To access your server from your phone over the internet:
 - **Godot MCP** — Cloud-based, requires [Claude Max](https://claude.ai) subscription
 - **Cloudflare MCP** — Cloud-based, requires [Claude Max](https://claude.ai) subscription
 
+## API Reference
+
+### Core Endpoints
+
+| Group | Endpoints | Description |
+|-------|-----------|-------------|
+| **Apps** | `GET/POST/PATCH /api/apps` | CRUD for game projects, auto-scan for projects |
+| **Issues** | `GET/POST/PATCH/DELETE /api/issues` | Bug tracking with priority, category, status |
+| **Tasks** | `GET/POST/PATCH/DELETE /api/apps/{id}/tasks` | Task management with archiving and statistics |
+| **Builds** | `GET /api/builds`, `POST /api/apps/{id}/deploy` | Build orchestration, Google Play upload, retry |
+| **Automations** | `GET/POST/PATCH/DELETE /api/automations` | Continuous automation loops, start/stop/run-once |
+| **Studio** | `POST /api/studio/brainstorm`, `POST /api/apps/{id}/studio/{action}` | Game studio: brainstorm, design review, code review |
+| **Pipeline** | `POST /api/pipeline/*` | Asset scanning, matching, tagging, cloud push |
+| **Chat** | `POST /api/chat` | Context-aware AI conversation |
+| **MCP** | `GET/POST/DELETE /api/mcp/servers` | MCP server management, presets, per-app config |
+| **GDD** | `GET/PUT /api/apps/{id}/gdd` | Game Design Document read/write |
+| **Enhance** | `POST /api/apps/{id}/enhance` | AI-powered document improvement |
+| **Logs** | `GET /api/logs` | Build and automation log viewer |
+| **Health** | `GET /api/health` | Server status (no auth required) |
+
 ## Configuration
 
 All configuration is stored in gitignored files (never committed):
@@ -163,6 +266,7 @@ Some ideas:
 - Swap the color scheme in `app/lib/theme.dart`
 - Add new build targets or deploy pipelines
 - Integrate your own MCP servers for specialized tools
+- Add custom studio knowledge files for your genre
 
 ## Your Creations
 
@@ -170,8 +274,13 @@ Games and apps you build with Auto Game Builder are **entirely yours**. You own 
 
 ## Roadmap
 
-- [x] **Meshy MCP Integration** — 3D model generation (text-to-3D, image-to-3D, auto-rigging, animation) via [Meshy AI](https://www.meshy.ai/)
-- [x] **Phaser Engine Support** — Full build pipeline for Phaser (TypeScript) games wrapped with Capacitor for Android (npm, Vite, Gradle)
+- [x] **Meshy MCP Integration** — 3D model generation via Meshy AI
+- [x] **Phaser Engine Support** — Full build pipeline for Phaser + Capacitor
+- [x] **React Native Support** — Detection, build pipeline, and scaffolding
+- [x] **Game Studio System** — AI-powered brainstorming, design review, and code review
+- [x] **Asset Pipeline** — Scan, match, tag, and push assets to cloud storage
+- [x] **AI Chat** — Context-aware conversational interface with specialist routing
+- [x] **Local AI** — Offline AI mode via Aider + Ollama
 - [ ] **Experimental Unity Support** — Unity engine project creation, build pipeline, and deployment
 - [ ] **Genre Selection & Database** — Genre-based project templates with curated mechanics, assets, and configurations
 

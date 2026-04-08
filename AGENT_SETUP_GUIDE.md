@@ -8,19 +8,63 @@ This file is meant to be read by an AI agent (Claude, Gemini, Codex, etc.) to au
 auto-game-builder/
   setup_wizard.py          # First-run setup (you're helping with this)
   server/
-    main.py                # Server entry point
-    api/server.py           # FastAPI REST API
+    main.py                # Server entry point (auto-generates security keys)
+    api/server.py          # FastAPI REST API (apps, issues, tasks, builds, studio, pipeline, chat)
     config/
-      settings.json         # USER CONFIG — you create/edit this
+      settings.json         # USER CONFIG — you create/edit this (gitignored)
       settings.example.json # Template with empty values
       settings_loader.py    # Loads settings.json, auto-detects tools
-      mcp_servers.json      # MCP server configs — you create/edit this
-      constants.py          # App constants (don't edit)
+      mcp_servers.json      # MCP server configs — you create/edit this (gitignored)
+      app_mcp.json          # Per-app MCP server assignments
+      constants.py          # Tech stacks, build targets, statuses (don't edit)
       path_utils.py         # Cross-platform path utils
-    core/                   # Engine modules (build, deploy, autofix, etc.)
-    database/               # SQLite DB (auto-created on first run)
-    requirements.txt        # Python dependencies
-  app/                      # Flutter mobile app (don't touch)
+      automation_claude.md  # Automation prompt template
+      studio/studio/        # Game Studio specialist knowledge base
+        brainstorm.md         # Game concept generation framework
+        gdd_template.md       # GDD structure template
+        gameplay_ux.md        # Gameplay and UX review guidance
+        code_quality.md       # Code audit criteria
+        visual_audit.md       # Art/visual quality standards
+        polish_ideas.md       # Polish and refinement checklist
+        specialist_routing.md # AI specialist assignment logic
+    core/                   # Engine modules
+      ai_tools.py             # AI agent invokers (Claude, Gemini, Codex, Aider)
+      autofix_engine.py       # Auto-fix issue queue + execution
+      build_engine.py         # Build orchestration (Flutter, Godot, Phaser, React Native, Python)
+      deploy_engine.py        # Deploy to Google Play (AAB upload, version bumping)
+      pipeline_engine.py      # Asset pipeline (scan, match, tag, rate, push to R2)
+      app_detector.py         # Auto-detect project types from marker files
+      local_agent.py          # Local AI (Aider + Ollama) process management
+      internet_monitor.py     # Connection status tracking
+      phaser_scaffold.py      # Phaser project scaffolding
+      version_manager.py      # Semantic version bumping
+      anr_parser.py           # Google Play ANR report parsing
+      log_manager.py          # Log management + archiving
+    database/               # SQLite DB (auto-created on first run, WAL mode)
+      db_manager.py           # Thread-safe CRUD manager
+      models.py               # Dataclass models (App, Issue, Build, etc.)
+      migrations.py           # Schema migrations (auto-applied)
+    prompts/                # Fix prompt templates per engine
+      flutter_fix.txt
+      godot_fix.txt
+      anr_fix.txt
+    automations/            # Generated automation scripts (auto-managed)
+  app/                      # Flutter mobile app (don't touch during setup)
+  worker/                   # Cloudflare Worker proxy
+    index.js                  # Worker code (HMAC verification + API key validation)
+    wrangler.toml             # Worker deployment config (gitignored)
+    wrangler.toml.example     # Template
+  tools/                    # Asset generation scripts (standalone Python)
+    pixellab_*.py             # PixelLab SDK wrappers (7 scripts)
+    meshy_*.py                # Meshy AI 3D generation (9 scripts)
+    elevenlabs_*.py           # ElevenLabs audio (2 scripts)
+    grok_*.py                 # Grok (xAI) image/video generation
+    mixamo_bulk_download.py   # Mixamo animation batch download
+    blender_auto_splitter.py  # Blender automatic mesh splitting
+    video_to_frames.py        # Video frame extraction
+    png_to_pixel_array.py     # Pixel data conversion
+    extract_*.py              # Asset extraction utilities
+    character_creator/        # MakeHuman-based 3D character creator
 ```
 
 ## What You Need To Configure
@@ -92,10 +136,12 @@ This is the main config file. Create it from `settings.example.json` or edit the
 | `bash_path` | Run: `which bash` or check `C:\Program Files\Git\bin\bash.exe` | `/bin/bash` |
 | `cloudflared_path` | Run: `which cloudflared` or `where cloudflared` | `/usr/local/bin/cloudflared` |
 | `npx_path` | Run: `which npx` or `where npx` | `/usr/local/bin/npx` |
+| `wrangler_path` | Run: `which wrangler` or `where wrangler` | `/usr/local/bin/wrangler` |
 | `projects_root` | Ask the user where they keep game projects | `~/Projects` or `C:\Projects` |
 | `keys_dir` | Ask the user where signing keystores are stored | `D:\keys` or `~/keys` |
 | `tools_dir` | Directory with Python asset generation scripts (optional) | `C:\General Tools` |
 | `service_account_key` | Path to Google Play API service account JSON (optional) | `~/keys/play-api.json` |
+| `ollama_url` | Default: `http://localhost:11434`. Only change if Ollama runs on a different host/port | `http://localhost:11434` |
 
 **On Windows**, use forward slashes or escaped backslashes in JSON: `"C:/flutter/bin/flutter"` or `"C:\\flutter\\bin\\flutter"`.
 
@@ -139,11 +185,28 @@ MCP (Model Context Protocol) servers extend AI agent capabilities. Configure wha
 **Server types:**
 - **HTTP**: Remote API (PixelLab). Needs `type`, `url`, and `_api_key`.
 - **Command**: Local subprocess (ElevenLabs, Mobile). Needs `command` and `args`. May need `_api_key` and `env`.
-- **Cloud**: Provided by Claude Max subscription (Godot, Cloudflare). No local config needed.
+- **Cloud**: Provided by Claude Max subscription (Godot, Cloudflare). No local config needed — just mark `cloud: true`.
 
-**API key sources:**
-- PixelLab: https://pixellab.ai/dashboard → API Keys
-- ElevenLabs: https://elevenlabs.io → Profile → API Keys
+**Available presets:**
+
+| Server | Type | Requires | Purpose |
+|--------|------|----------|---------|
+| `pixellab` | HTTP | API key ([pixellab.ai/dashboard](https://pixellab.ai/dashboard)) | AI pixel art generation |
+| `elevenlabs` | Command | API key ([elevenlabs.io](https://elevenlabs.io)), [uv](https://docs.astral.sh/uv/) | AI audio/music/SFX |
+| `mobile` | Command | Node.js | Device testing and automation |
+| `meshy` | Command | API key ([meshy.ai](https://www.meshy.ai/)) | 3D model generation |
+| `godot` | Cloud | Claude Max subscription | Godot engine tools |
+| `cloudflare` | Cloud | Claude Max subscription | Cloudflare management |
+
+**Per-app MCP assignment:**
+Each app can have its own set of MCP servers. This is stored in `app_mcp.json`:
+```json
+{
+  "1": ["pixellab", "mobile"],
+  "5": ["elevenlabs", "pixellab"]
+}
+```
+The API manages this via `GET/PUT /api/apps/{app_id}/mcp`. When automation runs for an app, only its assigned MCP servers are included in the Claude session.
 
 **Verifying command-based servers:**
 - Mobile MCP: Run `npx -y @mobilenext/mobile-mcp --version` (needs Node.js)
@@ -226,8 +289,8 @@ The worker gives the user a permanent URL that always proxies to their PC server
 6. The user enters this worker URL in the phone app. It never changes.
 
 **How it works:**
-- Server starts → Cloudflare tunnel → gets dynamic URL → writes URL + HMAC signature to KV
-- Phone connects to worker URL → worker verifies API key + HMAC signature → proxies to tunnel → PC server validates API key again
+- Server starts -> Cloudflare tunnel -> gets dynamic URL -> writes URL + HMAC signature to KV
+- Phone connects to worker URL -> worker verifies API key + HMAC signature -> proxies to tunnel -> PC server validates API key again
 
 ### 3c. Security Setup (API key + HMAC signing)
 
@@ -244,7 +307,7 @@ The server auto-generates an API key and HMAC secret on first start. These are s
 
 ```bash
 cd worker
-# Read the values from server/config/settings.json → security section
+# Read the values from server/config/settings.json -> security section
 echo "THE_API_KEY" | npx wrangler secret put API_KEY
 echo "THE_HMAC_SECRET" | npx wrangler secret put HMAC_SECRET
 ```
@@ -283,7 +346,7 @@ flutter pub add --dev change_app_package_name
 flutter pub run change_app_package_name:main com.DEVNAME.autogamebuilder
 ```
 
-Replace `DEVNAME` with the value from `settings.json` → `developer_name` (under the `developer` section).
+Replace `DEVNAME` with the value from `settings.json` -> `developer_name` (under the `developer` section).
 
 This updates:
 - `android/app/build.gradle.kts` (namespace + applicationId)
@@ -343,7 +406,44 @@ flutter build appbundle --release
 ```
 The AAB will be at `app/build/app/outputs/bundle/release/app-release.aab`
 
-### 6. Verification
+### 7. Local AI Setup (optional)
+
+For offline or private AI work, Auto Game Builder supports local models via Aider + Ollama.
+
+**Install Ollama:**
+- Download from [ollama.com](https://ollama.com/)
+- Pull the default model: `ollama pull qwen2.5-coder:7b`
+
+**Install Aider:**
+```bash
+pip install aider-chat
+```
+Or: `pipx install aider-chat`
+
+**Configuration:**
+- Set `aider_path` in `settings.json` -> `ai_agents`
+- The default `ollama_url` is `http://localhost:11434` (change in `services` if Ollama runs elsewhere)
+- The default model is `ollama/qwen2.5-coder:7b` — the local agent module handles model selection
+
+**How it works:**
+- The local agent (`core/local_agent.py`) spawns Aider with the Ollama backend
+- It auto-selects relevant files for context to stay within the model's context window
+- Used when the user explicitly chooses local AI or when internet is unavailable
+
+### 8. Supported Tech Stacks
+
+The server auto-detects project types based on marker files:
+
+| Stack | Marker File | Build Command | Scaffold |
+|-------|-------------|---------------|----------|
+| **Flutter** | `pubspec.yaml` | `flutter build appbundle --release` | `flutter create {slug}` |
+| **Godot 4.x** | `project.godot` | `godot --headless --export-release "Android" build/{slug}.apk` | None |
+| **Phaser** | `capacitor.config.ts` | `npm install && npm run build && npx cap sync android && cd android && gradlew bundleRelease` | Custom (via `phaser_scaffold.py`) |
+| **React Native** | `package.json` (with RN deps) | `npx react-native build-android --mode=release` | `npx react-native init {name}` |
+| **Python** | `pyproject.toml` | `python -m build` | None |
+| **Custom** | None (manual) | User-defined | None |
+
+### 9. Verification
 
 After configuring, verify the setup works:
 
@@ -372,16 +472,39 @@ It should print `Server running at http://localhost:8000`. Test with:
 curl http://localhost:8000/api/health
 ```
 
+### 10. Key API Endpoints (for integration)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/health` | Health check (no auth) |
+| `GET` | `/api/apps` | List all apps |
+| `POST` | `/api/apps` | Create new app |
+| `POST` | `/api/apps/scan` | Auto-discover projects in projects_root |
+| `POST` | `/api/apps/{id}/deploy` | Build + optional Google Play upload |
+| `GET/POST` | `/api/apps/{id}/tasks` | List/create tasks |
+| `GET/POST` | `/api/issues` | List/create issues |
+| `POST` | `/api/automations` | Create automation job |
+| `POST` | `/api/automations/{id}/start` | Start automation loop |
+| `POST` | `/api/studio/brainstorm` | AI game brainstorm |
+| `POST` | `/api/apps/{id}/studio/{action}` | Studio action (design-review, code-review, balance-check) |
+| `POST` | `/api/apps/{id}/enhance` | AI-enhance GDD or CLAUDE.md |
+| `POST` | `/api/chat` | AI chat with specialist routing |
+| `GET/PUT` | `/api/apps/{id}/mcp` | Get/set per-app MCP servers |
+| `GET` | `/api/mcp/servers` | List configured MCP servers |
+| `POST` | `/api/mcp/presets/auto-setup` | Auto-configure preset MCPs |
+
 ## Rules For The Agent
 
 1. **Ask before changing** `projects_root` — this is where all game projects live, user must confirm.
 2. **Never hardcode** user-specific paths. Always use `which`/`where` to detect.
 3. **API keys are optional** — if the user doesn't have one, leave the field empty. Don't make one up.
 4. **Don't modify** any Python code, Dart code, or server logic. Only edit `settings.json` and `mcp_servers.json`.
-5. **Use the correct JSON structure** — settings.json has nested sections (server, paths, ai_agents, engines, system, cloudflare, services, developer). Don't flatten it.
+5. **Use the correct JSON structure** — settings.json has nested sections (server, paths, ai_agents, engines, system, cloudflare, services, developer, security). Don't flatten it.
 6. **Test paths exist** before writing them. Run `test -f /path/to/tool` or equivalent.
 7. **On Windows**, be aware that `where` returns multiple lines. Use the first result.
 8. **On Windows**, Flutter is often a bash script (`flutter`) not an exe. The deploy engine handles `.bat` resolution automatically — just point `flutter_path` to the SDK's `bin/flutter`.
 9. **File encoding**: Always use `encoding="utf-8"` when reading/writing files in Python on Windows. The default locale encoding (e.g. cp1254 for Turkish) will silently corrupt non-ASCII characters.
 10. **Monorepo layout**: The Flutter app is in `app/`, not the repo root. `pubspec.yaml` is at `app/pubspec.yaml`. The server handles this automatically via `_resolve_flutter_root()`.
-11. **Report** a summary of what you found, what you configured, and what's still missing.
+11. **Security keys are auto-generated** — never manually set `api_key` or `hmac_secret`. Start the server once and it fills them in.
+12. **MCP servers are optional** — only configure servers the user has API keys for. Cloud MCPs (godot, cloudflare) require Claude Max.
+13. **Report** a summary of what you found, what you configured, and what's still missing.
