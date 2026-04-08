@@ -47,15 +47,6 @@ A self-hosted game project management system for indie developers. Manage builds
 - One-shot and per-task execution scripts
 - Background process management with auto-restart on failure
 
-### Asset Pipeline
-- **Grok favorites scanning** — auto-imports generated images/videos
-- **Video-to-image matching** via OpenCV for frame extraction
-- **AI tagging** — Gemini-powered asset descriptions and categorization
-- **Safety rating** — kid-friendly, teen, or adult content classification
-- **Collections** — group assets by theme/genre
-- **Cloud storage** — push processed assets to Cloudflare R2
-- **Music generation** — via ElevenLabs integration
-
 ### MCP Integration
 Extend AI agent capabilities with Model Context Protocol servers:
 - **[PixelLab](https://github.com/pixellab-code/pixellab-mcp)** — AI pixel art generation (characters, tilesets, UI, backgrounds)
@@ -122,8 +113,8 @@ Phone ──X-API-Key──> Worker ──verify HMAC──> Tunnel ──valida
 ```
 auto-game-builder/
   server/              Python/FastAPI backend (runs on your dev PC)
-    api/server.py        REST API (apps, issues, tasks, builds, studio, pipeline, chat)
-    core/                Engine modules (build, deploy, autofix, pipeline, AI tools)
+    api/server.py        REST API (apps, issues, tasks, builds, studio, chat)
+    core/                Engine modules (build, deploy, autofix, AI tools)
     config/              Settings, MCP servers, studio knowledge base
     database/            SQLite with WAL mode (thread-safe, auto-migrating)
   app/                 Flutter mobile app (Android + Windows)
@@ -228,7 +219,6 @@ To access your server from your phone over the internet:
 | **Builds** | `GET /api/builds`, `POST /api/apps/{id}/deploy` | Build orchestration, Google Play upload, retry |
 | **Automations** | `GET/POST/PATCH/DELETE /api/automations` | Continuous automation loops, start/stop/run-once |
 | **Studio** | `POST /api/studio/brainstorm`, `POST /api/apps/{id}/studio/{action}` | Game studio: brainstorm, design review, code review |
-| **Pipeline** | `POST /api/pipeline/*` | Asset scanning, matching, tagging, cloud push |
 | **Chat** | `POST /api/chat` | Context-aware AI conversation |
 | **MCP** | `GET/POST/DELETE /api/mcp/servers` | MCP server management, presets, per-app config |
 | **GDD** | `GET/PUT /api/apps/{id}/gdd` | Game Design Document read/write |
@@ -278,7 +268,6 @@ Games and apps you build with Auto Game Builder are **entirely yours**. You own 
 - [x] **Phaser Engine Support** — Full build pipeline for Phaser + Capacitor
 - [x] **React Native Support** — Detection, build pipeline, and scaffolding
 - [x] **Game Studio System** — AI-powered brainstorming, design review, and code review
-- [x] **Asset Pipeline** — Scan, match, tag, and push assets to cloud storage
 - [x] **AI Chat** — Context-aware conversational interface with specialist routing
 - [x] **Local AI** — Offline AI mode via Aider + Ollama
 - [ ] **Experimental Unity Support** — Unity engine project creation, build pipeline, and deployment

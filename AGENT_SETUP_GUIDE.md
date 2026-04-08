@@ -9,7 +9,7 @@ auto-game-builder/
   setup_wizard.py          # First-run setup (you're helping with this)
   server/
     main.py                # Server entry point (auto-generates security keys)
-    api/server.py          # FastAPI REST API (apps, issues, tasks, builds, studio, pipeline, chat)
+    api/server.py          # FastAPI REST API (apps, issues, tasks, builds, studio, chat)
     config/
       settings.json         # USER CONFIG — you create/edit this (gitignored)
       settings.example.json # Template with empty values
@@ -32,7 +32,6 @@ auto-game-builder/
       autofix_engine.py       # Auto-fix issue queue + execution
       build_engine.py         # Build orchestration (Flutter, Godot, Phaser, React Native, Python)
       deploy_engine.py        # Deploy to Google Play (AAB upload, version bumping)
-      pipeline_engine.py      # Asset pipeline (scan, match, tag, rate, push to R2)
       app_detector.py         # Auto-detect project types from marker files
       local_agent.py          # Local AI (Aider + Ollama) process management
       internet_monitor.py     # Connection status tracking
