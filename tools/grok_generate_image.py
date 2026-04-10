@@ -4,9 +4,12 @@ Generate images using Grok (xAI) via WebSocket API with browser cookies.
 Usage:
     python grok_generate_image.py -d "a knight fighting a dragon" -o knight.png
     python grok_generate_image.py -d "cute pixel art cat" --aspect 1:1 -o cat.png
-    python grok_generate_image.py -d "fantasy landscape" --aspect 16:9 --count 4 -o landscape.png
+    python grok_generate_image.py -d "fantasy landscape" --aspect 16:9 -o landscape.png
+    python grok_generate_image.py -d "elven warrior" --pro -o warrior.png        # NEW: quality mode (Imagine v3 / pro)
+    python grok_generate_image.py -d "neon cyberpunk" --model aurora -o cyber.png  # NEW: pick model
 
 Aspect ratios: 2:3, 3:2, 16:9, 9:16, 1:1, 4:3, 3:4
+Models: imagine (default), aurora, flux
 """
 import argparse
 import json
@@ -18,8 +21,7 @@ import threading
 import websocket
 
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-_REPO_ROOT = os.path.dirname(_SCRIPT_DIR)  # tools/ is one level below repo root
-HISTORY_FILE = os.path.join(_REPO_ROOT, "server", "config", "grok_download_history.json")
+HISTORY_FILE = os.path.join(_SCRIPT_DIR, "grok_download_history.json")
 DOWNLOADS_DIR = os.path.join(os.path.expanduser("~"), "Downloads", "grok-generated")
 
 
@@ -28,7 +30,14 @@ def get_cookies() -> dict:
         return json.load(f).get("cached_cookies", {})
 
 
-def generate_images(prompt: str, aspect_ratio: str = "2:3", count: int = 2, output: str = None) -> list[str]:
+def generate_images(
+    prompt: str,
+    aspect_ratio: str = "2:3",
+    count: int = 2,
+    output: str = None,
+    pro: bool = False,
+    model: str = None,
+) -> list[str]:
     cookies = get_cookies()
     if not cookies.get("sso"):
         print("ERROR: No Grok SSO cookies found. Run grok downloader first or log into grok.com in Chrome.")
@@ -81,6 +90,24 @@ def generate_images(prompt: str, aspect_ratio: str = "2:3", count: int = 2, outp
         done_event.set()
 
     def on_open(ws):
+        # Payload schema mirrors ImagineImageGenSession from grok.com frontend
+        # (chunk ad82299705f18bc6.js). New fields vs the original 2024 protocol:
+        #   - image_model_name : "imagine" | "aurora" | "flux"  (server default if omitted)
+        #   - enable_pro       : true → "quality" mode (new high-quality model)
+        #   - enable_side_by_side, last_prompt : extras shipped by current frontend
+        properties = {
+            "section_count": 0,
+            "is_kids_mode": False,
+            "enable_nsfw": True,
+            "skip_upsampler": False,
+            "enable_side_by_side": False,
+            "is_initial": False,
+            "aspect_ratio": aspect_ratio,
+        }
+        if model:
+            properties["image_model_name"] = model
+        if pro:
+            properties["enable_pro"] = True
         msg = {
             "type": "conversation.item.create",
             "timestamp": int(time.time() * 1000),
@@ -91,20 +118,15 @@ def generate_images(prompt: str, aspect_ratio: str = "2:3", count: int = 2, outp
                         "requestId": request_id,
                         "text": prompt,
                         "type": "input_text",
-                        "properties": {
-                            "section_count": 0,
-                            "is_kids_mode": False,
-                            "enable_nsfw": False,
-                            "skip_upsampler": False,
-                            "is_initial": False,
-                            "aspect_ratio": aspect_ratio,
-                        }
+                        "properties": properties,
                     }
                 ]
             }
         }
         ws.send(json.dumps(msg))
-        print(f"  Request sent, waiting for images...")
+        mode_label = "QUALITY (pro)" if pro else "SPEED"
+        model_label = model or "default"
+        print(f"  Request sent [{mode_label}, model={model_label}], waiting for images...")
 
     print(f"Generating: {prompt} (aspect: {aspect_ratio})")
 
@@ -183,9 +205,13 @@ def main():
     parser.add_argument("--output", "-o", default=None, help="Output filename (saved in grok-generated/)")
     parser.add_argument("--aspect", default="2:3", choices=["2:3", "3:2", "16:9", "9:16", "1:1", "4:3", "3:4"])
     parser.add_argument("--count", type=int, default=2, help="Number of images (default 2)")
+    parser.add_argument("--pro", action="store_true",
+                        help="Enable QUALITY mode (new high-quality model, follows prompts much better)")
+    parser.add_argument("--model", default=None, choices=["imagine", "aurora", "flux"],
+                        help="Force a specific image model (default: server picks)")
     args = parser.parse_args()
 
-    generate_images(args.description, args.aspect, args.count, args.output)
+    generate_images(args.description, args.aspect, args.count, args.output, pro=args.pro, model=args.model)
 
 
 if __name__ == "__main__":

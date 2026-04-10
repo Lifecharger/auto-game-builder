@@ -13,6 +13,10 @@ server/database/*.db-shm
 # App MCP config (per-user runtime)
 server/config/app_mcp.json
 
+# Grok auth cookies (session cookies for grok.com — never commit)
+server/config/grok_download_history.json
+tools/grok_download_history.json
+
 # Windows shortcuts
 *.lnk
 
