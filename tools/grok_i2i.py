@@ -1,28 +1,36 @@
 """
-Animate a character image using Grok Imagine's image-to-video.
+Image-to-image with Grok Imagine — for character consistency across views.
 
-Workflow this is built for:
-    1. You generate a base character (e.g. via grok_generate_image.py --pro)
-    2. You pass the local PNG to this tool with an animation prompt
-    3. Tool uploads the image to Grok, sets 6s + 480p (cheapest), submits
-    4. Grok auto-favorites the input + output
-    5. Your grok-imagine-favorites-downloader Chrome extension grabs them
+The use case this is built for:
+    1. Generate a base character with grok_generate_image.py --pro
+       (e.g. south-facing pixel art warrior)
+    2. Use this tool to derive the OTHER directional views from that single base:
+        - "same character, west facing"
+        - "same character, east facing"
+        - "same character, north facing / back view"
+    3. Each derivation preserves character consistency because Grok uses the
+       reference image to keep face/colors/outfit identical across angles.
+    4. THEN animate each directional view with grok_animate.py (i2v).
 
-No download logic — that's the extension's job.
+How it works:
+    - Drives grok.com/imagine via Playwright (persistent profile + sso cookies)
+    - Switches to Görsel (Image) mode — NOT Video mode
+    - Uploads the base image as a reference via the file input
+    - Types the variation prompt
+    - Submits via Ctrl+Enter (button click silently fails in headless React)
+    - Walks away. Result auto-favorites in your library so the favorites
+      downloader Chrome extension picks it up.
 
 Usage:
-    python grok_animate.py --image C:/path/character.png -d "south facing walk cycle"
-    python grok_animate.py -i char.png -d "punch attack" --length 10 --resolution 720p
-    python grok_animate.py -i char.png -d "idle breathing" --show-browser   # debug
-
-Defaults: 6s / 480p (cheapest = fastest = least credits)
+    python grok_i2i.py -i base_south.png -d "same character, west facing"
+    python grok_i2i.py -i base_south.png -d "same character, north facing back view"
+    python grok_i2i.py -i base.png -d "same character, attack pose, sword raised"
 """
 import argparse
 import json
 import os
 import sys
 import time
-import uuid
 from pathlib import Path
 
 from playwright.sync_api import sync_playwright
@@ -51,8 +59,7 @@ def _load_sso_cookies():
     ]
 
 
-def animate(image_path: str, prompt: str, video_length: int = 6,
-            resolution: str = "480p", headless: bool = True) -> bool:
+def i2i(image_path: str, prompt: str, headless: bool = True) -> bool:
     image_path = os.path.abspath(image_path)
     if not os.path.isfile(image_path):
         print(f"ERROR: Image not found: {image_path}")
@@ -84,7 +91,6 @@ def animate(image_path: str, prompt: str, video_length: int = 6,
 
         page = ctx.new_page()
 
-        # Watch for the key requests that confirm the generation actually fired
         seen_endpoints = set()
         def on_request(req):
             if req.method != "POST": return
@@ -97,7 +103,7 @@ def animate(image_path: str, prompt: str, video_length: int = 6,
         print(f"Navigating to {IMAGINE_URL}...")
         page.goto(IMAGINE_URL, wait_until="networkidle", timeout=60000)
 
-        # Dismiss BOTH cookie consent banners (OneTrust + Grok's own)
+        # Dismiss both cookie consent banners
         page.evaluate("""() => {
             ['onetrust-consent-sdk'].forEach(id => {
                 const el = document.getElementById(id);
@@ -113,36 +119,18 @@ def animate(image_path: str, prompt: str, video_length: int = 6,
             ctx.close()
             return False
 
-        # Step 1: Switch to Video mode
-        print("Switching to Video mode...")
+        # Step 1: Switch to GÖRSEL (Image) mode — opposite of grok_animate.py
+        print("Switching to Görsel (Image) mode...")
         try:
-            # The Video tab is a [role="radio"] inside the "Oluşturma modu" radiogroup
-            page.locator('[role="radiogroup"][aria-label="Oluşturma modu"] [role="radio"]').filter(has_text="Video").click(timeout=5000)
+            page.locator(
+                '[role="radiogroup"][aria-label="Oluşturma modu"] [role="radio"]'
+            ).filter(has_text="Görsel").click(timeout=5000)
             time.sleep(0.5)
-            print("  Switched to Video mode")
+            print("  Switched to Image mode")
         except Exception as e:
-            print(f"  WARNING: Could not click Video tab ({e})")
+            print(f"  WARNING: Could not click Görsel tab ({e}); may already be selected")
 
-        # Step 2: Set duration if not default (6s)
-        if video_length != 6:
-            try:
-                page.locator('[role="radiogroup"][aria-label="Video Süresi"] [role="radio"]').filter(has_text=f"{video_length}s").click(timeout=3000)
-                time.sleep(0.3)
-                print(f"  Set duration to {video_length}s")
-            except Exception:
-                print(f"  WARNING: Could not set duration to {video_length}s")
-
-        # Step 3: Set resolution if not default (480p)
-        if resolution != "480p":
-            try:
-                page.locator('[role="radiogroup"][aria-label="Video Çözünürlüğü"] [role="radio"]').filter(has_text=resolution).click(timeout=3000)
-                time.sleep(0.3)
-                print(f"  Set resolution to {resolution}")
-            except Exception:
-                print(f"  WARNING: Could not set resolution to {resolution}")
-
-        # Step 4: Upload the image via the file input — use the MULTI input
-        # (name="files") which is the multi-ref-i2i path for animation references
+        # Step 2: Upload the base image
         print(f"Uploading {os.path.basename(image_path)}...")
         try:
             file_input = page.locator('input[type="file"][name="files"]').first
@@ -150,22 +138,20 @@ def animate(image_path: str, prompt: str, video_length: int = 6,
                 file_input = page.locator('input[type="file"][accept*="image"]').first
             file_input.set_input_files(image_path, timeout=10000)
             print("  Upload triggered, waiting for upload-file to complete...")
-            # Wait for upload-file to complete. media/post/create fires later
-            # as part of the submit chain, not the upload chain.
             upload_deadline = time.time() + 30
             while time.time() < upload_deadline:
                 if "/rest/app-chat/upload-file" in seen_endpoints:
                     break
                 time.sleep(0.3)
-            time.sleep(2)  # buffer for React state + thumbnail render
+            time.sleep(2)
             print("  Image attached")
         except Exception as e:
             print(f"  ERROR: Could not upload image: {e}")
-            page.screenshot(path=str(Path.home() / "grok_animate_debug.png"))
+            page.screenshot(path=str(Path.home() / "grok_i2i_debug.png"))
             ctx.close()
             return False
 
-        # Step 5: Type the animation prompt into the contenteditable input
+        # Step 3: Type prompt
         print(f"Typing prompt: {prompt!r}")
         prompt_box = page.locator('div[contenteditable="true"]').first
         prompt_box.click(timeout=5000)
@@ -173,59 +159,39 @@ def animate(image_path: str, prompt: str, video_length: int = 6,
         page.keyboard.type(prompt, delay=15)
         time.sleep(1)
 
-        # Step 6: Submit. Try multiple strategies because React forms can ignore
-        # clicks if state isn't fully synced. Strategy order:
-        #   1. Click the submit button directly
-        #   2. Ctrl+Enter (chat-app standard shortcut)
-        #   3. Programmatic form.requestSubmit()
+        # Step 4: Submit (multi-strategy — Ctrl+Enter is the reliable one)
         print("Submitting...")
-
-        def _submitted():
-            return "/rest/app-chat/conversations/new" in seen_endpoints
-
-        # Strategy 1: click the button
         try:
             page.locator('button[type="submit"][aria-label="Gönder"]').first.click(
                 timeout=4000, force=True
             )
-            print("  [strategy 1] Clicked submit button")
-        except Exception as e:
-            print(f"  [strategy 1] Click failed: {e}")
+        except Exception:
+            pass
 
         time.sleep(2)
-        if not _submitted():
-            # Strategy 2: Ctrl+Enter from prompt
-            print("  [strategy 2] Ctrl+Enter in prompt input")
+        if "/rest/app-chat/conversations/new" not in seen_endpoints:
             prompt_box.focus()
             page.keyboard.press("Control+Enter")
             time.sleep(2)
 
-        if not _submitted():
-            # Strategy 3: programmatic form submit
-            print("  [strategy 3] form.requestSubmit() via JS")
+        if "/rest/app-chat/conversations/new" not in seen_endpoints:
             page.evaluate("""() => {
                 const btn = document.querySelector('button[type="submit"][aria-label="Gönder"]');
-                if (!btn) return 'no button';
-                const form = btn.closest('form');
-                if (!form) return 'no form';
-                if (form.requestSubmit) {
-                    form.requestSubmit();
-                    return 'requestSubmit fired';
-                } else {
-                    form.submit();
-                    return 'submit fired';
+                if (btn) {
+                    const form = btn.closest('form');
+                    if (form && form.requestSubmit) form.requestSubmit();
                 }
             }""")
             time.sleep(2)
 
-        # Wait for the canonical success-chain endpoints to all fire
+        # Wait for the success-chain endpoints
         print("Waiting for generation request + auto-favorite...")
         deadline = time.time() + 30
-        target_endpoints = {
+        target = {
             "/rest/app-chat/conversations/new",
             "/rest/media/post/like",
         }
-        while time.time() < deadline and not target_endpoints.issubset(seen_endpoints):
+        while time.time() < deadline and not target.issubset(seen_endpoints):
             time.sleep(0.5)
 
         for ep in ["/rest/app-chat/upload-file", "/rest/media/post/create",
@@ -235,45 +201,41 @@ def animate(image_path: str, prompt: str, video_length: int = 6,
 
         if "/rest/app-chat/conversations/new" not in seen_endpoints:
             print("\nERROR: Generation request never fired. Submit failed silently.")
-            page.screenshot(path=str(Path.home() / "grok_animate_debug.png"))
-            print(f"Debug screenshot: {Path.home() / 'grok_animate_debug.png'}")
+            page.screenshot(path=str(Path.home() / "grok_i2i_debug.png"))
             ctx.close()
             return False
 
-        # Let the request complete
-        print("Letting the server start processing for 5s...")
-        time.sleep(5)
+        time.sleep(3)
         ctx.close()
         return True
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Animate a character image via Grok image-to-video")
-    parser.add_argument("--image", "-i", required=True, help="Path to local image (PNG/JPG)")
-    parser.add_argument("--description", "-d", required=True, help="Animation prompt (e.g. 'punch attack')")
-    parser.add_argument("--length", type=int, default=6, choices=[6, 10],
-                        help="Video length in seconds (default 6 = cheapest)")
-    parser.add_argument("--resolution", default="480p", choices=["480p", "720p"],
-                        help="Video resolution (default 480p = cheapest)")
+    parser = argparse.ArgumentParser(
+        description="Image-to-image with Grok Imagine — for character consistency across views"
+    )
+    parser.add_argument("--image", "-i", required=True,
+                        help="Path to base image (PNG/JPG) — the reference for the variation")
+    parser.add_argument("--description", "-d", required=True,
+                        help='Variation prompt, e.g. "same character, west facing"')
     parser.add_argument("--show-browser", action="store_true",
                         help="Show the browser window (debugging)")
     parser.add_argument("--no-download", action="store_true",
-                        help="Skip the auto-download step (you'll need to run grok_downloader.py manually)")
-    parser.add_argument("--wait-seconds", type=int, default=120,
-                        help="How long to wait before running the downloader (default 120s for video)")
+                        help="Skip the auto-download step")
+    parser.add_argument("--wait-seconds", type=int, default=45,
+                        help="How long to wait before running the downloader (default 45s for image)")
     args = parser.parse_args()
 
-    ok = animate(args.image, args.description, args.length, args.resolution,
-                 headless=not args.show_browser)
+    ok = i2i(args.image, args.description, headless=not args.show_browser)
     if not ok:
         sys.exit(1)
 
-    print("\nAnimation request submitted.")
+    print("\nImage-to-image request submitted.")
     if args.no_download:
         print("Skipping auto-download (--no-download). Run grok_downloader.py to fetch.")
         return
 
-    print(f"Waiting {args.wait_seconds}s for Grok to render the video...")
+    print(f"Waiting {args.wait_seconds}s for Grok to render the image...")
     time.sleep(args.wait_seconds)
     print("Running downloader...")
     from grok_downloader import GrokDownloader
