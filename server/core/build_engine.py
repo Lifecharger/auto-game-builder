@@ -54,6 +54,29 @@ class BuildEngine:
         cmd = self._get_build_command(app, build_type)
         output_path = self._get_output_path(app, build_type)
 
+        # Hard guard: refuse to build if cwd lacks the expected project marker.
+        # Prevents silently producing builds in the wrong directory.
+        marker = {
+            "flutter": "pubspec.yaml",
+            "godot": "export_presets.cfg",
+            "phaser": "package.json",
+        }.get(app.app_type)
+        if marker and not os.path.isfile(os.path.join(app.project_path, marker)):
+            err = (
+                f"Refusing to build: {marker} not found in {app.project_path}. "
+                f"Fix the project_path for app id={app.id} ({app.name})."
+            )
+            self.db.update_build(
+                build_id,
+                status="failed",
+                log_output=err,
+                duration_seconds=0,
+                completed_at=datetime.now().isoformat(),
+            )
+            self.db.update_app(app.id, status="error")
+            self._emit("build_completed", build_id, False)
+            return
+
         self.db.update_app(app.id, status="building")
         start = time.time()
         output_lines = []

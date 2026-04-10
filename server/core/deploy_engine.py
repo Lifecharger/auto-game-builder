@@ -627,6 +627,12 @@ class DeployEngine:
                 # Godot spawns Gradle which inherits pipe handles — the pipe
                 # never gets EOF because the Gradle daemon holds it open.
                 # This caused builds to hang forever despite the AAB being ready.
+                # Hard guard: refuse to build if export_presets.cfg is missing.
+                if not os.path.isfile(os.path.join(app.project_path, "export_presets.cfg")):
+                    raise RuntimeError(
+                        f"Refusing to build: export_presets.cfg not found in {app.project_path}. "
+                        f"Fix the project_path for app id={app.id} ({app.name})."
+                    )
                 log_file_path = os.path.join(app.project_path, "build", "build_log.txt")
                 with open(log_file_path, "w", encoding="utf-8") as log_f:
                     process = subprocess.Popen(
@@ -696,6 +702,19 @@ class DeployEngine:
                 # FLUTTER BUILDS: Use pipes (Flutter doesn't have the daemon problem)
                 # Resolve the actual Flutter root (pubspec.yaml may be in a subdirectory)
                 flutter_cwd = self._resolve_flutter_root(app.project_path) if app.app_type == "flutter" else app.project_path
+                # Hard guard: refuse to build if the cwd is missing the project marker.
+                # Without this, a stale/wrong project_path silently produces builds in
+                # the wrong place (e.g. C:\Hot Idle\build instead of C:\Projects\Hot Idle\build).
+                marker = {
+                    "flutter": "pubspec.yaml",
+                    "godot": "export_presets.cfg",
+                    "phaser": "package.json",
+                }.get(app.app_type)
+                if marker and not os.path.isfile(os.path.join(flutter_cwd, marker)):
+                    raise RuntimeError(
+                        f"Refusing to build: {marker} not found in {flutter_cwd}. "
+                        f"Fix the project_path for app id={app.id} ({app.name})."
+                    )
                 process = subprocess.Popen(
                     cmd,
                     stdout=subprocess.PIPE,
