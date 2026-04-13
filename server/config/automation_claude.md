@@ -28,10 +28,12 @@ Every task you generate MUST be completable in a SINGLE session (max 30 minutes 
 
 ## NEVER Use Placeholders — Generate Real Assets
 - NEVER use placeholder art, placeholder text, placeholder icons, or TODO comments for assets
-- If a task needs an image, icon, sprite, background, or any visual asset — GENERATE IT using the tools in `{tools_dir}/`:
+- If a task needs an image, icon, sprite, background, or any visual asset — GENERATE IT using the tools in `{tools_dir}/pixellab/`:
   - `pixellab_generate_image.py` — pixel art sprites, icons, items
   - `pixellab_generate_background.py` — full game backgrounds (topdown, sidescroller, parallax, menu, battle, isometric)
   - `pixellab_generate_ui.py` — UI elements (buttons, health bars, panels)
+  For photorealistic / non-pixel art, use `{tools_dir}/grok/grok_generate_image.py` instead.
+  For 3D models, use `{tools_dir}/meshy/` or `{tools_dir}/tripo/` scripts.
 
 - If you cannot generate the asset (no credits, rate limited, tool error), mark the task as "failed" with a clear explanation. Do NOT substitute a colored rectangle or placeholder file.
 - If a task requires art you cannot generate, create a follow-up task specifically for asset generation.

@@ -68,6 +68,7 @@ No circular dependencies. The app never holds authoritative state — always re-
 | GET | `/` | — | `{name, version, status}` |
 | GET | `/api/health` | — | `{status:"ok", time:ISO}` |
 | GET | `/api/dashboard` | — | Full stats for all apps |
+| GET | `/api/sync` | `?since=ISO_TIMESTAMP` | `{apps, issues, builds, sessions, deleted, server_time}` — omit `since` for full initial sync |
 
 ### Apps (CRUD)
 | Method | Path | Body / Params |
@@ -304,7 +305,7 @@ One script / widget / module = one system.
 ### 7.6 Asset Quality — No Placeholders
 
 - **NEVER** use placeholder art, colored rectangles, missing-texture defaults, or TODO image slots.
-- If a visual asset is needed → generate it with PixelLab MCP or a Python script in `tools_dir`.
+- If a visual asset is needed → generate it with PixelLab MCP or a Python script under the appropriate vendor subfolder in `tools/` (`tools/pixellab/`, `tools/grok/`, `tools/meshy/`, `tools/tripo/`). See `tools/CLAUDE.md` for the full per-tool reference.
 - If generation fails (no credits, API error) → mark the task **failed** with the reason. Do not ship a placeholder.
 - Animations must be real multi-frame animations. Static-sprite "animation" = task failed.
 - Audio assets must be real sound files. Silence is not a sound effect.

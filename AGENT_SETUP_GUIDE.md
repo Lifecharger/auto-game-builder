@@ -53,18 +53,26 @@ auto-game-builder/
     index.js                  # Worker code (HMAC verification + API key validation)
     wrangler.toml             # Worker deployment config (gitignored)
     wrangler.toml.example     # Template
-  tools/                    # Asset generation scripts (standalone Python)
-    pixellab_*.py             # PixelLab SDK wrappers (7 scripts)
-    meshy_*.py                # Meshy AI 3D generation (9 scripts)
-    elevenlabs_*.py           # ElevenLabs audio (2 scripts)
-    grok_*.py                 # Grok (xAI) image/video generation
-    mixamo_bulk_download.py   # Mixamo animation batch download
-    blender_auto_splitter.py  # Blender automatic mesh splitting
-    video_to_frames.py        # Video frame extraction
-    png_to_pixel_array.py     # Pixel data conversion
-    extract_*.py              # Asset extraction utilities
-    character_creator/        # MakeHuman-based 3D character creator
+  tools/                    # Asset generation toolkit, organized by vendor
+    pixellab/                 # PixelLab SDK wrappers (pixel art, backgrounds, UI)
+    meshy/                    # Meshy AI 3D generation (text/image → 3D, rig, animate)
+    tripo/                    # Tripo3D (official SDK + Studio JWT browser path)
+    grok/                     # Grok Imagine image/video + downloader + cookies
+    chrome/                   # Chrome DevTools Protocol launcher + network capture
+    blender/                  # Blender auto-splitter + Mixamo bulk downloader
+    media/                    # pad_image, video_to_frames, png_to_pixel_array
+    extract/                  # Per-project asset extractors
+    pixel_guy/                # Merged Pixel Guy character viewer (Flutter + Python)
+    comic_translator/         # Merged Gemini comic translator
+    animation_generator/      # Merged 2D Animation Generator UI (wraps grok/media/tripo)
+    dart/                     # Flutter test-mode asset generators
+    character_creator/        # Godot character creator WIP (gitignored)
+    CLAUDE.md                 # Per-tool reference — read this to pick the right tool
+    GROK_ASSET_PIPELINE.md    # Hand-written grok prompting/workflow playbook
+    CHROME_CDP_HOWTO.md       # CDP launcher + capture how-to
 ```
+
+API keys for all vendors live in the gitignored `server/config/mcp_servers.json` under `{vendor}._api_key`. ElevenLabs is accessed via MCP only — no standalone scripts.
 
 ## What You Need To Configure
 
@@ -138,7 +146,7 @@ This is the main config file. Create it from `settings.example.json` or edit the
 | `wrangler_path` | Run: `which wrangler` or `where wrangler` | `/usr/local/bin/wrangler` |
 | `projects_root` | Ask the user where they keep game projects | `~/Projects` or `C:\Projects` |
 | `keys_dir` | Ask the user where signing keystores are stored | `D:\keys` or `~/keys` |
-| `tools_dir` | Directory with Python asset generation scripts (optional) | `C:\General Tools` |
+| `tools_dir` | Override path to asset generation scripts. Leave unset to use the repo's own `tools/` folder (recommended). | `~/Projects/auto-game-builder/tools` |
 | `service_account_key` | Path to Google Play API service account JSON (optional) | `~/keys/play-api.json` |
 | `ollama_url` | Default: `http://localhost:11434`. Only change if Ollama runs on a different host/port | `http://localhost:11434` |
 

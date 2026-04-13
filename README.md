@@ -68,14 +68,21 @@ Extend AI agent capabilities with Model Context Protocol servers:
 - Automatically loads relevant knowledge (brainstorm, code quality, visual audit, polish, gameplay) based on the question
 
 ### Asset Generation Tools
-Python scripts in `tools/` for standalone asset workflows:
-- **PixelLab** — pixel art generation, UI elements, backgrounds, image-to-pixel conversion, inpainting
-- **Meshy AI** — text-to-3D, image-to-3D, retexturing, remeshing, rigging, animation
-- **Grok (xAI)** — image and video generation
-- **ElevenLabs** — audio generation
-- **Mixamo** — bulk animation download
-- **Blender** — automatic mesh splitting
-- **Video/Image utilities** — frame extraction, pixel array conversion, asset extraction
+Python scripts in `tools/`, organized by vendor/category subfolders:
+- **`tools/pixellab/`** — pixel art generation, UI elements, backgrounds, image-to-pixel conversion, inpainting
+- **`tools/meshy/`** — text-to-3D, image-to-3D, retexturing, remeshing, rigging, animation
+- **`tools/tripo/`** — Tripo3D text/image → 3D, rigging, animation (official SDK + Studio JWT path with `refresh_studio_token.py`)
+- **`tools/grok/`** — Grok (xAI) image/video generation + favorites downloader
+- **`tools/chrome/`** — Chrome DevTools Protocol launcher and network capture
+- **`tools/blender/`** — automatic mesh splitting and Mixamo bulk animation download
+- **`tools/media/`** — pad_image, video_to_frames, png_to_pixel_array
+- **`tools/extract/`** — per-project asset extractors
+- **`tools/pixel_guy/`** — merged Pixel Guy character viewer app + Python pipeline
+- **`tools/comic_translator/`** — merged Gemini-powered comic translator
+- **`tools/animation_generator/`** — merged 2D Animation Generator UI (wraps the grok + media + tripo subfolders)
+- **ElevenLabs** — accessed via MCP only (no standalone scripts)
+
+All vendor API keys live in the gitignored `server/config/mcp_servers.json` under `{vendor}._api_key`. Client modules walk upward from their script directory to find it, so moving tools between depths just works. See `tools/CLAUDE.md` for the full per-tool reference.
 
 ## Security
 
@@ -119,7 +126,9 @@ auto-game-builder/
     database/            SQLite with WAL mode (thread-safe, auto-migrating)
   app/                 Flutter mobile app (Android + Windows)
   worker/              Cloudflare Worker proxy (JS)
-  tools/               Asset generation scripts (Python)
+  tools/               Asset generation toolkit, organized by vendor:
+    grok/ pixellab/ meshy/ tripo/ chrome/ blender/ media/ extract/
+    pixel_guy/ comic_translator/ animation_generator/ dart/
 ```
 
 ### Supported Tech Stacks
@@ -245,7 +254,7 @@ Contributions are welcome! Whether it's bug fixes, new features, documentation i
 
 If you build something you think every user would benefit from, open a pull request — we'd love to see it.
 
-**Maintainer:** Cagatay Ozer ([@Lifecharger](https://github.com/Lifecharger))
+**Maintainer:** [@Lifecharger](https://github.com/Lifecharger)
 
 ## Make It Yours
 

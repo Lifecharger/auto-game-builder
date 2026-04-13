@@ -552,7 +552,8 @@ def create_new_app(body: AppCreate):
         lines.append("  - Use PixelLab MCP tools if available (create_character, topdown_tilesets, tiles_pro, create_map_object, etc.)\n")
         _td = get_settings().get("tools_dir", "")
         if _td:
-            lines.append(f"  - Use Python scripts in `{_td}/`: pixellab_generate_image.py, pixellab_generate_background.py, pixellab_generate_ui.py\n")
+            lines.append(f"  - Use Python scripts in `{_td}/pixellab/`: pixellab_generate_image.py, pixellab_generate_background.py, pixellab_generate_ui.py\n")
+            lines.append(f"  - Grok image/video tools live in `{_td}/grok/`; pad_image + video_to_frames in `{_td}/media/`\n")
         lines.append("- If you cannot generate the asset (no credits, rate limited, tool error), mark the task as \"failed\" — do NOT substitute a placeholder\n")
         lines.append("- This rule applies to ALL assets: icons, sprites, backgrounds, UI elements, buttons, textures, tiles\n")
         lines.append("- NEVER use animation fallbacks (static sprites, single-frame \"animations\", or skipping animations). If a task needs an animation, GENERATE IT using PixelLab MCP (animate_character) or SDK tools. If generation fails, mark the task as \"failed\".\n")
@@ -587,13 +588,14 @@ def create_new_app(body: AppCreate):
             lines.append("- **Meshy AI MCP available** — use for 3D model generation: `create_text_to_3d_task`, `create_image_to_3d_task`, `create_text_to_texture_task`, `create_remesh_task`, `create_rigging_task`, `create_animation_task`. Stream/retrieve results with corresponding stream/retrieve tools.\n")
             _tools_dir = get_settings().get("tools_dir", "")
             if _tools_dir:
+                _pl = f"{_tools_dir}/pixellab"
                 lines.append("\n### PixelLab Python SDK & Tools\n")
-                lines.append(f"- Ready-to-use scripts at `{_tools_dir}/` — use these for direct SDK/API access beyond MCP:\n")
-                lines.append(f"  - `pixellab_generate_image.py` — text-to-pixel-art (Pixflux). Usage: `python \"{_tools_dir}/pixellab_generate_image.py\" -d \"description\" -W 64 -H 64 --no-background -o sprite.png`\n")
-                lines.append(f"  - `pixellab_generate_ui.py` — generate UI elements (health bars, buttons, menus). Usage: `python \"{_tools_dir}/pixellab_generate_ui.py\" -d \"description\" -W 64 -H 32 -o button.png`\n")
-                lines.append(f"  - `pixellab_image_to_pixelart.py` — convert any image to pixel art. Usage: `python \"{_tools_dir}/pixellab_image_to_pixelart.py\" -i photo.png -o pixel.png -W 64 -H 64`\n")
-                lines.append(f"  - `pixellab_edit_image.py` — inpaint/edit existing sprites with mask. Usage: `python \"{_tools_dir}/pixellab_edit_image.py\" -i sprite.png -m mask.png -d \"edit description\" -o edited.png`\n")
-                lines.append(f"  - `pixellab_generate_background.py` — generate full game backgrounds (up to 400x400). Presets: `topdown`, `sidescroller`, `parallax` (3 layers), `menu`, `battle`, `isometric`. Usage: `python \"{_tools_dir}/pixellab_generate_background.py\" -d \"scene description\" --preset topdown -o bg.png`\n")
+                lines.append(f"- Ready-to-use scripts at `{_pl}/` — use these for direct SDK/API access beyond MCP:\n")
+                lines.append(f"  - `pixellab_generate_image.py` — text-to-pixel-art (Pixflux). Usage: `python \"{_pl}/pixellab_generate_image.py\" -d \"description\" -W 64 -H 64 --no-background -o sprite.png`\n")
+                lines.append(f"  - `pixellab_generate_ui.py` — generate UI elements (health bars, buttons, menus). Usage: `python \"{_pl}/pixellab_generate_ui.py\" -d \"description\" -W 64 -H 32 -o button.png`\n")
+                lines.append(f"  - `pixellab_image_to_pixelart.py` — convert any image to pixel art. Usage: `python \"{_pl}/pixellab_image_to_pixelart.py\" -i photo.png -o pixel.png -W 64 -H 64`\n")
+                lines.append(f"  - `pixellab_edit_image.py` — inpaint/edit existing sprites with mask. Usage: `python \"{_pl}/pixellab_edit_image.py\" -i sprite.png -m mask.png -d \"edit description\" -o edited.png`\n")
+                lines.append(f"  - `pixellab_generate_background.py` — generate full game backgrounds (up to 400x400). Presets: `topdown`, `sidescroller`, `parallax` (3 layers), `menu`, `battle`, `isometric`. Usage: `python \"{_pl}/pixellab_generate_background.py\" -d \"scene description\" --preset topdown -o bg.png`\n")
             lines.append("  - `pixellab_balance.py` — check PixelLab credit balance\n")
             lines.append("- Shared client: `from pixellab_client import get_client, api_post` (auto-reads API key)\n")
             lines.append("- SDK supports v1 (pixflux, bitforge, rotate, inpaint, animate) and v2 API (UI elements, image-to-pixelart, pro inpainting, map generation)\n")
@@ -3556,7 +3558,7 @@ Every asset must be AI-generated (PixelLab, ElevenLabs, Grok tools)."""
     lines.append("\n### NEVER Use Placeholders\n")
     lines.append("- NEVER use placeholder art, placeholder images, placeholder icons, colored rectangles, or TODO comments for visual assets\n")
     _td2 = get_settings().get("tools_dir", "")
-    _tools_hint = f" or Python scripts in `{_td2}/`" if _td2 else ""
+    _tools_hint = f" or Python scripts in `{_td2}/pixellab/` (pixel art), `{_td2}/grok/` (Grok image/video), `{_td2}/meshy/` (3D), `{_td2}/tripo/` (3D)" if _td2 else ""
     lines.append(f"- If a task needs an image, icon, sprite, background, or any visual asset — GENERATE IT using PixelLab MCP{_tools_hint}\n")
     lines.append("- If you cannot generate the asset, mark the task as \"failed\" — do NOT substitute a placeholder\n")
     lines.append("\n### Game Studio Design Standards\n")

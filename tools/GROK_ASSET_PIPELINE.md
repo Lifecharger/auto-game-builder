@@ -158,7 +158,7 @@ After generating the directional view (e.g. east), animate **ONE** test animatio
 - **Stale Playwright profile state** can cause the form to silently fail across runs. Symptom: `upload-file` fires but `media/post/create` doesn't. Fix: delete `~/.grok-playwright` and re-run.
 - **Rate limiting** kicks in after ~10 rapid submissions in a row. Add delays or split batches.
 - **Auto-favoriting is automatic** when you submit i2i or i2v — Grok auto-likes the input + result. The downloader picks them up because it filters on `MEDIA_POST_SOURCE_LIKED`.
-- **Output goes to** `C:/Users/caca_/Downloads/grok-favorites/` as the canonical destination. Don't try to capture URLs from the WebSocket stream — the downloader handles it.
+- **Output goes to** `~/Downloads/grok-favorites/` (resolved via `Path.home()`) as the canonical destination. Don't try to capture URLs from the WebSocket stream — the downloader handles it.
 - **Aspect ratio is preserved** by i2v. A 9:16 input → 9:16 video (= cropped sword swings). A 16:9 input → 16:9 video (= room to move). This is the #1 mistake to never repeat.
 - **Background Playwright runs get SIGTERM'd (exit 143)** by the Claude harness watchdog after a few minutes. Always run animate/i2i tools in **foreground** (no `run_in_background: true`). For long batches, structure as a single foreground bash chain — the entire chain counts as one foreground command. The downloader is fine in background since it's short.
 

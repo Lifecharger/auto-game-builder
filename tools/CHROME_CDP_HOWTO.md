@@ -33,17 +33,20 @@ If the port STILL doesn't come up, pass `--kill-first` to force-kill every chrom
 
 ## Files in this toolkit
 
-| File | Purpose |
-|---|---|
-| `chrome_cdp_launcher.py` | Launches Chrome with CDP enabled. Creates a named isolated profile per site so cookies persist but stay separated. |
-| `cdp_network_capture.py` | Attaches to a running CDP-enabled Chrome via Playwright and records network traffic to JSON. |
+| File | Location | Purpose |
+|---|---|---|
+| `chrome_cdp_launcher.py` | `tools/chrome/` | Launches Chrome with CDP enabled. Creates a named isolated profile per site so cookies persist but stay separated. |
+| `cdp_network_capture.py` | `tools/chrome/` | Attaches to a running CDP-enabled Chrome via Playwright and records network traffic to JSON. |
+| `refresh_studio_token.py` | `tools/tripo/` | Purpose-built Tripo Studio JWT refresher. Attaches to an already-running CDP Chrome, reloads the tab, sniffs the Bearer header, saves it to `tripo_studio_token.json`. Use this instead of manual capture when the Tripo JWT expires. |
 
 ## Typical workflow
 
 ### Step 1 — Launch Chrome for a specific site
 
 ```bash
-python chrome_cdp_launcher.py --profile tripo --kill-first
+cd "tools/chrome"
+python chrome_cdp_launcher.py --profile tripo --kill-first \
+    --start-url https://studio.tripo3d.ai/
 ```
 
 Chrome opens with a fresh profile. You navigate to the target site (e.g. `studio.tripo3d.ai`) and log in — **once**. The profile is saved at `~/.chrome-cdp-profiles/tripo/`.
@@ -59,6 +62,15 @@ python chrome_cdp_launcher.py --profile tripo
 ```bash
 python cdp_network_capture.py --port 9222 --out tripo_capture.json
 ```
+
+For the common "I just need the Tripo Studio Bearer JWT" case, skip the generic capture and use the purpose-built refresher:
+
+```bash
+cd "tools/tripo"
+python refresh_studio_token.py
+```
+
+It reloads the active tab and saves the JWT to `tripo_studio_token.json` in one step. Use `--no-reload` if a generation is in progress.
 
 Go back to your Chrome window, do whatever you want to reverse-engineer (click Generate, submit a form, upload a file), come back to the terminal, press Enter. The capture file has every request + response (JSON bodies included up to 10KB each).
 

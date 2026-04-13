@@ -1,23 +1,50 @@
 # Tools Folder — Claude Reference
 
-This folder is the user's general-purpose toolkit for asset generation, content creation, and automation. Each tool is self-contained and can be invoked from any project. Read this before reaching for an existing-tool or when unsure which tool fits a task.
+This folder is the user's general-purpose toolkit for asset generation, content creation, and automation. Tools are organized by vendor/category subfolders. Each tool is self-contained and can be invoked from any project. Read this before reaching for an existing tool or when unsure which tool fits a task.
+
+## Folder layout
+
+```
+tools/
+├── grok/                 # Grok Imagine text→image / image→image / image→video + downloader
+├── pixellab/             # PixelLab API/SDK — pixel art, sprites, UI, backgrounds
+├── meshy/                # Meshy AI — text/image → 3D, rigging, animation, retexture
+├── tripo/                # Tripo3D — text/image → 3D, rigging, animation (official + studio-scraped APIs)
+├── chrome/               # Chrome DevTools Protocol launcher + network capture
+├── blender/              # Blender FBX splitter + Mixamo bulk downloader
+├── extract/              # Per-project asset extractors (extract_all, extract_single, extract_elven_duty)
+├── media/                # Image/video utilities (pad_image, video_to_frames, png_to_pixel_array)
+├── pixel_guy/            # Merged Pixel Guy project (Flutter character viewer + Python pipeline)
+├── comic_translator/     # Merged Comic Translator project (Gemini-powered comic translation)
+├── animation_generator/  # Merged 2D Animation Generator (CustomTkinter UI wrapping grok/tripo/media)
+├── dart/                 # Dart/Flutter test-mode asset generators
+└── character_creator/    # Godot character creator WIP (gitignored)
+```
 
 ## When to use what
 
-| Tool | Purpose | Notes |
-|---|---|---|
-| `grok_generate_image.py` | Text → image via Grok Imagine WebSocket | Use `--pro` for quality mode (4 imgs, follows prompts well). Without `--pro` is faster but less faithful. |
-| `grok_i2i.py` | Image → image (preserves character) | For deriving directional views, pose variants, or stylistic edits while keeping face/outfit consistent. |
-| `grok_animate.py` | Image → video (animation) | Defaults to 6s/480p (cheapest). Auto-runs downloader after. Read `GROK_ASSET_PIPELINE.md` BEFORE running. |
-| `grok_downloader.py` | Sync favorited Grok media to disk | Auto-called by animate/i2i. Standalone for manual sweeps. Uses Playwright cookies, not browser_cookie3. Renames files by prompt keywords for readability. |
-| `pad_image.py` | Add background-matched horizontal padding | Always run between `grok_generate_image.py` / `grok_i2i.py` outputs and `grok_animate.py` inputs, so sword swings don't clip. Auto-samples bg color from image corners. |
-| `pixellab_*.py` | Pixel art generation via PixelLab API/SDK | For low-res pixel sprites, not photorealistic. |
-| `meshy_*.py` | 3D model generation via Meshy API | text-to-3D, image-to-3D, rigging, animation, retexture. |
-| `blender_auto_splitter.py` | Split Blender FBX exports | Use after Mixamo or Meshy rigging. |
-| `mixamo_bulk_download.py` | Bulk download Mixamo animations | Automation for character animation packs. |
-| `extract_*.py` | Extract assets from game projects | Per-project extractors. |
-| `video_to_frames.py` | Slice video → PNG frame sequence | Useful AFTER animating with grok_animate to make sprite sheets. |
-| `png_to_pixel_array.py` | Convert PNG → game-engine-friendly pixel data | Bridges asset pipeline → code. |
+| Tool | Subfolder | Purpose | Notes |
+|---|---|---|---|
+| `grok_generate_image.py` | `grok/` | Text → image via Grok Imagine WebSocket | Use `--pro` for quality mode (4 imgs). Without `--pro` is faster but less faithful. |
+| `grok_i2i.py` | `grok/` | Image → image (preserves character) | For deriving directional views, pose variants, stylistic edits while keeping face/outfit consistent. |
+| `grok_animate.py` | `grok/` | Image → video (animation) | Defaults to 6s/480p (cheapest). Auto-runs downloader after. Read `GROK_ASSET_PIPELINE.md` BEFORE running. |
+| `grok_downloader.py` | `grok/` | Sync favorited Grok media to disk | Auto-called by animate/i2i. Uses Playwright cookies. Renames files by prompt keywords. |
+| `pad_image.py` | `media/` | Add background-matched horizontal padding | Run between grok image outputs and grok_animate inputs so swings don't clip. |
+| `pixellab_*.py` | `pixellab/` | Pixel art generation via PixelLab API/SDK | For low-res pixel sprites, not photorealistic. |
+| `meshy_*.py` | `meshy/` | 3D model generation via Meshy API | text-to-3D, image-to-3D, rigging, animation, retexture. |
+| `blender_auto_splitter.py` | `blender/` | Split Blender FBX exports | Use after Mixamo or Meshy rigging. |
+| `mixamo_bulk_download.py` | `blender/` | Bulk download Mixamo animations | Set `MIXAMO_OUTPUT_DIR` env or use `--output`. |
+| `extract_*.py` | `extract/` | Extract assets from game projects | Per-project extractors. |
+| `chrome_cdp_launcher.py` | `chrome/` | Launch Chrome with CDP for Playwright/automation | Keeps per-profile cookies so you only log in once. |
+| `cdp_network_capture.py` | `chrome/` | Capture network traffic via CDP | Companion to the launcher. |
+| `video_to_frames.py` | `media/` | Slice video → PNG frame sequence | Useful AFTER animating with grok_animate to make sprite sheets. |
+| `png_to_pixel_array.py` | `media/` | Convert PNG → game-engine-friendly pixel data | Bridges asset pipeline → code. |
+
+## API key storage
+
+All API keys live in the **gitignored** `server/config/mcp_servers.json` at the repo root, under `{vendor}._api_key`. The client modules (`meshy_client.py`, `pixellab_client.py`) walk upward from their script directory to find it, so moving them between folders still works. Env-var fallbacks: `MESHY_API_KEY`, `PIXELLAB_SECRET`, `GEMINI_API_KEY`, `ELEVENLABS_API_KEY`.
+
+**Never hardcode a key as a fallback literal in source** — that's how the Meshy key leaked into the public repo on 2026-04-13 and had to be rotated.
 
 ## Critical reading
 
@@ -41,6 +68,7 @@ Key things that doc answers definitively:
 
 - This folder is part of the **public** Auto Game Builder repo. NEVER commit:
   - `grok_download_history.json` (contains sso tokens)
+  - `tripo_config.json`, `tripo_studio_token.json` (contain Tripo credentials)
   - Any `*.env` or API key files
   - Test outputs / generated media
-- The user is Çağatay, an indie game dev shipping multiple Flutter/Godot games. Tools here serve all his projects (Animashift, Deathpin, Arcade Snake, etc.).
+- The tools serve multiple game projects across different engines (Flutter, Godot, Unity). Each script is engine-agnostic — point it at paths and it generates assets.

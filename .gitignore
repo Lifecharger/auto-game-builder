@@ -15,7 +15,17 @@ server/config/app_mcp.json
 
 # Grok auth cookies (session cookies for grok.com — never commit)
 server/config/grok_download_history.json
+tools/grok/grok_download_history.json
 tools/grok_download_history.json
+
+# Tripo3D credentials + runtime captures — never commit
+tools/tripo/tripo_config.json
+tools/tripo/tripo_studio_token.json
+tools/tripo/tripo_capture.json
+tools/tripo/tripo_generate_capture.json
+
+# Animation Generator per-user generated content
+tools/animation_generator/projects/
 
 # Windows shortcuts
 *.lnk
@@ -23,6 +33,9 @@ tools/grok_download_history.json
 # Logs
 server/api/server_crash.log
 server/logs/
+app/*.log
+app/flutter_*.log
+*.log
 
 # Temp / cache
 server/tmp/
@@ -79,3 +92,16 @@ server/automations/configs.json
 
 # Character Creator (Godot project, WIP)
 tools/character_creator/
+
+# Pixel Guy (merged into tools/) — user-local state and build artifacts
+tools/pixel_guy/projects.json
+tools/pixel_guy/state.json
+tools/pixel_guy/tasklist.json
+tools/pixel_guy/build/
+tools/pixel_guy/assets/characters/
+tools/pixel_guy/**/.dart_tool/
+tools/pixel_guy/**/.flutter-plugins
+tools/pixel_guy/**/.flutter-plugins-dependencies
+
+# Comic Translator (merged into tools/) — runtime local overrides
+tools/comic_translator/config.local.json
