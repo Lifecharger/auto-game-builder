@@ -12,10 +12,13 @@ import requests
 from pathlib import Path
 
 API_BASE = "https://api.meshy.ai"
-API_KEY = os.environ.get("MESHY_API_KEY", "msy_UMpHAqbkZotRypdTTT1nN7adqEbDo0wfDebW")
+API_KEY = os.environ.get("MESHY_API_KEY")
 
 
 def headers():
+    if not API_KEY:
+        print("ERROR: MESHY_API_KEY environment variable is not set", file=sys.stderr)
+        sys.exit(1)
     return {
         "Authorization": f"Bearer {API_KEY}",
         "Content-Type": "application/json",
