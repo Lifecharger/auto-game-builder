@@ -23,11 +23,29 @@ A self-hosted game project management system for indie developers. Manage builds
 - Smart prompt templates per engine (Flutter, Godot, generic) with code quality standards baked in
 
 ### Game Studio
-- **Brainstorm** — AI-generated game concepts with full GDD (Game Design Document) scaffolding
-- **Design Review** — Specialist critique of game mechanics, balance, and UX
-- **Code Review** — Automated code quality audits per engine
-- **Document Enhancement** — AI-powered improvement of GDD and CLAUDE.md files
-- Built-in knowledge base: brainstorming frameworks, GDD templates, gameplay/UX guidance, visual audit standards, polish checklists
+One-tap Studio Actions — each button creates an enriched task in your project's `tasklist.json` that the next autonomous AI run consumes. Distilled from the [Claude Code Game Studios](https://github.com/Donchitos/Claude-Code-Game-Studios) skill framework into a condensed, autonomous-first shape.
+
+**Studio Reviews** (Issues screen → `🧪` popup):
+- **Design Review** — GDD section audit against 8-section standard + mechanic clarity + monetization ethics
+- **Code Review** — per-engine code quality, crash risks, memory leaks, architecture smells
+- **Balance Check** — economy, progression curves, reward pacing, ethical monetization patterns
+- **Consistency Check** — cross-document drift scanner (GDD ↔ code ↔ data files) catching conflicting stats, prices, and formulas
+- **Tech Debt Scan** — Tier 1/2/3 debt triage for god scripts, duplicates, dead code, stale TODOs
+- **Asset Audit** — cross-reference `assets/` against code references and GDD plans — broken refs, orphans, missing planned, placeholders
+- **Content Audit** — walk every shippable surface (levels, characters, items, dialogue, UI) for completeness and dead ends
+- **Scope Check** — producer reality-check with cut list and weeks-to-clear estimate
+- **Performance Profile** — player-felt bottleneck analysis (frame drops, memory, load time) — no micro-optimization noise
+
+**Art & Assets** (Issues screen → `🎨` popup):
+- **Art Bible** — one-time authoring of `design/art-bible.md`, the 9-section visual identity anchor (color palette, character direction, UI language, style prohibitions) that every future asset-generation task reads as a constraint
+- **Asset Specs** — per-asset spec generator — bundles the art bible + GDD entry into a ready-to-run prompt tuned for the target generator (PixelLab / Grok / Meshy / Tripo)
+
+**Task creation**:
+- **Brainstorm** — AI-generated game concepts with full GDD scaffolding (Dashboard → Brainstorm FAB)
+- **Generate Ideas** — session-focused idea generation weighted by visual / gameplay / code / polish (Issues screen top bar)
+- **Document Enhancement** — AI-powered improvement of `gdd.md` and `CLAUDE.md` files (App Detail screen)
+
+**Built-in knowledge base** at `server/config/studio/*.md` — 15 condensed specialist files covering brainstorming, GDD templates, gameplay/UX, code quality, visual audit, polish, consistency scanning, tech debt, asset audit, content audit, scope, performance, art bible, asset specs. Each is ~40-60 lines, autonomous-first, and loads into task prompts automatically based on the action.
 
 ### Build & Deploy
 - **One-tap builds** for Flutter, Godot, Phaser (Capacitor), and React Native projects
@@ -227,7 +245,7 @@ To access your server from your phone over the internet:
 | **Tasks** | `GET/POST/PATCH/DELETE /api/apps/{id}/tasks` | Task management with archiving and statistics |
 | **Builds** | `GET /api/builds`, `POST /api/apps/{id}/deploy` | Build orchestration, Google Play upload, retry |
 | **Automations** | `GET/POST/PATCH/DELETE /api/automations` | Continuous automation loops, start/stop/run-once |
-| **Studio** | `POST /api/studio/brainstorm`, `POST /api/apps/{id}/studio/{action}` | Game studio: brainstorm, design review, code review |
+| **Studio** | `POST /api/studio/brainstorm`, `POST /api/apps/{id}/studio/{action}` | Game studio — brainstorm + 11 one-tap skill actions (`design-review`, `code-review`, `balance-check`, `consistency-check`, `tech-debt`, `asset-audit`, `content-audit`, `scope-check`, `perf-profile`, `art-bible`, `asset-spec`) |
 | **Chat** | `POST /api/chat` | Context-aware AI conversation |
 | **MCP** | `GET/POST/DELETE /api/mcp/servers` | MCP server management, presets, per-app config |
 | **GDD** | `GET/PUT /api/apps/{id}/gdd` | Game Design Document read/write |
@@ -279,6 +297,8 @@ Games and apps you build with Auto Game Builder are **entirely yours**. You own 
 - [x] **Game Studio System** — AI-powered brainstorming, design review, and code review
 - [x] **AI Chat** — Context-aware conversational interface with specialist routing
 - [x] **Local AI** — Offline AI mode via Aider + Ollama
+- [x] **Tools Reorganization** — Vendor subfolders (grok, pixellab, meshy, tripo, chrome, blender, media, extract) + merged standalone projects (pixel_guy, comic_translator, animation_generator) + Tripo Studio JWT browser-path refresher
+- [x] **Studio Actions Expansion** — 8 new one-tap skill buttons (consistency, tech-debt, asset-audit, content-audit, scope, perf, art-bible, asset-spec) distilled from the Claude Code Game Studios framework
 - [ ] **Experimental Unity Support** — Unity engine project creation, build pipeline, and deployment
 - [ ] **Genre Selection & Database** — Genre-based project templates with curated mechanics, assets, and configurations
 
