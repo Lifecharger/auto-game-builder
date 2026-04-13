@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
 import 'config.dart';
 import 'services/app_state.dart';
 import 'services/auth_service.dart';
+import 'services/cache_service.dart';
 import 'services/update_checker.dart';
 import 'theme.dart';
 import 'screens/dashboard_screen.dart';
@@ -15,6 +17,8 @@ import 'screens/login_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Hive.initFlutter();
+  await CacheService.instance.openBoxes();
   // Enable edge-to-edge so Flutter properly handles system bar insets
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(

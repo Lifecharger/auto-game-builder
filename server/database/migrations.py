@@ -242,6 +242,25 @@ MIGRATIONS = [
     CREATE INDEX IF NOT EXISTS idx_catalog_collection ON asset_catalog(rating, collection);
     CREATE INDEX IF NOT EXISTS idx_catalog_tags ON asset_catalog(tags);
     """,
+    # Version 8: Add updated_at to builds and autofix_sessions for delta sync
+    """
+    ALTER TABLE builds ADD COLUMN updated_at TEXT NOT NULL DEFAULT '';
+    ALTER TABLE autofix_sessions ADD COLUMN updated_at TEXT NOT NULL DEFAULT '';
+    UPDATE builds SET updated_at = created_at WHERE updated_at = '';
+    UPDATE autofix_sessions SET updated_at = created_at WHERE updated_at = '';
+    """,
+    # Version 9: Deletion tracking for delta sync
+    """
+    CREATE TABLE IF NOT EXISTS deleted_records (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        table_name TEXT NOT NULL,
+        record_id INTEGER NOT NULL,
+        app_id INTEGER,
+        deleted_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_deleted_records_time ON deleted_records(deleted_at);
+    """,
 ]
 
 

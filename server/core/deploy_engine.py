@@ -1178,10 +1178,10 @@ INSTRUCTIONS (Lead Programmer + Engine Specialist Knowledge):
 
         upload_thread = threading.Thread(target=_do_upload, daemon=True)
         upload_thread.start()
-        upload_thread.join(timeout=300)  # 5 minute timeout for upload
+        upload_thread.join(timeout=600)  # 10 minute timeout for upload
 
         if upload_thread.is_alive():
-            return {"error": "Upload timed out after 5 minutes"}
+            return {"error": "Upload timed out after 10 minutes"}
         if upload_error:
             return {"error": upload_error}
         return result

@@ -141,7 +141,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   }
 
   void _startPolling() {
-    _pollTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+    _pollTimer = Timer.periodic(const Duration(seconds: 15), (_) {
       if (!mounted || !_appInForeground) return;
       if (context.read<AppState>().activeTabIndex != _myTabIndex) return;
       _refresh();

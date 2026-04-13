@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../models/app_model.dart';
 import '../models/build_model.dart';
 import '../services/api_service.dart';
+import '../services/cache_service.dart';
 import '../theme.dart';
 import '../widgets/app_build_card.dart';
 
@@ -67,6 +68,19 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
       _loading = true;
       _loadError = null;
     });
+
+    // Cache-first: show cached app immediately to avoid blank screen
+    if (_app == null) {
+      final cached = CacheService.instance.getApps();
+      final match = cached.where((a) => a.id == widget.appId).firstOrNull;
+      if (match != null) {
+        setState(() {
+          _app = match;
+          _selectedStrategy = match.fixStrategy;
+        });
+      }
+    }
+
     final results = await Future.wait([
       ApiService.getApp(widget.appId),
       ApiService.getAppTasks(widget.appId),
@@ -1123,12 +1137,26 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
 
   /// Fire-and-forget enhance for both GDD and CLAUDE.md.
   /// Triggers background enhance on server, polls for completion.
-  void _fireAndForgetEnhance({required String type}) {
+  void _fireAndForgetEnhance({required String type}) async {
     final isGdd = type == 'gdd';
     final content = isGdd ? _gddContent : _claudeMdContent;
     final label = isGdd ? 'Design doc' : 'CLAUDE.md';
 
     if (content == null || content.trim().isEmpty) return;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (d) => AlertDialog(
+        icon: const Icon(Icons.auto_awesome, color: Colors.amber),
+        title: Text('Enhance $label?'),
+        content: const Text('AI will rewrite the document. This cannot be undone.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(d, true), child: const Text('Enhance')),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
 
     // Mark as enhancing
     setState(() {

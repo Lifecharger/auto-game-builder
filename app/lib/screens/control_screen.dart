@@ -360,6 +360,20 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
                     width: double.infinity, height: 48,
                     child: FilledButton.icon(
                       onPressed: (saving || loading || hasError) ? null : () async {
+                        if (gddController.text.trim().isEmpty) {
+                          final confirm = await showDialog<bool>(
+                            context: ctx,
+                            builder: (d) => AlertDialog(
+                              title: const Text('Save empty GDD?'),
+                              content: const Text('This will erase the current design document.'),
+                              actions: [
+                                TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Cancel')),
+                                FilledButton(onPressed: () => Navigator.pop(d, true), child: const Text('Save')),
+                              ],
+                            ),
+                          );
+                          if (confirm != true) return;
+                        }
                         setSheetState(() => saving = true);
                         final result = await ApiService.updateGdd(
                             appId, gddController.text);

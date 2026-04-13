@@ -238,6 +238,32 @@ def health():
     return {"status": "ok", "time": datetime.now().isoformat()}
 
 
+@app.get("/api/sync")
+def sync_delta(since: str = ""):
+    """Return all records changed since the given ISO timestamp.
+    If since is empty, returns everything (full sync)."""
+    if since:
+        apps = [_app_dict(a) for a in db.get_apps_since(since)]
+        issues = [_issue_dict(i) for i in db.get_issues_since(since)]
+        builds = [_build_dict(b) for b in db.get_builds_since(since)]
+        sessions = [_session_dict(s) for s in db.get_sessions_since(since)]
+        deleted = db.get_deleted_since(since)
+    else:
+        apps = [_app_dict(a) for a in db.get_all_apps(include_archived=True)]
+        issues = [_issue_dict(i) for i in db.get_all_issues()]
+        builds = [_build_dict(b) for b in db.get_all_builds()]
+        sessions = [_session_dict(s) for s in db.get_all_sessions()]
+        deleted = []
+    return {
+        "apps": apps,
+        "issues": issues,
+        "builds": builds,
+        "sessions": sessions,
+        "deleted": deleted,
+        "server_time": datetime.now().isoformat(),
+    }
+
+
 @app.get("/api/pair")
 def pair():
     """Return pairing data (API key + worker URL) for QR code display.
@@ -924,7 +950,7 @@ def _build_dict(b) -> dict:
         "version": b.version, "status": b.status,
         "output_path": b.output_path, "duration_seconds": b.duration_seconds,
         "started_at": b.started_at, "completed_at": b.completed_at,
-        "created_at": b.created_at,
+        "created_at": b.created_at, "updated_at": b.updated_at,
     }
 
 
@@ -1019,7 +1045,7 @@ def _session_dict(s) -> dict:
         "error_message": s.error_message,
         "files_changed": s.files_changed_list(),
         "started_at": s.started_at, "completed_at": s.completed_at,
-        "created_at": s.created_at,
+        "created_at": s.created_at, "updated_at": s.updated_at,
     }
 
 
@@ -1772,6 +1798,41 @@ def dashboard():
         "total_apps": len(apps),
         "total_open_issues": total_open,
         "apps": app_summaries,
+    }
+
+
+# ── Delta Sync ───────────────────────────────────────────────
+
+@app.get("/api/sync")
+def delta_sync(since: str = ""):
+    """Return all records changed since the given ISO timestamp.
+
+    First call (no since): returns everything for initial cache population.
+    Subsequent calls: returns only records created/updated/deleted after `since`.
+    """
+    d = db()
+    server_time = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+
+    if not since:
+        apps = d.get_all_apps(include_archived=True)
+        issues = d.get_all_issues()
+        builds = d.get_all_builds()
+        sessions = d.get_all_sessions()
+        deleted = []
+    else:
+        apps = d.get_apps_since(since)
+        issues = d.get_issues_since(since)
+        builds = d.get_builds_since(since)
+        sessions = d.get_sessions_since(since)
+        deleted = d.get_deleted_since(since)
+
+    return {
+        "apps": [_app_dict(a) for a in apps],
+        "issues": [_issue_dict(i) for i in issues],
+        "builds": [_build_dict(b) for b in builds],
+        "sessions": [_session_dict(s) for s in sessions],
+        "deleted": deleted,
+        "server_time": server_time,
     }
 
 

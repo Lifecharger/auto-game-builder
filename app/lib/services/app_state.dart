@@ -4,6 +4,8 @@ import '../models/app_model.dart';
 import '../models/issue_model.dart';
 import 'api_service.dart';
 import 'auth_service.dart';
+import 'cache_service.dart';
+import 'sync_service.dart';
 
 class AppState extends ChangeNotifier {
   List<AppModel> _apps = [];
@@ -85,11 +87,24 @@ class AppState extends ChangeNotifier {
     _error = null;
     notifyListeners();
 
-    final result = await ApiService.getApps();
-    if (result.ok) {
-      _apps = result.data!;
-    } else {
-      _error = result.error ?? 'Failed to load apps';
+    final cached = CacheService.instance.getApps();
+    if (cached.isNotEmpty) {
+      _apps = cached;
+      _loading = false;
+      notifyListeners();
+    }
+
+    final synced = await SyncService.instance.sync();
+    if (synced) {
+      _apps = CacheService.instance.getApps();
+      _error = null;
+    } else if (cached.isEmpty) {
+      final result = await ApiService.getApps();
+      if (result.ok) {
+        _apps = result.data!;
+      } else {
+        _error = result.error ?? 'Failed to load apps';
+      }
     }
     _loading = false;
     notifyListeners();
@@ -106,10 +121,17 @@ class AppState extends ChangeNotifier {
     _error = null;
     notifyListeners();
 
+    final cached = CacheService.instance.getIssues(status: status);
+    if (cached.isNotEmpty) {
+      _issues = cached;
+      _loading = false;
+      notifyListeners();
+    }
+
     final result = await ApiService.getIssues(status: status);
     if (result.ok) {
       _issues = result.data!;
-    } else {
+    } else if (cached.isEmpty) {
       _error = result.error ?? 'Failed to load issues';
     }
     _loading = false;

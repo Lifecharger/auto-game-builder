@@ -38,6 +38,66 @@ class DBManager:
             conn.execute("INSERT INTO schema_version (version) VALUES (?)", (i + 1,))
             conn.commit()
 
+    # ── Deletion Tracking ────────────────────────────────────
+
+    def _log_deletion(self, table_name: str, record_id: int, app_id: int | None = None):
+        conn = self._get_conn()
+        conn.execute(
+            "INSERT INTO deleted_records (table_name, record_id, app_id) VALUES (?, ?, ?)",
+            (table_name, record_id, app_id),
+        )
+
+    def get_deleted_since(self, since: str) -> list[dict]:
+        conn = self._get_conn()
+        rows = conn.execute(
+            "SELECT table_name, record_id, app_id, deleted_at FROM deleted_records WHERE deleted_at > ?",
+            (since,),
+        ).fetchall()
+        return [{"table": r["table_name"], "record_id": r["record_id"], "app_id": r["app_id"], "deleted_at": r["deleted_at"]} for r in rows]
+
+    def get_apps_since(self, since: str) -> list[App]:
+        conn = self._get_conn()
+        rows = conn.execute(
+            "SELECT * FROM apps WHERE updated_at > ? OR created_at > ?", (since, since)
+        ).fetchall()
+        return [self._row_to_app(r) for r in rows]
+
+    def get_issues_since(self, since: str) -> list[Issue]:
+        conn = self._get_conn()
+        rows = conn.execute(
+            "SELECT * FROM issues WHERE updated_at > ? OR created_at > ?", (since, since)
+        ).fetchall()
+        return [self._row_to_issue(r) for r in rows]
+
+    def get_builds_since(self, since: str) -> list[Build]:
+        conn = self._get_conn()
+        rows = conn.execute(
+            "SELECT * FROM builds WHERE updated_at > ? OR created_at > ?", (since, since)
+        ).fetchall()
+        return [self._row_to_build(r) for r in rows]
+
+    def get_sessions_since(self, since: str) -> list[AutofixSession]:
+        conn = self._get_conn()
+        rows = conn.execute(
+            "SELECT * FROM autofix_sessions WHERE updated_at > ? OR created_at > ?", (since, since)
+        ).fetchall()
+        return [self._row_to_session(r) for r in rows]
+
+    def get_all_issues(self) -> list[Issue]:
+        conn = self._get_conn()
+        rows = conn.execute("SELECT * FROM issues ORDER BY id").fetchall()
+        return [self._row_to_issue(r) for r in rows]
+
+    def get_all_builds(self) -> list[Build]:
+        conn = self._get_conn()
+        rows = conn.execute("SELECT * FROM builds ORDER BY id").fetchall()
+        return [self._row_to_build(r) for r in rows]
+
+    def get_all_sessions(self) -> list[AutofixSession]:
+        conn = self._get_conn()
+        rows = conn.execute("SELECT * FROM autofix_sessions ORDER BY id").fetchall()
+        return [self._row_to_session(r) for r in rows]
+
     # ── Apps ─────────────────────────────────────────────────
 
     def create_app(self, **kwargs) -> int:
@@ -85,10 +145,17 @@ class DBManager:
 
     def delete_app(self, app_id: int):
         conn = self._get_conn()
+        for row in conn.execute("SELECT id FROM issues WHERE app_id=?", (app_id,)).fetchall():
+            self._log_deletion("issues", row["id"], app_id)
+        for row in conn.execute("SELECT id FROM autofix_sessions WHERE app_id=?", (app_id,)).fetchall():
+            self._log_deletion("autofix_sessions", row["id"], app_id)
+        for row in conn.execute("SELECT id FROM builds WHERE app_id=?", (app_id,)).fetchall():
+            self._log_deletion("builds", row["id"], app_id)
         conn.execute("DELETE FROM issues WHERE app_id=?", (app_id,))
         conn.execute("DELETE FROM autofix_sessions WHERE app_id=?", (app_id,))
         conn.execute("DELETE FROM builds WHERE app_id=?", (app_id,))
         conn.execute("DELETE FROM version_history WHERE app_id=?", (app_id,))
+        self._log_deletion("apps", app_id, app_id)
         conn.execute("DELETE FROM apps WHERE id=?", (app_id,))
         conn.commit()
 
@@ -193,6 +260,8 @@ class DBManager:
 
     def delete_issue(self, issue_id: int):
         conn = self._get_conn()
+        row = conn.execute("SELECT app_id FROM issues WHERE id=?", (issue_id,)).fetchone()
+        self._log_deletion("issues", issue_id, row["app_id"] if row else None)
         conn.execute("DELETE FROM issues WHERE id=?", (issue_id,))
         conn.commit()
 
@@ -259,7 +328,8 @@ class DBManager:
         vals = list(kwargs.values())
         vals.append(session_id)
         conn.execute(
-            f"UPDATE autofix_sessions SET {','.join(sets)} WHERE id=?", vals
+            f"UPDATE autofix_sessions SET {','.join(sets)}, updated_at=datetime('now') WHERE id=?",
+            vals,
         )
         conn.commit()
 
@@ -279,6 +349,7 @@ class DBManager:
             started_at=row["started_at"],
             completed_at=row["completed_at"],
             created_at=row["created_at"] or "",
+            updated_at=row["updated_at"] or "",
         )
 
     # ── Builds ───────────────────────────────────────────────
@@ -316,7 +387,10 @@ class DBManager:
         sets = [f"{k}=?" for k in kwargs]
         vals = list(kwargs.values())
         vals.append(build_id)
-        conn.execute(f"UPDATE builds SET {','.join(sets)} WHERE id=?", vals)
+        conn.execute(
+            f"UPDATE builds SET {','.join(sets)}, updated_at=datetime('now') WHERE id=?",
+            vals,
+        )
         conn.commit()
 
     def _row_to_build(self, row) -> Build:
@@ -332,6 +406,7 @@ class DBManager:
             started_at=row["started_at"],
             completed_at=row["completed_at"],
             created_at=row["created_at"] or "",
+            updated_at=row["updated_at"] or "",
         )
 
     # ── Version History ──────────────────────────────────────
@@ -399,6 +474,7 @@ class DBManager:
 
     def delete_template(self, template_id: int):
         conn = self._get_conn()
+        self._log_deletion("app_templates", template_id, None)
         conn.execute("DELETE FROM app_templates WHERE id=?", (template_id,))
         conn.commit()
 
@@ -486,6 +562,7 @@ class DBManager:
             conn.execute(
                 "UPDATE apps SET group_name='' WHERE group_name=?", (group.name,)
             )
+        self._log_deletion("app_groups", group_id, None)
         conn.execute("DELETE FROM app_groups WHERE id=?", (group_id,))
         conn.commit()
 

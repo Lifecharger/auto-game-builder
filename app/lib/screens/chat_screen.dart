@@ -515,33 +515,40 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
           // Messages
           Expanded(
-            child: _messages.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.chat_bubble_outline,
-                            size: 48, color: Colors.grey.shade600),
-                        const SizedBox(height: 12),
-                        Text(
+            child: RefreshIndicator(
+              onRefresh: _load,
+              child: _messages.isEmpty
+                ? ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: [
+                      SizedBox(height: MediaQuery.of(context).size.height * 0.25),
+                      Icon(Icons.chat_bubble_outline,
+                          size: 48, color: Colors.grey.shade600),
+                      const SizedBox(height: 12),
+                      Center(
+                        child: Text(
                           'Ask anything about your apps',
                           style: TextStyle(
                               color: Colors.grey.shade500, fontSize: 15),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
+                      ),
+                      const SizedBox(height: 4),
+                      Center(
+                        child: Text(
                           'Select an app for context, or ask general questions',
                           style: TextStyle(
                               color: Colors.grey.shade600, fontSize: 12),
                         ),
-                        const SizedBox(height: 12),
-                        Text(
+                      ),
+                      const SizedBox(height: 12),
+                      Center(
+                        child: Text(
                           'Agent runs on the server with project-level access',
                           style: TextStyle(
                               color: Colors.grey.shade700, fontSize: 11),
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   )
                 : ListView.builder(
                     controller: _scrollController,
@@ -573,6 +580,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       );
                     },
                   ),
+            ),
           ),
           // Input
           Container(

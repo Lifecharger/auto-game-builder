@@ -133,9 +133,23 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     super.dispose();
   }
 
+  bool _isValidUrl(String url) {
+    if (!url.startsWith('http://') && !url.startsWith('https://')) return false;
+    final host = url.replaceFirst(RegExp(r'https?://'), '').split(':').first.split('/').first;
+    return host == 'localhost' || host.contains('.');
+  }
+
   Future<void> _testConnection(String rawUrl) async {
     final url = rawUrl.trim();
     if (url.isEmpty) return;
+
+    if (!_isValidUrl(url)) {
+      setState(() {
+        _connectionResult = false;
+        _connectionError = 'Enter a valid URL (e.g. http://192.168.1.100:8000)';
+      });
+      return;
+    }
 
     // Normalize: remove trailing slash
     final normalized = url.endsWith('/') ? url.substring(0, url.length - 1) : url;

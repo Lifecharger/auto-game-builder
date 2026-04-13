@@ -86,6 +86,7 @@ class AutofixSession:
     started_at: Optional[str] = None
     completed_at: Optional[str] = None
     created_at: str = ""
+    updated_at: str = ""
 
     def files_changed_list(self) -> list[str]:
         try:
@@ -107,6 +108,7 @@ class Build:
     started_at: Optional[str] = None
     completed_at: Optional[str] = None
     created_at: str = ""
+    updated_at: str = ""
 
 
 @dataclass

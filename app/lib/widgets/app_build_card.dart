@@ -228,7 +228,7 @@ class _AppBuildCardState extends State<AppBuildCard> {
         Uri.parse('${AppConfig.baseUrl}/api/apps/${widget.appId}/deploy/retry-upload'),
         headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
         body: jsonEncode({'track': track}),
-      ).timeout(const Duration(minutes: 5));
+      ).timeout(const Duration(minutes: 10));
       if (mounted) {
         final ok = response.statusCode == 200;
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(

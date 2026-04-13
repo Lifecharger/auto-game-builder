@@ -88,6 +88,22 @@ class ApiService {
     }
   }
 
+  // Delta Sync
+  static Future<ApiResult<Map<String, dynamic>>> getSync({String? since}) async {
+    try {
+      final uri = since != null && since.isNotEmpty
+          ? Uri.parse('$_base/api/sync?since=${Uri.encodeQueryComponent(since)}')
+          : Uri.parse('$_base/api/sync');
+      final response = await _getWithRetry(uri, timeout: const Duration(seconds: 30));
+      if (response.statusCode == 200) {
+        return ApiResult.success(jsonDecode(response.body) as Map<String, dynamic>);
+      }
+      return ApiResult.failure(_httpError(response.statusCode));
+    } catch (e) {
+      return ApiResult.failure(_friendlyError(e));
+    }
+  }
+
   // Dashboard
   static Future<ApiResult<Map<String, dynamic>>> getDashboard() async {
     try {
@@ -776,7 +792,7 @@ class ApiService {
               'upload': upload,
             }),
           )
-          .timeout(const Duration(minutes: 5));
+          .timeout(const Duration(minutes: 10));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         return ApiResult.success(data['message']?.toString() ?? 'Build started');
