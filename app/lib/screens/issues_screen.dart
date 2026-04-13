@@ -572,17 +572,19 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
                                 ),
                               ),
                               Positioned(
-                                top: 2,
-                                right: 2,
-                                child: GestureDetector(
-                                  onTap: () => setSheetState(() => attachedImages.removeAt(i)),
-                                  child: Container(
-                                    padding: const EdgeInsets.all(2),
-                                    decoration: const BoxDecoration(
-                                      color: Colors.black54,
-                                      shape: BoxShape.circle,
+                                top: -8,
+                                right: -8,
+                                child: SizedBox(
+                                  width: 36,
+                                  height: 36,
+                                  child: IconButton(
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                                    onPressed: () => setSheetState(() => attachedImages.removeAt(i)),
+                                    style: IconButton.styleFrom(
+                                      backgroundColor: Colors.black54,
                                     ),
-                                    child: const Icon(Icons.close, size: 14, color: Colors.white),
+                                    icon: const Icon(Icons.close, size: 16, color: Colors.white),
                                   ),
                                 ),
                               ),
@@ -594,6 +596,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
                       const SizedBox(height: 8),
                     OutlinedButton.icon(
                       onPressed: () async {
+                        HapticFeedback.lightImpact();
                         final picker = ImagePicker();
                         final picked = await picker.pickMultiImage(imageQuality: 80);
                         if (picked.isNotEmpty) {
@@ -613,6 +616,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
                         onPressed: submitting
                             ? null
                             : () async {
+                                HapticFeedback.lightImpact();
                                 final title = titleController.text.trim();
                                 if (title.isEmpty) {
                                   ScaffoldMessenger.of(context).showSnackBar(
@@ -671,7 +675,10 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
           },
         );
       },
-    );
+    ).whenComplete(() {
+      titleController.dispose();
+      descController.dispose();
+    });
   }
 
   /// Get the AI agent (fix_strategy) for an app from AppState.
@@ -682,6 +689,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
   }
 
   Future<void> _fixNow(Map<String, dynamic> item) async {
+    HapticFeedback.lightImpact();
     final appId = item['app_id'] as int? ?? _selectedAppId;
     if (appId == null) return;
     final taskId = item['id'] as int?;
@@ -779,6 +787,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
   }
 
   Future<void> _completeItem(Map<String, dynamic> item) async {
+    HapticFeedback.lightImpact();
     final source = item['_source'];
     if (source == 'idea') return; // ideas can't be "completed" via this
     final appId = item['app_id'] as int? ?? _selectedAppId;
@@ -829,6 +838,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
   }
 
   Future<void> _deleteItem(Map<String, dynamic> item) async {
+    HapticFeedback.mediumImpact();
     final title = item['title'] ?? '';
     final confirm = await showDialog<bool>(
       context: context,
@@ -893,11 +903,23 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
     if (confirm != true || !mounted) return;
 
     int triggered = 0;
+    int processed = 0;
+    final total = pendingItems.length;
     final setInProgress = <int>[]; // track which tasks we set to in_progress
     final aiAgent = _selectedAppId != null ? _getAppAgent(_selectedAppId!) : '';
     try {
       for (final item in pendingItems) {
         if (!mounted) break;
+        processed++;
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Processing $processed of $total tasks...'),
+              duration: const Duration(seconds: 30),
+              backgroundColor: AppColors.info,
+            ),
+          );
+        }
         final appId = item['app_id'] as int? ?? _selectedAppId!;
         final taskId = item['id'] as int?;
         if (taskId != null) {
@@ -1337,7 +1359,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
                                               size: 20,
                                             ),
                                             constraints: const BoxConstraints(
-                                                minWidth: 36, minHeight: 36),
+                                                minWidth: 48, minHeight: 48),
                                             padding: EdgeInsets.zero,
                                             onPressed: () async {
                                               await _toggleFavorite(entry['id'] as int);
@@ -1349,7 +1371,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
                                                 size: 18,
                                                 color: Colors.grey.shade500),
                                             constraints: const BoxConstraints(
-                                                minWidth: 32, minHeight: 32),
+                                                minWidth: 48, minHeight: 48),
                                             padding: EdgeInsets.zero,
                                             onPressed: () async {
                                               await _deletePromptFromHistory(
@@ -2330,7 +2352,7 @@ class _ItemCard extends StatelessWidget {
                       if (onFixNow != null)
                         Expanded(
                           child: SizedBox(
-                            height: 40,
+                            height: 48,
                             child: FilledButton.icon(
                               onPressed: onFixNow,
                               style: FilledButton.styleFrom(
@@ -2355,7 +2377,7 @@ class _ItemCard extends StatelessWidget {
                       if (status == 'in_progress' && onReset != null) ...[
                         const SizedBox(width: 8),
                         SizedBox(
-                          height: 40,
+                          height: 48,
                           child: OutlinedButton.icon(
                             onPressed: onReset,
                             icon: const Icon(Icons.restart_alt, size: 18),
@@ -2371,8 +2393,8 @@ class _ItemCard extends StatelessWidget {
                         const SizedBox(width: 8),
                       if (onDelete != null)
                         SizedBox(
-                          height: 40,
-                          width: 40,
+                          height: 48,
+                          width: 48,
                           child: IconButton(
                             onPressed: onDelete,
                             style: IconButton.styleFrom(

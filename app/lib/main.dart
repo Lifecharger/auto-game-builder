@@ -60,9 +60,11 @@ class MainShell extends StatefulWidget {
   State<MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends State<MainShell> {
+class _MainShellState extends State<MainShell> with SingleTickerProviderStateMixin {
   int _currentIndex = 0;
   DateTime? _lastBackPress;
+  late final AnimationController _fadeController;
+  late Animation<double> _fadeAnimation;
 
   final _screens = const [
     DashboardScreen(),
@@ -75,10 +77,34 @@ class _MainShellState extends State<MainShell> {
   @override
   void initState() {
     super.initState();
+    _fadeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    );
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _fadeController, curve: Curves.easeInOut),
+    );
+    _fadeController.value = 1.0;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<AppState>().startHealthCheck();
     });
     _checkForUpdate();
+  }
+
+  @override
+  void dispose() {
+    _fadeController.dispose();
+    super.dispose();
+  }
+
+  void _switchTab(int index) {
+    if (index == _currentIndex) return;
+    HapticFeedback.lightImpact();
+    _fadeController.reverse().then((_) {
+      setState(() => _currentIndex = index);
+      context.read<AppState>().setActiveTab(index);
+      _fadeController.forward();
+    });
   }
 
   Future<void> _checkForUpdate() async {
@@ -158,8 +184,7 @@ class _MainShellState extends State<MainShell> {
         if (didPop) return;
         // If not on Dashboard, go to Dashboard first
         if (_currentIndex != 0) {
-          setState(() => _currentIndex = 0);
-          context.read<AppState>().setActiveTab(0);
+          _switchTab(0);
           return;
         }
         // On Dashboard: require double-tap back to exit
@@ -170,6 +195,7 @@ class _MainShellState extends State<MainShell> {
           return;
         }
         _lastBackPress = now;
+        HapticFeedback.heavyImpact();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Press back again to exit'),
@@ -203,19 +229,19 @@ class _MainShellState extends State<MainShell> {
             ),
           ),
           Expanded(
-            child: IndexedStack(
-              index: _currentIndex,
-              children: _screens,
+            child: FadeTransition(
+              opacity: _fadeAnimation,
+              child: IndexedStack(
+                index: _currentIndex,
+                children: _screens,
+              ),
             ),
           ),
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() => _currentIndex = index);
-          context.read<AppState>().setActiveTab(index);
-        },
+        onTap: _switchTab,
         type: BottomNavigationBarType.fixed,
         items: [
           BottomNavigationBarItem(

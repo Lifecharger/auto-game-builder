@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../services/api_service.dart';
 import '../services/app_state.dart';
@@ -204,6 +205,7 @@ class _LogsScreenState extends State<LogsScreen> with WidgetsBindingObserver {
                                 child: InkWell(
                                   borderRadius: BorderRadius.circular(12),
                                   onTap: () {
+                                    HapticFeedback.selectionClick();
                                     setState(() {
                                       _expandedIndex = isExpanded ? null : index;
                                     });
@@ -236,14 +238,19 @@ class _LogsScreenState extends State<LogsScreen> with WidgetsBindingObserver {
                                             ),
                                             if (appName.isNotEmpty) ...[
                                               const SizedBox(width: 8),
-                                              Container(
-                                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                                                decoration: BoxDecoration(
-                                                  color: AppColors.accent.withValues(alpha: 0.15),
-                                                  borderRadius: BorderRadius.circular(4)),
-                                                child: Text(appName,
-                                                  style: const TextStyle(fontSize: 11, color: AppColors.accent,
-                                                    fontWeight: FontWeight.w600)),
+                                              ConstrainedBox(
+                                                constraints: const BoxConstraints(maxWidth: 120),
+                                                child: Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                                  decoration: BoxDecoration(
+                                                    color: AppColors.accent.withValues(alpha: 0.15),
+                                                    borderRadius: BorderRadius.circular(4)),
+                                                  child: Text(appName,
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                    style: const TextStyle(fontSize: 11, color: AppColors.accent,
+                                                      fontWeight: FontWeight.w600)),
+                                                ),
                                               ),
                                             ],
                                             if (source.isNotEmpty) ...[

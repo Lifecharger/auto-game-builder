@@ -209,6 +209,35 @@ class GrokDownloader:
             result.extend(self._flatten_posts(children))
         return result
 
+    @staticmethod
+    def _slugify_prompt(text: str, max_len: int = 40) -> str:
+        """Convert a free-text prompt into a short, filesystem-safe filename slug.
+        Picks up the first N characters of meaningful words from the prompt so
+        that the resulting filename hints at what the media actually is.
+        """
+        import re as _re
+        if not text:
+            return ""
+        # Strip common boilerplate we always append to prompts
+        noise = [
+            "locked side profile view", "completely static camera",
+            "no camera movement", "no pan", "no zoom", "no follow",
+            "character stays centered", "in frame", "side profile",
+            "photorealistic", "cinematic 8k", "sharp focus", "ultra detailed",
+            "plain neutral grey studio background", "full body",
+            "professional fantasy", "dramatic lighting",
+        ]
+        lowered = text.lower()
+        for n in noise:
+            lowered = lowered.replace(n, "")
+        # Keep only alnum + space, collapse whitespace
+        cleaned = _re.sub(r"[^a-z0-9\s]+", " ", lowered)
+        cleaned = _re.sub(r"\s+", " ", cleaned).strip()
+        # Truncate to max_len chars worth of words
+        if len(cleaned) > max_len:
+            cleaned = cleaned[:max_len].rsplit(" ", 1)[0]
+        return cleaned.replace(" ", "_")
+
     def _parse_time(self, time_str: str) -> datetime:
         """Parse a Grok API timestamp into a UTC-aware datetime."""
         try:
@@ -257,13 +286,21 @@ class GrokDownloader:
                 url = post["mediaUrl"]
                 mime = post.get("mimeType", "image/jpeg")
                 if "imagine-public.x.ai" in url:
-                    name = url.split("/")[-1].rsplit(".", 1)[0]
+                    uuid_part = url.split("/")[-1].rsplit(".", 1)[0]
                 else:
-                    name = url.split("/")[-2]
+                    uuid_part = url.split("/")[-2]
                 ext = mime.split("/")[-1]
                 if ext == "jpeg":
                     ext = "jpg"
-                filename = f"{name}.{ext}"
+                # Build a human-readable prefix from the prompt field.
+                # Keeps first 40 chars of prompt, slugified, plus 8-char UUID tail.
+                prompt_text = (post.get("prompt") or post.get("originalPrompt") or "").strip()
+                slug = self._slugify_prompt(prompt_text)
+                uuid_tail = uuid_part[:8] if uuid_part else "nouuid"
+                if slug:
+                    filename = f"{slug}__{uuid_tail}.{ext}"
+                else:
+                    filename = f"{uuid_part}.{ext}"
                 self._status["message"] = f"Downloading {i + 1}/{len(new_posts)}: {filename}"
                 print(f"[GrokDownloader] [{i + 1}/{len(new_posts)}] {filename}")
 

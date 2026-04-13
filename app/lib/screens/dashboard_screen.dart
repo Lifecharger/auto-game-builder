@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -10,7 +11,6 @@ import '../services/app_state.dart';
 import '../services/installed_apps_service.dart';
 import '../theme.dart';
 import 'app_detail_screen.dart';
-import 'settings_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -30,6 +30,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   static const _completedAppsKey = 'completed_app_ids';
   static const _postponedAppsKey = 'postponed_app_ids';
   DateTime? _lastSyncedAt;
+  bool _syncFailed = false;
 
   Set<int> _completedAppIds = {};
   Set<int> _postponedAppIds = {};
@@ -48,8 +49,12 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         _loadTaskCounts();
         _loadInstalledVersions();
         _loadBuildCount();
-        if (mounted && context.read<AppState>().error == null) {
-          setState(() => _lastSyncedAt = DateTime.now());
+        if (mounted) {
+          final hasError = context.read<AppState>().error != null;
+          setState(() {
+            _syncFailed = hasError;
+            if (!hasError) _lastSyncedAt = DateTime.now();
+          });
         }
       });
     });
@@ -148,8 +153,12 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     await _loadTaskCounts();
     await _loadInstalledVersions();
     await _loadBuildCount();
-    if (mounted && context.read<AppState>().error == null) {
-      setState(() => _lastSyncedAt = DateTime.now());
+    if (mounted) {
+      final hasError = context.read<AppState>().error != null;
+      setState(() {
+        _syncFailed = hasError;
+        if (!hasError) _lastSyncedAt = DateTime.now();
+      });
     }
   }
 
@@ -501,6 +510,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   }
 
   String _syncLabel() {
+    if (_syncFailed) return 'Sync failed';
     if (_lastSyncedAt == null) return '';
     final diff = DateTime.now().difference(_lastSyncedAt!);
     if (diff.inSeconds < 10) return 'Just now';
@@ -518,11 +528,23 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text('Dashboard'),
-            if (syncText.isNotEmpty)
-              Text(
-                'Synced $syncText',
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontWeight: FontWeight.normal),
-              ),
+            Row(
+              children: [
+                Container(
+                  width: 6,
+                  height: 6,
+                  margin: const EdgeInsets.only(right: 5),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _syncFailed ? Colors.red : (syncText.isNotEmpty ? AppColors.success : Colors.grey),
+                  ),
+                ),
+                Text(
+                  syncText.isNotEmpty ? 'Synced $syncText' : 'Connecting...',
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade400, fontWeight: FontWeight.normal),
+                ),
+              ],
+            ),
           ],
         ),
         actions: [
@@ -546,7 +568,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             backgroundColor: Colors.amber.shade700,
             child: const Icon(Icons.lightbulb, size: 20),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 16),
           FloatingActionButton(
             heroTag: 'create',
             onPressed: () => _showCreateAppSheet(),
@@ -564,11 +586,20 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.cloud_off, size: 64, color: Colors.grey.shade600),
+                  Icon(Icons.wifi_off, size: 64, color: Colors.red.shade400),
                   const SizedBox(height: 16),
-                  Text(
-                    state.error!,
-                    style: TextStyle(color: Colors.grey.shade400, fontSize: 16),
+                  const Text(
+                    'Cannot reach server',
+                    style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 32),
+                    child: Text(
+                      state.error!,
+                      style: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+                      textAlign: TextAlign.center,
+                    ),
                   ),
                   const SizedBox(height: 16),
                   ElevatedButton.icon(
@@ -591,17 +622,37 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               .where((a) => _postponedAppIds.contains(a.id) && !_completedAppIds.contains(a.id))
               .toList();
 
+          final showCreateEmpty = state.apps.isEmpty;
+          final showAllCategorized = !showCreateEmpty && activeApps.isEmpty && (completedApps.isNotEmpty || postponedApps.isNotEmpty);
+
           return RefreshIndicator(
             color: AppColors.accent,
             onRefresh: _refresh,
-            child: state.apps.isEmpty
+            child: showCreateEmpty
                 ? ListView(
-                    children: const [
-                      SizedBox(height: 200),
+                    children: [
+                      const SizedBox(height: 120),
                       Center(
-                        child: Text(
-                          'No apps found',
-                          style: TextStyle(color: Colors.grey, fontSize: 16),
+                        child: Column(
+                          children: [
+                            Icon(Icons.rocket_launch, size: 64, color: Colors.grey.shade600),
+                            const SizedBox(height: 16),
+                            const Text(
+                              'No apps yet',
+                              style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w600),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Create your first app to get started',
+                              style: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+                            ),
+                            const SizedBox(height: 24),
+                            FilledButton.icon(
+                              onPressed: () => _showCreateAppSheet(),
+                              icon: const Icon(Icons.add),
+                              label: const Text('Create App'),
+                            ),
+                          ],
                         ),
                       ),
                     ],
@@ -610,6 +661,27 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                     padding: const EdgeInsets.all(12),
                     children: [
                       _TaskSummaryCard(taskCounts: _taskCounts, totalBuilds: _totalBuilds),
+                      if (showAllCategorized)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 24),
+                          child: Center(
+                            child: Column(
+                              children: [
+                                Icon(Icons.check_circle_outline, size: 48, color: Colors.grey.shade600),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'All apps are completed or postponed',
+                                  style: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Expand the folders below or create a new app',
+                                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ...activeApps.map((app) => _AppCard(
                         app: app,
                         taskStatus: _taskCounts[app.id],
@@ -755,12 +827,26 @@ class _AppCard extends StatelessWidget {
         onTap: () {
           Navigator.push(
             context,
-            MaterialPageRoute(
-              builder: (context) => AppDetailScreen(appId: app.id),
+            PageRouteBuilder(
+              pageBuilder: (context, animation, secondaryAnimation) =>
+                  AppDetailScreen(appId: app.id),
+              transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                final offsetAnimation = Tween<Offset>(
+                  begin: const Offset(0, 0.15),
+                  end: Offset.zero,
+                ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic));
+                return SlideTransition(
+                  position: offsetAnimation,
+                  child: FadeTransition(opacity: animation, child: child),
+                );
+              },
+              transitionDuration: const Duration(milliseconds: 300),
+              reverseTransitionDuration: const Duration(milliseconds: 250),
             ),
           );
         },
         onLongPress: () {
+          HapticFeedback.mediumImpact();
           showModalBottomSheet(
             context: context,
             backgroundColor: AppColors.bgCard,
@@ -810,7 +896,10 @@ class _AppCard extends StatelessWidget {
             ),
           );
         },
-        child: Padding(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+          Padding(
           padding: const EdgeInsets.all(16),
           child: Row(
             children: [
@@ -951,6 +1040,17 @@ class _AppCard extends StatelessWidget {
               ),
             ],
           ),
+        ),
+          if (app.status == 'building')
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
+              child: LinearProgressIndicator(
+                minHeight: 3,
+                color: AppColors.accent,
+                backgroundColor: AppColors.bgDark,
+              ),
+            ),
+          ],
         ),
       ),
     );

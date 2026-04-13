@@ -31,6 +31,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   String _connectedServerName = '';
   bool _showSetupPage = false;
   String _detectedWorkerUrl = '';
+  bool _detecting = false;
 
   bool get _isDesktop =>
       Platform.isWindows || Platform.isLinux || Platform.isMacOS;
@@ -46,6 +47,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   /// Try to auto-detect the server URL from local settings.json
   Future<void> _tryAutoDetectServer() async {
+    if (mounted) setState(() => _detecting = true);
     try {
       // Look for settings.json relative to the exe location
       final candidates = <String>[];
@@ -103,8 +105,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               }
               return;
             }
-          } catch (_) {
-            // Server not running — still prefill the URLs
+          } catch (e) {
+            debugPrint('Server connection test failed: $e');
             if (mounted) {
               _urlController.text = url;
               if (_detectedWorkerUrl.isNotEmpty) {
@@ -115,8 +117,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           return;
         }
       }
-    } catch (_) {
-      // Auto-detect failed silently — user enters URL manually
+    } catch (e) {
+      debugPrint('Auto-detect server failed: $e');
+    } finally {
+      if (mounted) setState(() => _detecting = false);
     }
   }
 
@@ -363,6 +367,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ),
             ),
           ),
+          if (_detecting) ...[
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                const SizedBox(width: 8),
+                Text('Detecting server...', style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
+              ],
+            ),
+          ],
           const SizedBox(height: 32),
 
           // URL field

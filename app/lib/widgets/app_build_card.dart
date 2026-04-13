@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config.dart';
@@ -120,6 +121,34 @@ class _AppBuildCardState extends State<AppBuildCard> {
   }
 
   Future<void> _startBuild() async {
+    // Confirm before production deploy
+    if (_buildTrack == 'production' && _uploadAfterBuild && _buildTarget == 'aab') {
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: AppColors.bgCard,
+          icon: const Icon(Icons.warning_amber, size: 40, color: AppColors.error),
+          title: const Text('Deploy to Production?'),
+          content: const Text(
+            'This will build and publish to ALL users on Google Play.\n\nMake sure you have tested on internal/beta first.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+              child: const Text('Deploy to Production'),
+            ),
+          ],
+        ),
+      );
+      if (confirm != true || !mounted) return;
+    }
+
+    HapticFeedback.mediumImpact();
     final result = await ApiService.deployApp(
       widget.appId,
       track: _buildTrack,
@@ -171,6 +200,7 @@ class _AppBuildCardState extends State<AppBuildCard> {
   }
 
   Future<void> _cancelBuild() async {
+    HapticFeedback.mediumImpact();
     setState(() => _deploying = false);
     await Future.wait([
       ApiService.cancelDeploy(widget.appId),
@@ -253,14 +283,18 @@ class _AppBuildCardState extends State<AppBuildCard> {
                 final label = t['label']!;
                 final iconKey = t['icon']!;
                 final selected = _buildTarget == key;
+                final disabled = isActive && !selected;
                 return GestureDetector(
                   onTap: isActive ? null : () {
                     setState(() => _buildTarget = key);
                     _saveBuildPrefs();
                   },
-                  child: AnimatedContainer(
+                  child: AnimatedOpacity(
+                    opacity: disabled ? 0.35 : 1.0,
                     duration: const Duration(milliseconds: 150),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
                     decoration: BoxDecoration(
                       color: selected ? AppColors.accent.withValues(alpha: 0.25) : AppColors.bgDark,
                       borderRadius: BorderRadius.circular(8),
@@ -281,57 +315,70 @@ class _AppBuildCardState extends State<AppBuildCard> {
                       ],
                     ),
                   ),
+                  ),
                 );
               }).toList(),
             ),
             const SizedBox(height: 14),
 
             // Upload toggle (only for AAB)
-            Row(
-              children: [
-                SizedBox(
-                  height: 24, width: 24,
-                  child: Checkbox(
-                    value: _uploadAfterBuild && _buildTarget == 'aab',
-                    onChanged: _buildTarget != 'aab' || isActive ? null : (v) {
-                      setState(() => _uploadAfterBuild = v ?? false);
-                      _saveBuildPrefs();
-                    },
-                    activeColor: AppColors.accent,
-                  ),
+            InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: _buildTarget != 'aab' || isActive ? null : () {
+                setState(() => _uploadAfterBuild = !_uploadAfterBuild);
+                _saveBuildPrefs();
+              },
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 48),
+                child: Row(
+                  children: [
+                    Checkbox(
+                      value: _uploadAfterBuild && _buildTarget == 'aab',
+                      onChanged: _buildTarget != 'aab' || isActive ? null : (v) {
+                        setState(() => _uploadAfterBuild = v ?? false);
+                        _saveBuildPrefs();
+                      },
+                      activeColor: AppColors.accent,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    const SizedBox(width: 4),
+                    Text('Upload to Google Play',
+                        style: TextStyle(fontSize: 13,
+                            color: _buildTarget == 'aab' ? Colors.grey.shade200 : Colors.grey.shade600)),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                Text('Upload to Google Play',
-                    style: TextStyle(fontSize: 13,
-                        color: _buildTarget == 'aab' ? Colors.grey.shade200 : Colors.grey.shade600)),
-              ],
+              ),
             ),
 
             // Track selector (only when upload is on)
             if (_uploadAfterBuild && _buildTarget == 'aab') ...[
               const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                child: SegmentedButton<String>(
-                  segments: const [
-                    ButtonSegment(value: 'internal', label: Text('Internal')),
-                    ButtonSegment(value: 'alpha', label: Text('Alpha')),
-                    ButtonSegment(value: 'beta', label: Text('Beta')),
-                    ButtonSegment(value: 'production', label: Text('Prod')),
-                  ],
-                  selected: {_buildTrack},
-                  onSelectionChanged: isActive ? null : (set) {
-                    setState(() => _buildTrack = set.first);
-                    _saveBuildPrefs();
-                  },
-                  style: ButtonStyle(
-                    backgroundColor: WidgetStateProperty.resolveWith((states) {
-                      if (states.contains(WidgetState.selected)) {
-                        return AppColors.accent.withValues(alpha: 0.3);
-                      }
-                      return AppColors.bgDark;
-                    }),
-                    visualDensity: VisualDensity.compact,
+              AnimatedOpacity(
+                opacity: isActive ? 0.4 : 1.0,
+                duration: const Duration(milliseconds: 150),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: SegmentedButton<String>(
+                    segments: const [
+                      ButtonSegment(value: 'internal', label: Text('Internal')),
+                      ButtonSegment(value: 'alpha', label: Text('Alpha')),
+                      ButtonSegment(value: 'beta', label: Text('Beta')),
+                      ButtonSegment(value: 'production', label: Text('Prod')),
+                    ],
+                    selected: {_buildTrack},
+                    onSelectionChanged: isActive ? null : (set) {
+                      setState(() => _buildTrack = set.first);
+                      _saveBuildPrefs();
+                    },
+                    style: ButtonStyle(
+                      backgroundColor: WidgetStateProperty.resolveWith((states) {
+                        if (states.contains(WidgetState.selected)) {
+                          return AppColors.accent.withValues(alpha: 0.3);
+                        }
+                        return AppColors.bgDark;
+                      }),
+                      visualDensity: VisualDensity.compact,
+                    ),
                   ),
                 ),
               ),

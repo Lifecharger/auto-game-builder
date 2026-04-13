@@ -1,19 +1,31 @@
 """
 Animate a character image using Grok Imagine's image-to-video.
 
-Workflow this is built for:
-    1. You generate a base character (e.g. via grok_generate_image.py --pro)
-    2. You pass the local PNG to this tool with an animation prompt
-    3. Tool uploads the image to Grok, sets 6s + 480p (cheapest), submits
-    4. Grok auto-favorites the input + output
-    5. Your grok-imagine-favorites-downloader Chrome extension grabs them
+CRITICAL — INPUT IMAGE ASPECT RATIO:
+    The base image MUST be 16:9 (preferred) or 1:1 (square). NEVER 9:16
+    portrait. Grok i2v preserves the input frame's aspect ratio in the
+    output video, so a tall narrow base leaves no horizontal room for
+    sword swings, walk cycles, jump arcs — limbs/weapons fall out of
+    frame and the animation looks cropped. This was a hard-learned lesson.
 
-No download logic — that's the extension's job.
+    When you generate the base via grok_generate_image.py:
+        --aspect 16:9   ← USE THIS for side-scroller character sheets
+        --aspect 1:1    ← acceptable compromise (top-down or isometric)
+        --aspect 9:16   ← ONLY for static portraits / store screenshots,
+                          never for things that will be animated
+
+Workflow:
+    1. Generate base with grok_generate_image.py --pro --aspect 16:9
+    2. Pass the local PNG to this tool with an animation prompt
+    3. Tool uploads to Grok, sets 6s + 480p (cheapest), submits via UI
+    4. Grok auto-favorites the input + output
+    5. (default) After --wait-seconds, runs grok_downloader to fetch result
+       to ~/Downloads/grok-favorites/
 
 Usage:
-    python grok_animate.py --image C:/path/character.png -d "south facing walk cycle"
+    python grok_animate.py -i character.png -d "idle breathing"
     python grok_animate.py -i char.png -d "punch attack" --length 10 --resolution 720p
-    python grok_animate.py -i char.png -d "idle breathing" --show-browser   # debug
+    python grok_animate.py -i char.png -d "walk cycle" --no-download --show-browser
 
 Defaults: 6s / 480p (cheapest = fastest = least credits)
 """
@@ -97,13 +109,27 @@ def animate(image_path: str, prompt: str, video_length: int = 6,
         print(f"Navigating to {IMAGINE_URL}...")
         page.goto(IMAGINE_URL, wait_until="networkidle", timeout=60000)
 
-        # Dismiss BOTH cookie consent banners (OneTrust + Grok's own)
+        # Dismiss ALL cookie consent banners. Grok keeps inventing new ones —
+        # this purges every variant we've seen plus a generic text-match fallback.
         page.evaluate("""() => {
-            ['onetrust-consent-sdk'].forEach(id => {
+            // Known IDs / data attributes
+            ['onetrust-consent-sdk', 'CybotCookiebotDialog'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.remove();
             });
             document.querySelectorAll('[data-cookie-banner="true"]').forEach(el => el.remove());
+            // Generic fallback: any fixed-position dialog containing the words
+            // "Tümünü Reddet" / "Reject All" / "Accept All" / "Tüm Tanımlama"
+            const consentTextRe = /Tümünü Reddet|Reject All|Accept All|Tüm Tanımlama|Cookie/i;
+            document.querySelectorAll('div, section, aside').forEach(el => {
+                const cs = window.getComputedStyle(el);
+                if (cs.position !== 'fixed') return;
+                if (consentTextRe.test(el.innerText || '')) {
+                    // Only remove if it's small (a popup, not the whole page)
+                    const r = el.getBoundingClientRect();
+                    if (r.width < 700 && r.height < 600) el.remove();
+                }
+            });
         }""")
         time.sleep(1)
 

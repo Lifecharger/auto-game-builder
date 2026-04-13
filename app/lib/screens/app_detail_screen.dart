@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/app_model.dart';
 import '../models/build_model.dart';
@@ -181,9 +182,9 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                   children: [
                     const Text('Quick Issue', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 16),
-                    TextField(controller: titleController, decoration: const InputDecoration(hintText: 'Issue title', prefixIcon: Icon(Icons.title))),
+                    TextField(controller: titleController, textInputAction: TextInputAction.next, decoration: const InputDecoration(hintText: 'Issue title', prefixIcon: Icon(Icons.title))),
                     const SizedBox(height: 12),
-                    TextField(controller: descController, maxLines: 3, decoration: const InputDecoration(hintText: 'Description...')),
+                    TextField(controller: descController, maxLines: 3, textInputAction: TextInputAction.newline, decoration: const InputDecoration(hintText: 'Description...')),
                     const SizedBox(height: 20),
                     SizedBox(
                       width: double.infinity, height: 48,
@@ -195,6 +196,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                           final result = await ApiService.createAppTask(appId: widget.appId, title: title, description: descController.text.trim());
                           if (ctx.mounted) Navigator.pop(ctx);
                           if (mounted) {
+                            if (result.ok) HapticFeedback.lightImpact();
                             ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result.ok ? 'Issue created' : result.error ?? 'Failed'), backgroundColor: result.ok ? AppColors.success : AppColors.error));
                             if (result.ok) _loadData();
                           }
@@ -504,33 +506,37 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
           runSpacing: 8,
           children: links.map((link) {
             final hasUrl = link.value.isNotEmpty;
-            return GestureDetector(
-              onTap: hasUrl
-                  ? () => _openUrl(link.value)
-                  : () => _showEditFieldSheet(link.label, link.value, link.field, link.hint),
-              onLongPress: () => _showEditFieldSheet(link.label, link.value, link.field, link.hint),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: hasUrl ? AppColors.accent.withValues(alpha: 0.15) : AppColors.bgDark,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: hasUrl ? AppColors.accent.withValues(alpha: 0.4) : Colors.grey.shade700,
+            return Material(
+              color: hasUrl ? AppColors.accent.withValues(alpha: 0.15) : AppColors.bgDark,
+              borderRadius: BorderRadius.circular(8),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: hasUrl
+                    ? () => _openUrl(link.value)
+                    : () => _showEditFieldSheet(link.label, link.value, link.field, link.hint),
+                onLongPress: () => _showEditFieldSheet(link.label, link.value, link.field, link.hint),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: hasUrl ? AppColors.accent.withValues(alpha: 0.4) : Colors.grey.shade700,
+                    ),
                   ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(link.icon, size: 16,
-                        color: hasUrl ? AppColors.accent : Colors.grey.shade600),
-                    const SizedBox(width: 6),
-                    Text(link.label, style: TextStyle(fontSize: 13,
-                        color: hasUrl ? AppColors.accent : Colors.grey.shade600)),
-                    if (!hasUrl) ...[
-                      const SizedBox(width: 4),
-                      Icon(Icons.add, size: 14, color: Colors.grey.shade600),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(link.icon, size: 16,
+                          color: hasUrl ? AppColors.accent : Colors.grey.shade600),
+                      const SizedBox(width: 6),
+                      Text(link.label, style: TextStyle(fontSize: 13,
+                          color: hasUrl ? AppColors.accent : Colors.grey.shade600)),
+                      if (!hasUrl) ...[
+                        const SizedBox(width: 4),
+                        Icon(Icons.add, size: 14, color: Colors.grey.shade600),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
             );
@@ -585,26 +591,41 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
     return InkWell(
       borderRadius: BorderRadius.circular(8),
       onTap: () => _showEditFieldSheet(label, value, field, hint),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Row(
-          children: [
-            Icon(icon, size: 18, color: Colors.grey.shade500),
-            const SizedBox(width: 10),
-            Text('$label: ', style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
-            Expanded(
-              child: Text(
-                value.isNotEmpty ? value : '(not set)',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: value.isNotEmpty ? Colors.grey.shade200 : Colors.grey.shade600,
-                  fontStyle: value.isEmpty ? FontStyle.italic : FontStyle.normal,
+      onLongPress: value.isNotEmpty ? () {
+        Clipboard.setData(ClipboardData(text: value));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('$label copied to clipboard'),
+            duration: const Duration(seconds: 2),
+            backgroundColor: AppColors.info,
+          ),
+        );
+        HapticFeedback.lightImpact();
+      } : null,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 48),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Row(
+            children: [
+              Icon(icon, size: 18, color: Colors.grey.shade500),
+              const SizedBox(width: 10),
+              Text('$label: ', style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
+              Expanded(
+                child: Text(
+                  value.isNotEmpty ? value : '(not set)',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: value.isNotEmpty ? Colors.grey.shade200 : Colors.grey.shade600,
+                    fontStyle: value.isEmpty ? FontStyle.italic : FontStyle.normal,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                overflow: TextOverflow.ellipsis,
               ),
-            ),
-            Icon(Icons.edit, size: 14, color: Colors.grey.shade600),
-          ],
+              Icon(Icons.edit, size: 14, color: Colors.grey.shade600),
+            ],
+          ),
         ),
       ),
     );
@@ -756,6 +777,38 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
     );
   }
 
+  Future<void> _retryClaudeMd() async {
+    setState(() { _claudeMdLoading = true; _claudeMdError = null; });
+    final result = await ApiService.getClaudeMd(widget.appId);
+    if (mounted) {
+      setState(() {
+        _claudeMdLoading = false;
+        if (result.ok) {
+          _claudeMdContent = result.data;
+          _claudeMdError = null;
+        } else {
+          _claudeMdError = result.error;
+        }
+      });
+    }
+  }
+
+  Future<void> _retryGdd() async {
+    setState(() { _gddLoading = true; _gddError = null; });
+    final result = await ApiService.getGdd(widget.appId);
+    if (mounted) {
+      setState(() {
+        _gddLoading = false;
+        if (result.ok) {
+          _gddContent = result.data;
+          _gddError = null;
+        } else {
+          _gddError = result.error;
+        }
+      });
+    }
+  }
+
   Widget _buildClaudeMdCard() {
     final hasContent = _claudeMdContent != null && _claudeMdContent!.trim().isNotEmpty;
     final hasError = _claudeMdError != null;
@@ -800,7 +853,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                   ),
                 if (hasError)
                   TextButton.icon(
-                    onPressed: _loadData,
+                    onPressed: _retryClaudeMd,
                     icon: const Icon(Icons.refresh, size: 18),
                     label: const Text('Retry'),
                   ),
@@ -956,7 +1009,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                   ),
                 if (hasError)
                   TextButton.icon(
-                    onPressed: _loadData,
+                    onPressed: _retryGdd,
                     icon: const Icon(Icons.refresh, size: 18),
                     label: const Text('Retry'),
                   ),

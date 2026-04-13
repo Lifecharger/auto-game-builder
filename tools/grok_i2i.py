@@ -103,13 +103,23 @@ def i2i(image_path: str, prompt: str, headless: bool = True) -> bool:
         print(f"Navigating to {IMAGINE_URL}...")
         page.goto(IMAGINE_URL, wait_until="networkidle", timeout=60000)
 
-        # Dismiss both cookie consent banners
+        # Dismiss ALL cookie consent banners. Grok keeps inventing new ones —
+        # this purges every variant we've seen plus a generic text-match fallback.
         page.evaluate("""() => {
-            ['onetrust-consent-sdk'].forEach(id => {
+            ['onetrust-consent-sdk', 'CybotCookiebotDialog'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.remove();
             });
             document.querySelectorAll('[data-cookie-banner="true"]').forEach(el => el.remove());
+            const consentTextRe = /Tümünü Reddet|Reject All|Accept All|Tüm Tanımlama|Cookie/i;
+            document.querySelectorAll('div, section, aside').forEach(el => {
+                const cs = window.getComputedStyle(el);
+                if (cs.position !== 'fixed') return;
+                if (consentTextRe.test(el.innerText || '')) {
+                    const r = el.getBoundingClientRect();
+                    if (r.width < 700 && r.height < 600) el.remove();
+                }
+            });
         }""")
         time.sleep(1)
 

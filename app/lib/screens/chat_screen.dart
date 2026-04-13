@@ -170,6 +170,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _send() async {
     final question = _controller.text.trim();
     if (question.isEmpty || _sending) return;
+    HapticFeedback.lightImpact();
 
     if (_active == null) _newChat();
     final session = _active!;
@@ -229,6 +230,7 @@ class _ChatScreenState extends State<ChatScreen> {
     );
 
     if (mounted) {
+      if (result.ok) HapticFeedback.lightImpact();
       setState(() {
         if (result.ok) {
           final data = result.data!;
@@ -259,6 +261,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _retry(int errorIndex) {
     if (_sending) return;
+    HapticFeedback.lightImpact();
     final session = _active;
     if (session == null) return;
 
@@ -333,7 +336,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   builder: (ctx) => AlertDialog(
                     title: const Text('Clear Messages'),
                     content:
-                        const Text('Delete all messages in this chat?'),
+                        Text('Delete all ${_messages.length} messages in this chat?'),
                     actions: [
                       TextButton(
                           onPressed: () => Navigator.pop(ctx),
@@ -383,9 +386,28 @@ class _ChatScreenState extends State<ChatScreen> {
               Expanded(
                 child: _sessions.isEmpty
                     ? Center(
-                        child: Text('No chats yet',
-                            style:
-                                TextStyle(color: Colors.grey.shade600)))
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.chat_bubble_outline, size: 40, color: Colors.grey.shade600),
+                            const SizedBox(height: 12),
+                            const Text('No chats yet',
+                                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+                            const SizedBox(height: 6),
+                            Text('Tap + to start a conversation',
+                                style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
+                            const SizedBox(height: 16),
+                            FilledButton.icon(
+                              onPressed: () {
+                                Navigator.pop(context);
+                                _newChat();
+                              },
+                              icon: const Icon(Icons.add, size: 18),
+                              label: const Text('New Chat'),
+                            ),
+                          ],
+                        ),
+                      )
                     : ListView.builder(
                         itemCount: _sessions.length,
                         itemBuilder: (context, i) {
@@ -731,22 +753,29 @@ class _MessageBubble extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      GestureDetector(
-                        onTap: onRetry,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.refresh, size: 16, color: AppColors.error),
-                            const SizedBox(width: 4),
-                            Text(
-                              'Retry',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: AppColors.error,
-                                fontWeight: FontWeight.w600,
-                              ),
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(8),
+                          onTap: onRetry,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.refresh, size: 16, color: AppColors.error),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Retry',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: AppColors.error,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
+                          ),
                         ),
                       ),
                     ],

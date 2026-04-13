@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../theme.dart';
@@ -43,7 +44,8 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      final account = await AuthService.instance.signIn();
+      final account = await AuthService.instance.signIn()
+          .timeout(const Duration(seconds: 15));
       if (account == null) {
         setState(() {
           _loading = false;

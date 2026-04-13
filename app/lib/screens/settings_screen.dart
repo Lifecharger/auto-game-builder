@@ -126,10 +126,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _serverSettings = json;
         });
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Failed to load server settings: $e');
+    }
   }
 
   Future<void> _saveServerSettings() async {
+    HapticFeedback.lightImpact();
     final path = _findSettingsPath();
     if (path == null || _serverSettings == null) return;
 
@@ -216,6 +219,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _testConnection() async {
+    HapticFeedback.lightImpact();
     setState(() {
       _testing = true;
       _connectionResult = null;
@@ -468,6 +472,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         child: FilledButton.icon(
                           onPressed: (_billingReady && _billing.isAvailable)
                               ? () async {
+                                  HapticFeedback.lightImpact();
                                   try {
                                     await _billing.donate();
                                   } catch (e) {

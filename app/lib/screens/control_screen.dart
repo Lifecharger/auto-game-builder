@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/automation_model.dart';
@@ -139,6 +140,7 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
   }
 
   Future<void> _toggleAutomation(AutomationModel auto) async {
+    HapticFeedback.lightImpact();
     final result = auto.running
         ? await ApiService.stopAutomation(auto.appId)
         : await ApiService.startAutomation(auto.appId);
@@ -191,6 +193,7 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
       ),
     );
     if (confirm != true) return;
+    HapticFeedback.mediumImpact();
     final result = await ApiService.deleteAutomation(auto.appId);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -333,15 +336,25 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
                         ],
                       ),
                     )
-                  else
+                  else ...[
                     TextField(
                       controller: gddController,
                       maxLines: 10,
+                      onChanged: (_) => setSheetState(() {}),
                       decoration: const InputDecoration(
                         hintText: 'Describe your app vision, features, goals...',
                         alignLabelWithHint: true,
                       ),
                     ),
+                    const SizedBox(height: 4),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: Text(
+                        '${gddController.text.length} characters',
+                        style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   SizedBox(
                     width: double.infinity, height: 48,
@@ -370,7 +383,9 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
           },
         );
       },
-    );
+    ).whenComplete(() {
+      gddController.dispose();
+    });
   }
 
   void _showCreateSheet() {
@@ -574,7 +589,10 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
           },
         );
       },
-    );
+    ).whenComplete(() {
+      promptController.dispose();
+      searchController.dispose();
+    });
   }
 
   void _showEditSheet(AutomationModel auto) {
@@ -702,21 +720,27 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null && _automations.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.cloud_off, size: 64, color: Colors.grey.shade600),
-                      const SizedBox(height: 16),
-                      Text(_error!, style: TextStyle(color: Colors.grey.shade400, fontSize: 16)),
-                      const SizedBox(height: 16),
-                      ElevatedButton.icon(
-                        onPressed: _loadAutomations,
-                        icon: const Icon(Icons.refresh),
-                        label: const Text('Retry'),
+              ? RefreshIndicator(
+                  color: AppColors.accent,
+                  onRefresh: _loadAutomations,
+                  child: ListView(children: [
+                    const SizedBox(height: 80),
+                    Center(
+                      child: Column(
+                        children: [
+                          Icon(Icons.cloud_off, size: 64, color: Colors.grey.shade600),
+                          const SizedBox(height: 16),
+                          Text(_error!, style: TextStyle(color: Colors.grey.shade400, fontSize: 16)),
+                          const SizedBox(height: 16),
+                          ElevatedButton.icon(
+                            onPressed: _loadAutomations,
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Retry'),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+                    ),
+                  ]),
                 )
               : Column(
                   children: [
@@ -800,13 +824,33 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
                         onRefresh: _loadAutomations,
                         child: filtered.isEmpty
                             ? ListView(children: [
-                                const SizedBox(height: 200),
-                                Center(child: Text(
-                                  _automations.isEmpty
-                                      ? 'No automations configured'
-                                      : 'No automations match filters',
-                                  style: const TextStyle(color: Colors.grey, fontSize: 16),
-                                ))])
+                                const SizedBox(height: 80),
+                                Center(
+                                  child: Column(
+                                    children: [
+                                      Icon(
+                                        _automations.isEmpty ? Icons.smart_toy_outlined : Icons.filter_alt_off,
+                                        size: 48,
+                                        color: Colors.grey.shade600,
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Text(
+                                        _automations.isEmpty
+                                            ? 'No automations yet'
+                                            : 'No automations match filters',
+                                        style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        _automations.isEmpty
+                                            ? 'Tap + to create your first automation'
+                                            : 'Try changing the category or status filter',
+                                        style: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ])
                             : ListView.builder(
                                 padding: const EdgeInsets.fromLTRB(12, 4, 12, 80),
                                 itemCount: filtered.length,
@@ -858,6 +902,7 @@ class _AutomationCardState extends State<_AutomationCard> {
   DateTime? _cycleStart;
   bool _oneShotActive = false;
   DateTime? _oneShotStart;
+  bool _runOnceLoading = false;
 
   String get _cycleKey => 'auto_cycle_${widget.automation.appId}';
   String get _oneShotKey => 'auto_oneshot_${widget.automation.appId}';
@@ -1203,7 +1248,12 @@ class _AutomationCardState extends State<_AutomationCard> {
                   style: const TextStyle(fontSize: 13)),
               ),
               const SizedBox(width: 4),
-              IconButton(
+              _runOnceLoading
+                  ? const SizedBox(
+                      width: 20, height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.warning),
+                    )
+                  : IconButton(
                 onPressed: () async {
                   if (_oneShotActive) {
                     final confirm = await showDialog<bool>(
@@ -1230,27 +1280,32 @@ class _AutomationCardState extends State<_AutomationCard> {
                     );
                     if (confirm != true) return;
                   }
+                  HapticFeedback.lightImpact();
+                  setState(() => _runOnceLoading = true);
                   final ok = await widget.onRunOnce();
-                  if (ok && mounted) {
-                    final now = DateTime.now();
-                    setState(() {
-                      _oneShotActive = true;
-                      _oneShotStart = now;
-                    });
-                    _savePref(_oneShotKey, now);
-                    _syncTimer();
+                  if (mounted) {
+                    setState(() => _runOnceLoading = false);
+                    if (ok) {
+                      final now = DateTime.now();
+                      setState(() {
+                        _oneShotActive = true;
+                        _oneShotStart = now;
+                      });
+                      _savePref(_oneShotKey, now);
+                      _syncTimer();
+                    }
                   }
                 },
                 icon: Icon(Icons.bolt,
                   color: _oneShotActive ? AppColors.warning.withValues(alpha: 0.5) : AppColors.warning),
                 iconSize: 20, tooltip: _oneShotActive ? 'Run Once (in progress)' : 'Run Once'),
-              IconButton(onPressed: widget.onEdit,
+              IconButton(onPressed: () { HapticFeedback.lightImpact(); widget.onEdit(); },
                 icon: const Icon(Icons.edit_outlined, color: AppColors.accent),
                 iconSize: 20, tooltip: 'Edit'),
               IconButton(onPressed: widget.onGdd,
                 icon: const Icon(Icons.description_outlined, color: AppColors.info),
                 iconSize: 20, tooltip: 'Design Doc'),
-              IconButton(onPressed: widget.onDelete,
+              IconButton(onPressed: () { HapticFeedback.mediumImpact(); widget.onDelete(); },
                 icon: const Icon(Icons.delete_outline, color: AppColors.error),
                 iconSize: 20, tooltip: 'Delete'),
             ]),
