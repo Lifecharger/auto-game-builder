@@ -1937,7 +1937,10 @@ def _load_automation_instructions() -> str:
 
 def _load_studio_knowledge(focus_key: str) -> str:
     """Load Game Studios specialist knowledge for a given focus area.
-    focus_key: 'visual_audit', 'gameplay_ux', 'code_quality', 'polish_ideas', 'brainstorm', 'gdd_template', 'specialist_routing'
+    focus_key examples: 'visual_audit', 'gameplay_ux', 'code_quality', 'polish_ideas',
+    'brainstorm', 'gdd_template', 'specialist_routing', 'consistency_check',
+    'tech_debt', 'asset_audit', 'content_audit', 'scope_check', 'perf_profile',
+    'art_bible', 'asset_spec'.
     """
     studio_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config", "studio")
     filepath = os.path.join(studio_dir, f"{focus_key}.md")
@@ -3477,6 +3480,211 @@ Write your overall analysis (Economy Health X/10) in this task's response field.
 {studio_knowledge}"""
         return title, desc
 
+    elif action == "consistency-check":
+        studio_knowledge = _load_studio_knowledge("consistency_check")
+        title = f"Consistency Check: {app_name}"
+        desc = f"""Scan {app_name} ({app_type}) for cross-document drift between the GDD, data files, and code.
+
+ROLE: You are a Technical Writer and QA Lead hunting entities (items, characters, enemies, formulas) that appear with conflicting values in different places.
+
+INSTRUCTIONS:
+1. Grep gdd.md and any design/**/*.md for named entities (items, characters, enemies, weapons, levels, systems, formulas)
+2. Grep data/*, scripts/**, lib/** for the same names as string constants, enum values, JSON keys, or exported fields
+3. Compare numeric values (HP, damage, price, XP curves, timers), formula variables, and unit annotations (px/s vs m/s)
+4. Build a conflict report grouped by entity name
+
+For EACH conflict found, create a separate NEW task in tasklist.json with:
+- type: "fix"
+- Clear title starting with a verb (Fix, Align, Remove, Update)
+- Specific description citing BOTH locations (file paths + sections/lines) and declaring which is the source of truth
+
+Write overall "Consistency Score X/10" in this task's response field along with a conflict count summary.
+{studio_knowledge}"""
+        return title, desc
+
+    elif action == "tech-debt":
+        studio_knowledge = _load_studio_knowledge("tech_debt")
+        title = f"Tech Debt Scan: {app_name}"
+        desc = f"""Triage accumulated technical debt in {app_name} ({app_type}).
+
+ROLE: You are a Lead Programmer doing a debt-triage pass, focused only on debt that's actively slowing future work.
+
+INSTRUCTIONS:
+1. Scan source tree for: files > 800 lines, functions > 100 lines, duplicated code blocks (3+ copies), commented-out code blocks > 10 lines, TODO/FIXME/HACK comments older than 30 days
+2. Skip vendor, node_modules, build, generated directories
+3. Tier findings: Tier 1 Bleeding (must fix), Tier 2 Dragging (plan to fix), Tier 3 Annoyance (nice to have)
+
+For Tier 1 items ONLY (max 5 per run), create SEPARATE fix tasks in tasklist.json with:
+- type: "fix" or "refactor"
+- Clear title (Split X, Extract Y, Remove dead code in Z)
+- File path + line range + specific extraction/split target
+
+Write overall "Tech Debt Score X/10" plus Tier 2/3 counts in this task's response field. Do NOT refactor in this session.
+{studio_knowledge}"""
+        return title, desc
+
+    elif action == "asset-audit":
+        studio_knowledge = _load_studio_knowledge("asset_audit") + _load_studio_knowledge("visual_audit")
+        title = f"Asset Audit: {app_name}"
+        desc = f"""Cross-reference every asset file in {app_name} ({app_type}) against code references and design docs.
+
+ROLE: You are an Art Director and Technical Artist running a full asset sweep.
+
+INSTRUCTIONS:
+1. Grep all source files for asset path references (load, preload, Image.asset, AudioCache, etc.)
+2. Glob assets/**/*.{{png,jpg,webp,svg,wav,ogg,mp3,mp4,ttf,otf,fbx,glb,gltf,tres,tscn}}
+3. Read gdd.md and any design/assets/**/*.md for planned-asset lists
+4. Compute 4 sets: code-referenced, on-disk, planned, placeholder/dummy
+
+Report:
+- Broken references (code → missing file) → CRITICAL crash risks
+- Orphan assets (on disk, no reference, not planned) → deletion candidates
+- Missing planned assets (GDD says exists, not on disk) → generation needed
+- Placeholder content (temp_, test_, placeholder_, colored rectangles, default Godot icons)
+
+For each concrete problem, create a SEPARATE task:
+- type: "issue" for broken references, "fix" for placeholders, "feature" for missing-planned
+- Title: verb-first (Fix broken reference to X, Generate missing asset Y, Replace placeholder Z)
+- Reference the PixelLab/Grok/Meshy tool to use for generation tasks
+
+Write "Asset Health X/10" with counts in this task's response field.
+{studio_knowledge}"""
+        return title, desc
+
+    elif action == "content-audit":
+        studio_knowledge = _load_studio_knowledge("content_audit") + _load_studio_knowledge("gameplay_ux")
+        title = f"Content Audit: {app_name}"
+        desc = f"""Walk every piece of player-facing content in {app_name} ({app_type}).
+
+ROLE: You are a Content Designer and Producer auditing the shippable surface.
+
+INSTRUCTIONS:
+Audit these surfaces:
+1. Levels/Scenes — reachable from main menu? orphan scenes? entry + success/fail wired?
+2. Characters/Enemies/NPCs — every GDD roster entry has sprite + script + AI + dialogue?
+3. Items/Economy — every data/items.* entry has icon + name + description + price + effect?
+4. Dialogue/Text — spelling, placeholder text (TODO, lorem, asdf), format string breaks, voice consistency
+5. UI/Menus — every button has handler, every form has validation, every empty state is filled
+
+For EACH gap or break found, create SEPARATE tasks (MAX 12 per run):
+- type: "feature" for missing content, "fix" for broken/placeholder, "issue" for unreachable/dead-end
+- Title: verb-first (Add icon for Y, Wire dead button Z, Fill empty state in A)
+- Cite specific file + control name + what's wrong
+
+Prioritize player-visible issues. Write "Content Completeness X/10" with category counts in this task's response field.
+{studio_knowledge}"""
+        return title, desc
+
+    elif action == "scope-check":
+        studio_knowledge = _load_studio_knowledge("scope_check")
+        title = f"Scope Check: {app_name}"
+        desc = f"""Reality-check the scope of {app_name} ({app_type}) against a solo-dev timeline.
+
+ROLE: You are a Producer running a cut-list pass. Be direct — diplomatic hedging wastes time.
+
+INSTRUCTIONS:
+1. Count pending tasks by type in tasklist.json
+2. Read gdd.md; count feature entries
+3. Flag risks: vague features, "stretch goals" older than core features, cross-engine complexity, external dependencies (ads/IAP/cloud/leaderboards), asset production load, platform matrix size
+4. Estimate weeks-to-clear at 2-3 tasks/day × 5 days/week for a solo dev with AI automation
+
+Produce in this task's response:
+- Current pending task count + breakdown
+- Estimated weeks to clear
+- Top 3 risks
+- RECOMMENDED CUT LIST: specific task IDs to defer, archive, or delete (with one-line justification each)
+- "Scope Health X/10"
+
+For each structural issue found, create SEPARATE tasks:
+- type: "issue" for impossible-scope features, "fix" for priority/ordering issues
+- Title: verb-first (Defer X to post-launch, Split Y into 4 smaller tasks, Remove stretch goal Z)
+
+If fewer than 15 pending tasks exist, write "Scope Health 9/10 — manageable" and exit without creating cut tasks.
+{studio_knowledge}"""
+        return title, desc
+
+    elif action == "perf-profile":
+        studio_knowledge = _load_studio_knowledge("perf_profile") + _load_studio_knowledge("code_quality")
+        title = f"Performance Profile: {app_name}"
+        desc = f"""Identify real player-felt performance problems in {app_name} ({app_type}).
+
+ROLE: You are a Performance Analyst. Only flag bottlenecks a player can actually feel — frame drops, stutter, long loads, sluggish input, memory spikes. Skip micro-optimizations.
+
+INSTRUCTIONS:
+1. Scan hot loops: _process, update, tick, _physics_process — look for allocations, string concat, find_node/get_node/query_selector, array/dict literal creation per frame
+2. Render: check draw-call count (sprites without atlases), full-screen shaders, overdraw, per-frame dynamic font rendering
+3. Physics: count active bodies, raycast spam, collision-layer mismatches
+4. Memory: uncaptured signal listeners, cached references to freed nodes, full-res textures for small sprites, scene instances not freed on transition
+5. Load time: sync asset loading on startup, full GDD/JSON parse per scene load, missing texture streaming/LOD, uncompressed audio
+
+Target: 60 FPS on mobile (16.6 ms/frame).
+
+For each concrete bottleneck found (max 5 per run), create SEPARATE fix tasks:
+- type: "fix"
+- Title: verb-first (Pool projectiles in X, Cache Y lookup in Z.gd, Reduce draw calls in A scene)
+- File + line + specific fix (not "optimize this")
+
+Write "Performance Score X/10" with identified bottleneck list in this task's response field.
+{studio_knowledge}"""
+        return title, desc
+
+    elif action == "art-bible":
+        studio_knowledge = _load_studio_knowledge("art_bible")
+        title = f"Generate Art Bible: {app_name}"
+        desc = f"""Create or complete design/art-bible.md for {app_name} ({app_type}) — the visual identity anchor that every future asset-generation task will reference.
+
+ROLE: You are an Art Director authoring the project's single source of visual truth.
+
+INSTRUCTIONS:
+1. Read gdd.md (pillars, elevator pitch, target platform). If missing, FAIL this task and create a follow-up "Generate gdd.md first, then rerun art-bible".
+2. If design/art-bible.md already exists, identify empty/placeholder sections and fill ONLY those. Do not touch committed sections.
+3. Write all 9 sections using CONCRETE values (real hex colors, real resolutions, real rejected styles — never "TBD" or "warm colors"):
+   1. Visual Identity Statement (one-sentence rule + 2-3 supporting principles)
+   2. Mood & Atmosphere by Game State
+   3. Color Palette (hex values + role labels)
+   4. Character Art Direction (silhouette, proportion, shading, rejected styles)
+   5. Environment & Level Art (perspective, tile style, texel density)
+   6. UI Visual Language (button shape, font, icons, color-role mapping)
+   7. VFX & Particle Style
+   8. Asset Standards (resolutions per class, formats, atlas rules)
+   9. Style Prohibitions ("never use" list)
+
+Write the file to design/art-bible.md. In this task's response field, write a 3-line summary: identity statement + palette + prohibitions.
+
+Do NOT generate assets in this task. This task ONLY produces the bible.
+{studio_knowledge}"""
+        return title, desc
+
+    elif action == "asset-spec":
+        studio_knowledge = _load_studio_knowledge("asset_spec") + _load_studio_knowledge("art_bible")
+        title = f"Generate Asset Specs: {app_name}"
+        desc = f"""Turn {app_name}'s gdd.md + art-bible.md into per-asset spec files at design/assets/specs/.
+
+ROLE: You are a Technical Artist bundling art-bible visual direction with AI generator prompts.
+
+PREREQUISITES: design/art-bible.md AND gdd.md must exist. If either is missing, FAIL this task and create a follow-up to generate the missing file first.
+
+INSTRUCTIONS:
+1. Scan gdd.md for named assets: characters, items, environments, UI, VFX
+2. For each asset, check design/assets/specs/{{category}}/{{asset_name}}.md — SKIP if it already exists (idempotent)
+3. For new specs, write the spec file with: Visual Brief, Technical Spec (resolution + format + transparency + reference hex from art-bible), Generator choice, Prompt (tuned to the chosen generator), Output Destination, Status checklist
+4. Generator matrix:
+   - pixellab_generate_image.py (tools/pixellab/) for pixel art sprites, icons, UI
+   - grok_generate_image.py (tools/grok/) for photorealistic or painterly characters/backgrounds
+   - meshy_text_to_3d.py or tripo_studio_api.py (tools/meshy/ or tools/tripo/) for 3D models
+5. Write design/assets/asset-manifest.md — a sorted table of every spec with status grouped by priority (P0/P1/P2)
+
+Max 20 specs per run. Prioritize P0 (blocks gameplay) and P1 (needed for MVP).
+
+Rules:
+- Prompts MUST include the art-bible visual identity statement, at least one style prohibition, and the technical constraints from art-bible section 8
+- Asset names are lowercase kebab-case
+- Do NOT generate the actual images/models in this task — only the specs
+
+In this task's response field: new specs count, skipped count, top P0 missing.
+{studio_knowledge}"""
+        return title, desc
+
     else:
         return f"Studio: {action}", f"Run Game Studio {action} on {app_name}"
 
@@ -3491,7 +3699,19 @@ def run_studio_action(app_id: int, action: str):
     if not a:
         raise HTTPException(404, "App not found")
 
-    valid_actions = ["design-review", "code-review", "balance-check"]
+    valid_actions = [
+        "design-review",
+        "code-review",
+        "balance-check",
+        "consistency-check",
+        "tech-debt",
+        "asset-audit",
+        "content-audit",
+        "scope-check",
+        "perf-profile",
+        "art-bible",
+        "asset-spec",
+    ]
     if action not in valid_actions:
         raise HTTPException(400, f"Invalid action. Must be one of: {valid_actions}")
 

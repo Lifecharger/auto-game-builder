@@ -1548,17 +1548,24 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
   }
 
   Future<void> _balanceCheck() async {
+    await _runStudioAction('balance-check', 'Balance check task created');
+  }
+
+  /// Generic handler for any /api/apps/{id}/studio/{action} call.
+  /// Shows a warning if no app is selected, otherwise posts the action
+  /// and refreshes the task list on success.
+  Future<void> _runStudioAction(String action, String successMessage) async {
     if (_selectedAppId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Select an app first'), backgroundColor: AppColors.warning),
       );
       return;
     }
-    final result = await ApiService.studioAction(_selectedAppId!, 'balance-check');
+    final result = await ApiService.studioAction(_selectedAppId!, action);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(result.ok ? 'Balance check task created' : result.error ?? 'Failed'),
+        content: Text(result.ok ? successMessage : result.error ?? 'Failed'),
         backgroundColor: result.ok ? AppColors.success : AppColors.error,
       ),
     );
@@ -1595,7 +1602,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
           ),
           PopupMenuButton<String>(
             icon: const Icon(Icons.science),
-            tooltip: 'Studio Actions',
+            tooltip: 'Studio Reviews',
             onSelected: (value) {
               switch (value) {
                 case 'code-review':
@@ -1606,6 +1613,24 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
                   break;
                 case 'balance-check':
                   _balanceCheck();
+                  break;
+                case 'consistency-check':
+                  _runStudioAction('consistency-check', 'Consistency check task created');
+                  break;
+                case 'tech-debt':
+                  _runStudioAction('tech-debt', 'Tech debt scan task created');
+                  break;
+                case 'asset-audit':
+                  _runStudioAction('asset-audit', 'Asset audit task created');
+                  break;
+                case 'content-audit':
+                  _runStudioAction('content-audit', 'Content audit task created');
+                  break;
+                case 'scope-check':
+                  _runStudioAction('scope-check', 'Scope check task created');
+                  break;
+                case 'perf-profile':
+                  _runStudioAction('perf-profile', 'Performance profile task created');
                   break;
               }
             },
@@ -1635,6 +1660,95 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
                   leading: Icon(Icons.balance, size: 20),
                   title: Text('Balance Check', style: TextStyle(fontSize: 14)),
                   subtitle: Text('Economy, progression, rewards', style: TextStyle(fontSize: 11)),
+                ),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem(
+                value: 'consistency-check',
+                child: ListTile(
+                  dense: true,
+                  leading: Icon(Icons.rule, size: 20),
+                  title: Text('Consistency Check', style: TextStyle(fontSize: 14)),
+                  subtitle: Text('GDD ↔ code ↔ data drift', style: TextStyle(fontSize: 11)),
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'tech-debt',
+                child: ListTile(
+                  dense: true,
+                  leading: Icon(Icons.cleaning_services, size: 20),
+                  title: Text('Tech Debt Scan', style: TextStyle(fontSize: 14)),
+                  subtitle: Text('God scripts, duplicates, TODOs', style: TextStyle(fontSize: 11)),
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'asset-audit',
+                child: ListTile(
+                  dense: true,
+                  leading: Icon(Icons.fact_check, size: 20),
+                  title: Text('Asset Audit', style: TextStyle(fontSize: 14)),
+                  subtitle: Text('Broken refs, orphans, placeholders', style: TextStyle(fontSize: 11)),
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'content-audit',
+                child: ListTile(
+                  dense: true,
+                  leading: Icon(Icons.playlist_add_check, size: 20),
+                  title: Text('Content Audit', style: TextStyle(fontSize: 14)),
+                  subtitle: Text('Levels, characters, items, text', style: TextStyle(fontSize: 11)),
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'scope-check',
+                child: ListTile(
+                  dense: true,
+                  leading: Icon(Icons.filter_list, size: 20),
+                  title: Text('Scope Check', style: TextStyle(fontSize: 14)),
+                  subtitle: Text('Cut list + realism pass', style: TextStyle(fontSize: 11)),
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'perf-profile',
+                child: ListTile(
+                  dense: true,
+                  leading: Icon(Icons.speed, size: 20),
+                  title: Text('Performance Profile', style: TextStyle(fontSize: 14)),
+                  subtitle: Text('Frame drops, memory, load time', style: TextStyle(fontSize: 11)),
+                ),
+              ),
+            ],
+          ),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.palette),
+            tooltip: 'Art & Assets',
+            onSelected: (value) {
+              switch (value) {
+                case 'art-bible':
+                  _runStudioAction('art-bible', 'Art bible task created');
+                  break;
+                case 'asset-spec':
+                  _runStudioAction('asset-spec', 'Asset spec task created');
+                  break;
+              }
+            },
+            itemBuilder: (_) => [
+              const PopupMenuItem(
+                value: 'art-bible',
+                child: ListTile(
+                  dense: true,
+                  leading: Icon(Icons.auto_stories, size: 20),
+                  title: Text('Art Bible', style: TextStyle(fontSize: 14)),
+                  subtitle: Text('Visual identity anchor doc', style: TextStyle(fontSize: 11)),
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'asset-spec',
+                child: ListTile(
+                  dense: true,
+                  leading: Icon(Icons.inventory_2, size: 20),
+                  title: Text('Asset Specs', style: TextStyle(fontSize: 14)),
+                  subtitle: Text('Per-asset prompts from bible', style: TextStyle(fontSize: 11)),
                 ),
               ),
             ],

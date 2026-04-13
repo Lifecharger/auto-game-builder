@@ -93,6 +93,11 @@ server/automations/configs.json
 # Character Creator (Godot project, WIP)
 tools/character_creator/
 
+# CCGS personal-use bundle (director gates + 49 agents + 72 skills + hooks + rules
+# + skill testing framework). Copied verbatim from github.com/Donchitos/Claude-Code-Game-Studios
+# for interactive personal dev sessions. Not part of AGB's autonomous pipeline — never commit.
+tools/ccgs/
+
 # Pixel Guy (merged into tools/) — user-local state and build artifacts
 tools/pixel_guy/projects.json
 tools/pixel_guy/state.json
@@ -102,6 +107,14 @@ tools/pixel_guy/assets/characters/
 tools/pixel_guy/**/.dart_tool/
 tools/pixel_guy/**/.flutter-plugins
 tools/pixel_guy/**/.flutter-plugins-dependencies
+# Flutter Windows generated files (CMakeLists.txt is the only committed file)
+tools/pixel_guy/windows/flutter/ephemeral/
+tools/pixel_guy/windows/flutter/generated_plugin_registrant.cc
+tools/pixel_guy/windows/flutter/generated_plugin_registrant.h
+tools/pixel_guy/windows/flutter/generated_plugins.cmake
+
+# DB backups from maintenance ops
+server/*.db.bak_*
 
 # Comic Translator (merged into tools/) — runtime local overrides
 tools/comic_translator/config.local.json
