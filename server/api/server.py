@@ -242,10 +242,43 @@ def health():
     return {"status": "ok", "time": datetime.now().isoformat()}
 
 
+def _reconcile_tasklist_mtimes():
+    """Catch tasklist.json edits made outside the API (e.g. Claude editing
+    the file directly during an autonomous session). _save_tasklist normally
+    bumps app.updated_at via touch_app, but file-system writes that bypass
+    the API leave the DB clock stale — so the delta-sync query
+    `WHERE updated_at > since` filters out the changed app and the device's
+    cached task counts freeze. Compare each app's tasklist mtime against its
+    DB updated_at and touch any that drifted ahead."""
+    try:
+        for a in db().get_all_apps(include_archived=True):
+            try:
+                path = _tasklist_path(a)
+                if not os.path.isfile(path):
+                    continue
+                file_mtime = datetime.fromtimestamp(os.path.getmtime(path))
+                row_updated = a.updated_at
+                if isinstance(row_updated, str):
+                    # SQLite stores 'YYYY-MM-DD HH:MM:SS' — parse to compare.
+                    try:
+                        row_dt = datetime.strptime(row_updated, "%Y-%m-%d %H:%M:%S")
+                    except ValueError:
+                        row_dt = datetime.fromisoformat(row_updated.replace("T", " ").split(".")[0])
+                else:
+                    row_dt = row_updated
+                if file_mtime > row_dt:
+                    db().touch_app(a.id)
+            except Exception as e:
+                logger.debug("tasklist mtime check failed for app %s: %s", a.id, e)
+    except Exception as e:
+        logger.debug("reconcile tasklist mtimes failed: %s", e)
+
+
 @app.get("/api/sync")
 def sync_delta(since: str = ""):
     """Return all records changed since the given ISO timestamp.
     If since is empty, returns everything (full sync)."""
+    _reconcile_tasklist_mtimes()
     counts = db().count_issues_by_app(status="open")
     if since:
         apps = [_app_dict(a, issue_counts=counts) for a in db().get_apps_since(since)]
