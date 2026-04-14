@@ -30,6 +30,7 @@ class EventService {
   StreamSubscription<String>? _sub;
   Timer? _reconnectTimer;
   Timer? _ackTimer;
+  Timer? _refreshTimer;
   bool _stopped = false;
   int _backoffSeconds = 1;
   int _pendingAckSeq = 0;
@@ -43,6 +44,7 @@ class EventService {
     _stopped = true;
     _reconnectTimer?.cancel();
     _ackTimer?.cancel();
+    _refreshTimer?.cancel();
     _sub?.cancel();
     _client?.close();
     _client = null;
@@ -156,7 +158,7 @@ class EventService {
           if (appJson is Map) {
             await CacheService.instance
                 .saveApps([Map<String, dynamic>.from(appJson)]);
-            _appState.refreshFromCache();
+            _scheduleRefresh();
           }
           break;
 
@@ -165,7 +167,7 @@ class EventService {
           final status = event['status'] as String?;
           if (appId != 0 && status != null) {
             await CacheService.instance.patchAppField(appId, 'status', status);
-            _appState.refreshFromCache();
+            _scheduleRefresh();
           }
           break;
 
@@ -183,6 +185,18 @@ class EventService {
       await CacheService.instance.setLastSeq(seq);
       _scheduleAck(seq);
     }
+  }
+
+  /// Coalesce a burst of cache writes into a single dashboard rebuild.
+  /// Replay and baseline both land dozens of events back-to-back; without
+  /// this, the dashboard would rebuild N times in ~100ms and flicker.
+  void _scheduleRefresh() {
+    if (_refreshTimer?.isActive ?? false) return;
+    _refreshTimer = Timer(const Duration(milliseconds: 50), () {
+      _refreshTimer = null;
+      if (_stopped) return;
+      _appState.refreshFromCache();
+    });
   }
 
   int _asInt(dynamic v) {

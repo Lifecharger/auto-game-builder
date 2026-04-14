@@ -33,6 +33,18 @@ class EventBus:
     def __init__(self) -> None:
         self._subscribers: list[asyncio.Queue[dict[str, Any]]] = []
         self._lock = asyncio.Lock()
+        # The FastAPI app binds the main event loop here on startup
+        # (see lifespan). Captured so publish() can thread-safely schedule
+        # fan-outs even when called from a worker thread where
+        # asyncio.get_running_loop() would raise.
+        self._loop: asyncio.AbstractEventLoop | None = None
+
+    def bind_loop(self, loop: asyncio.AbstractEventLoop) -> None:
+        """Called once at FastAPI startup with the main event loop so
+        publish() can work from any thread — including the threadpool
+        FastAPI uses for `def` (sync) handlers and the worker threads
+        deploy_engine spawns for build subprocesses."""
+        self._loop = loop
 
     async def subscribe(self) -> asyncio.Queue[dict[str, Any]]:
         queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=_QUEUE_MAX)
@@ -50,16 +62,25 @@ class EventBus:
     def publish(self, event_type: str, payload: dict[str, Any] | None = None) -> None:
         """Fan-out a single event to every live subscriber.
 
-        Safe to call from synchronous code — we schedule the actual put() on
-        the running event loop. No-op when there's no running loop (e.g. at
-        import time or inside a test that doesn't run the server).
+        Thread-safe: schedules the actual queue.put_nowait on the bound main
+        event loop via call_soon_threadsafe, so sync endpoint handlers and
+        deploy worker threads can both publish. If the loop hasn't been
+        bound yet (startup race) or isn't running, the event is dropped —
+        but the caller has already written to event_log, so reconnecting
+        clients will still see the change on replay.
         """
         event = {"type": event_type, **(payload or {})}
+        loop = self._loop
+        if loop is None:
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                return
         try:
-            loop = asyncio.get_running_loop()
+            loop.call_soon_threadsafe(self._broadcast_nowait, event)
         except RuntimeError:
+            # Loop is closed (e.g. during shutdown). Drop silently.
             return
-        loop.call_soon_threadsafe(self._broadcast_nowait, event)
 
     def _broadcast_nowait(self, event: dict[str, Any]) -> None:
         for queue in list(self._subscribers):

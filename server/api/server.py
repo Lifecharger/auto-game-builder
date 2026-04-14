@@ -90,6 +90,13 @@ def _cleanup_stale_db_state(db_inst: DBManager):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Capture the main event loop so event_bus.publish() works from worker
+    # threads (FastAPI sync def handlers, deploy build subprocess threads).
+    # Without this, asyncio.get_running_loop() raises RuntimeError from any
+    # thread that's not the main one and events get silently dropped —
+    # which would break live push for every sync endpoint in the server.
+    event_bus.bind_loop(asyncio.get_running_loop())
+
     app.state.db = DBManager(DB_PATH)
     _cleanup_stale_db_state(app.state.db)
     settings = get_settings()
@@ -389,42 +396,49 @@ async def events_stream(
     queue = await event_bus.subscribe()
 
     async def iterator():
+        # Track the highest seq we've sent on this connection so the live
+        # drain below can filter out anything the client already saw via
+        # replay or baseline. Starts at `last_seq` (what the client told
+        # us it has) and advances as we yield.
+        high_water = last_seq
         try:
             yield b": connected\n\n"
 
             # Replay the persistent log from wherever this client left off.
-            # If the client's last_seq is older than the oldest archive
-            # segment, replay_since just stops early — in that edge case
-            # we still want the client to know about current state, so we
-            # synthesise an `app.updated` op for every app after the replay
-            # finishes only if the replay yielded nothing.
-            replayed_any = False
             try:
                 for entry in event_log.replay_since(last_seq):
-                    replayed_any = True
                     yield _sse_frame(entry)
+                    seq = entry.get("seq")
+                    if isinstance(seq, int) and seq > high_water:
+                        high_water = seq
             except Exception as e:
                 logger.debug("event_log replay failed: %s", e)
 
-            if not replayed_any and last_seq == 0:
-                # First-ever connect (no persisted cursor): synthesise a
-                # baseline snapshot so the client sees every existing app
-                # without needing the log to have historical entries for
-                # them. Subsequent reconnects will use the real log.
+            # First-ever connect (no persisted cursor, log has nothing
+            # newer than what the client already has): synthesise a
+            # baseline snapshot so the client can reconstruct current
+            # state without the log needing historical entries.
+            #
+            # The baseline does NOT call event_log.append — it would bloat
+            # the log with synthetic entries on every fresh install AND
+            # each append would fan out through event_bus into our own
+            # queue, producing duplicate events. Instead we tag each
+            # baseline frame with the log's *current head* seq. After the
+            # client applies them, its last_seq == head, so the next
+            # reconnect returns zero replay rows and picks up from the
+            # real live stream.
+            if high_water == last_seq and last_seq == 0:
                 try:
+                    baseline_seq = event_log.current_seq
                     counts = db().count_issues_by_app(status="open")
                     for a in db().get_all_apps(include_archived=True):
-                        seq = event_log.append("app.updated", {"app": _app_dict(a, issue_counts=counts)})
-                        # The append also broadcast via event_bus — but
-                        # this client's queue wasn't subscribed yet when
-                        # the very first row went out, so yield the head
-                        # snapshot inline instead of relying on fan-out.
                         snapshot_frame = {
-                            "seq": seq,
+                            "seq": baseline_seq,
                             "type": "app.updated",
                             "app": _app_dict(a, issue_counts=counts),
                         }
                         yield _sse_frame(snapshot_frame)
+                    high_water = max(high_water, baseline_seq)
                 except Exception as e:
                     logger.debug("baseline snapshot failed: %s", e)
 
@@ -438,12 +452,15 @@ async def events_stream(
                 except asyncio.TimeoutError:
                     yield b": hb\n\n"
                     continue
-                # Skip events the client must have already seen via the
-                # replay — happens on first connect when the log append
-                # inside the snapshot block races the subscribe() above.
-                if isinstance(event.get("seq"), int) and event["seq"] <= last_seq:
+                seq = event.get("seq")
+                # Skip anything the client already has. Happens when a
+                # publish races with our replay loop — the fan-out lands
+                # in our queue before we've finished yielding from disk.
+                if isinstance(seq, int) and seq <= high_water:
                     continue
                 yield _sse_frame(event)
+                if isinstance(seq, int) and seq > high_water:
+                    high_water = seq
         finally:
             await event_bus.unsubscribe(queue)
 
