@@ -9,6 +9,12 @@ class CacheService {
   static final CacheService instance = CacheService._();
   CacheService._();
 
+  /// Bump this whenever AppModel/IssueModel/BuildModel JSON shape changes in a
+  /// way that makes old cache entries semantically stale (e.g. a new field that
+  /// the dashboard relies on). On mismatch, openBoxes() wipes the cache and
+  /// forces the next sync to fetch a fresh full snapshot.
+  static const int _schemaVersion = 2;
+
   Future<void> openBoxes() async {
     await Future.wait([
       Hive.openBox<String>(CacheBoxes.apps),
@@ -17,6 +23,22 @@ class CacheService {
       Hive.openBox<String>(CacheBoxes.sessions),
       Hive.openBox<String>(CacheBoxes.syncMeta),
     ]);
+    await _migrateIfNeeded();
+  }
+
+  Future<void> _migrateIfNeeded() async {
+    final box = Hive.box<String>(CacheBoxes.syncMeta);
+    final stored = int.tryParse(box.get('schema_version') ?? '') ?? 0;
+    if (stored != _schemaVersion) {
+      await Hive.box<String>(CacheBoxes.apps).clear();
+      await Hive.box<String>(CacheBoxes.issues).clear();
+      await Hive.box<String>(CacheBoxes.builds).clear();
+      await Hive.box<String>(CacheBoxes.sessions).clear();
+      // Wipe lastSyncTime too — we want a fresh full sync, not a delta from
+      // before the wipe — but keep schema_version up-to-date.
+      await box.clear();
+      await box.put('schema_version', _schemaVersion.toString());
+    }
   }
 
   // ── Apps ─────────────────────────────────────────────
