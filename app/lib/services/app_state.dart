@@ -88,8 +88,6 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _doLoadApps() async {
-    _error = null;
-
     // 1. Paint from cache immediately — zero-latency startup.
     final cached = CacheService.instance.getApps();
     if (cached.isNotEmpty) {
@@ -112,9 +110,15 @@ class AppState extends ChangeNotifier {
       final result = await ApiService.getApps();
       if (result.ok) {
         _apps = result.data!;
+        _error = null;
       } else {
-        _error = result.error ?? 'Failed to load apps';
+        _error = result.error ?? SyncService.instance.lastError ?? 'Failed to load apps';
       }
+    } else {
+      // Sync failed but we have cached data — surface the failure so the
+      // dashboard's "Synced Xm ago" label flips to "Sync failed" instead of
+      // pretending the data is fresh. Cached apps stay on screen.
+      _error = SyncService.instance.lastError ?? 'Sync failed';
     }
     _loading = false;
     notifyListeners();

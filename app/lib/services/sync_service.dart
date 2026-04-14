@@ -8,17 +8,29 @@ class SyncService {
 
   final CacheService _cache = CacheService.instance;
   bool _syncing = false;
+  String? _lastError;
 
   bool get isSyncing => _syncing;
 
+  /// Reason the most recent sync attempt failed, or null if the last attempt
+  /// succeeded. Cleared at the start of every new sync.
+  String? get lastError => _lastError;
+
+  /// Returns `true` only when the server actually accepted the request and we
+  /// wrote fresh data to the cache. On failure, [lastError] explains why.
   Future<bool> sync() async {
     if (_syncing) return false;
     _syncing = true;
+    _lastError = null;
 
     try {
       final since = _cache.getLastSyncTime();
       final result = await ApiService.getSync(since: since);
-      if (!result.ok) return false;
+      if (!result.ok) {
+        _lastError = result.error ?? 'Sync request failed';
+        debugPrint('Sync failed: $_lastError');
+        return false;
+      }
 
       final data = result.data!;
       final apps = (data['apps'] as List?)?.cast<Map<String, dynamic>>() ?? [];
@@ -40,7 +52,8 @@ class SyncService {
 
       return true;
     } catch (e) {
-      debugPrint('Sync failed: $e');
+      _lastError = 'Sync error: $e';
+      debugPrint(_lastError);
       return false;
     } finally {
       _syncing = false;
