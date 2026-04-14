@@ -350,6 +350,13 @@ async def events_stream(request: Request):
     completion on disk shows up on the phone in ~100ms instead of waiting
     for the next poll.
 
+    On connect, the server dumps every current app as an `app_updated`
+    event *before* entering the event loop. That full hydration is what
+    makes the stream self-healing: even if the client has a stale
+    `lastSyncTime` that would filter out every row in a delta query, the
+    moment it connects to /api/events it gets a complete fresh snapshot.
+    No separate full-sync endpoint needed, no schema-version dance.
+
     Auth: the Cloudflare Worker validates X-API-Key before it ever reaches
     this handler, so there's nothing extra to check here.
 
@@ -363,6 +370,20 @@ async def events_stream(request: Request):
             # Send an initial comment line so clients that only process after
             # the first byte know the connection is live.
             yield b": connected\n\n"
+
+            # Hydrate the client with the current state of every app before
+            # entering the event loop. Reuse the same `app_updated` frame
+            # shape the client already knows how to apply, so no special
+            # event type is needed.
+            try:
+                counts = db().count_issues_by_app(status="open")
+                for a in db().get_all_apps(include_archived=True):
+                    payload = {"type": "app_updated", "app": _app_dict(a, issue_counts=counts)}
+                    line = f"data: {json.dumps(payload, ensure_ascii=False)}\n\n".encode("utf-8")
+                    yield line
+            except Exception as e:
+                logger.debug("hydration dump failed: %s", e)
+
             while True:
                 if await request.is_disconnected():
                     return
