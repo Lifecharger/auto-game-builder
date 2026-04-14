@@ -16,6 +16,10 @@ class AppColors {
         return Colors.grey;
       case 'building':
         return info;
+      case 'uploading':
+        return const Color(0xFF9B59B6); // purple — distinct from build blue
+      case 'working':
+        return const Color(0xFF1ABC9C); // teal — a task is running right now
       case 'fixing':
         return warning;
       case 'deploying':

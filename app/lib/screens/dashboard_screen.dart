@@ -796,6 +796,16 @@ class _AppCard extends StatelessWidget {
     final unshipped = pendingTasks + inProgressTasks;
     final totalUnbuilt = pendingTasks + inProgressTasks + completedTasks;
 
+    // Derive the display status: when a persisted state like building/
+    // uploading/error is set on the server, surface that. Otherwise if the
+    // app is sitting "idle" but a task is actually running, the card should
+    // read 'working' so the user can see that something is happening right
+    // now without waiting for app.status to flip.
+    final serverStatus = app.status.toLowerCase();
+    final displayStatus = (serverStatus == 'idle' && inProgressTasks > 0)
+        ? 'working'
+        : serverStatus;
+
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       child: InkWell(
@@ -958,7 +968,7 @@ class _AppCard extends StatelessWidget {
                               ? AppColors.success
                               : isPostponed
                                   ? AppColors.warning
-                                  : AppColors.statusColor(app.status),
+                                  : AppColors.statusColor(displayStatus),
                         ),
                       ),
                       const SizedBox(width: 6),
@@ -968,13 +978,13 @@ class _AppCard extends StatelessWidget {
                               ? 'completed'
                               : isPostponed
                                   ? 'postponed'
-                                  : app.status,
+                                  : displayStatus,
                           style: TextStyle(
                             color: isCompleted
                                 ? AppColors.success
                                 : isPostponed
                                     ? AppColors.warning
-                                    : AppColors.statusColor(app.status),
+                                    : AppColors.statusColor(displayStatus),
                             fontSize: 13,
                             fontWeight: FontWeight.w500,
                           ),
@@ -1017,12 +1027,12 @@ class _AppCard extends StatelessWidget {
             ],
           ),
         ),
-          if (app.status == 'building')
+          if (serverStatus == 'building' || serverStatus == 'uploading' || displayStatus == 'working')
             ClipRRect(
               borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
               child: LinearProgressIndicator(
                 minHeight: 3,
-                color: AppColors.accent,
+                color: AppColors.statusColor(displayStatus),
                 backgroundColor: AppColors.bgDark,
               ),
             ),

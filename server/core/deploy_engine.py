@@ -354,6 +354,10 @@ class DeployEngine:
             if upload and build_target == "aab":
                 if self._is_cancelled(app.id):
                     return
+                # Flip the persisted app.status from 'building' to 'uploading'
+                # so the dashboard card reflects the distinct phase — the
+                # binary is done, we're now waiting on Google Play.
+                self.db.update_app(app.id, status="uploading")
                 upload_result = None
                 for upload_attempt in range(1, 4):
                     if self._is_cancelled(app.id):
