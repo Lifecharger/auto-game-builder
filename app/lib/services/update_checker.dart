@@ -72,7 +72,7 @@ class UpdateChecker {
         if (parent.path == dir.path) break;
         dir = parent;
       }
-    } catch (_) {}
+    } catch (e) { debugPrint('Failed to find git root: $e'); }
     return null;
   }
 

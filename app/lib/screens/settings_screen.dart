@@ -206,7 +206,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         );
       }
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Failed to open link: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -1239,8 +1240,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
     if (result == null || !mounted) return;
-    try {
-      await AppConfig.applyPairingData(result);
+    final ok = await AppConfig.applyPairingData(result);
+    if (!mounted) return;
+    if (ok) {
       _workerUrlController.text = AppConfig.workerUrl;
       _urlController.text = AppConfig.baseUrl;
       setState(() => _editingWorkerUrl = false);
@@ -1250,10 +1252,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           backgroundColor: AppColors.success,
         ),
       );
-    } catch (e) {
+    } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Invalid QR code: $e'),
+        const SnackBar(
+          content: Text('Invalid QR code data'),
           backgroundColor: AppColors.error,
         ),
       );

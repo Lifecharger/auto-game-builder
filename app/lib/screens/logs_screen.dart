@@ -117,7 +117,8 @@ class _LogsScreenState extends State<LogsScreen> with WidgetsBindingObserver {
       if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
       if (diff.inHours < 24) return '${diff.inHours}h ago';
       return '${diff.inDays}d ago';
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Failed to parse timestamp "$ts": $e');
       return ts;
     }
   }

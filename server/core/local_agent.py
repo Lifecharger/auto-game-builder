@@ -70,6 +70,10 @@ def run_local_task(
         return process.returncode, stdout or ""
     except subprocess.TimeoutExpired:
         process.kill()
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            pass
         return -1, "Timeout"
     except Exception as e:
         return -2, str(e)

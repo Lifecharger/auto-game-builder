@@ -20,9 +20,7 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingObserver {
-  Map<int, Map<String, dynamic>> _taskCounts = {};
   Map<String, String?> _installedVersions = {};
-  int _totalBuilds = 0;
   Timer? _pollTimer;
   Timer? _tickTimer;
   bool _appInForeground = true;
@@ -43,19 +41,19 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     WidgetsBinding.instance.addObserver(this);
     _loadCompletedApps();
     _loadPostponedApps();
-    Future.microtask(() {
+    // main.dart already kicks off loadApps() via the provider factory.
+    // That means cached apps have typically already painted by the time we get here.
+    // We only need to: (1) trigger the device-local installed-version scan, and
+    // (2) await any in-flight sync to update the "synced Xm ago" label.
+    Future.microtask(() async {
       if (!mounted) return;
-      context.read<AppState>().loadApps().then((_) {
-        _loadTaskCounts();
-        _loadInstalledVersions();
-        _loadBuildCount();
-        if (mounted) {
-          final hasError = context.read<AppState>().error != null;
-          setState(() {
-            _syncFailed = hasError;
-            if (!hasError) _lastSyncedAt = DateTime.now();
-          });
-        }
+      final state = context.read<AppState>();
+      _loadInstalledVersions();
+      await state.loadApps();
+      if (!mounted) return;
+      setState(() {
+        _syncFailed = state.error != null;
+        if (!_syncFailed) _lastSyncedAt = DateTime.now();
       });
     });
     _startPolling();
@@ -149,12 +147,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   }
 
   Future<void> _refresh() async {
-    await context.read<AppState>().loadApps();
-    await _loadTaskCounts();
+    final state = context.read<AppState>();
+    await state.loadApps();
     await _loadInstalledVersions();
-    await _loadBuildCount();
     if (mounted) {
-      final hasError = context.read<AppState>().error != null;
+      final hasError = state.error != null;
       setState(() {
         _syncFailed = hasError;
         if (!hasError) _lastSyncedAt = DateTime.now();
@@ -476,20 +473,6 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     );
   }
 
-  Future<void> _loadTaskCounts() async {
-    final apps = context.read<AppState>().apps;
-    final Map<int, Map<String, dynamic>> counts = {};
-    await Future.wait(apps.map((app) async {
-      final result = await ApiService.getAppTasksStatus(app.id);
-      if (result.ok) {
-        counts[app.id] = result.data!;
-      }
-    }));
-    if (mounted) {
-      setState(() => _taskCounts = counts);
-    }
-  }
-
   Future<void> _loadInstalledVersions() async {
     final apps = context.read<AppState>().apps;
     final packageNames =
@@ -499,13 +482,6 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         await InstalledAppsService.getInstalledVersions(packageNames);
     if (mounted) {
       setState(() => _installedVersions = versions);
-    }
-  }
-
-  Future<void> _loadBuildCount() async {
-    final result = await ApiService.getBuilds();
-    if (mounted && result.ok) {
-      setState(() => _totalBuilds = result.data!.length);
     }
   }
 
@@ -660,7 +636,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                 : ListView(
                     padding: const EdgeInsets.all(12),
                     children: [
-                      _TaskSummaryCard(taskCounts: _taskCounts, totalBuilds: _totalBuilds),
+                      _TaskSummaryCard(apps: state.apps, totalBuilds: state.totalBuilds),
                       if (showAllCategorized)
                         Padding(
                           padding: const EdgeInsets.symmetric(vertical: 24),
@@ -684,7 +660,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                         ),
                       ...activeApps.map((app) => _AppCard(
                         app: app,
-                        taskStatus: _taskCounts[app.id],
+                        taskStatus: app.taskStatus,
                         installedVersion: app.packageName.isNotEmpty
                             ? _installedVersions[app.packageName]
                             : null,
@@ -725,7 +701,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                             childrenPadding: const EdgeInsets.only(left: 8, right: 8, bottom: 8),
                             children: postponedApps.map((app) => _AppCard(
                               app: app,
-                              taskStatus: _taskCounts[app.id],
+                              taskStatus: app.taskStatus,
                               installedVersion: app.packageName.isNotEmpty
                                   ? _installedVersions[app.packageName]
                                   : null,
@@ -768,7 +744,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                             childrenPadding: const EdgeInsets.only(left: 8, right: 8, bottom: 8),
                             children: completedApps.map((app) => _AppCard(
                               app: app,
-                              taskStatus: _taskCounts[app.id],
+                              taskStatus: app.taskStatus,
                               installedVersion: app.packageName.isNotEmpty
                                   ? _installedVersions[app.packageName]
                                   : null,
@@ -792,7 +768,7 @@ enum _AppStatus { active, completed, postponed }
 
 class _AppCard extends StatelessWidget {
   final AppModel app;
-  final Map<String, dynamic>? taskStatus;
+  final Map<String, int> taskStatus;
   final String? installedVersion;
   final bool hasPackageName;
   final _AppStatus appStatus;
@@ -801,7 +777,7 @@ class _AppCard extends StatelessWidget {
 
   const _AppCard({
     required this.app,
-    this.taskStatus,
+    required this.taskStatus,
     this.installedVersion,
     this.hasPackageName = false,
     required this.appStatus,
@@ -814,9 +790,9 @@ class _AppCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final pendingTasks = taskStatus?['pending'] as int? ?? 0;
-    final inProgressTasks = taskStatus?['in_progress'] as int? ?? 0;
-    final completedTasks = taskStatus?['completed'] as int? ?? 0;
+    final pendingTasks = taskStatus['pending'] ?? 0;
+    final inProgressTasks = taskStatus['in_progress'] ?? 0;
+    final completedTasks = taskStatus['completed'] ?? 0;
     final unshipped = pendingTasks + inProgressTasks;
     final totalUnbuilt = pendingTasks + inProgressTasks + completedTasks;
 
@@ -1074,7 +1050,7 @@ class _AppCard extends StatelessWidget {
 
     // Compare version without build number (e.g. "1.2.25+37" -> "1.2.25")
     final currentBase = app.currentVersion.split('+').first;
-    final installedBase = installedVersion!.split('+').first;
+    final installedBase = (installedVersion ?? '').split('+').first;
     final isUpToDate = installedBase == currentBase;
     // Green if same version, red if older
     final color = isUpToDate ? AppColors.success : AppColors.error;
@@ -1105,21 +1081,22 @@ class _AppCard extends StatelessWidget {
 }
 
 class _TaskSummaryCard extends StatelessWidget {
-  final Map<int, Map<String, dynamic>> taskCounts;
+  final List<AppModel> apps;
   final int totalBuilds;
 
-  const _TaskSummaryCard({required this.taskCounts, required this.totalBuilds});
+  const _TaskSummaryCard({required this.apps, required this.totalBuilds});
 
   @override
   Widget build(BuildContext context) {
     int total = 0, pending = 0, inProgress = 0, completed = 0, built = 0, failed = 0;
-    for (final counts in taskCounts.values) {
-      total += (counts['total'] as int? ?? 0);
-      pending += (counts['pending'] as int? ?? 0);
-      inProgress += (counts['in_progress'] as int? ?? 0);
-      completed += (counts['completed'] as int? ?? 0);
-      built += (counts['built'] as int? ?? 0);
-      failed += (counts['failed'] as int? ?? 0);
+    for (final app in apps) {
+      final counts = app.taskStatus;
+      total += counts['total'] ?? 0;
+      pending += counts['pending'] ?? 0;
+      inProgress += counts['in_progress'] ?? 0;
+      completed += counts['completed'] ?? 0;
+      built += counts['built'] ?? 0;
+      failed += counts['failed'] ?? 0;
     }
 
     if (total == 0) return const SizedBox.shrink();

@@ -1,8 +1,10 @@
 """AppManager REST API — exposes full DB to mobile app via Cloudflare Tunnel."""
 
 import os
+import re
 import sys
 import json
+import logging
 import secrets
 import shlex
 import subprocess
@@ -29,6 +31,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from database.db_manager import DBManager
 from config.settings_loader import get_settings
 from config.path_utils import to_unix_path
+
+logger = logging.getLogger(__name__)
 
 DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "app_manager.db")
 DEATHPIN_DIR = ""  # Legacy — disabled
@@ -96,8 +100,8 @@ async def lifespan(app: FastAPI):
     if not _load_mcp_servers():
         try:
             auto_setup_mcp_presets()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("MCP auto-setup failed: %s", e)
     yield
     app.state.deploy.shutdown()
     app.state.internet.stop()
@@ -242,17 +246,18 @@ def health():
 def sync_delta(since: str = ""):
     """Return all records changed since the given ISO timestamp.
     If since is empty, returns everything (full sync)."""
+    counts = db().count_issues_by_app(status="open")
     if since:
-        apps = [_app_dict(a) for a in db.get_apps_since(since)]
-        issues = [_issue_dict(i) for i in db.get_issues_since(since)]
-        builds = [_build_dict(b) for b in db.get_builds_since(since)]
-        sessions = [_session_dict(s) for s in db.get_sessions_since(since)]
-        deleted = db.get_deleted_since(since)
+        apps = [_app_dict(a, issue_counts=counts) for a in db().get_apps_since(since)]
+        issues = [_issue_dict(i) for i in db().get_issues_since(since)]
+        builds = [_build_dict(b) for b in db().get_builds_since(since)]
+        sessions = [_session_dict(s) for s in db().get_sessions_since(since)]
+        deleted = db().get_deleted_since(since)
     else:
-        apps = [_app_dict(a) for a in db.get_all_apps(include_archived=True)]
-        issues = [_issue_dict(i) for i in db.get_all_issues()]
-        builds = [_build_dict(b) for b in db.get_all_builds()]
-        sessions = [_session_dict(s) for s in db.get_all_sessions()]
+        apps = [_app_dict(a, issue_counts=counts) for a in db().get_all_apps(include_archived=True)]
+        issues = [_issue_dict(i) for i in db().get_all_issues()]
+        builds = [_build_dict(b) for b in db().get_all_builds()]
+        sessions = [_session_dict(s) for s in db().get_all_sessions()]
         deleted = []
     return {
         "apps": apps,
@@ -283,7 +288,8 @@ def pair():
 @app.get("/api/apps")
 def list_apps(include_archived: bool = False):
     apps = db().get_all_apps(include_archived=include_archived)
-    return [_app_dict(a) for a in apps]
+    counts = db().count_issues_by_app(status="open")
+    return [_app_dict(a, issue_counts=counts) for a in apps]
 
 @app.get("/api/apps/{app_id}")
 def get_app(app_id: int):
@@ -817,21 +823,41 @@ def _read_project_version(a) -> str:
                     return f"{name_match.group(1)}+{code_match.group(1)}"
                 elif name_match:
                     return name_match.group(1)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Failed to read project version: %s", e)
     return ""
 
 
-def _app_dict(a) -> dict:
+def _compute_task_status(a) -> dict:
+    """Aggregate tasklist.json counts. Safe to call during _app_dict — returns zeros on any error."""
+    try:
+        tasks = _load_tasklist(a)
+    except Exception as e:
+        logger.debug("task status load failed for app %s: %s", a.id, e)
+        return {"total": 0, "completed": 0, "built": 0, "divided": 0,
+                "pending": 0, "in_progress": 0, "failed": 0}
+    return {
+        "total": len(tasks),
+        "completed": sum(1 for t in tasks if t.get("status") == "completed"),
+        "built": sum(1 for t in tasks if t.get("status") == "built"),
+        "divided": sum(1 for t in tasks if t.get("status") == "divided"),
+        "pending": sum(1 for t in tasks if t.get("status") == "pending"),
+        "in_progress": sum(1 for t in tasks if t.get("status") in ("in_progress", "partial")),
+        "failed": sum(1 for t in tasks if t.get("status") == "failed"),
+    }
+
+
+def _app_dict(a, issue_counts: dict | None = None, include_task_status: bool = True) -> dict:
     version = a.current_version
     real_version = _read_project_version(a)
     if real_version and real_version != version:
         version = real_version
         try:
             db().update_app(a.id, current_version=real_version)
-        except Exception:
-            pass
-    return {
+        except Exception as e:
+            logger.debug("Failed to update app version in DB: %s", e)
+    open_issues = issue_counts.get(a.id, 0) if issue_counts is not None else db().count_issues(a.id, status="open")
+    result = {
         "id": a.id, "name": a.name, "slug": a.slug,
         "project_path": a.project_path, "app_type": a.app_type,
         "current_version": version, "package_name": a.package_name,
@@ -843,8 +869,11 @@ def _app_dict(a) -> dict:
         "github_url": a.github_url, "play_store_url": a.play_store_url,
         "website_url": a.website_url, "console_url": a.console_url,
         "created_at": a.created_at, "updated_at": a.updated_at,
-        "open_issues": db().count_issues(a.id, status="open"),
+        "open_issues": open_issues,
     }
+    if include_task_status:
+        result["task_status"] = _compute_task_status(a)
+    return result
 
 
 # ── Issues ────────────────────────────────────────────────────
@@ -886,7 +915,8 @@ def create_issue(body: IssueCreate):
             try:
                 with open(DIRECTIVES_FILE, "r", encoding="utf-8") as f:
                     directives = json.load(f)
-            except Exception:
+            except Exception as e:
+                logger.debug("Failed to load directives: %s", e)
                 directives = []
         directives.append(directive)
         with open(DIRECTIVES_FILE, "w", encoding="utf-8") as f:
@@ -1112,7 +1142,8 @@ def _load_tasklist(a) -> list:
                     break
                 except (json.JSONDecodeError, UnicodeDecodeError):
                     data = None
-                except Exception:
+                except Exception as e:
+                    logger.debug("Tasklist read with encoding %s failed: %s", enc, e)
                     data = None
             if data is None:
                 # All encodings failed - file may be corrupted. Try backup.
@@ -1123,8 +1154,9 @@ def _load_tasklist(a) -> list:
                             data = json.load(f)
                         # Restore from backup
                         shutil.copy2(backup_path, path)
-                        print(f"WARNING: Restored tasklist.json from backup: {path}")
-                    except Exception:
+                        logger.warning("Restored tasklist.json from backup: %s", path)
+                    except Exception as e:
+                        logger.warning("Backup restore also failed for %s: %s", path, e)
                         return []
                 else:
                     return []
@@ -1187,6 +1219,12 @@ def _save_tasklist(a, tasks: list):
             pass
         raise
 
+    # Bump app.updated_at so /api/sync delta picks up the new task_status counts.
+    try:
+        db().touch_app(a.id)
+    except Exception as e:
+        logger.debug("touch_app failed for %s: %s", a.id, e)
+
 
 @app.get("/api/apps/{app_id}/tasks")
 def get_app_tasks(app_id: int, status: Optional[str] = None):
@@ -1246,8 +1284,8 @@ def add_app_task(app_id: int, body: TaskCreate):
                     with open(img_path, "wb") as img_f:
                         img_f.write(img_bytes)
                     saved_paths.append(img_path)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("Failed to save attachment %d: %s", idx, e)
             if saved_paths:
                 task["attachments"] = saved_paths
 
@@ -1669,6 +1707,7 @@ Return ONLY the enhanced CLAUDE.md content. No extra commentary."""
             _enhance_status[app_id] = {"type": doc_type, "status": "failed", "error": "Timed out after 10 minutes"}
             try:
                 proc.kill()
+                proc.wait(timeout=5)
             except Exception:
                 pass
         except Exception as e:
@@ -1826,8 +1865,9 @@ def delta_sync(since: str = ""):
         sessions = d.get_sessions_since(since)
         deleted = d.get_deleted_since(since)
 
+    counts = d.count_issues_by_app(status="open")
     return {
-        "apps": [_app_dict(a) for a in apps],
+        "apps": [_app_dict(a, issue_counts=counts) for a in apps],
         "issues": [_issue_dict(i) for i in issues],
         "builds": [_build_dict(b) for b in builds],
         "sessions": [_session_dict(s) for s in sessions],
@@ -1889,6 +1929,7 @@ def _kill_process_tree(proc: subprocess.Popen, timeout: int = 5):
         # Fallback: try basic kill
         try:
             proc.kill()
+            proc.wait(timeout=5)
         except Exception:
             pass
 
@@ -1935,6 +1976,9 @@ def _load_automation_instructions() -> str:
     return ""
 
 
+_STUDIO_KEY_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
+
+
 def _load_studio_knowledge(focus_key: str) -> str:
     """Load Game Studios specialist knowledge for a given focus area.
     focus_key examples: 'visual_audit', 'gameplay_ux', 'code_quality', 'polish_ideas',
@@ -1942,6 +1986,8 @@ def _load_studio_knowledge(focus_key: str) -> str:
     'tech_debt', 'asset_audit', 'content_audit', 'scope_check', 'perf_profile',
     'art_bible', 'asset_spec'.
     """
+    if not _STUDIO_KEY_RE.match(focus_key):
+        return ""
     studio_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config", "studio")
     filepath = os.path.join(studio_dir, f"{focus_key}.md")
     if os.path.isfile(filepath):
@@ -3038,12 +3084,12 @@ def agent_chat(body: ChatRequest):
         if agent == "claude":
             cmd_parts = [f'"{claude_bin}" -p --output-format json']
             if body.model:
-                cmd_parts.append(f'--model {body.model}')
+                cmd_parts.append(f'--model {shlex.quote(body.model)}')
             if body.session_id:
-                cmd_parts.append(f'--resume "{body.session_id}"')
+                cmd_parts.append(f'--resume {shlex.quote(body.session_id)}')
             if project_path:
                 pp_unix = to_unix_path(project_path)
-                cmd_parts.append(f'--add-dir "{pp_unix}"')
+                cmd_parts.append(f'--add-dir {shlex.quote(pp_unix)}')
             full_cmd = " ".join(cmd_parts)
             proc = subprocess.Popen(
                 [bash_exe, "-l", "-c", full_cmd],
@@ -3060,10 +3106,10 @@ def agent_chat(body: ChatRequest):
         elif agent == "gemini":
             cmd_parts = [f'"{gemini_bin}" -p --output-format json']
             if body.session_id:
-                cmd_parts.append(f'--resume "{body.session_id}"')
+                cmd_parts.append(f'--resume {shlex.quote(body.session_id)}')
             if project_path:
                 pp_unix = to_unix_path(project_path)
-                cmd_parts.append(f'--include-directories "{pp_unix}"')
+                cmd_parts.append(f'--include-directories {shlex.quote(pp_unix)}')
             full_cmd = " ".join(cmd_parts)
             proc = subprocess.Popen(
                 [bash_exe, "-l", "-c", full_cmd],
@@ -3081,8 +3127,8 @@ def agent_chat(body: ChatRequest):
             cmd_parts = [f'"{codex_bin}" exec -s danger-full-access -c approval_policy="never" --skip-git-repo-check']
             if project_path:
                 pp_unix = to_unix_path(project_path)
-                cmd_parts.append(f'-C "{pp_unix}"')
-            cmd_parts.append(f'"{prompt_text.replace(chr(34), chr(92)+chr(34))}"')
+                cmd_parts.append(f'-C {shlex.quote(pp_unix)}')
+            cmd_parts.append(shlex.quote(prompt_text))
             full_cmd = " ".join(cmd_parts)
             proc = subprocess.Popen(
                 [bash_exe, "-l", "-c", full_cmd],
@@ -3933,6 +3979,8 @@ def get_studio_knowledge(key: str):
 @app.put("/api/studio/knowledge/{key}")
 def update_studio_knowledge(key: str, body: GddUpdate):
     """Update a Game Studio knowledge file."""
+    if not _STUDIO_KEY_RE.match(key):
+        raise HTTPException(400, "Invalid key: must be alphanumeric, hyphens, or underscores only")
     studio_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "config", "studio")
     os.makedirs(studio_dir, exist_ok=True)
     filepath = os.path.join(studio_dir, f"{key}.md")

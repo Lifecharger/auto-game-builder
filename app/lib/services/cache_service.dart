@@ -84,6 +84,9 @@ class CacheService {
     return items;
   }
 
+  /// Cheap count of cached builds — avoids deserializing every entry.
+  int get buildCount => Hive.box<String>(CacheBoxes.builds).length;
+
   // ── Sessions ─────────────────────────────────────────
 
   Future<void> saveSessions(List<Map<String, dynamic>> sessions) async {

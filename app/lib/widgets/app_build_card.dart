@@ -462,7 +462,7 @@ class _AppBuildCardState extends State<AppBuildCard> {
               Row(
                 children: [
                   FilledButton.tonalIcon(
-                    onPressed: () => _retryUpload(),
+                    onPressed: _deploying ? null : () => _retryUpload(),
                     icon: const Icon(Icons.refresh, size: 18),
                     label: const Text('Retry Upload'),
                     style: FilledButton.styleFrom(
@@ -471,7 +471,28 @@ class _AppBuildCardState extends State<AppBuildCard> {
                   ),
                   const SizedBox(width: 8),
                   FilledButton.tonalIcon(
-                    onPressed: () => _startBuild(),
+                    onPressed: () async {
+                      final confirm = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          backgroundColor: AppColors.bgCard,
+                          icon: const Icon(Icons.replay, color: AppColors.warning),
+                          title: const Text('Rebuild?'),
+                          content: const Text('Start a new build from scratch?'),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx, false),
+                              child: const Text('Cancel'),
+                            ),
+                            FilledButton(
+                              onPressed: () => Navigator.pop(ctx, true),
+                              child: const Text('Rebuild'),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (confirm == true) _startBuild();
+                    },
                     icon: const Icon(Icons.replay, size: 18),
                     label: const Text('Rebuild'),
                   ),

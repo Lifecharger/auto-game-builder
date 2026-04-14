@@ -249,8 +249,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             lastConnected: DateTime.now().toIso8601String(),
           ),
         );
-      } catch (_) {
-        // Non-fatal: Drive save failed
+      } catch (e) {
+        debugPrint('Drive save failed: $e');
       }
     }
 
@@ -994,7 +994,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     final uri = Uri.parse(url);
     try {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Failed to open URL: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

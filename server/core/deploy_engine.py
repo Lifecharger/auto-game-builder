@@ -1,5 +1,6 @@
 """Deploy engine: build apps (Flutter/Godot/Phaser), auto-fix on failure, upload to Google Play."""
 
+import logging
 import os
 import re
 import shlex
@@ -8,6 +9,8 @@ import threading
 import time
 import json
 import traceback
+
+logger = logging.getLogger(__name__)
 from datetime import datetime
 from typing import Callable, Optional
 
@@ -605,18 +608,17 @@ class DeployEngine:
         output_lines = []
         hung = False
         process = None
+        flutter_cwd = app.project_path
 
+        acquired_godot_lock = False
         # Godot builds serialize via lock to avoid gradle daemon conflicts
         if is_godot:
             self._update_status(app.id, message=f"Waiting for build slot...")
             if not self._godot_build_lock.acquire(timeout=300):
-                # Lock stuck for 5 min — force release and take it
-                try:
-                    self._godot_build_lock.release()
-                except RuntimeError:
-                    pass
+                logger.warning("Godot build lock stuck for 5 min, creating new lock for app %s", app.id)
                 self._godot_build_lock = threading.Lock()
                 self._godot_build_lock.acquire()
+            acquired_godot_lock = True
 
         try:
             if is_godot:
@@ -782,8 +784,11 @@ class DeployEngine:
             )
         finally:
             self._active_processes.pop(app.id, None)
-            if is_godot and self._godot_build_lock.locked():
-                self._godot_build_lock.release()
+            if acquired_godot_lock:
+                try:
+                    self._godot_build_lock.release()
+                except RuntimeError:
+                    pass
 
         return build_id
 

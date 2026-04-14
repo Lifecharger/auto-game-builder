@@ -15,6 +15,7 @@ class AppModel {
   final String playStoreUrl;
   final String websiteUrl;
   final String consoleUrl;
+  final Map<String, int> taskStatus;
 
   AppModel({
     required this.id,
@@ -33,9 +34,21 @@ class AppModel {
     required this.playStoreUrl,
     required this.websiteUrl,
     required this.consoleUrl,
+    required this.taskStatus,
   });
 
   factory AppModel.fromJson(Map<String, dynamic> json) {
+    final rawStatus = json['task_status'];
+    final Map<String, int> parsedStatus = {};
+    if (rawStatus is Map) {
+      rawStatus.forEach((k, v) {
+        if (v is int) {
+          parsedStatus[k.toString()] = v;
+        } else if (v is num) {
+          parsedStatus[k.toString()] = v.toInt();
+        }
+      });
+    }
     return AppModel(
       id: json['id'] ?? 0,
       name: json['name'] ?? '',
@@ -53,6 +66,7 @@ class AppModel {
       playStoreUrl: json['play_store_url'] ?? '',
       websiteUrl: json['website_url'] ?? '',
       consoleUrl: json['console_url'] ?? '',
+      taskStatus: parsedStatus,
     );
   }
 }

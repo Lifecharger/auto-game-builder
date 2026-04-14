@@ -27,6 +27,11 @@ class AppState extends ChangeNotifier {
   int get activeTabIndex => _activeTabIndex;
   bool? get connected => _connected;
   int get pendingTaskCount => _pendingTaskCount;
+
+  /// Total cached builds across all apps — sourced from Hive, no network.
+  /// Stays in sync automatically because SyncService writes the builds box
+  /// and loadApps() calls notifyListeners() after each sync.
+  int get totalBuilds => CacheService.instance.buildCount;
   /// True when 2+ consecutive health checks have failed.
   bool get showOfflineBanner => _consecutiveFailures >= 2;
 
@@ -83,22 +88,27 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _doLoadApps() async {
-    _loading = true;
     _error = null;
-    notifyListeners();
 
+    // 1. Paint from cache immediately — zero-latency startup.
     final cached = CacheService.instance.getApps();
     if (cached.isNotEmpty) {
       _apps = cached;
       _loading = false;
       notifyListeners();
+    } else {
+      _loading = true;
+      notifyListeners();
     }
 
+    // 2. Sync delta in the background and refresh from cache when it lands.
     final synced = await SyncService.instance.sync();
     if (synced) {
       _apps = CacheService.instance.getApps();
       _error = null;
     } else if (cached.isEmpty) {
+      // No cache AND sync failed — fall back to the plain list endpoint so
+      // first-run users see something instead of an empty screen.
       final result = await ApiService.getApps();
       if (result.ok) {
         _apps = result.data!;

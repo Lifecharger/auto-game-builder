@@ -77,7 +77,6 @@ def main():
         [flutter, "build", "windows", "--release"],
         cwd=app_dir,
         capture_output=False,
-        shell=True,
     )
     if result.returncode != 0:
         print("\nBuild failed!")

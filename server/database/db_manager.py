@@ -1,5 +1,6 @@
 """Thread-safe SQLite database manager with CRUD for all tables."""
 
+import re
 import sqlite3
 import threading
 from typing import Optional
@@ -7,6 +8,14 @@ from database.models import (
     App, Issue, AutofixSession, Build, VersionHistory, AppTemplate, AppGroup,
 )
 from database.migrations import MIGRATIONS, get_migration_count
+
+_SAFE_COLUMN_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
+
+
+def _validate_columns(cols: list[str]):
+    for c in cols:
+        if not _SAFE_COLUMN_RE.match(c):
+            raise ValueError(f"Invalid column name: {c!r}")
 
 
 class DBManager:
@@ -103,6 +112,7 @@ class DBManager:
     def create_app(self, **kwargs) -> int:
         conn = self._get_conn()
         cols = [k for k in kwargs]
+        _validate_columns(cols)
         placeholders = ["?" for _ in cols]
         vals = [kwargs[k] for k in cols]
         cur = conn.execute(
@@ -134,6 +144,11 @@ class DBManager:
 
     def update_app(self, app_id: int, **kwargs):
         conn = self._get_conn()
+        if not kwargs:
+            conn.execute("UPDATE apps SET updated_at=datetime('now') WHERE id=?", (app_id,))
+            conn.commit()
+            return
+        _validate_columns(list(kwargs.keys()))
         sets = [f"{k}=?" for k in kwargs]
         vals = [kwargs[k] for k in kwargs]
         vals.append(app_id)
@@ -141,6 +156,12 @@ class DBManager:
             f"UPDATE apps SET {','.join(sets)}, updated_at=datetime('now') WHERE id=?",
             vals,
         )
+        conn.commit()
+
+    def touch_app(self, app_id: int):
+        """Bump updated_at so delta sync picks up out-of-band changes (tasklist.json, etc.)."""
+        conn = self._get_conn()
+        conn.execute("UPDATE apps SET updated_at=datetime('now') WHERE id=?", (app_id,))
         conn.commit()
 
     def delete_app(self, app_id: int):
@@ -197,6 +218,7 @@ class DBManager:
     def create_issue(self, **kwargs) -> int:
         conn = self._get_conn()
         cols = list(kwargs.keys())
+        _validate_columns(cols)
         cur = conn.execute(
             f"INSERT INTO issues ({','.join(cols)}) VALUES ({','.join('?' for _ in cols)})",
             list(kwargs.values()),
@@ -247,8 +269,22 @@ class DBManager:
             ).fetchone()
         return row[0]
 
+    def count_issues_by_app(self, status: Optional[str] = None) -> dict[int, int]:
+        conn = self._get_conn()
+        if status:
+            rows = conn.execute(
+                "SELECT app_id, COUNT(*) as cnt FROM issues WHERE status=? GROUP BY app_id",
+                (status,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT app_id, COUNT(*) as cnt FROM issues GROUP BY app_id"
+            ).fetchall()
+        return {r["app_id"]: r["cnt"] for r in rows}
+
     def update_issue(self, issue_id: int, **kwargs):
         conn = self._get_conn()
+        _validate_columns(list(kwargs.keys()))
         sets = [f"{k}=?" for k in kwargs]
         vals = list(kwargs.values())
         vals.append(issue_id)
@@ -289,6 +325,7 @@ class DBManager:
     def create_session(self, **kwargs) -> int:
         conn = self._get_conn()
         cols = list(kwargs.keys())
+        _validate_columns(cols)
         cur = conn.execute(
             f"INSERT INTO autofix_sessions ({','.join(cols)}) VALUES ({','.join('?' for _ in cols)})",
             list(kwargs.values()),
@@ -324,6 +361,7 @@ class DBManager:
 
     def update_session(self, session_id: int, **kwargs):
         conn = self._get_conn()
+        _validate_columns(list(kwargs.keys()))
         sets = [f"{k}=?" for k in kwargs]
         vals = list(kwargs.values())
         vals.append(session_id)
@@ -357,6 +395,7 @@ class DBManager:
     def create_build(self, **kwargs) -> int:
         conn = self._get_conn()
         cols = list(kwargs.keys())
+        _validate_columns(cols)
         cur = conn.execute(
             f"INSERT INTO builds ({','.join(cols)}) VALUES ({','.join('?' for _ in cols)})",
             list(kwargs.values()),
@@ -384,6 +423,7 @@ class DBManager:
 
     def update_build(self, build_id: int, **kwargs):
         conn = self._get_conn()
+        _validate_columns(list(kwargs.keys()))
         sets = [f"{k}=?" for k in kwargs]
         vals = list(kwargs.values())
         vals.append(build_id)
@@ -414,6 +454,7 @@ class DBManager:
     def create_version_entry(self, **kwargs) -> int:
         conn = self._get_conn()
         cols = list(kwargs.keys())
+        _validate_columns(cols)
         cur = conn.execute(
             f"INSERT INTO version_history ({','.join(cols)}) VALUES ({','.join('?' for _ in cols)})",
             list(kwargs.values()),
@@ -445,6 +486,7 @@ class DBManager:
     def create_template(self, **kwargs) -> int:
         conn = self._get_conn()
         cols = list(kwargs.keys())
+        _validate_columns(cols)
         cur = conn.execute(
             f"INSERT INTO app_templates ({','.join(cols)}) VALUES ({','.join('?' for _ in cols)})",
             list(kwargs.values()),
@@ -549,6 +591,7 @@ class DBManager:
 
     def update_group(self, group_id: int, **kwargs):
         conn = self._get_conn()
+        _validate_columns(list(kwargs.keys()))
         sets = [f"{k}=?" for k in kwargs]
         vals = list(kwargs.values())
         vals.append(group_id)

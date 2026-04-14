@@ -119,20 +119,23 @@ def start_background_services():
         last_pid = None
         while True:
             log_file = open(os.path.join(api_dir, "server_crash.log"), "w", encoding="utf-8")
-            host = settings.get("host", "0.0.0.0")
-            port = str(settings.get("port", 8000))
-            proc = subprocess.Popen(
-                [sys.executable, "-m", "uvicorn", "server:app", "--host", host, "--port", port],
-                cwd=api_dir,
-                stdout=log_file, stderr=log_file,
-                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
-            )
-            _background_procs.append(proc)
-            last_pid = proc.pid
-            print(f"[AutoGameBuilder] API server started (pid={proc.pid})")
-            proc.wait()
-            if proc in _background_procs:
-                _background_procs.remove(proc)
+            try:
+                host = settings.get("host", "0.0.0.0")
+                port = str(settings.get("port", 8000))
+                proc = subprocess.Popen(
+                    [sys.executable, "-m", "uvicorn", "server:app", "--host", host, "--port", port],
+                    cwd=api_dir,
+                    stdout=log_file, stderr=log_file,
+                    creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+                )
+                _background_procs.append(proc)
+                last_pid = proc.pid
+                print(f"[AutoGameBuilder] API server started (pid={proc.pid})")
+                proc.wait()
+                if proc in _background_procs:
+                    _background_procs.remove(proc)
+            finally:
+                log_file.close()
             print("[AutoGameBuilder] API server stopped. Restarting in 5s...")
             time.sleep(5)
             # Clear the port before restarting
@@ -193,7 +196,7 @@ def start_background_services():
                             "tunnel_url", tunnel_url, "--remote",
                         ]
                         subprocess.run(
-                            kv_cmd, timeout=30, shell=True,
+                            kv_cmd, timeout=30,
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                             creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
                         )
@@ -209,7 +212,7 @@ def start_background_services():
                                 "tunnel_sig", sig, "--remote",
                             ]
                             subprocess.run(
-                                sig_cmd, timeout=30, shell=True,
+                                sig_cmd, timeout=30,
                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                                 creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
                             )

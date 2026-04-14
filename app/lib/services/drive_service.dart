@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:http/http.dart' as http;
 import 'auth_service.dart';
 
@@ -168,7 +169,7 @@ class DriveService {
     final uri = Uri.parse(
         '$_driveUploadBase/files?uploadType=multipart');
 
-    await http.post(
+    final createResp = await http.post(
       uri,
       headers: {
         ...headers,
@@ -176,6 +177,9 @@ class DriveService {
       },
       body: body,
     );
+    if (createResp.statusCode < 200 || createResp.statusCode >= 300) {
+      debugPrint('Drive create failed (${createResp.statusCode}): ${createResp.body}');
+    }
   }
 
   /// Update an existing file's content.
@@ -184,7 +188,7 @@ class DriveService {
     final uri = Uri.parse(
         '$_driveUploadBase/files/$fileId?uploadType=media');
 
-    await http.patch(
+    final updateResp = await http.patch(
       uri,
       headers: {
         ...headers,
@@ -192,5 +196,8 @@ class DriveService {
       },
       body: content,
     );
+    if (updateResp.statusCode < 200 || updateResp.statusCode >= 300) {
+      debugPrint('Drive update failed (${updateResp.statusCode}): ${updateResp.body}');
+    }
   }
 }

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AppConfig {
@@ -44,14 +45,21 @@ class AppConfig {
   }
 
   /// Apply pairing data from QR code (base64 JSON with api_key + worker_url).
-  static Future<void> applyPairingData(String base64Data) async {
-    final decoded = jsonDecode(utf8.decode(base64Decode(base64Data)))
-        as Map<String, dynamic>;
-    await setApiKey(decoded['api_key'] as String);
-    final url = decoded['worker_url'] as String? ?? '';
-    if (url.isNotEmpty) {
-      await setWorkerUrl(url);
-      await setBaseUrl(url);
+  /// Returns true on success, false if the data is malformed.
+  static Future<bool> applyPairingData(String base64Data) async {
+    try {
+      final decoded = jsonDecode(utf8.decode(base64Decode(base64Data)))
+          as Map<String, dynamic>;
+      await setApiKey(decoded['api_key'] as String);
+      final url = decoded['worker_url'] as String? ?? '';
+      if (url.isNotEmpty) {
+        await setWorkerUrl(url);
+        await setBaseUrl(url);
+      }
+      return true;
+    } catch (e) {
+      debugPrint('Failed to apply pairing data: $e');
+      return false;
     }
   }
 }

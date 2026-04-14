@@ -344,7 +344,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       TextButton(
                         onPressed: () {
                           Navigator.pop(ctx);
-                          setState(() => _active!.messages.clear());
+                          setState(() => _active?.messages.clear());
                           _save();
                         },
                         child: const Text('Clear',

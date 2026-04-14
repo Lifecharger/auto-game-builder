@@ -386,6 +386,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
   }
 
   Widget _buildInfoCard() {
+    if (_app == null) return const SizedBox.shrink();
     final app = _app!;
     return Card(
       child: Padding(

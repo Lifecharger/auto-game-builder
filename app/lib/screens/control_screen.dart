@@ -21,6 +21,7 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
   String? _error;
   Timer? _pollTimer;
   bool _appInForeground = true;
+  bool _resetting = false;
   static const _myTabIndex = 2;
 
   // Filters (app category uses same SharedPreferences keys as issues screen)
@@ -207,6 +208,7 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
   }
 
   Future<void> _resetServer() async {
+    if (_resetting) return;
     final runningAutomations = _automations.where((a) => a.running).toList();
     final confirm = await showDialog<bool>(
       context: context,
@@ -242,23 +244,27 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
     );
     if (confirm != true || !mounted) return;
 
-    // Stop all running automations before reset to prevent auto-restart
-    if (runningAutomations.isNotEmpty) {
-      for (final auto in runningAutomations) {
-        await ApiService.stopAutomation(auto.appId);
+    setState(() => _resetting = true);
+    try {
+      // Stop all running automations before reset to prevent auto-restart
+      if (runningAutomations.isNotEmpty) {
+        for (final auto in runningAutomations) {
+          await ApiService.stopAutomation(auto.appId);
+        }
       }
-    }
 
-    final result = await ApiService.resetServer();
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result.ok ? result.data! : result.error!),
-          backgroundColor: result.ok ? AppColors.success : AppColors.error,
-        ),
-      );
-      // Reload automations to reflect stopped state
-      if (result.ok) _loadAutomations();
+      final result = await ApiService.resetServer();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result.ok ? result.data! : result.error!),
+            backgroundColor: result.ok ? AppColors.success : AppColors.error,
+          ),
+        );
+        if (result.ok) _loadAutomations();
+      }
+    } finally {
+      if (mounted) setState(() => _resetting = false);
     }
   }
 
@@ -722,9 +728,11 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
         title: const Text('Control'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.restart_alt),
+            icon: _resetting
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.restart_alt),
             tooltip: 'Reset Server',
-            onPressed: _resetServer,
+            onPressed: _resetting ? null : _resetServer,
           ),
           IconButton(icon: const Icon(Icons.refresh), onPressed: _loadAutomations),
         ],
