@@ -288,12 +288,15 @@ def _publish_app_changed(app_id: int) -> None:
 def _reconcile_tasklist_mtimes():
     """Catch tasklist.json edits made outside the API (e.g. Claude editing
     the file directly during an autonomous session). _save_tasklist normally
-    bumps app.updated_at via touch_app, but file-system writes that bypass
-    the API leave the DB clock stale — so the delta-sync query
-    `WHERE updated_at > since` filters out the changed app and the device's
-    cached task counts freeze. Compare each app's tasklist mtime (converted
-    to UTC to match the DB) against its DB updated_at and touch any that
-    drifted ahead."""
+    bumps app.updated_at via touch_app AND emits an `app.updated` op, but
+    file-system writes that bypass the API leave both the DB clock stale
+    AND the op log missing the change — so the dashboard never sees it.
+
+    For every app whose tasklist.json mtime drifted ahead of the DB row,
+    (1) bump updated_at so the legacy /api/sync delta query catches the
+    change, and (2) emit an app.updated op so live SSE subscribers receive
+    fresh task_status in ~100ms. Both paths are idempotent: the second
+    reconcile call in a row finds no newer files and emits nothing."""
     try:
         for a in db().get_all_apps(include_archived=True):
             try:
@@ -316,6 +319,13 @@ def _reconcile_tasklist_mtimes():
                     row_dt = row_updated
                 if file_mtime > row_dt:
                     db().touch_app(a.id)
+                    # Emit an op with fresh task_status so the op-log path
+                    # delivers the change to SSE clients. _publish_app_changed
+                    # re-reads the DB row (now with the bumped updated_at)
+                    # and calls _app_dict which recomputes task_status from
+                    # the on-disk tasklist, so the emitted event carries
+                    # the latest counts.
+                    _publish_app_changed(a.id)
             except Exception as e:
                 logger.debug("tasklist mtime check failed for app %s: %s", a.id, e)
     except Exception as e:
@@ -392,6 +402,16 @@ async def events_stream(
             client_cursors.touch(client_id, email=email or None)
         except Exception as e:
             logger.debug("cursor touch failed for %s: %s", client_id, e)
+
+    # Catch any out-of-band tasklist edits (Claude sessions, manual file
+    # tweaks) before we decide what to replay. If a file is newer than
+    # its DB row, reconcile emits an op which lands in the log — and the
+    # replay loop below picks it up along with everything else, so the
+    # client gets it without a separate code path.
+    try:
+        _reconcile_tasklist_mtimes()
+    except Exception as e:
+        logger.debug("events connect reconcile failed: %s", e)
 
     queue = await event_bus.subscribe()
 
