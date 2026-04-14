@@ -16,7 +16,7 @@ import random
 from pathlib import Path
 import time
 import psutil
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from contextlib import asynccontextmanager
 
@@ -242,24 +242,44 @@ def health():
     return {"status": "ok", "time": datetime.now().isoformat()}
 
 
+def _utc_now_str() -> str:
+    """Return 'YYYY-MM-DD HH:MM:SS' in UTC — matches SQLite's datetime('now')
+    format exactly so string comparisons against updated_at columns are
+    well-defined.
+
+    Why UTC and not local time: SQLite's datetime('now') is UTC, so every
+    touch_app/update_app write stores UTC. If the sync endpoint handed
+    clients a local-time string for lastSyncTime, the client would round-trip
+    it back as a `since` parameter that's ahead of every UTC row by the
+    local UTC offset — and `WHERE updated_at > since` would then filter out
+    everything forever. Using UTC throughout keeps client timestamps and
+    server timestamps in the same clock."""
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
+
 def _reconcile_tasklist_mtimes():
     """Catch tasklist.json edits made outside the API (e.g. Claude editing
     the file directly during an autonomous session). _save_tasklist normally
     bumps app.updated_at via touch_app, but file-system writes that bypass
     the API leave the DB clock stale — so the delta-sync query
     `WHERE updated_at > since` filters out the changed app and the device's
-    cached task counts freeze. Compare each app's tasklist mtime against its
-    DB updated_at and touch any that drifted ahead."""
+    cached task counts freeze. Compare each app's tasklist mtime (converted
+    to UTC to match the DB) against its DB updated_at and touch any that
+    drifted ahead."""
     try:
         for a in db().get_all_apps(include_archived=True):
             try:
                 path = _tasklist_path(a)
                 if not os.path.isfile(path):
                     continue
-                file_mtime = datetime.fromtimestamp(os.path.getmtime(path))
+                # fromtimestamp with tz=utc gives us the file mtime in UTC
+                # regardless of the host's local timezone. The DB stores UTC
+                # as a naive string, so drop the tz to make them comparable.
+                file_mtime = datetime.fromtimestamp(
+                    os.path.getmtime(path), tz=timezone.utc
+                ).replace(tzinfo=None)
                 row_updated = a.updated_at
                 if isinstance(row_updated, str):
-                    # SQLite stores 'YYYY-MM-DD HH:MM:SS' — parse to compare.
                     try:
                         row_dt = datetime.strptime(row_updated, "%Y-%m-%d %H:%M:%S")
                     except ValueError:
@@ -298,7 +318,7 @@ def sync_delta(since: str = ""):
         "builds": builds,
         "sessions": sessions,
         "deleted": deleted,
-        "server_time": datetime.now().isoformat(),
+        "server_time": _utc_now_str(),
     }
 
 
