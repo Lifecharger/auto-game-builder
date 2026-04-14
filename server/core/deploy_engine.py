@@ -21,7 +21,7 @@ from googleapiclient.http import MediaFileUpload
 from database.db_manager import DBManager
 from database.models import App
 from config.path_utils import to_unix_path
-from core.event_bus import event_bus
+from core.event_log import event_log
 SCOPES = ["https://www.googleapis.com/auth/androidpublisher"]
 
 # Valid Google Play tracks
@@ -148,12 +148,13 @@ class DeployEngine:
                 pass
 
     def _set_app_status(self, app_id: int, status: str, **extra):
-        """Wrap db.update_app(status=...) and push an SSE event so any
-        connected dashboard flips the card colour immediately — instead of
-        waiting for the next 15s poll."""
+        """Wrap db.update_app(status=...) and record an `app.status_changed`
+        op in the event log so any connected dashboard flips the card
+        colour immediately. The log persists the op — reconnecting clients
+        catch up by seq instead of missing the transition."""
         self.db.update_app(app_id, status=status, **extra)
-        event_bus.publish(
-            "app_status_changed",
+        event_log.append(
+            "app.status_changed",
             {"app_id": app_id, "status": status},
         )
 

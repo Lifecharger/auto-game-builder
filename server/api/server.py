@@ -56,8 +56,10 @@ def _get_tool_paths() -> dict:
 
 
 from core.autofix_engine import AutoFixEngine
+from core.client_cursors import client_cursors
 from core.deploy_engine import DeployEngine
 from core.event_bus import event_bus
+from core.event_log import event_log
 from core.internet_monitor import InternetMonitor
 
 
@@ -261,17 +263,17 @@ def _utc_now_str() -> str:
 
 
 def _publish_app_changed(app_id: int) -> None:
-    """Fetch the fresh row and push it onto the event bus as an
-    `app_updated` event. Called from every write site that mutates an app
-    — task edits, status flips, version bumps. The payload is the same
-    shape the sync endpoint returns, so the client can cache.saveApps
-    straight from the event data without a separate round trip."""
+    """Record an `app.updated` op in the event log AND fan it out to every
+    live SSE subscriber. The log write is what survives server restarts and
+    lets reconnecting clients catch up by `since_seq`; the fan-out is what
+    gives currently-connected phones <1s latency. Payload is the same
+    shape /api/sync returns, so the client can saveApps straight from it."""
     try:
         a = db().get_app(app_id)
         if not a:
             return
         counts = db().count_issues_by_app(status="open")
-        event_bus.publish("app_updated", {"app": _app_dict(a, issue_counts=counts)})
+        event_log.append("app.updated", {"app": _app_dict(a, issue_counts=counts)})
     except Exception as e:
         logger.debug("_publish_app_changed failed for %s: %s", app_id, e)
 
@@ -341,61 +343,107 @@ def sync_delta(since: str = ""):
     }
 
 
+def _sse_frame(event: dict) -> bytes:
+    """Format one log entry as an SSE frame with an `id:` line so the
+    client can remember `last_seq` without parsing the JSON body just
+    to extract it."""
+    seq = event.get("seq")
+    body = json.dumps(event, ensure_ascii=False)
+    if seq is not None:
+        return f"id: {seq}\ndata: {body}\n\n".encode("utf-8")
+    return f"data: {body}\n\n".encode("utf-8")
+
+
 @app.get("/api/events")
-async def events_stream(request: Request):
-    """Server-Sent Events stream: hold the HTTP connection open and write
-    one `data: <json>\\n\\n` frame per change as it happens. Clients open
-    this once on launch; the dashboard reads events, applies each payload
-    straight to its Hive cache, and calls notifyListeners — so a task
-    completion on disk shows up on the phone in ~100ms instead of waiting
-    for the next poll.
+async def events_stream(
+    request: Request,
+    client_id: str = Query(default="", description="Per-install UUID so the server can track per-client cursors."),
+    last_seq: int = Query(default=0, description="Highest seq the client has successfully applied. Server replays everything after this."),
+    email: str = Query(default="", description="Optional human-readable label (Google sign-in email) stored alongside the cursor for debugging."),
+):
+    """Operation-log SSE stream.
 
-    On connect, the server dumps every current app as an `app_updated`
-    event *before* entering the event loop. That full hydration is what
-    makes the stream self-healing: even if the client has a stale
-    `lastSyncTime` that would filter out every row in a delta query, the
-    moment it connects to /api/events it gets a complete fresh snapshot.
-    No separate full-sync endpoint needed, no schema-version dance.
+    Flow:
+    1. Client identifies itself by `client_id` (a UUID it generated on
+       first launch, stored in Hive). Optionally sends `last_seq` —
+       the highest op it has successfully applied to its local cache.
+    2. Server replays the persistent event log from `last_seq + 1`
+       through the current head. Each entry ships as an SSE frame with
+       an `id:` line carrying the seq.
+    3. After the replay drains, the handler subscribes to the live
+       event_bus and streams new ops as they're recorded.
+    4. Heartbeats every 15s keep proxies (Cloudflare, phone OS) from
+       killing an idle socket.
 
-    Auth: the Cloudflare Worker validates X-API-Key before it ever reaches
-    this handler, so there's nothing extra to check here.
-
-    Heartbeats every 15s keep the connection alive through intermediate
-    proxies that would otherwise kill an idle stream.
+    On client disconnect the handler unsubscribes cleanly and the next
+    reconnect picks up from wherever the client had ack'd — so a phone
+    that goes offline for 20 minutes comes back, sends `last_seq=1247`,
+    and only downloads the ops that happened in those 20 minutes.
     """
+    if client_id:
+        try:
+            client_cursors.touch(client_id, email=email or None)
+        except Exception as e:
+            logger.debug("cursor touch failed for %s: %s", client_id, e)
+
     queue = await event_bus.subscribe()
 
     async def iterator():
         try:
-            # Send an initial comment line so clients that only process after
-            # the first byte know the connection is live.
             yield b": connected\n\n"
 
-            # Hydrate the client with the current state of every app before
-            # entering the event loop. Reuse the same `app_updated` frame
-            # shape the client already knows how to apply, so no special
-            # event type is needed.
+            # Replay the persistent log from wherever this client left off.
+            # If the client's last_seq is older than the oldest archive
+            # segment, replay_since just stops early — in that edge case
+            # we still want the client to know about current state, so we
+            # synthesise an `app.updated` op for every app after the replay
+            # finishes only if the replay yielded nothing.
+            replayed_any = False
             try:
-                counts = db().count_issues_by_app(status="open")
-                for a in db().get_all_apps(include_archived=True):
-                    payload = {"type": "app_updated", "app": _app_dict(a, issue_counts=counts)}
-                    line = f"data: {json.dumps(payload, ensure_ascii=False)}\n\n".encode("utf-8")
-                    yield line
+                for entry in event_log.replay_since(last_seq):
+                    replayed_any = True
+                    yield _sse_frame(entry)
             except Exception as e:
-                logger.debug("hydration dump failed: %s", e)
+                logger.debug("event_log replay failed: %s", e)
 
+            if not replayed_any and last_seq == 0:
+                # First-ever connect (no persisted cursor): synthesise a
+                # baseline snapshot so the client sees every existing app
+                # without needing the log to have historical entries for
+                # them. Subsequent reconnects will use the real log.
+                try:
+                    counts = db().count_issues_by_app(status="open")
+                    for a in db().get_all_apps(include_archived=True):
+                        seq = event_log.append("app.updated", {"app": _app_dict(a, issue_counts=counts)})
+                        # The append also broadcast via event_bus — but
+                        # this client's queue wasn't subscribed yet when
+                        # the very first row went out, so yield the head
+                        # snapshot inline instead of relying on fan-out.
+                        snapshot_frame = {
+                            "seq": seq,
+                            "type": "app.updated",
+                            "app": _app_dict(a, issue_counts=counts),
+                        }
+                        yield _sse_frame(snapshot_frame)
+                except Exception as e:
+                    logger.debug("baseline snapshot failed: %s", e)
+
+            # Live event loop. Drain queue entries as the event bus
+            # publishes them; fall through to a heartbeat every 15s.
             while True:
                 if await request.is_disconnected():
                     return
                 try:
                     event = await asyncio.wait_for(queue.get(), timeout=15.0)
                 except asyncio.TimeoutError:
-                    # Heartbeat — SSE comment lines start with a colon and
-                    # get ignored by the parser but keep the socket alive.
                     yield b": hb\n\n"
                     continue
-                line = f"data: {json.dumps(event, ensure_ascii=False)}\n\n".encode("utf-8")
-                yield line
+                # Skip events the client must have already seen via the
+                # replay — happens on first connect when the log append
+                # inside the snapshot block races the subscribe() above.
+                if isinstance(event.get("seq"), int) and event["seq"] <= last_seq:
+                    continue
+                yield _sse_frame(event)
         finally:
             await event_bus.unsubscribe(queue)
 
@@ -408,6 +456,26 @@ async def events_stream(request: Request):
             "Connection": "keep-alive",
         },
     )
+
+
+class _AckBody(BaseModel):
+    client_id: str
+    last_seq: int
+    email: Optional[str] = None
+
+
+@app.post("/api/events/ack")
+def events_ack(body: _AckBody):
+    """Client ack: "I have successfully applied everything through seq N."
+
+    The server records this against the client's cursor so the next
+    reconnect only replays events after N — and so log rotation can
+    safely archive segments every active client has already consumed.
+    """
+    if not body.client_id:
+        raise HTTPException(400, "client_id required")
+    client_cursors.update(body.client_id, body.last_seq, email=body.email)
+    return {"ok": True}
 
 
 @app.get("/api/pair")

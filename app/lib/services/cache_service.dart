@@ -30,14 +30,22 @@ class CacheService {
     final box = Hive.box<String>(CacheBoxes.syncMeta);
     final stored = int.tryParse(box.get('schema_version') ?? '') ?? 0;
     if (stored != _schemaVersion) {
+      // Preserve the per-install client_id across schema wipes — it
+      // identifies the device to the server, not the data layout, and
+      // wiping it would make this device look like a brand-new client
+      // and lose its cursor history.
+      final preservedClientId = box.get('client_id');
       await Hive.box<String>(CacheBoxes.apps).clear();
       await Hive.box<String>(CacheBoxes.issues).clear();
       await Hive.box<String>(CacheBoxes.builds).clear();
       await Hive.box<String>(CacheBoxes.sessions).clear();
-      // Wipe lastSyncTime too — we want a fresh full sync, not a delta from
-      // before the wipe — but keep schema_version up-to-date.
       await box.clear();
       await box.put('schema_version', _schemaVersion.toString());
+      if (preservedClientId != null && preservedClientId.isNotEmpty) {
+        await box.put('client_id', preservedClientId);
+      }
+      // last_seq intentionally NOT preserved — the local cache is empty
+      // so the next sync should start from 0 and rebuild state.
     }
   }
 
@@ -174,6 +182,34 @@ class CacheService {
   Future<void> setLastSyncTime(String time) async {
     final box = Hive.box<String>(CacheBoxes.syncMeta);
     await box.put('last_sync_time', time);
+  }
+
+  // ── Op-log sync state ────────────────────────────────────
+
+  /// Highest op seq this client has successfully applied to its cache.
+  /// Sent to /api/events as `last_seq` so the server only replays events
+  /// the client hasn't already processed.
+  int getLastSeq() {
+    final box = Hive.box<String>(CacheBoxes.syncMeta);
+    return int.tryParse(box.get('last_seq') ?? '') ?? 0;
+  }
+
+  Future<void> setLastSeq(int seq) async {
+    final box = Hive.box<String>(CacheBoxes.syncMeta);
+    await box.put('last_seq', seq.toString());
+  }
+
+  /// Per-install UUID used by the server to key each client's cursor in
+  /// client_cursors.json. Generated once on first launch and kept for
+  /// the life of this Hive cache.
+  String getClientId() {
+    final box = Hive.box<String>(CacheBoxes.syncMeta);
+    return box.get('client_id') ?? '';
+  }
+
+  Future<void> setClientId(String id) async {
+    final box = Hive.box<String>(CacheBoxes.syncMeta);
+    await box.put('client_id', id);
   }
 
   bool get hasCachedData {
