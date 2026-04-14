@@ -18,6 +18,44 @@ def _validate_columns(cols: list[str]):
             raise ValueError(f"Invalid column name: {c!r}")
 
 
+def _normalize_since(since: str) -> str:
+    """Normalise a client-supplied ISO timestamp to the SQLite `datetime('now')`
+    format ('YYYY-MM-DD HH:MM:SS', no fractional seconds, no timezone, space
+    separator) so plain string comparison against `updated_at`/`created_at`
+    works.
+
+    Why this exists: SQLite stores `datetime('now')` as
+    '2026-04-14 09:01:59' (space, no microseconds, no TZ), but the FastAPI
+    layer hands clients `datetime.now().isoformat()` which produces
+    '2026-04-14T09:01:59.123456' (T, microseconds). Doing
+    `WHERE updated_at > ?` with a raw isoformat string compares 'space' (0x20)
+    against 'T' (0x54) at index 10 — every DB row is "less than" any client
+    timestamp, so the delta sync silently returns zero rows and the cache
+    on the device freezes forever. Normalising the input here makes the
+    comparison meaningful again without forcing every caller to format dates
+    the same way.
+    """
+    if not since:
+        return since
+    s = since.strip()
+    if s.endswith("Z"):
+        s = s[:-1]
+    # Replace ISO 'T' separator with the space SQLite uses.
+    if "T" in s:
+        s = s.replace("T", " ", 1)
+    # Strip any trailing timezone offset like '+03:00' or '-05:30' that would
+    # make string comparison meaningless. Look for +/- after the time portion.
+    for sign in ("+", "-"):
+        idx = s.find(sign, 11)  # skip leading '-' in date
+        if idx != -1:
+            s = s[:idx]
+            break
+    # Cut off microseconds at the dot — SQLite's datetime('now') has none.
+    if "." in s:
+        s = s.split(".", 1)[0]
+    return s
+
+
 class DBManager:
     def __init__(self, db_path: str):
         self.db_path = db_path
@@ -60,35 +98,39 @@ class DBManager:
         conn = self._get_conn()
         rows = conn.execute(
             "SELECT table_name, record_id, app_id, deleted_at FROM deleted_records WHERE deleted_at > ?",
-            (since,),
+            (_normalize_since(since),),
         ).fetchall()
         return [{"table": r["table_name"], "record_id": r["record_id"], "app_id": r["app_id"], "deleted_at": r["deleted_at"]} for r in rows]
 
     def get_apps_since(self, since: str) -> list[App]:
         conn = self._get_conn()
+        s = _normalize_since(since)
         rows = conn.execute(
-            "SELECT * FROM apps WHERE updated_at > ? OR created_at > ?", (since, since)
+            "SELECT * FROM apps WHERE updated_at > ? OR created_at > ?", (s, s)
         ).fetchall()
         return [self._row_to_app(r) for r in rows]
 
     def get_issues_since(self, since: str) -> list[Issue]:
         conn = self._get_conn()
+        s = _normalize_since(since)
         rows = conn.execute(
-            "SELECT * FROM issues WHERE updated_at > ? OR created_at > ?", (since, since)
+            "SELECT * FROM issues WHERE updated_at > ? OR created_at > ?", (s, s)
         ).fetchall()
         return [self._row_to_issue(r) for r in rows]
 
     def get_builds_since(self, since: str) -> list[Build]:
         conn = self._get_conn()
+        s = _normalize_since(since)
         rows = conn.execute(
-            "SELECT * FROM builds WHERE updated_at > ? OR created_at > ?", (since, since)
+            "SELECT * FROM builds WHERE updated_at > ? OR created_at > ?", (s, s)
         ).fetchall()
         return [self._row_to_build(r) for r in rows]
 
     def get_sessions_since(self, since: str) -> list[AutofixSession]:
         conn = self._get_conn()
+        s = _normalize_since(since)
         rows = conn.execute(
-            "SELECT * FROM autofix_sessions WHERE updated_at > ? OR created_at > ?", (since, since)
+            "SELECT * FROM autofix_sessions WHERE updated_at > ? OR created_at > ?", (s, s)
         ).fetchall()
         return [self._row_to_session(r) for r in rows]
 
