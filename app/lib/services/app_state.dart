@@ -87,6 +87,16 @@ class AppState extends ChangeNotifier {
     return _appsInFlight!;
   }
 
+  /// Re-read the apps cache and notify listeners. Called by EventService
+  /// after it applies a server-pushed delta (app_updated, app_status_changed,
+  /// etc.) — skips the network round trip and the loading spinner because
+  /// we know the cache just got fresh data.
+  void refreshFromCache() {
+    _apps = CacheService.instance.getApps();
+    _error = null;
+    notifyListeners();
+  }
+
   Future<void> _doLoadApps() async {
     // 1. Paint from cache immediately — zero-latency startup.
     final cached = CacheService.instance.getApps();

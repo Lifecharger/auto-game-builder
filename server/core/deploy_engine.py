@@ -21,6 +21,7 @@ from googleapiclient.http import MediaFileUpload
 from database.db_manager import DBManager
 from database.models import App
 from config.path_utils import to_unix_path
+from core.event_bus import event_bus
 SCOPES = ["https://www.googleapis.com/auth/androidpublisher"]
 
 # Valid Google Play tracks
@@ -146,6 +147,16 @@ class DeployEngine:
             except Exception:
                 pass
 
+    def _set_app_status(self, app_id: int, status: str, **extra):
+        """Wrap db.update_app(status=...) and push an SSE event so any
+        connected dashboard flips the card colour immediately — instead of
+        waiting for the next 15s poll."""
+        self.db.update_app(app_id, status=status, **extra)
+        event_bus.publish(
+            "app_status_changed",
+            {"app_id": app_id, "status": status},
+        )
+
     def cancel(self, app_id: int) -> dict:
         """Cancel an active deploy/build for the given app."""
         self._cancelled.add(app_id)
@@ -175,7 +186,7 @@ class DeployEngine:
 
         self._update_status(app_id, phase="failed", message="Build cancelled by user")
         self._active_processes.pop(app_id, None)
-        self.db.update_app(app_id, status="idle")
+        self._set_app_status(app_id, "idle")
         return {"ok": True, "message": "Build cancelled"}
 
     def _is_cancelled(self, app_id: int) -> bool:
@@ -340,7 +351,7 @@ class DeployEngine:
                         app.id, phase="failed",
                         message=f"Build {'hung' if was_hung else 'failed'} after {max_retries + 1} attempts"
                     )
-                    self.db.update_app(app.id, status="error")
+                    self._set_app_status(app.id, "error")
                     return
 
             if not output_path or not os.path.exists(output_path):
@@ -357,7 +368,7 @@ class DeployEngine:
                 # Flip the persisted app.status from 'building' to 'uploading'
                 # so the dashboard card reflects the distinct phase — the
                 # binary is done, we're now waiting on Google Play.
-                self.db.update_app(app.id, status="uploading")
+                self._set_app_status(app.id, "uploading")
                 upload_result = None
                 for upload_attempt in range(1, 4):
                     if self._is_cancelled(app.id):
@@ -387,9 +398,9 @@ class DeployEngine:
                         "beta": "external_test",
                         "production": "published",
                     }
-                    self.db.update_app(
+                    self._set_app_status(
                         app.id,
-                        status="idle",
+                        "idle",
                         publish_status=publish_map.get(track, "internal_test"),
                     )
                 else:
@@ -404,14 +415,14 @@ class DeployEngine:
                     app.id, phase="done",
                     message=f"{target_label} build complete: {output_path}"
                 )
-                self.db.update_app(app.id, status="idle")
+                self._set_app_status(app.id, "idle")
 
         except Exception as e:
             self._update_status(
                 app.id, phase="failed",
                 message=f"Deploy error: {str(e)}"
             )
-            self.db.update_app(app.id, status="error")
+            self._set_app_status(app.id, "error")
         finally:
             self._active_processes.pop(app.id, None)
 
@@ -607,7 +618,7 @@ class DeployEngine:
             started_at=datetime.now().isoformat(),
         )
 
-        self.db.update_app(app.id, status="building")
+        self._set_app_status(app.id, "building")
         start = time.time()
         output_lines = []
         hung = False

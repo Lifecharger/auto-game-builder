@@ -6,6 +6,7 @@ import 'config.dart';
 import 'services/app_state.dart';
 import 'services/auth_service.dart';
 import 'services/cache_service.dart';
+import 'services/event_service.dart';
 import 'services/update_checker.dart';
 import 'theme.dart';
 import 'screens/dashboard_screen.dart';
@@ -44,7 +45,14 @@ class AppManagerMobile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (_) => AppState()..loadApps(),
+      create: (_) {
+        final state = AppState()..loadApps();
+        // Open the SSE event stream so server-side changes (task edits,
+        // build-engine status flips, deploy uploads) push onto the
+        // dashboard immediately instead of waiting for the 15s poll.
+        EventService(state).start();
+        return state;
+      },
       child: MaterialApp(
         title: 'Auto Game Builder',
         debugShowCheckedModeBanner: false,

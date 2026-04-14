@@ -1,5 +1,6 @@
 """AppManager REST API — exposes full DB to mobile app via Cloudflare Tunnel."""
 
+import asyncio
 import os
 import re
 import sys
@@ -22,6 +23,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 from pydantic import BaseModel
@@ -55,6 +57,7 @@ def _get_tool_paths() -> dict:
 
 from core.autofix_engine import AutoFixEngine
 from core.deploy_engine import DeployEngine
+from core.event_bus import event_bus
 from core.internet_monitor import InternetMonitor
 
 
@@ -257,6 +260,22 @@ def _utc_now_str() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
 
+def _publish_app_changed(app_id: int) -> None:
+    """Fetch the fresh row and push it onto the event bus as an
+    `app_updated` event. Called from every write site that mutates an app
+    — task edits, status flips, version bumps. The payload is the same
+    shape the sync endpoint returns, so the client can cache.saveApps
+    straight from the event data without a separate round trip."""
+    try:
+        a = db().get_app(app_id)
+        if not a:
+            return
+        counts = db().count_issues_by_app(status="open")
+        event_bus.publish("app_updated", {"app": _app_dict(a, issue_counts=counts)})
+    except Exception as e:
+        logger.debug("_publish_app_changed failed for %s: %s", app_id, e)
+
+
 def _reconcile_tasklist_mtimes():
     """Catch tasklist.json edits made outside the API (e.g. Claude editing
     the file directly during an autonomous session). _save_tasklist normally
@@ -320,6 +339,54 @@ def sync_delta(since: str = ""):
         "deleted": deleted,
         "server_time": _utc_now_str(),
     }
+
+
+@app.get("/api/events")
+async def events_stream(request: Request):
+    """Server-Sent Events stream: hold the HTTP connection open and write
+    one `data: <json>\\n\\n` frame per change as it happens. Clients open
+    this once on launch; the dashboard reads events, applies each payload
+    straight to its Hive cache, and calls notifyListeners — so a task
+    completion on disk shows up on the phone in ~100ms instead of waiting
+    for the next poll.
+
+    Auth: the Cloudflare Worker validates X-API-Key before it ever reaches
+    this handler, so there's nothing extra to check here.
+
+    Heartbeats every 15s keep the connection alive through intermediate
+    proxies that would otherwise kill an idle stream.
+    """
+    queue = await event_bus.subscribe()
+
+    async def iterator():
+        try:
+            # Send an initial comment line so clients that only process after
+            # the first byte know the connection is live.
+            yield b": connected\n\n"
+            while True:
+                if await request.is_disconnected():
+                    return
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=15.0)
+                except asyncio.TimeoutError:
+                    # Heartbeat — SSE comment lines start with a colon and
+                    # get ignored by the parser but keep the socket alive.
+                    yield b": hb\n\n"
+                    continue
+                line = f"data: {json.dumps(event, ensure_ascii=False)}\n\n".encode("utf-8")
+                yield line
+        finally:
+            await event_bus.unsubscribe(queue)
+
+    return StreamingResponse(
+        iterator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",  # tell nginx/CF not to buffer
+            "Connection": "keep-alive",
+        },
+    )
 
 
 @app.get("/api/pair")
@@ -1277,6 +1344,14 @@ def _save_tasklist(a, tasks: list):
         db().touch_app(a.id)
     except Exception as e:
         logger.debug("touch_app failed for %s: %s", a.id, e)
+
+    # Broadcast to every connected SSE subscriber so dashboards with an open
+    # event stream pick up the change in ~100ms instead of waiting for the
+    # next 15-second poll.
+    try:
+        _publish_app_changed(a.id)
+    except Exception as e:
+        logger.debug("publish app_changed failed for %s: %s", a.id, e)
 
 
 @app.get("/api/apps/{app_id}/tasks")

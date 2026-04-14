@@ -53,6 +53,19 @@ class CacheService {
     }
   }
 
+  /// Merge a single field into a cached app entry without rewriting the
+  /// whole object. Used by EventService for `app_status_changed` events
+  /// where the server only sends the delta.
+  Future<void> patchAppField(int appId, String field, dynamic value) async {
+    if (appId == 0) return;
+    final box = Hive.box<String>(CacheBoxes.apps);
+    final raw = box.get(appId.toString());
+    if (raw == null) return;
+    final map = jsonDecode(raw) as Map<String, dynamic>;
+    map[field] = value;
+    await box.put(appId.toString(), jsonEncode(map));
+  }
+
   List<AppModel> getApps() {
     final box = Hive.box<String>(CacheBoxes.apps);
     return box.values
