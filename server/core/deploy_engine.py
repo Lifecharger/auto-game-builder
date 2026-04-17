@@ -132,6 +132,9 @@ class DeployEngine:
         self._cancelled: set[int] = set()  # app_ids with cancelled deploys
         self._shutting_down = False
         self._godot_build_lock = threading.Lock()  # serialize Godot builds to avoid gradle conflicts
+        self._deploy_queue: list[tuple] = []  # sequential deploy queue
+        self._deploy_queue_lock = threading.Lock()
+        self._deploy_worker_running = False
         self._callbacks: dict[str, list[Callable]] = {
             "deploy_status": [],
         }
@@ -258,17 +261,57 @@ class DeployEngine:
         }
         self._active_deploys[app.id] = status
 
-        thread = threading.Thread(
-            target=self._run_deploy,
-            args=(app, track, build_target, upload, max_retries),
-            daemon=True,
-        )
-        thread.start()
+        # Queue the deploy instead of spawning a thread per request.
+        # A single worker thread processes them one-by-one, preventing
+        # network overload when many deploys are triggered at once.
+        #
+        # queue_pos and worker_was_running must be captured INSIDE the
+        # lock — reading len() outside the lock produced duplicate
+        # position numbers when multiple requests raced.
+        with self._deploy_queue_lock:
+            worker_was_running = self._deploy_worker_running
+            self._deploy_queue.append((app, track, build_target, upload, max_retries))
+            queue_pos = len(self._deploy_queue)
+            if not self._deploy_worker_running:
+                self._deploy_worker_running = True
+                threading.Thread(target=self._deploy_worker, daemon=True).start()
 
         msg = f"Building {target_label}"
         if upload:
             msg += f" + upload to {track}"
+        # If a worker was already running when we appended, something is
+        # ahead of us — we're genuinely queued. If we started the worker
+        # ourselves, the queue was empty and we'll be popped immediately.
+        if worker_was_running:
+            msg += f" (queued #{queue_pos})"
+            self._update_status(app.id, phase="queued", message=f"Queued (position {queue_pos})")
+            self._set_app_status(app.id, "queued")
         return {"ok": True, "message": msg}
+
+    def _deploy_worker(self):
+        """Process queued deploys one at a time."""
+        while True:
+            with self._deploy_queue_lock:
+                if not self._deploy_queue:
+                    self._deploy_worker_running = False
+                    return
+                job = self._deploy_queue.pop(0)
+                remaining = list(self._deploy_queue)
+            # Refresh queued-position messages for items still waiting.
+            # Positions shift down as each job is popped; without this
+            # refresh, stale numbers collided (two cards reading #8).
+            for pos, q_job in enumerate(remaining, start=1):
+                q_app = q_job[0]
+                self._update_status(
+                    q_app.id,
+                    phase="queued",
+                    message=f"Queued (position {pos})",
+                )
+            try:
+                self._run_deploy(*job)
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).error("deploy worker error: %s", e)
 
     def _update_status(self, app_id: int, **kwargs):
         if app_id in self._active_deploys:

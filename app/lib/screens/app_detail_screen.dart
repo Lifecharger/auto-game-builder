@@ -21,7 +21,6 @@ class AppDetailScreen extends StatefulWidget {
 
 class _AppDetailScreenState extends State<AppDetailScreen> {
   AppModel? _app;
-  List<dynamic> _tasks = [];
   List<BuildModel> _builds = [];
   bool _loading = true;
   String? _loadError;
@@ -64,26 +63,42 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
   }
 
   Future<void> _loadData() async {
-    setState(() {
-      _loading = true;
-      _loadError = null;
-    });
+    // Cache-first: hydrate from local Hive before any network call so the
+    // screen never blanks out on cold open. Anything the cache doesn't have
+    // (deploy/MCP state, fresh app row, tasks) still waits on the network,
+    // but the user sees the docs + builds + app info instantly.
+    final cache = CacheService.instance;
+    final cachedApp =
+        cache.getApps().where((a) => a.id == widget.appId).firstOrNull;
+    final cachedBuilds = cache.getBuilds(appId: widget.appId);
+    final cachedGdd = cache.getGdd(widget.appId);
+    final cachedClaudeMd = cache.getClaudeMd(widget.appId);
 
-    // Cache-first: show cached app immediately to avoid blank screen
-    if (_app == null) {
-      final cached = CacheService.instance.getApps();
-      final match = cached.where((a) => a.id == widget.appId).firstOrNull;
-      if (match != null) {
-        setState(() {
-          _app = match;
-          _selectedStrategy = match.fixStrategy;
-        });
+    setState(() {
+      _loadError = null;
+      if (cachedApp != null) {
+        _app = cachedApp;
+        _selectedStrategy = cachedApp.fixStrategy;
       }
-    }
+      if (cachedBuilds.isNotEmpty) {
+        _builds = cachedBuilds;
+      }
+      if (cachedGdd != null) {
+        _gddContent = cachedGdd;
+        _gddLoading = false;
+      }
+      if (cachedClaudeMd != null) {
+        _claudeMdContent = cachedClaudeMd;
+        _claudeMdLoading = false;
+      }
+      // Only block the whole screen on the spinner when there's literally
+      // nothing to show; otherwise let the cached render stand while the
+      // network fills in the rest.
+      _loading = _app == null;
+    });
 
     final results = await Future.wait([
       ApiService.getApp(widget.appId),
-      ApiService.getAppTasks(widget.appId),
       ApiService.getBuilds(appId: widget.appId),
       ApiService.getGdd(widget.appId),
       ApiService.getDeployStatus(widget.appId),
@@ -93,53 +108,68 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
     ]);
 
     final appResult = results[0] as ApiResult<AppModel>;
-    final tasksResult = results[1] as ApiResult<List<dynamic>>;
-    final buildsResult = results[2] as ApiResult<List<BuildModel>>;
-    final gddResult = results[3] as ApiResult<String>;
-    final deployResult = results[4] as ApiResult<Map<String, dynamic>>;
-    final presetsResult = results[5] as ApiResult<List<dynamic>>;
-    final appMcpResult = results[6] as ApiResult<List<String>>;
-    final claudeMdResult = results[7] as ApiResult<String>;
+    final buildsResult = results[1] as ApiResult<List<BuildModel>>;
+    final gddResult = results[2] as ApiResult<String>;
+    final deployResult = results[3] as ApiResult<Map<String, dynamic>>;
+    final presetsResult = results[4] as ApiResult<List<dynamic>>;
+    final appMcpResult = results[5] as ApiResult<List<String>>;
+    final claudeMdResult = results[6] as ApiResult<String>;
 
-    if (mounted) {
-      // If the main app request failed, show error state
-      if (!appResult.ok) {
-        setState(() {
-          _loadError = appResult.error ?? 'Failed to load app';
-          _loading = false;
-        });
-        return;
-      }
+    if (!mounted) return;
 
-      final app = appResult.data;
+    // Fatal only if the main app request failed AND we had nothing cached
+    // to fall back to. With a cached app, a transient network blip should
+    // leave the previous render intact.
+    if (!appResult.ok && cachedApp == null) {
       setState(() {
-        _app = app;
-        _tasks = tasksResult.data ?? [];
-        _builds = buildsResult.data ?? [];
-        if (gddResult.ok) {
-          _gddContent = gddResult.data;
-          _gddError = null;
-        } else {
-          _gddError = gddResult.error;
-        }
-        _gddLoading = false;
-        if (claudeMdResult.ok) {
-          _claudeMdContent = claudeMdResult.data;
-          _claudeMdError = null;
-        } else {
-          _claudeMdError = claudeMdResult.error;
-        }
-        _claudeMdLoading = false;
+        _loadError = appResult.error ?? 'Failed to load app';
         _loading = false;
-        if (app != null) {
-          _selectedStrategy = app.fixStrategy;
-        }
-        _deployStatus = deployResult.data;
-        _mcpPresets = presetsResult.data ?? [];
-        _appMcpServers = Set<String>.from(appMcpResult.data ?? []);
-        _mcpLoading = false;
       });
+      return;
     }
+
+    final freshBuilds = buildsResult.data;
+    if (freshBuilds != null) {
+      await cache.saveBuilds(
+          freshBuilds.map((b) => b.toJson()).toList());
+    }
+    if (gddResult.ok) {
+      await cache.setGdd(widget.appId, gddResult.data ?? '');
+    }
+    if (claudeMdResult.ok) {
+      await cache.setClaudeMd(widget.appId, claudeMdResult.data ?? '');
+    }
+
+    if (!mounted) return;
+    setState(() {
+      final app = appResult.data ?? cachedApp;
+      _app = app;
+      if (freshBuilds != null) {
+        _builds = freshBuilds;
+      }
+      if (gddResult.ok) {
+        _gddContent = gddResult.data;
+        _gddError = null;
+      } else if (_gddContent == null) {
+        _gddError = gddResult.error;
+      }
+      _gddLoading = false;
+      if (claudeMdResult.ok) {
+        _claudeMdContent = claudeMdResult.data;
+        _claudeMdError = null;
+      } else if (_claudeMdContent == null) {
+        _claudeMdError = claudeMdResult.error;
+      }
+      _claudeMdLoading = false;
+      _loading = false;
+      if (app != null) {
+        _selectedStrategy = app.fixStrategy;
+      }
+      _deployStatus = deployResult.data;
+      _mcpPresets = presetsResult.data ?? [];
+      _appMcpServers = Set<String>.from(appMcpResult.data ?? []);
+      _mcpLoading = false;
+    });
   }
 
   Future<void> _saveStrategy(String strategy) async {
@@ -302,8 +332,6 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                       const SizedBox(height: 16),
                       _buildGddCard(),
                       const SizedBox(height: 16),
-                      _buildIssuesSection(),
-                      const SizedBox(height: 16),
                       _buildBuildsSection(),
                       const SizedBox(height: 80),
                     ],
@@ -457,10 +485,9 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                   const SizedBox(width: 8),
                 ],
                 Builder(builder: (_) {
-                  final openCount = _tasks.where((t) {
-                    final s = (t['status'] ?? '').toString();
-                    return s == 'pending' || s == 'in_progress';
-                  }).length;
+                  final counts = app.taskStatus;
+                  final openCount =
+                      (counts['pending'] ?? 0) + (counts['in_progress'] ?? 0);
                   return _infoChip(
                     'Issues',
                     '$openCount open',
@@ -802,6 +829,9 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
   Future<void> _retryClaudeMd() async {
     setState(() { _claudeMdLoading = true; _claudeMdError = null; });
     final result = await ApiService.getClaudeMd(widget.appId);
+    if (result.ok) {
+      await CacheService.instance.setClaudeMd(widget.appId, result.data ?? '');
+    }
     if (mounted) {
       setState(() {
         _claudeMdLoading = false;
@@ -818,6 +848,9 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
   Future<void> _retryGdd() async {
     setState(() { _gddLoading = true; _gddError = null; });
     final result = await ApiService.getGdd(widget.appId);
+    if (result.ok) {
+      await CacheService.instance.setGdd(widget.appId, result.data ?? '');
+    }
     if (mounted) {
       setState(() {
         _gddLoading = false;
@@ -961,6 +994,10 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                         setSheetState(() => saving = true);
                         final result = await ApiService.updateClaudeMd(
                             widget.appId, controller.text);
+                        if (result.ok) {
+                          await CacheService.instance
+                              .setClaudeMd(widget.appId, controller.text);
+                        }
                         if (ctx.mounted) Navigator.pop(ctx);
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -1117,6 +1154,10 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                         setSheetState(() => saving = true);
                         final result = await ApiService.updateGdd(
                             widget.appId, gddController.text);
+                        if (result.ok) {
+                          await CacheService.instance
+                              .setGdd(widget.appId, gddController.text);
+                        }
                         if (ctx.mounted) Navigator.pop(ctx);
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -1228,6 +1269,15 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
         final refreshed = isGdd
             ? await ApiService.getGdd(widget.appId)
             : await ApiService.getClaudeMd(widget.appId);
+        if (refreshed.ok) {
+          if (isGdd) {
+            await CacheService.instance
+                .setGdd(widget.appId, refreshed.data ?? '');
+          } else {
+            await CacheService.instance
+                .setClaudeMd(widget.appId, refreshed.data ?? '');
+          }
+        }
         if (!mounted) return;
         setState(() {
           if (isGdd) {
@@ -1255,157 +1305,6 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
         ));
       }
     });
-  }
-
-  Future<void> _runTaskWithAgent(Map<String, dynamic> task) async {
-    final taskId = task['id'] as int?;
-    if (taskId == null) return;
-    final title = (task['title'] ?? '').toString();
-    final agentLabel = _selectedStrategy.isNotEmpty ? _selectedStrategy : 'default';
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.bgCard,
-        title: const Text('Work on This'),
-        content: Text('Run $agentLabel AI on:\n"$title"'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Do It'),
-          ),
-        ],
-      ),
-    );
-    if (confirm != true || !mounted) return;
-    setState(() => task['status'] = 'in_progress');
-    await ApiService.updateAppTask(widget.appId, taskId, {'status': 'in_progress'});
-    final result = await ApiService.runTask(widget.appId, taskId, aiAgent: _selectedStrategy);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(result.ok
-            ? '$agentLabel AI triggered for "$title"'
-            : result.error ?? 'Failed to run task'),
-        backgroundColor: result.ok ? AppColors.success : AppColors.error,
-      ));
-      if (!result.ok) {
-        await ApiService.updateAppTask(widget.appId, taskId, {'status': 'pending'});
-        if (mounted) setState(() => task['status'] = 'pending');
-      }
-      _loadData();
-    }
-  }
-
-
-  Widget _buildIssuesSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Recent Tasks',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 8),
-        if (_tasks.isEmpty)
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Center(
-                child: Column(
-                  children: [
-                    Icon(Icons.task_alt, size: 32, color: Colors.grey.shade600),
-                    const SizedBox(height: 8),
-                    Text(
-                      'No tasks yet',
-                      style: TextStyle(color: Colors.grey.shade500),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Tap + to create one',
-                      style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          )
-        else
-          ..._tasks.take(5).map((task) {
-            final title = (task['title'] ?? '').toString();
-            final status = (task['status'] ?? 'pending').toString();
-            final taskType = (task['task_type'] ?? 'issue').toString();
-            final priority = (task['priority'] ?? 'normal').toString();
-            final agent = (task['agent'] ?? task['ai_agent'] ?? '').toString();
-            final canWork = status == 'pending' || status == 'failed';
-            return Card(
-              margin: const EdgeInsets.only(bottom: 8),
-              child: ListTile(
-                leading: Container(
-                  width: 6,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: priority == 'urgent' ? AppColors.error : AppColors.info,
-                    borderRadius: BorderRadius.circular(3),
-                  ),
-                ),
-                title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
-                subtitle: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: AppColors.taskTypeColor(taskType).withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(taskType,
-                        style: TextStyle(fontSize: 11, color: AppColors.taskTypeColor(taskType))),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(status,
-                      style: TextStyle(
-                        color: AppColors.taskStatusColor(status), fontSize: 12)),
-                  ],
-                ),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (agent.isNotEmpty)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: AppColors.agentColor(agent).withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(agent,
-                          style: TextStyle(fontSize: 11, color: AppColors.agentColor(agent),
-                            fontWeight: FontWeight.w600)),
-                      ),
-                    if (canWork)
-                      IconButton(
-                        onPressed: () => _runTaskWithAgent(task),
-                        icon: Icon(
-                          status == 'failed' ? Icons.refresh : Icons.bolt,
-                          color: status == 'failed' ? AppColors.error : AppColors.warning,
-                          size: 20,
-                        ),
-                        tooltip: status == 'failed' ? 'Retry' : 'Work on This',
-                        visualDensity: VisualDensity.compact,
-                      ),
-                    if (status == 'in_progress')
-                      const SizedBox(
-                        width: 20, height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                  ],
-                ),
-              ),
-            );
-          }),
-      ],
-    );
   }
 
   Widget _buildBuildsSection() {

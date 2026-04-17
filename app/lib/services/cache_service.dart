@@ -14,7 +14,7 @@ class CacheService {
   /// way that makes old cache entries semantically stale (e.g. a new field that
   /// the dashboard relies on). On mismatch, openBoxes() wipes the cache and
   /// forces the next sync to fetch a fresh full snapshot.
-  static const int _schemaVersion = 5;
+  static const int _schemaVersion = 6;
 
   static const List<String> _boxNames = [
     CacheBoxes.apps,
@@ -22,6 +22,7 @@ class CacheService {
     CacheBoxes.builds,
     CacheBoxes.sessions,
     CacheBoxes.syncMeta,
+    CacheBoxes.appDocs,
   ];
 
   Future<void> openBoxes() async {
@@ -72,6 +73,7 @@ class CacheService {
       await Hive.box<String>(CacheBoxes.issues).clear();
       await Hive.box<String>(CacheBoxes.builds).clear();
       await Hive.box<String>(CacheBoxes.sessions).clear();
+      await Hive.box<String>(CacheBoxes.appDocs).clear();
       await box.clear();
       await box.put('schema_version', _schemaVersion.toString());
       if (preservedClientId != null && preservedClientId.isNotEmpty) {
@@ -256,7 +258,24 @@ class CacheService {
     await Hive.box<String>(CacheBoxes.builds).clear();
     await Hive.box<String>(CacheBoxes.sessions).clear();
     await Hive.box<String>(CacheBoxes.syncMeta).clear();
+    await Hive.box<String>(CacheBoxes.appDocs).clear();
     await Hive.box<Uint8List>(CacheBoxes.appIcons).clear();
+  }
+
+  // ── Per-app docs (GDD, CLAUDE.md) ────────────────────
+
+  String? getGdd(int appId) =>
+      Hive.box<String>(CacheBoxes.appDocs).get('gdd_$appId');
+
+  Future<void> setGdd(int appId, String content) async {
+    await Hive.box<String>(CacheBoxes.appDocs).put('gdd_$appId', content);
+  }
+
+  String? getClaudeMd(int appId) =>
+      Hive.box<String>(CacheBoxes.appDocs).get('claudemd_$appId');
+
+  Future<void> setClaudeMd(int appId, String content) async {
+    await Hive.box<String>(CacheBoxes.appDocs).put('claudemd_$appId', content);
   }
 
   // ── App icons ────────────────────────────────────────

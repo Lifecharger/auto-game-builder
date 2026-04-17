@@ -19,7 +19,7 @@ class App:
     build_output_path: str = ""
     claude_md_path: str = ""
     fix_strategy: str = "claude"  # claude|gemini|codex
-    status: str = "idle"  # idle|building|fixing|error
+    status: str = "idle"  # idle|queued|building|fixing|uploading|error
     publish_status: str = "development"  # development|internal_test|external_test|experimental|published
     last_build_at: Optional[str] = None
     last_fix_at: Optional[str] = None

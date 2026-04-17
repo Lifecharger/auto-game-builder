@@ -14,6 +14,8 @@ class AppColors {
     switch (status.toLowerCase()) {
       case 'idle':
         return Colors.grey;
+      case 'queued':
+        return const Color(0xFFF1C40F); // amber — waiting for turn
       case 'building':
         return info;
       case 'uploading':

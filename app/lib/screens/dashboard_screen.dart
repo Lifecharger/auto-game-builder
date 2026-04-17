@@ -830,27 +830,15 @@ class _AppCard extends StatelessWidget {
                         height: 10,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: isCompleted
-                              ? AppColors.success
-                              : isPostponed
-                                  ? AppColors.warning
-                                  : AppColors.statusColor(displayStatus),
+                          color: AppColors.statusColor(displayStatus),
                         ),
                       ),
                       const SizedBox(width: 6),
                       Flexible(
                         child: Text(
-                          isCompleted
-                              ? 'completed'
-                              : isPostponed
-                                  ? 'postponed'
-                                  : displayStatus,
+                          displayStatus,
                           style: TextStyle(
-                            color: isCompleted
-                                ? AppColors.success
-                                : isPostponed
-                                    ? AppColors.warning
-                                    : AppColors.statusColor(displayStatus),
+                            color: AppColors.statusColor(displayStatus),
                             fontSize: 13,
                             fontWeight: FontWeight.w500,
                           ),

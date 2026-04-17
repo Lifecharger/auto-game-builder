@@ -31,4 +31,15 @@ class BuildModel {
       appName: json['app_name'],
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'app_id': appId,
+        'build_type': buildType,
+        'status': status,
+        'version': version,
+        'started_at': startedAt,
+        'completed_at': completedAt,
+        'app_name': appName,
+      };
 }
