@@ -1149,13 +1149,28 @@ _ICON_CANDIDATES_BY_TYPE: dict[str, tuple[str, ...]] = {
         "android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png",
         "android/app/src/main/res/mipmap-xhdpi/ic_launcher.png",
         "android/app/src/main/res/mipmap-hdpi/ic_launcher.png",
+        # Monorepo layouts where the Flutter project lives under `app/`.
+        "app/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png",
+        "app/android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png",
+        "app/android/app/src/main/res/mipmap-xhdpi/ic_launcher.png",
+        "app/android/app/src/main/res/mipmap-hdpi/ic_launcher.png",
         "ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-1024x1024@1x.png",
         *_ICON_CANDIDATES_COMMON,
         "web/icons/Icon-512.png", "web/icons/Icon-192.png", "web/favicon.png",
     ),
-    "godot": _ICON_CANDIDATES_COMMON,
+    "godot": (
+        *_ICON_CANDIDATES_COMMON,
+        # Non-standard but observed in real projects.
+        "assets/images/ui/icon.png", "assets/images/ui/icon.jpg",
+    ),
     "phaser": (
         "public/icon.png", "public/favicon.png", "public/logo.png",
+        # Capacitor-wrapped phaser projects ship an Android project with the
+        # real launcher icon under android/app/src/main/res/.
+        "android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png",
+        "android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png",
+        "android/app/src/main/res/mipmap-xhdpi/ic_launcher.png",
+        "android/app/src/main/res/mipmap-hdpi/ic_launcher.png",
         *_ICON_CANDIDATES_COMMON,
     ),
     "web": (
