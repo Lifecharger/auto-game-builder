@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../config.dart';
 import '../models/app_model.dart';
 import '../models/issue_model.dart';
 import 'api_service.dart';
@@ -17,6 +18,7 @@ class AppState extends ChangeNotifier {
   Timer? _healthTimer;
   int _pendingTaskCount = 0;
   int _consecutiveFailures = 0;
+  int? _issuesRequestedAppId;
   Future<void>? _appsInFlight;
   Future<void>? _issuesInFlight;
 
@@ -27,19 +29,31 @@ class AppState extends ChangeNotifier {
   int get activeTabIndex => _activeTabIndex;
   bool? get connected => _connected;
   int get pendingTaskCount => _pendingTaskCount;
+  int? get issuesRequestedAppId => _issuesRequestedAppId;
 
   /// Total cached builds across all apps — sourced from Hive, no network.
   /// Stays in sync automatically because SyncService writes the builds box
   /// and loadApps() calls notifyListeners() after each sync.
   int get totalBuilds => CacheService.instance.buildCount;
-  /// True when 2+ consecutive health checks have failed.
-  bool get showOfflineBanner => _consecutiveFailures >= 2;
+  /// True when consecutive health checks have failed at or beyond the
+  /// configured offline-banner threshold.
+  bool get showOfflineBanner =>
+      _consecutiveFailures >= AppConfig.offlineBannerFailureThreshold;
 
   /// Whether the user is signed in via Google.
   bool get isSignedIn => AuthService.instance.isSignedIn;
 
   /// The signed-in user's email, or null.
   String? get userEmail => AuthService.instance.userEmail;
+
+  void requestIssuesForApp(int appId) {
+    _issuesRequestedAppId = appId;
+    notifyListeners();
+  }
+
+  void clearIssuesRequest() {
+    _issuesRequestedAppId = null;
+  }
 
   void updatePendingCount(int count) {
     if (_pendingTaskCount != count) {
@@ -51,7 +65,10 @@ class AppState extends ChangeNotifier {
   void startHealthCheck() {
     _checkHealth();
     _healthTimer?.cancel();
-    _healthTimer = Timer.periodic(const Duration(seconds: 60), (_) => _checkHealth());
+    _healthTimer = Timer.periodic(
+      const Duration(seconds: AppConfig.healthCheckIntervalSeconds),
+      (_) => _checkHealth(),
+    );
   }
 
   Future<void> _checkHealth() async {
@@ -81,9 +98,10 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  Future<void> loadApps() {
+  Future<void> loadApps({bool force = false}) {
     if (_appsInFlight != null) return _appsInFlight!;
-    _appsInFlight = _doLoadApps().whenComplete(() => _appsInFlight = null);
+    _appsInFlight =
+        _doLoadApps(force: force).whenComplete(() => _appsInFlight = null);
     return _appsInFlight!;
   }
 
@@ -97,9 +115,11 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> _doLoadApps() async {
-    // 1. Paint from cache immediately — zero-latency startup.
-    final cached = CacheService.instance.getApps();
+  Future<void> _doLoadApps({bool force = false}) async {
+    // 1. Paint from cache immediately — zero-latency startup. Skip the
+    // optimistic paint on a forced refresh because the user explicitly
+    // asked us to throw the cache away.
+    final cached = force ? <AppModel>[] : CacheService.instance.getApps();
     if (cached.isNotEmpty) {
       _apps = cached;
       _loading = false;
@@ -110,7 +130,7 @@ class AppState extends ChangeNotifier {
     }
 
     // 2. Sync delta in the background and refresh from cache when it lands.
-    final synced = await SyncService.instance.sync();
+    final synced = await SyncService.instance.sync(force: force);
     if (synced) {
       _apps = CacheService.instance.getApps();
       _error = null;

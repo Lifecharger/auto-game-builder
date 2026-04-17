@@ -64,27 +64,19 @@ class _LogsScreenState extends State<LogsScreen> with WidgetsBindingObserver {
     }
   }
 
-  /// Derive the actual log level, ignoring the backend's naive keyword detection.
-  /// The backend sets level to "error" if the message contains the word "error",
-  /// even for successful operations like "Task started: fix login error".
+  /// Derive the actual log level. Prefers the structured fields the server
+  /// emits (exit_code, status) over the heuristic level the parser sets from
+  /// the message text — keyword detection is brittle ("Task started: fix
+  /// login error" would otherwise be flagged red).
   String _effectiveLevel(Map<String, dynamic> log) {
-    final backendLevel = (log['level'] ?? 'info').toString().toLowerCase();
-    final message = (log['message'] ?? '').toString().toLowerCase();
-    final exitCode = log['exit_code']?.toString();
-
-    // Completed logs: use exit code as the source of truth
-    if (message.contains('completed')) {
-      if (exitCode == '0') return 'success';
-      if (exitCode != null && exitCode.isNotEmpty) return 'error';
-      return backendLevel;
+    final exitCodeRaw = log['exit_code'];
+    final exitCode = exitCodeRaw is int
+        ? exitCodeRaw
+        : (exitCodeRaw is String ? int.tryParse(exitCodeRaw) : null);
+    if (exitCode != null) {
+      return exitCode == 0 ? 'success' : 'error';
     }
-
-    // Started/informational logs are never errors
-    if (message.contains('run started') || message.contains('started')) {
-      return 'info';
-    }
-
-    return backendLevel;
+    return (log['level'] ?? 'info').toString().toLowerCase();
   }
 
   Color _levelColor(String level) {

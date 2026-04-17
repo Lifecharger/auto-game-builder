@@ -42,6 +42,11 @@ class ApiService {
         if (AppConfig.apiKey.isNotEmpty) 'X-API-Key': AppConfig.apiKey,
       };
 
+  /// Auth-only headers for non-JSON requests (e.g. image loading).
+  static Map<String, String> get authHeaders => {
+        if (AppConfig.apiKey.isNotEmpty) 'X-API-Key': AppConfig.apiKey,
+      };
+
   /// GET with automatic retry + exponential backoff (1s, 2s, 4s).
   /// Retries on network errors, 5xx responses, and 429 (rate-limit).
   static Future<http.Response> _getWithRetry(

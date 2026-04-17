@@ -18,13 +18,21 @@ class SyncService {
 
   /// Returns `true` only when the server actually accepted the request and we
   /// wrote fresh data to the cache. On failure, [lastError] explains why.
-  Future<bool> sync() async {
+  ///
+  /// When [force] is true, the local cache is wiped and the request is sent
+  /// without a `since` parameter — the server replies with the full snapshot
+  /// from the database. Use this when the user explicitly asks for a hard
+  /// refresh; normal periodic syncs should leave [force] false.
+  Future<bool> sync({bool force = false}) async {
     if (_syncing) return false;
     _syncing = true;
     _lastError = null;
 
     try {
-      final since = _cache.getLastSyncTime();
+      if (force) {
+        await _cache.clearAll();
+      }
+      final since = force ? null : _cache.getLastSyncTime();
       final result = await ApiService.getSync(since: since);
       if (!result.ok) {
         _lastError = result.error ?? 'Sync request failed';

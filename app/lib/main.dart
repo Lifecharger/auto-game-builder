@@ -27,7 +27,11 @@ void main() async {
     systemNavigationBarDividerColor: Colors.transparent,
     statusBarColor: Colors.transparent,
   ));
-  await AppConfig.load();
+  try {
+    await AppConfig.load();
+  } catch (e) {
+    debugPrint('AppConfig.load failed, using defaults: $e');
+  }
 
   // Try silent sign-in (non-blocking if it fails)
   try {
@@ -49,7 +53,7 @@ class AppManagerMobile extends StatelessWidget {
         final state = AppState()..loadApps();
         // Open the SSE event stream so server-side changes (task edits,
         // build-engine status flips, deploy uploads) push onto the
-        // dashboard immediately instead of waiting for the 15s poll.
+        // dashboard immediately instead of waiting for the 5s poll.
         EventService(state).start();
         return state;
       },
@@ -77,6 +81,7 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
   DateTime? _lastBackPress;
   late final AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
+  AppState? _appStateRef;
 
   final _screens = const [
     DashboardScreen(),
@@ -98,15 +103,26 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
     );
     _fadeController.value = 1.0;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<AppState>().startHealthCheck();
+      _appStateRef = context.read<AppState>();
+      _appStateRef!.addListener(_onAppStateChanged);
+      _appStateRef!.startHealthCheck();
     });
     _checkForUpdate();
   }
 
   @override
   void dispose() {
+    _appStateRef?.removeListener(_onAppStateChanged);
     _fadeController.dispose();
     super.dispose();
+  }
+
+  void _onAppStateChanged() {
+    if (!mounted) return;
+    final appState = _appStateRef;
+    if (appState != null && appState.issuesRequestedAppId != null && _currentIndex != 1) {
+      _switchTab(1);
+    }
   }
 
   void _switchTab(int index) {

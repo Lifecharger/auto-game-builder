@@ -52,19 +52,25 @@ class _ChatScreenState extends State<ChatScreen> {
 
     // Migrate legacy single-chat history
     final legacy = prefs.getString(_legacyKey);
+    bool migrated = false;
     if (legacy != null) {
-      final list = jsonDecode(legacy) as List;
-      if (list.isNotEmpty) {
-        final s = _ChatSession(
-          id: '${DateTime.now().millisecondsSinceEpoch}',
-          title: 'Previous Chat',
-          createdAt: DateTime.now(),
-          messages: list
-              .map((e) => _ChatMessage.fromJson(e as Map<String, dynamic>))
-              .toList(),
-        );
-        _sessions.add(s);
-        _activeId = s.id;
+      try {
+        final list = jsonDecode(legacy) as List;
+        if (list.isNotEmpty) {
+          final s = _ChatSession(
+            id: '${DateTime.now().millisecondsSinceEpoch}',
+            title: 'Previous Chat',
+            createdAt: DateTime.now(),
+            messages: list
+                .map((e) => _ChatMessage.fromJson(e as Map<String, dynamic>))
+                .toList(),
+          );
+          _sessions.add(s);
+          _activeId = s.id;
+          migrated = true;
+        }
+      } catch (e) {
+        debugPrint('chat_screen: corrupted legacy history, clearing: $e');
       }
       await prefs.remove(_legacyKey);
     }
@@ -72,10 +78,18 @@ class _ChatScreenState extends State<ChatScreen> {
     // Load sessions
     final json = prefs.getString(_sessionsKey);
     if (json != null) {
-      final decoded = jsonDecode(json) as List;
-      _sessions =
-          decoded.map((e) => _ChatSession.fromJson(e as Map<String, dynamic>)).toList();
-      _sessions.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      try {
+        final decoded = jsonDecode(json) as List;
+        _sessions = decoded
+            .map((e) => _ChatSession.fromJson(e as Map<String, dynamic>))
+            .toList();
+        _sessions.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      } catch (e) {
+        debugPrint('chat_screen: corrupted sessions store, clearing: $e');
+        _sessions = [];
+        await prefs.remove(_sessionsKey);
+        await prefs.remove(_activeKey);
+      }
     }
 
     // Restore active session
@@ -84,10 +98,11 @@ class _ChatScreenState extends State<ChatScreen> {
       _activeId = _sessions.first.id;
     }
 
-    if (legacy != null && _sessions.isNotEmpty) {
+    if (migrated && _sessions.isNotEmpty) {
       await _save();
     }
 
+    if (!mounted) return;
     setState(() {});
     _scrollToBottom();
   }

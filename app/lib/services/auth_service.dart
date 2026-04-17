@@ -2,13 +2,11 @@ import 'dart:async';
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:google_sign_in/google_sign_in.dart';
+import '../config.dart';
 
 class AuthService {
   AuthService._();
   static final AuthService instance = AuthService._();
-
-  static const String _webClientId =
-      '690975384091-q12j999ied80kavhjjrbo666t61jg7dp.apps.googleusercontent.com';
 
   static const List<String> _scopes = [
     'email',
@@ -39,7 +37,7 @@ class AuthService {
 
     _googleSignIn = GoogleSignIn(
       scopes: _scopes,
-      serverClientId: needsWebClientId ? _webClientId : null,
+      serverClientId: needsWebClientId ? AppConfig.googleWebClientId : null,
     );
 
     _userChangedSub = _googleSignIn!.onCurrentUserChanged.listen((GoogleSignInAccount? account) {

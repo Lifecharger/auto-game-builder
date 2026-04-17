@@ -23,7 +23,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 from pydantic import BaseModel
@@ -1103,13 +1103,14 @@ def _app_dict(a, issue_counts: dict | None = None, include_task_status: bool = T
         except Exception as e:
             logger.debug("Failed to update app version in DB: %s", e)
     open_issues = issue_counts.get(a.id, 0) if issue_counts is not None else db().count_issues(a.id, status="open")
+    icon_path = a.icon_path or (_resolve_app_icon(a) or "")
     result = {
         "id": a.id, "name": a.name, "slug": a.slug,
         "project_path": a.project_path, "app_type": a.app_type,
         "current_version": version, "package_name": a.package_name,
         "status": a.status, "publish_status": a.publish_status,
         "fix_strategy": a.fix_strategy, "notes": a.notes,
-        "group_name": a.group_name, "icon_path": a.icon_path,
+        "group_name": a.group_name, "icon_path": icon_path,
         "last_build_at": a.last_build_at, "last_fix_at": a.last_fix_at,
         "automation_script_path": a.automation_script_path,
         "github_url": a.github_url, "play_store_url": a.play_store_url,
@@ -1120,6 +1121,85 @@ def _app_dict(a, issue_counts: dict | None = None, include_task_status: bool = T
     if include_task_status:
         result["task_status"] = _compute_task_status(a)
     return result
+
+
+# ── App Icon ──────────────────────────────────────────────────
+
+# Common icon file locations per app type, ordered by preference.
+# Only raster formats Flutter's Image.network can decode (PNG/JPG) — SVG and
+# ICO are skipped because the mobile client can't render them and would just
+# show a broken-image fallback. The client falls back to a letter avatar when
+# nothing here matches, so this list can afford to be aggressive.
+_ICON_CANDIDATES_COMMON: tuple[str, ...] = (
+    "icon.png", "icon.jpg", "icon.jpeg",
+    "app_icon.png", "app_icon.jpg",
+    "assets/icon.png", "assets/icon.jpg", "assets/icon.jpeg",
+    "assets/icon_512.png", "assets/icon_1024.png", "assets/icon_256.png",
+    "assets/app_icon.png", "assets/app_icon.jpg",
+    "assets/images/icon.png", "assets/images/icon.jpg",
+    "assets/images/app_icon.png", "assets/images/app_icon.jpg",
+    "assets/icons/icon.png", "assets/icons/icon.jpg",
+    "assets/icons/icon_main_192.png", "assets/icons/icon_foreground_432.png",
+    "assets/logo.png", "assets/images/logo.png",
+    "icon_256.png", "icon_512.png", "ic_launcher_512.png", "ic_launcher.png",
+)
+_ICON_CANDIDATES_BY_TYPE: dict[str, tuple[str, ...]] = {
+    "flutter": (
+        "android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png",
+        "android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png",
+        "android/app/src/main/res/mipmap-xhdpi/ic_launcher.png",
+        "android/app/src/main/res/mipmap-hdpi/ic_launcher.png",
+        "ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-1024x1024@1x.png",
+        *_ICON_CANDIDATES_COMMON,
+        "web/icons/Icon-512.png", "web/icons/Icon-192.png", "web/favicon.png",
+    ),
+    "godot": _ICON_CANDIDATES_COMMON,
+    "phaser": (
+        "public/icon.png", "public/favicon.png", "public/logo.png",
+        *_ICON_CANDIDATES_COMMON,
+    ),
+    "web": (
+        "public/icon.png", "public/favicon.png", "public/logo.png",
+        *_ICON_CANDIDATES_COMMON,
+    ),
+    "python": _ICON_CANDIDATES_COMMON,
+}
+_ICON_CANDIDATES_DEFAULT: tuple[str, ...] = _ICON_CANDIDATES_COMMON
+_RENDERABLE_EXTS = (".png", ".jpg", ".jpeg")
+
+
+def _resolve_app_icon(a) -> str | None:
+    """Return absolute path to the app's icon file, or None if none exists.
+
+    Honors an explicitly configured ``icon_path`` first; otherwise probes a
+    small list of conventional locations based on app type. Only raster
+    formats (PNG/JPG) the mobile client can render are returned.
+    """
+    if not a.project_path:
+        return None
+    if a.icon_path:
+        p = a.icon_path if os.path.isabs(a.icon_path) else os.path.join(a.project_path, a.icon_path)
+        if os.path.isfile(p) and p.lower().endswith(_RENDERABLE_EXTS):
+            return p
+        return None
+    candidates = _ICON_CANDIDATES_BY_TYPE.get(a.app_type, _ICON_CANDIDATES_DEFAULT)
+    for rel in candidates:
+        p = os.path.join(a.project_path, rel)
+        if os.path.isfile(p) and p.lower().endswith(_RENDERABLE_EXTS):
+            return p
+    return None
+
+
+@app.get("/api/apps/{app_id}/icon")
+def get_app_icon(app_id: int):
+    """Serve the app's icon image file."""
+    a = db().get_app(app_id)
+    if not a:
+        raise HTTPException(404, "App not found")
+    icon = _resolve_app_icon(a)
+    if not icon:
+        raise HTTPException(404, "No icon found for this app")
+    return FileResponse(icon)
 
 
 # ── Issues ────────────────────────────────────────────────────
@@ -1743,6 +1823,8 @@ def _parse_log_line(line: str, app_name: str, app_id: int, agent: str) -> dict:
         "level": level,
         "timestamp": timestamp,
         "source": line_agent,
+        "exit_code": exit_code,
+        "status": "completed" if exit_code is not None else None,
     }
 
 
@@ -2085,7 +2167,7 @@ def dashboard():
             "app_type": a.app_type, "status": a.status,
             "publish_status": a.publish_status, "current_version": version,
             "open_issues": open_count, "fix_strategy": a.fix_strategy,
-            "icon_path": a.icon_path,
+            "icon_path": a.icon_path or (_resolve_app_icon(a) or ""),
         })
     return {
         "total_apps": len(apps),

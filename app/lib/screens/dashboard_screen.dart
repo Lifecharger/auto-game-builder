@@ -5,11 +5,15 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../config.dart';
 import '../models/app_model.dart';
 import '../services/api_service.dart';
 import '../services/app_state.dart';
 import '../services/installed_apps_service.dart';
 import '../theme.dart';
+import '../widgets/cached_app_icon.dart';
+import '../widgets/dashboard/brainstorm_sheet.dart';
+import '../widgets/dashboard/create_app_sheet.dart';
 import 'app_detail_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -27,6 +31,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   static const _myTabIndex = 0;
   static const _completedAppsKey = 'completed_app_ids';
   static const _postponedAppsKey = 'postponed_app_ids';
+  static const _completedExpandedKey = 'dashboard_completed_expanded';
+  static const _postponedExpandedKey = 'dashboard_postponed_expanded';
   DateTime? _lastSyncedAt;
   bool _syncFailed = false;
 
@@ -57,8 +63,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       });
     });
     _startPolling();
-    // Tick every 15s to update the "Xm ago" label
-    _tickTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+    // Tick every 5s to update the "Xm ago" label
+    _tickTimer = Timer.periodic(const Duration(seconds: 5), (_) {
       if (mounted && _lastSyncedAt != null) setState(() {});
     });
   }
@@ -79,9 +85,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   Future<void> _loadCompletedApps() async {
     final prefs = await SharedPreferences.getInstance();
     final ids = prefs.getStringList(_completedAppsKey) ?? [];
+    final expanded = prefs.getBool(_completedExpandedKey) ?? false;
     if (mounted) {
       setState(() {
         _completedAppIds = ids.map((e) => int.tryParse(e) ?? 0).where((e) => e > 0).toSet();
+        _completedExpanded = expanded;
       });
     }
   }
@@ -110,9 +118,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   Future<void> _loadPostponedApps() async {
     final prefs = await SharedPreferences.getInstance();
     final ids = prefs.getStringList(_postponedAppsKey) ?? [];
+    final expanded = prefs.getBool(_postponedExpandedKey) ?? false;
     if (mounted) {
       setState(() {
         _postponedAppIds = ids.map((e) => int.tryParse(e) ?? 0).where((e) => e > 0).toSet();
+        _postponedExpanded = expanded;
       });
     }
   }
@@ -139,16 +149,16 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   }
 
   void _startPolling() {
-    _pollTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+    _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) {
       if (!mounted || !_appInForeground) return;
       if (context.read<AppState>().activeTabIndex != _myTabIndex) return;
       _refresh();
     });
   }
 
-  Future<void> _refresh() async {
+  Future<void> _refresh({bool force = false}) async {
     final state = context.read<AppState>();
-    await state.loadApps();
+    await state.loadApps(force: force);
     await _loadInstalledVersions();
     if (mounted) {
       final hasError = state.error != null;
@@ -156,10 +166,32 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         _syncFailed = hasError;
         if (!hasError) _lastSyncedAt = DateTime.now();
       });
+      if (force) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(hasError
+              ? 'Force refresh failed: ${state.error}'
+              : 'Refreshed from server'),
+          backgroundColor:
+              hasError ? AppColors.error : AppColors.success,
+          duration: Duration(seconds: hasError ? 4 : 2),
+          action: hasError
+              ? SnackBarAction(
+                  label: 'Retry',
+                  onPressed: () => _refresh(force: true),
+                )
+              : null,
+        ));
+      }
     }
   }
 
+  Future<void> _forceRefresh() async {
+    HapticFeedback.mediumImpact();
+    await _refresh(force: true);
+  }
+
   Future<void> _scanProjects() async {
+    HapticFeedback.lightImpact();
     try {
       final resp = await http.post(
         Uri.parse('${ApiService.baseUrl}/api/apps/scan'),
@@ -198,280 +230,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     }
   }
 
-  static String _appTypeHint(String type) {
-    switch (type) {
-      case 'flutter': return 'Mobile/desktop app with Google Play deploy support';
-      case 'godot': return 'Game project with export targets (Windows, Android, Web)';
-      case 'python': return 'Python project with script runner and pip management';
-      case 'web': return 'Web app with static hosting deploy support';
-      case 'phaser': return 'Phaser 3 + TypeScript game, wrapped as Android AAB via Capacitor';
-      default: return '';
-    }
-  }
+  void _showCreateAppSheet() =>
+      CreateAppSheet.show(context, onCreated: _refresh);
 
-  void _showCreateAppSheet() {
-    final nameController = TextEditingController();
-    String appType = 'flutter';
-    String agent = 'claude';
-    bool submitting = false;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: AppColors.bgCard,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setSheetState) {
-            final mq = MediaQuery.of(ctx);
-            return Padding(
-              padding: EdgeInsets.only(
-                left: 20, right: 20, top: 20,
-                bottom: mq.viewInsets.bottom + mq.padding.bottom + 20,
-              ),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('New App',
-                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: nameController,
-                      decoration: const InputDecoration(
-                        hintText: 'App Name (e.g. My Game)',
-                        prefixIcon: Icon(Icons.apps),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    const Text('Type', style: TextStyle(fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      children: ['flutter', 'godot', 'python', 'phaser'].map((t) {
-                        return ChoiceChip(
-                          label: Text(t[0].toUpperCase() + t.substring(1)),
-                          selected: t == appType,
-                          selectedColor: AppColors.accent,
-                          avatar: Icon(AppColors.appTypeIcon(t), size: 18,
-                            color: t == appType ? Colors.white : Colors.grey.shade400),
-                          onSelected: (sel) {
-                            if (sel) setSheetState(() => appType = t);
-                          },
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _appTypeHint(appType),
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
-                    ),
-                    const SizedBox(height: 12),
-                    const Text('AI Agent', style: TextStyle(fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      children: ['claude', 'gemini', 'codex', 'local'].map((a) {
-                        return ChoiceChip(
-                          label: Text(a[0].toUpperCase() + a.substring(1)),
-                          selected: a == agent,
-                          selectedColor: AppColors.info,
-                          onSelected: (sel) {
-                            if (sel) setSheetState(() => agent = a);
-                          },
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 20),
-                    SizedBox(
-                      width: double.infinity, height: 48,
-                      child: FilledButton.icon(
-                        onPressed: submitting ? null : () async {
-                          final name = nameController.text.trim();
-                          if (name.isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Name is required'),
-                                backgroundColor: AppColors.warning));
-                            return;
-                          }
-                          setSheetState(() => submitting = true);
-                          final result = await ApiService.createApp(
-                            name: name, appType: appType, fixStrategy: agent);
-                          if (ctx.mounted) Navigator.pop(ctx);
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                              content: Text(result.ok ? 'App created!' : result.error ?? 'Failed to create app'),
-                              backgroundColor: result.ok ? AppColors.success : AppColors.error));
-                            if (result.ok) _refresh();
-                          }
-                        },
-                        icon: submitting
-                            ? const SizedBox(width: 18, height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2))
-                            : const Icon(Icons.add),
-                        label: Text(submitting ? 'Creating...' : 'Create App'),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  void _showBrainstormSheet() {
-    final conceptController = TextEditingController();
-    final nameController = TextEditingController();
-    String appType = 'godot';
-    String genre = '';
-    bool submitting = false;
-
-    final genres = ['', 'Puzzle', 'Idle/Clicker', 'RPG', 'Action', 'Strategy', 'Simulation', 'Arcade', 'Card Game', 'Tower Defense'];
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: AppColors.bgCard,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setSheetState) {
-            final mq = MediaQuery.of(ctx);
-            return Padding(
-              padding: EdgeInsets.only(
-                left: 20, right: 20, top: 20,
-                bottom: mq.viewInsets.bottom + mq.padding.bottom + 20,
-              ),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.lightbulb, color: Colors.amber.shade400, size: 24),
-                        const SizedBox(width: 8),
-                        const Text('Brainstorm New Game',
-                            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Creates a new project with a brainstorm task. When the task runs, AI generates a full GDD and initial tasks.',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: nameController,
-                      decoration: const InputDecoration(
-                        hintText: 'Project name (optional — AI can suggest)',
-                        prefixIcon: Icon(Icons.label),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: conceptController,
-                      maxLines: 2,
-                      decoration: const InputDecoration(
-                        hintText: 'Concept seed (e.g. "ant colony idle game", "puzzle with gravity")',
-                        prefixIcon: Icon(Icons.auto_awesome),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    const Text('Genre', style: TextStyle(fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: genres.map((g) {
-                        final label = g.isEmpty ? 'Any' : g;
-                        return ChoiceChip(
-                          label: Text(label, style: const TextStyle(fontSize: 12)),
-                          selected: g == genre,
-                          selectedColor: Colors.amber.withAlpha(180),
-                          onSelected: (sel) {
-                            if (sel) setSheetState(() => genre = g);
-                          },
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 12),
-                    const Text('Engine', style: TextStyle(fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      children: ['godot', 'flutter', 'phaser'].map((t) {
-                        return ChoiceChip(
-                          label: Text(t[0].toUpperCase() + t.substring(1)),
-                          selected: t == appType,
-                          selectedColor: AppColors.accent,
-                          avatar: Icon(AppColors.appTypeIcon(t), size: 18,
-                            color: t == appType ? Colors.white : Colors.grey.shade400),
-                          onSelected: (sel) {
-                            if (sel) setSheetState(() => appType = t);
-                          },
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 20),
-                    SizedBox(
-                      width: double.infinity, height: 48,
-                      child: FilledButton.icon(
-                        onPressed: submitting ? null : () async {
-                          final concept = conceptController.text.trim();
-                          final name = nameController.text.trim();
-                          if (concept.isEmpty && name.isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Enter a concept or project name'),
-                                backgroundColor: AppColors.warning));
-                            return;
-                          }
-                          setSheetState(() => submitting = true);
-                          final result = await ApiService.studioBrainstorm(
-                            concept: concept,
-                            genre: genre,
-                            appType: appType,
-                            name: name,
-                          );
-                          if (ctx.mounted) Navigator.pop(ctx);
-                          if (mounted) {
-                            if (result.ok) {
-                              final msg = result.data?['message'] ?? 'Project created with brainstorm task!';
-                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                                content: Text(msg),
-                                backgroundColor: AppColors.success));
-                              _refresh();
-                            } else {
-                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                                content: Text(result.error ?? 'Failed to brainstorm'),
-                                backgroundColor: AppColors.error));
-                            }
-                          }
-                        },
-                        icon: submitting
-                            ? const SizedBox(width: 18, height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2))
-                            : const Icon(Icons.lightbulb),
-                        label: Text(submitting ? 'Creating...' : 'Brainstorm & Create'),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
+  void _showBrainstormSheet() =>
+      BrainstormSheet.show(context, onCreated: _refresh);
 
   Future<void> _loadInstalledVersions() async {
     final apps = context.read<AppState>().apps;
@@ -530,24 +293,34 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             onPressed: _scanProjects,
           ),
           IconButton(
+            icon: const Icon(Icons.cloud_sync),
+            tooltip: 'Force refresh from server (clears local cache)',
+            onPressed: _forceRefresh,
+          ),
+          IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _refresh,
+            tooltip: 'Refresh',
+            onPressed: () {
+              HapticFeedback.lightImpact();
+              _refresh();
+            },
           ),
         ],
       ),
       floatingActionButton: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          FloatingActionButton.small(
+          _AnimatedFab(
             heroTag: 'brainstorm',
-            onPressed: _showBrainstormSheet,
+            small: true,
             backgroundColor: Colors.amber.shade700,
+            onPressed: _showBrainstormSheet,
             child: const Icon(Icons.lightbulb, size: 20),
           ),
           const SizedBox(height: 16),
-          FloatingActionButton(
+          _AnimatedFab(
             heroTag: 'create',
-            onPressed: () => _showCreateAppSheet(),
+            onPressed: _showCreateAppSheet,
             child: const Icon(Icons.add),
           ),
         ],
@@ -634,7 +407,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                     ],
                   )
                 : ListView(
-                    padding: const EdgeInsets.all(12),
+                    // Extra bottom padding clears the stacked FABs
+                    // (lightbulb + plus = ~56+16+56) plus a small
+                    // breathing margin so the last app card never
+                    // sits behind them.
+                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 160),
                     children: [
                       _TaskSummaryCard(apps: state.apps, totalBuilds: state.totalBuilds),
                       if (showAllCategorized)
@@ -668,6 +445,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                         appStatus: _AppStatus.active,
                         onToggleCompleted: () => _toggleAppCompleted(app.id),
                         onTogglePostponed: () => _toggleAppPostponed(app.id),
+                        onIconTap: () => context.read<AppState>().requestIssuesForApp(app.id),
                       )),
                       if (postponedApps.isNotEmpty)
                         Card(
@@ -676,8 +454,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                           child: ExpansionTile(
                             key: PageStorageKey('postponed_folder'),
                             initiallyExpanded: _postponedExpanded,
-                            onExpansionChanged: (expanded) {
+                            onExpansionChanged: (expanded) async {
                               setState(() => _postponedExpanded = expanded);
+                              final prefs = await SharedPreferences.getInstance();
+                              await prefs.setBool(_postponedExpandedKey, expanded);
                             },
                             leading: Icon(
                               _postponedExpanded ? Icons.folder_open : Icons.folder,
@@ -709,6 +489,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                               appStatus: _AppStatus.postponed,
                               onToggleCompleted: () => _toggleAppCompleted(app.id),
                               onTogglePostponed: () => _toggleAppPostponed(app.id),
+                              onIconTap: () => context.read<AppState>().requestIssuesForApp(app.id),
                             )).toList(),
                           ),
                         ),
@@ -719,8 +500,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                           child: ExpansionTile(
                             key: PageStorageKey('completed_folder'),
                             initiallyExpanded: _completedExpanded,
-                            onExpansionChanged: (expanded) {
+                            onExpansionChanged: (expanded) async {
                               setState(() => _completedExpanded = expanded);
+                              final prefs = await SharedPreferences.getInstance();
+                              await prefs.setBool(_completedExpandedKey, expanded);
                             },
                             leading: Icon(
                               _completedExpanded ? Icons.folder_open : Icons.folder,
@@ -752,6 +535,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                               appStatus: _AppStatus.completed,
                               onToggleCompleted: () => _toggleAppCompleted(app.id),
                               onTogglePostponed: () => _toggleAppPostponed(app.id),
+                              onIconTap: () => context.read<AppState>().requestIssuesForApp(app.id),
                             )).toList(),
                           ),
                         ),
@@ -760,6 +544,62 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           );
         },
       ),
+    );
+  }
+}
+
+class _AnimatedFab extends StatefulWidget {
+  final VoidCallback onPressed;
+  final String heroTag;
+  final Widget child;
+  final Color? backgroundColor;
+  final bool small;
+
+  const _AnimatedFab({
+    required this.onPressed,
+    required this.heroTag,
+    required this.child,
+    this.backgroundColor,
+    this.small = false,
+  });
+
+  @override
+  State<_AnimatedFab> createState() => _AnimatedFabState();
+}
+
+class _AnimatedFabState extends State<_AnimatedFab> {
+  static const _pressDuration = Duration(milliseconds: 90);
+  double _scale = 1.0;
+
+  void _handlePress() {
+    HapticFeedback.lightImpact();
+    setState(() => _scale = 0.92);
+    Future.delayed(_pressDuration, () {
+      if (mounted) setState(() => _scale = 1.0);
+    });
+    widget.onPressed();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final fab = widget.small
+        ? FloatingActionButton.small(
+            heroTag: widget.heroTag,
+            backgroundColor: widget.backgroundColor,
+            onPressed: _handlePress,
+            child: widget.child,
+          )
+        : FloatingActionButton(
+            heroTag: widget.heroTag,
+            backgroundColor: widget.backgroundColor,
+            onPressed: _handlePress,
+            child: widget.child,
+          );
+    return AnimatedScale(
+      scale: _scale,
+      duration: _pressDuration,
+      curve: Curves.easeOutBack,
+      child: fab,
     );
   }
 }
@@ -774,6 +614,7 @@ class _AppCard extends StatelessWidget {
   final _AppStatus appStatus;
   final VoidCallback onToggleCompleted;
   final VoidCallback onTogglePostponed;
+  final VoidCallback? onIconTap;
 
   const _AppCard({
     required this.app,
@@ -783,6 +624,7 @@ class _AppCard extends StatelessWidget {
     required this.appStatus,
     required this.onToggleCompleted,
     required this.onTogglePostponed,
+    this.onIconTap,
   });
 
   bool get isCompleted => appStatus == _AppStatus.completed;
@@ -889,18 +731,42 @@ class _AppCard extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           child: Row(
             children: [
-              // App type icon
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: AppColors.bgDark,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  AppColors.appTypeIcon(app.appType),
-                  color: (isCompleted || isPostponed) ? Colors.grey : AppColors.accent,
-                  size: 26,
+              // App icon — tappable to navigate to issues
+              GestureDetector(
+                onTap: onIconTap != null
+                    ? () {
+                        HapticFeedback.lightImpact();
+                        onIconTap!();
+                      }
+                    : null,
+                child: Tooltip(
+                  message: 'View issues',
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      _AppIconWidget(
+                        app: app,
+                        dimmed: isCompleted || isPostponed,
+                      ),
+                      Positioned(
+                        right: -3,
+                        bottom: -3,
+                        child: Container(
+                          padding: const EdgeInsets.all(2),
+                          decoration: BoxDecoration(
+                            color: AppColors.bgCard,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: AppColors.bgDark, width: 1),
+                          ),
+                          child: const Icon(
+                            Icons.bug_report,
+                            size: 12,
+                            color: AppColors.info,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(width: 14),
@@ -1179,6 +1045,48 @@ class _TaskSummaryCard extends StatelessWidget {
         Text(label,
             style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
       ],
+    );
+  }
+}
+
+class _AppIconWidget extends StatelessWidget {
+  final AppModel app;
+  final bool dimmed;
+
+  const _AppIconWidget({required this.app, this.dimmed = false});
+
+  @override
+  Widget build(BuildContext context) {
+    // Always attempt the icon fetch when the user has the toggle on:
+    // CachedAppIcon caches a "no icon" sentinel for 404s so it does not
+    // refetch on every paint, and we still fall back to the type icon
+    // for apps the server has no icon for. Gating on iconPath.isNotEmpty
+    // would silently drop apps that the server *would* serve an icon for
+    // but had not populated the icon_path field for yet.
+    final showReal = AppConfig.showAppIcons;
+    return Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(
+        color: AppColors.bgDark,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: showReal
+          ? Opacity(
+              opacity: dimmed ? 0.5 : 1.0,
+              child: CachedAppIcon(
+                appId: app.id,
+                iconPath: app.iconPath,
+                size: 48,
+                errorBuilder: (_) => AppLetterAvatar(name: app.name, size: 48),
+              ),
+            )
+          : Icon(
+              AppColors.appTypeIcon(app.appType),
+              color: dimmed ? Colors.grey : AppColors.accent,
+              size: 26,
+            ),
     );
   }
 }

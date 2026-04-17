@@ -192,7 +192,8 @@ class EventService {
   /// this, the dashboard would rebuild N times in ~100ms and flicker.
   void _scheduleRefresh() {
     if (_refreshTimer?.isActive ?? false) return;
-    _refreshTimer = Timer(const Duration(milliseconds: 50), () {
+    _refreshTimer = Timer(
+        const Duration(milliseconds: AppConfig.eventRefreshDebounceMs), () {
       _refreshTimer = null;
       if (_stopped) return;
       _appState.refreshFromCache();
@@ -211,7 +212,8 @@ class EventService {
   void _scheduleAck(int seq) {
     if (seq > _pendingAckSeq) _pendingAckSeq = seq;
     _ackTimer?.cancel();
-    _ackTimer = Timer(const Duration(seconds: 2), _flushAck);
+    _ackTimer = Timer(
+        const Duration(seconds: AppConfig.eventAckDebounceSeconds), _flushAck);
   }
 
   Future<void> _flushAck() async {
@@ -253,7 +255,8 @@ class EventService {
     if (_stopped) return;
     _reconnectTimer?.cancel();
     final delay = Duration(seconds: _backoffSeconds);
-    _backoffSeconds = (_backoffSeconds * 2).clamp(1, 30);
+    _backoffSeconds =
+        (_backoffSeconds * 2).clamp(1, AppConfig.eventReconnectMaxBackoffSeconds);
     _reconnectTimer = Timer(delay, _connect);
   }
 

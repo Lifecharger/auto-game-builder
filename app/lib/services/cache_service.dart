@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:hive/hive.dart';
 import 'cache_constants.dart';
 import '../models/app_model.dart';
@@ -13,17 +14,49 @@ class CacheService {
   /// way that makes old cache entries semantically stale (e.g. a new field that
   /// the dashboard relies on). On mismatch, openBoxes() wipes the cache and
   /// forces the next sync to fetch a fresh full snapshot.
-  static const int _schemaVersion = 2;
+  static const int _schemaVersion = 5;
+
+  static const List<String> _boxNames = [
+    CacheBoxes.apps,
+    CacheBoxes.issues,
+    CacheBoxes.builds,
+    CacheBoxes.sessions,
+    CacheBoxes.syncMeta,
+  ];
 
   Future<void> openBoxes() async {
-    await Future.wait([
-      Hive.openBox<String>(CacheBoxes.apps),
-      Hive.openBox<String>(CacheBoxes.issues),
-      Hive.openBox<String>(CacheBoxes.builds),
-      Hive.openBox<String>(CacheBoxes.sessions),
-      Hive.openBox<String>(CacheBoxes.syncMeta),
-    ]);
+    try {
+      await _openAllBoxes();
+    } catch (e, st) {
+      debugPrint('CacheService: Hive box open failed, wiping cache: $e\n$st');
+      for (final name in _boxNames) {
+        try {
+          if (Hive.isBoxOpen(name)) {
+            await Hive.box<String>(name).close();
+          }
+          await Hive.deleteBoxFromDisk(name);
+        } catch (inner) {
+          debugPrint('CacheService: failed to delete box $name: $inner');
+        }
+      }
+      try {
+        if (Hive.isBoxOpen(CacheBoxes.appIcons)) {
+          await Hive.box<Uint8List>(CacheBoxes.appIcons).close();
+        }
+        await Hive.deleteBoxFromDisk(CacheBoxes.appIcons);
+      } catch (inner) {
+        debugPrint(
+            'CacheService: failed to delete box ${CacheBoxes.appIcons}: $inner');
+      }
+      await _openAllBoxes();
+      debugPrint('CacheService: recovered from corrupt Hive state');
+    }
     await _migrateIfNeeded();
+  }
+
+  Future<void> _openAllBoxes() async {
+    await Future.wait(_boxNames.map((n) => Hive.openBox<String>(n)));
+    await Hive.openBox<Uint8List>(CacheBoxes.appIcons);
   }
 
   Future<void> _migrateIfNeeded() async {
@@ -223,5 +256,34 @@ class CacheService {
     await Hive.box<String>(CacheBoxes.builds).clear();
     await Hive.box<String>(CacheBoxes.sessions).clear();
     await Hive.box<String>(CacheBoxes.syncMeta).clear();
+    await Hive.box<Uint8List>(CacheBoxes.appIcons).clear();
   }
+
+  // ── App icons ────────────────────────────────────────
+
+  /// Returns cached icon bytes for [appId] when the cache entry was
+  /// written for the same [iconPath] (so the cache is invalidated when
+  /// the server's icon changes).
+  Uint8List? getAppIcon(int appId, String iconPath) {
+    final box = Hive.box<Uint8List>(CacheBoxes.appIcons);
+    final bytes = box.get(_iconBytesKey(appId));
+    final storedPath = box.get(_iconPathKey(appId));
+    if (bytes == null) return null;
+    final storedPathStr = storedPath == null
+        ? ''
+        : utf8.decode(storedPath, allowMalformed: true);
+    if (storedPathStr != iconPath) return null;
+    return bytes;
+  }
+
+  Future<void> setAppIcon(
+      int appId, String iconPath, Uint8List bytes) async {
+    final box = Hive.box<Uint8List>(CacheBoxes.appIcons);
+    await box.put(_iconBytesKey(appId), bytes);
+    await box.put(
+        _iconPathKey(appId), Uint8List.fromList(utf8.encode(iconPath)));
+  }
+
+  String _iconBytesKey(int appId) => 'app_$appId';
+  String _iconPathKey(int appId) => 'app_${appId}_path';
 }

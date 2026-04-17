@@ -15,6 +15,7 @@ class AppModel {
   final String playStoreUrl;
   final String websiteUrl;
   final String consoleUrl;
+  final String iconPath;
   final Map<String, int> taskStatus;
 
   AppModel({
@@ -34,6 +35,7 @@ class AppModel {
     required this.playStoreUrl,
     required this.websiteUrl,
     required this.consoleUrl,
+    required this.iconPath,
     required this.taskStatus,
   });
 
@@ -66,6 +68,7 @@ class AppModel {
       playStoreUrl: json['play_store_url'] ?? '',
       websiteUrl: json['website_url'] ?? '',
       consoleUrl: json['console_url'] ?? '',
+      iconPath: json['icon_path'] ?? '',
       taskStatus: parsedStatus,
     );
   }

@@ -9,8 +9,8 @@ import '../services/api_service.dart';
 import '../services/app_state.dart';
 import '../theme.dart';
 import '../widgets/create_task_sheet.dart';
+import '../widgets/issues/issue_task_card.dart';
 import '../widgets/task_filters_widget.dart';
-import '../widgets/task_item_card.dart';
 
 class IssuesScreen extends StatefulWidget {
   const IssuesScreen({super.key});
@@ -29,6 +29,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
   bool _appInForeground = true;
   static const _myTabIndex = 1;
   final _searchController = TextEditingController();
+  AppState? _appStateRef;
 
   // Track when items entered in_progress (keyed by task id)
   final Map<dynamic, DateTime> _inProgressStartTimes = {};
@@ -285,15 +286,48 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
         _loadItems();
       }
     });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _appStateRef = context.read<AppState>();
+      _appStateRef!.addListener(_handleIssuesRequest);
+    });
     _startPolling();
   }
 
   @override
   void dispose() {
+    _appStateRef?.removeListener(_handleIssuesRequest);
     _pollTimer?.cancel();
     _searchController.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  void _handleIssuesRequest() {
+    if (!mounted) return;
+    final appState = _appStateRef;
+    if (appState == null) return;
+    final requestedId = appState.issuesRequestedAppId;
+    if (requestedId == null) return;
+
+    appState.clearIssuesRequest();
+
+    // Determine which category this app belongs to
+    String category;
+    if (_completedAppIds.contains(requestedId)) {
+      category = 'completed';
+    } else if (_postponedAppIds.contains(requestedId)) {
+      category = 'postponed';
+    } else {
+      category = 'in_progress';
+    }
+
+    setState(() {
+      _appCategory = category;
+      _selectedAppId = requestedId;
+      _expandedIndex = null;
+    });
+    _loadItems();
   }
 
   @override
@@ -301,14 +335,10 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
     _appInForeground = state == AppLifecycleState.resumed;
   }
 
-  bool get _hasActiveInProgress => _inProgressStartTimes.isNotEmpty;
-
-  /// Adaptive polling: 8s when tasks are running, 30s otherwise.
+  /// Poll every 5s (same cadence as dashboard since we only sync changes).
   void _startPolling() {
     _pollTimer?.cancel();
-    final interval = _hasActiveInProgress
-        ? const Duration(seconds: 8)
-        : const Duration(seconds: 30);
+    const interval = Duration(seconds: 5);
     _pollTimer = Timer.periodic(interval, (_) {
       if (!mounted || !_appInForeground) return;
       if (context.read<AppState>().activeTabIndex != _myTabIndex) return;
@@ -386,9 +416,6 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
 
       // Auto-reset stuck tasks (in_progress longer than threshold)
       _autoResetStuckTasks();
-
-      // Adjust polling speed based on whether tasks are active
-      _startPolling();
 
       // Update pending count in AppState for badge
       final pendingCount = _allItems.where((i) {
@@ -1739,16 +1766,13 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
                                   final item = filtered[index];
                                   final isExpanded = _expandedIndex == index;
                                   final status = item['status'] ?? 'pending';
-                                  final taskType = (item['task_type'] ?? item['type'] ?? 'issue').toString();
-                                  final canDelete = status != 'completed';
                                   final itemId = item['id'];
                                   final inProgressSince = (status == 'in_progress' && itemId != null)
                                       ? _inProgressStartTimes[itemId]
                                       : null;
-                                  final card = TaskItemCard(
+                                  return IssueTaskCard(
                                     item: item,
-                                    typeColor: AppColors.taskTypeColor(taskType),
-                                    statusColor: AppColors.taskStatusColor(status),
+                                    index: index,
                                     isExpanded: isExpanded,
                                     inProgressSince: inProgressSince,
                                     onTap: () {
@@ -1756,99 +1780,11 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
                                         _expandedIndex = isExpanded ? null : index;
                                       });
                                     },
-                                    onFixNow: () => _fixNow(item),
-                                    onDelete: canDelete ? () => _deleteItem(item) : null,
-                                    onReset: status == 'in_progress' ? () => _resetItem(item) : null,
-                                  );
-                                  final canComplete = status != 'completed' && item['_source'] != 'idea';
-                                  if (!canDelete && !canComplete) return card;
-                                  return Dismissible(
-                                    key: ValueKey('${item['_source']}_${item['id'] ?? index}'),
-                                    direction: canDelete && canComplete
-                                        ? DismissDirection.horizontal
-                                        : canComplete
-                                            ? DismissDirection.startToEnd
-                                            : DismissDirection.endToStart,
-                                    // Swipe right -> complete (green)
-                                    background: Container(
-                                      alignment: Alignment.centerLeft,
-                                      padding: const EdgeInsets.only(left: 20),
-                                      margin: const EdgeInsets.only(bottom: 8),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.success.withValues(alpha: 0.2),
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: const Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(Icons.check_circle, color: AppColors.success),
-                                          SizedBox(width: 8),
-                                          Text('Complete', style: TextStyle(color: AppColors.success, fontWeight: FontWeight.bold)),
-                                        ],
-                                      ),
-                                    ),
-                                    // Swipe left -> delete (red)
-                                    secondaryBackground: Container(
-                                      alignment: Alignment.centerRight,
-                                      padding: const EdgeInsets.only(right: 20),
-                                      margin: const EdgeInsets.only(bottom: 8),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.error.withValues(alpha: 0.2),
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: const Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Text('Delete', style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold)),
-                                          SizedBox(width: 8),
-                                          Icon(Icons.delete, color: AppColors.error),
-                                        ],
-                                      ),
-                                    ),
-                                    confirmDismiss: (direction) async {
-                                      if (direction == DismissDirection.startToEnd) {
-                                        // Complete: confirm then act
-                                        final confirm = await showDialog<bool>(
-                                          context: context,
-                                          builder: (ctx) => AlertDialog(
-                                            backgroundColor: AppColors.bgCard,
-                                            title: const Text('Mark Complete'),
-                                            content: Text('Mark "${item['title']}" as completed?'),
-                                            actions: [
-                                              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-                                              FilledButton(
-                                                onPressed: () => Navigator.pop(ctx, true),
-                                                style: FilledButton.styleFrom(backgroundColor: AppColors.success),
-                                                child: const Text('Complete'),
-                                              ),
-                                            ],
-                                          ),
-                                        );
-                                        if (confirm == true) _completeItem(item);
-                                        return false; // don't remove from list; _loadItems will refresh
-                                      } else {
-                                        // Delete: confirm
-                                        final confirm = await showDialog<bool>(
-                                          context: context,
-                                          builder: (ctx) => AlertDialog(
-                                            backgroundColor: AppColors.bgCard,
-                                            title: const Text('Delete'),
-                                            content: Text('Delete "${item['title']}"?\nThis cannot be undone.'),
-                                            actions: [
-                                              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-                                              FilledButton(
-                                                onPressed: () => Navigator.pop(ctx, true),
-                                                style: FilledButton.styleFrom(backgroundColor: AppColors.error),
-                                                child: const Text('Delete'),
-                                              ),
-                                            ],
-                                          ),
-                                        );
-                                        if (confirm == true) _deleteItemDirect(item);
-                                        return false; // _loadItems handles list refresh
-                                      }
-                                    },
-                                    child: card,
+                                    onFix: () => _fixNow(item),
+                                    onReset: () => _resetItem(item),
+                                    onCardDelete: () => _deleteItem(item),
+                                    onSwipeDelete: () => _deleteItemDirect(item),
+                                    onComplete: () => _completeItem(item),
                                   );
                                 },
                               ),

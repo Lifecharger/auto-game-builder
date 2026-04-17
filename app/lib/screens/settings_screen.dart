@@ -11,6 +11,7 @@ import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../services/billing_service.dart';
 import '../theme.dart';
+import '../widgets/settings/server_config_section.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -37,8 +38,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _serverRunning = false;
   Process? _serverProcess;
   Map<String, dynamic>? _serverSettings;
-  bool _settingsEditing = false;
-  final Map<String, TextEditingController> _settingsControllers = {};
+  String? _serverSettingsPath;
 
   @override
   void initState() {
@@ -69,9 +69,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void dispose() {
     _urlController.dispose();
     _workerUrlController.dispose();
-    for (final c in _settingsControllers.values) {
-      c.dispose();
-    }
     super.dispose();
   }
 
@@ -124,58 +121,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (mounted) {
         setState(() {
           _serverSettings = json;
+          _serverSettingsPath = path;
         });
       }
     } catch (e) {
       debugPrint('Failed to load server settings: $e');
-    }
-  }
-
-  Future<void> _saveServerSettings() async {
-    HapticFeedback.lightImpact();
-    final path = _findSettingsPath();
-    if (path == null || _serverSettings == null) return;
-
-    // Apply controller values back to the settings map
-    for (final entry in _settingsControllers.entries) {
-      final keys = entry.key.split('.');
-      if (keys.length == 2) {
-        final section = _serverSettings![keys[0]];
-        if (section is Map<String, dynamic>) {
-          final val = entry.value.text.trim();
-          // Preserve booleans and ints
-          if (section[keys[1]] is bool) {
-            section[keys[1]] = val.toLowerCase() == 'true';
-          } else if (section[keys[1]] is int) {
-            section[keys[1]] = int.tryParse(val) ?? section[keys[1]];
-          } else {
-            section[keys[1]] = val;
-          }
-        }
-      }
-    }
-
-    try {
-      final encoder = const JsonEncoder.withIndent('  ');
-      await File(path).writeAsString(encoder.convert(_serverSettings));
-      if (mounted) {
-        setState(() => _settingsEditing = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Settings saved — restart server to apply'),
-            backgroundColor: AppColors.success,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to save: $e'),
-            backgroundColor: AppColors.error,
-          ),
-        );
-      }
     }
   }
 
@@ -430,7 +380,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
             // Server Configuration (all paths, desktop only)
             if (_isDesktop) ...[
-              _buildServerConfigCard(),
+              ServerConfigSection(
+                serverSettings: _serverSettings,
+                settingsPath: _serverSettingsPath,
+                onReload: _loadServerSettings,
+              ),
               const SizedBox(height: 16),
             ],
 
@@ -507,6 +461,47 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
             if (!_isDesktop) const SizedBox(height: 16),
+
+            // Display preferences card
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.palette, color: AppColors.accent),
+                        SizedBox(width: 8),
+                        Text(
+                          'Display',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Show app icons'),
+                      subtitle: Text(
+                        'Display real app icons on the dashboard instead of generic type icons',
+                        style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                      ),
+                      value: AppConfig.showAppIcons,
+                      activeTrackColor: AppColors.accent,
+                      onChanged: (value) async {
+                        await AppConfig.setShowAppIcons(value);
+                        setState(() {});
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
 
             // About card
             Card(
@@ -670,187 +665,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   foregroundColor: Colors.white,
                 ),
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildServerConfigCard() {
-    if (_serverSettings == null) {
-      return Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              const Row(
-                children: [
-                  Icon(Icons.settings_applications, color: AppColors.warning),
-                  SizedBox(width: 8),
-                  Text('Server Configuration',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Text('settings.json not found',
-                  style: TextStyle(color: Colors.grey.shade500)),
-            ],
-          ),
-        ),
-      );
-    }
-
-    // Editable fields grouped by section
-    const sectionLabels = {
-      'paths': 'Paths',
-      'ai_agents': 'AI Agents',
-      'engines': 'Game Engines',
-      'system': 'System Tools',
-      'cloudflare': 'Cloudflare',
-      'developer': 'Developer',
-      'server': 'Server',
-      'services': 'Services',
-    };
-
-    const fieldIcons = {
-      'projects_root': Icons.folder,
-      'keys_dir': Icons.key,
-      'tools_dir': Icons.build,
-      'service_account_key': Icons.vpn_key,
-      'claude_path': Icons.smart_toy,
-      'gemini_path': Icons.smart_toy,
-      'codex_path': Icons.smart_toy,
-      'aider_path': Icons.smart_toy,
-      'flutter_path': Icons.flutter_dash,
-      'godot_path': Icons.videogame_asset,
-      'bash_path': Icons.terminal,
-      'cloudflared_path': Icons.cloud,
-      'npx_path': Icons.code,
-      'tunnel_enabled': Icons.router,
-      'kv_namespace_id': Icons.storage,
-      'account_id': Icons.account_box,
-      'worker_url': Icons.link,
-      'developer_name': Icons.person,
-      'host': Icons.dns,
-      'port': Icons.numbers,
-      'ollama_url': Icons.psychology,
-    };
-
-    Widget buildField(String section, String key, dynamic value) {
-      final fullKey = '$section.$key';
-      if (!_settingsControllers.containsKey(fullKey)) {
-        _settingsControllers[fullKey] = TextEditingController(text: value.toString());
-      }
-      final controller = _settingsControllers[fullKey]!;
-      if (!_settingsEditing) {
-        controller.text = value.toString();
-      }
-      final icon = fieldIcons[key] ?? Icons.settings;
-      final label = key.replaceAll('_', ' ').replaceAllMapped(
-          RegExp(r'(^|\s)(\w)'), (m) => '${m[1]}${m[2]!.toUpperCase()}');
-
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: TextField(
-          controller: controller,
-          readOnly: !_settingsEditing,
-          decoration: InputDecoration(
-            labelText: label,
-            prefixIcon: Icon(icon, size: 20),
-            isDense: true,
-            filled: !_settingsEditing,
-            fillColor: _settingsEditing ? null : Colors.grey.withAlpha(15),
-          ),
-          style: TextStyle(
-            fontSize: 13,
-            color: _settingsEditing ? Colors.white : Colors.grey.shade400,
-          ),
-        ),
-      );
-    }
-
-    final sections = <Widget>[];
-    for (final sectionKey in sectionLabels.keys) {
-      final sectionData = _serverSettings![sectionKey];
-      if (sectionData is! Map<String, dynamic> || sectionData.isEmpty) continue;
-
-      sections.add(Padding(
-        padding: const EdgeInsets.only(top: 12, bottom: 4),
-        child: Text(
-          sectionLabels[sectionKey]!,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: AppColors.accent,
-            letterSpacing: 1,
-          ),
-        ),
-      ));
-
-      for (final entry in sectionData.entries) {
-        sections.add(buildField(sectionKey, entry.key, entry.value));
-      }
-    }
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: const [
-                Icon(Icons.settings_applications, color: AppColors.warning),
-                SizedBox(width: 8),
-                Text('Server Configuration',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'settings.json — restart server after changes',
-              style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
-            ),
-            ...sections,
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                if (!_settingsEditing)
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => setState(() => _settingsEditing = true),
-                      icon: const Icon(Icons.edit, size: 18),
-                      label: const Text('Edit'),
-                    ),
-                  ),
-                if (_settingsEditing) ...[
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        _loadServerSettings();
-                        setState(() => _settingsEditing = false);
-                      },
-                      icon: const Icon(Icons.close, size: 18),
-                      label: const Text('Cancel'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: _saveServerSettings,
-                      icon: const Icon(Icons.save, size: 18),
-                      label: const Text('Save'),
-                    ),
-                  ),
-                ],
-                const SizedBox(width: 8),
-                IconButton(
-                  onPressed: _loadServerSettings,
-                  icon: const Icon(Icons.refresh, size: 20),
-                  tooltip: 'Reload',
-                ),
-              ],
             ),
           ],
         ),
