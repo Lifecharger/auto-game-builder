@@ -76,7 +76,9 @@ class EventLog:
                     if isinstance(seq, int):
                         last_seq = max(last_seq, seq)
                         lines_kept.append(raw)
-            if len(lines_kept) != sum(1 for _ in open(ACTIVE_LOG_PATH, "r", encoding="utf-8")):
+            with open(ACTIVE_LOG_PATH, "r", encoding="utf-8") as _f:
+                raw_line_count = sum(1 for _ in _f)
+            if len(lines_kept) != raw_line_count:
                 # We dropped a corrupt line — rewrite the file cleanly so
                 # subsequent appends stay valid JSONL.
                 with open(ACTIVE_LOG_PATH, "w", encoding="utf-8") as f:

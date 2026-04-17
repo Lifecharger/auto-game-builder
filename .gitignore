@@ -85,6 +85,9 @@ server/automations/*.sh
 # Worker config with account details
 worker/wrangler.toml
 
+# Audit reports (generated, not versioned)
+AUDIT_REPORT*.md
+
 # OS
 .DS_Store
 Thumbs.db

@@ -112,6 +112,12 @@ class BuildEngine:
             self._emit("build_completed", build_id, success)
 
         except Exception as e:
+            # Kill the subprocess so it doesn't linger as a zombie
+            try:
+                process.kill()
+                process.wait(timeout=10)
+            except Exception:
+                pass
             self.db.update_build(
                 build_id,
                 status="failed",

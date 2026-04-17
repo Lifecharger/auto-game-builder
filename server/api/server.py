@@ -517,9 +517,12 @@ def events_ack(body: _AckBody):
 
 
 @app.get("/api/pair")
-def pair():
+def pair(request: Request):
     """Return pairing data (API key + worker URL) for QR code display.
     Only accessible from localhost — blocks remote access."""
+    client_host = request.client.host if request.client else ""
+    if client_host not in ("127.0.0.1", "::1", "localhost", ""):
+        raise HTTPException(403, "Pairing is only available from localhost")
     import base64
     settings = get_settings()
     api_key = settings.get("api_key", "")
