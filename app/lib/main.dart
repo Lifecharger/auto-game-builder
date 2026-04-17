@@ -50,11 +50,13 @@ class AppManagerMobile extends StatelessWidget {
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
       create: (_) {
-        final state = AppState()..loadApps();
-        // Open the SSE event stream so server-side changes (task edits,
-        // build-engine status flips, deploy uploads) push onto the
-        // dashboard immediately instead of waiting for the 5s poll.
-        EventService(state).start();
+        final state = AppState();
+        // Bind EventService so force-refresh can stop/restart it to
+        // prevent replayed old events from overwriting fresh sync data.
+        final events = EventService(state);
+        state.bindEventService(events);
+        // Initial sync first, then start the SSE event stream.
+        state.loadApps().then((_) => events.start());
         return state;
       },
       child: MaterialApp(

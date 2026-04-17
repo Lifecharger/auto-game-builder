@@ -6,6 +6,7 @@ import '../models/issue_model.dart';
 import 'api_service.dart';
 import 'auth_service.dart';
 import 'cache_service.dart';
+import 'event_service.dart';
 import 'sync_service.dart';
 
 class AppState extends ChangeNotifier {
@@ -21,6 +22,7 @@ class AppState extends ChangeNotifier {
   int? _issuesRequestedAppId;
   Future<void>? _appsInFlight;
   Future<void>? _issuesInFlight;
+  EventService? _eventService;
 
   List<AppModel> get apps => _apps;
   List<IssueModel> get issues => _issues;
@@ -54,6 +56,9 @@ class AppState extends ChangeNotifier {
   void clearIssuesRequest() {
     _issuesRequestedAppId = null;
   }
+
+  /// Bind the EventService so force-refresh can stop/restart it.
+  void bindEventService(EventService es) => _eventService = es;
 
   void updatePendingCount(int count) {
     if (_pendingTaskCount != count) {
@@ -129,8 +134,14 @@ class AppState extends ChangeNotifier {
       notifyListeners();
     }
 
+    // On force refresh, stop EventService so replayed old events can't
+    // overwrite the fresh data we're about to fetch. It reconnects after
+    // sync completes with the updated last_seq cursor.
+    if (force) _eventService?.stop();
+
     // 2. Sync delta in the background and refresh from cache when it lands.
     final synced = await SyncService.instance.sync(force: force);
+    if (force) _eventService?.start();
     if (synced) {
       _apps = CacheService.instance.getApps();
       _error = null;

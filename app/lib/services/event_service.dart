@@ -151,6 +151,10 @@ class EventService {
     final type = event['type'] as String?;
     if (type == null) return;
 
+    // Skip events the client has already consumed (e.g. covered by a
+    // /api/sync that advanced last_seq while we were mid-replay).
+    if (seq != null && seq <= CacheService.instance.getLastSeq()) return;
+
     try {
       switch (type) {
         case 'app.updated':

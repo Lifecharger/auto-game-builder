@@ -102,6 +102,13 @@ class VersionManager:
             with open(cfg, "r", encoding="utf-8") as f:
                 content = f.read()
             content = content.replace(f'version/name="{old}"', f'version/name="{new}"')
+            # Keep version/code in sync — extract the patch number from the
+            # new semver and use it as the integer code so name and code
+            # never drift apart.
+            new_patch = new.split(".")[-1].split("+")[0].split("-")[0]
+            if new_patch.isdigit():
+                new_code = int(new_patch)
+                content = re.sub(r'version/code=\d+', f'version/code={new_code}', content)
             with open(cfg, "w", encoding="utf-8") as f:
                 f.write(content)
         except Exception:

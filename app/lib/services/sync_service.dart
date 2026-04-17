@@ -58,6 +58,15 @@ class SyncService {
         await _cache.setLastSyncTime(serverTime);
       }
 
+      // Advance the event cursor to the server's current head so
+      // EventService never replays events the sync already covered.
+      // This eliminates the race where old replayed events overwrite
+      // the fresh data we just wrote above.
+      final eventSeq = data['event_seq'];
+      if (eventSeq is int && eventSeq > _cache.getLastSeq()) {
+        await _cache.setLastSeq(eventSeq);
+      }
+
       return true;
     } catch (e) {
       _lastError = 'Sync error: $e';

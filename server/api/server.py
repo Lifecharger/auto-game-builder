@@ -357,6 +357,7 @@ def sync_delta(since: str = ""):
         "sessions": sessions,
         "deleted": deleted,
         "server_time": _utc_now_str(),
+        "event_seq": event_log.current_seq,
     }
 
 
@@ -1094,14 +1095,14 @@ def _compute_task_status(a) -> dict:
 
 
 def _app_dict(a, issue_counts: dict | None = None, include_task_status: bool = True) -> dict:
-    version = a.current_version
+    # Prefer the on-disk version (source of truth) but never write it back
+    # to the DB here — _app_dict is a read-only serialiser called on every
+    # sync / event.  Letting transient disk states (mid-build files, I/O
+    # hiccups) update the DB created stale-version ghosts that re-appeared
+    # whenever the next disk read failed and fell back to the DB value.
+    # DB version is only updated deliberately by the build/deploy engine.
     real_version = _read_project_version(a)
-    if real_version and real_version != version:
-        version = real_version
-        try:
-            db().update_app(a.id, current_version=real_version)
-        except Exception as e:
-            logger.debug("Failed to update app version in DB: %s", e)
+    version = real_version if real_version else a.current_version
     open_issues = issue_counts.get(a.id, 0) if issue_counts is not None else db().count_issues(a.id, status="open")
     icon_path = a.icon_path or (_resolve_app_icon(a) or "")
     result = {
@@ -2188,42 +2189,6 @@ def dashboard():
         "total_apps": len(apps),
         "total_open_issues": total_open,
         "apps": app_summaries,
-    }
-
-
-# ── Delta Sync ───────────────────────────────────────────────
-
-@app.get("/api/sync")
-def delta_sync(since: str = ""):
-    """Return all records changed since the given ISO timestamp.
-
-    First call (no since): returns everything for initial cache population.
-    Subsequent calls: returns only records created/updated/deleted after `since`.
-    """
-    d = db()
-    server_time = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-
-    if not since:
-        apps = d.get_all_apps(include_archived=True)
-        issues = d.get_all_issues()
-        builds = d.get_all_builds()
-        sessions = d.get_all_sessions()
-        deleted = []
-    else:
-        apps = d.get_apps_since(since)
-        issues = d.get_issues_since(since)
-        builds = d.get_builds_since(since)
-        sessions = d.get_sessions_since(since)
-        deleted = d.get_deleted_since(since)
-
-    counts = d.count_issues_by_app(status="open")
-    return {
-        "apps": [_app_dict(a, issue_counts=counts) for a in apps],
-        "issues": [_issue_dict(i) for i in issues],
-        "builds": [_build_dict(b) for b in builds],
-        "sessions": [_session_dict(s) for s in sessions],
-        "deleted": deleted,
-        "server_time": server_time,
     }
 
 
