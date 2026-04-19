@@ -2474,7 +2474,7 @@ THIS SESSION'S FOCUS AREA: {session_focus}
 {session_focus_details}
 
 STEP 6 - BUILD (if applicable):
-If this is a buildable project, attempt a build to verify nothing is broken.
+If this is a buildable project, attempt a build to verify nothing is broken. Do NOT bump the app version — the deploy pipeline handles version bumping.
 
 REPEAT: The system will call you again after a break. Leave the project in a good state.
 """
@@ -2785,7 +2785,7 @@ INSTRUCTIONS:
    - Write blocker/error details in the "response" field
    - Set "completed_by" to "{ai_agent}"
 5. Do not leave this task in "in_progress" at the end of the run.
-6. If this is a buildable project, verify the build still works.
+6. If this is a buildable project, verify the build still works. Do NOT bump the app version — the deploy pipeline handles version bumping.
 7. If this task is too large to finish in one session: FIRST create the sub-tasks as new entries in tasklist.json with status "pending" and SAVE. THEN mark this task "divided" with response listing the sub-task IDs. Sub-tasks MUST exist before marking divided.{idea_generation_rules}"""
     automation_instructions = _load_automation_instructions()
     prompt = f"""{prompt}

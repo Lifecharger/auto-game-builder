@@ -44,6 +44,7 @@ Every task you generate MUST be completable in a SINGLE session (max 30 minutes 
 - Do NOT leave debug prints or placeholder comments
 - Do NOT add features that aren't described in the task
 - Stay focused — one task, one change, move on
+- NEVER bump the app version (do NOT edit `version:` in pubspec.yaml, `version/name`/`version/code` in export_presets.cfg, or `version` in package.json/build.gradle). The deploy pipeline bumps the version automatically on every build — bumping it here causes a double-bump.
 
 ## Handling Oversized Tasks
 When you pick up a pending task that is TOO BIG to finish in one session:

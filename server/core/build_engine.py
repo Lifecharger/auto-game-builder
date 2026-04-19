@@ -137,12 +137,16 @@ class BuildEngine:
 
         pp = shlex.quote(app.project_path)
         if app.app_type == "flutter":
+            # flutter clean + pub get before every build to invalidate Gradle's
+            # mergeAssets incremental cache — otherwise regenerated assets
+            # (SFX, images) with unchanged filenames get served stale.
+            prelude = f'cd {pp} && flutter clean && flutter pub get'
             if build_type == "appbundle":
-                return f'cd {pp} && flutter build appbundle --release'
+                return f'{prelude} && flutter build appbundle --release'
             elif build_type == "apk":
-                return f'cd {pp} && flutter build apk --release'
+                return f'{prelude} && flutter build apk --release'
             elif build_type == "debug":
-                return f'cd {pp} && flutter build apk --debug'
+                return f'{prelude} && flutter build apk --debug'
         elif app.app_type == "godot":
             return f'{shlex.quote(godot)} --headless --export-release "Android" build/{app.slug}.apk'
         elif app.app_type == "phaser":

@@ -127,3 +127,7 @@ server/*.db.bak_*
 
 # Comic Translator (merged into tools/) — runtime local overrides
 tools/comic_translator/config.local.json
+
+# r2manager — local paths, bucket names, and ElevenLabs key live in config.py
+tools/r2manager/config.py
+tools/r2manager/__pycache__/
