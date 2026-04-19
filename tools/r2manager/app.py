@@ -1646,6 +1646,9 @@ class App:
         No eligibility gate — push whatever's there. Themed collections push
         all images in one batch + any .mp3 present. Generic pushes in batches
         of 10 for progress granularity (trailing partial batch included, no mp3).
+
+        A themed collection with just its .mp3 left (images already pushed in
+        a prior run) still gets queued so the mp3 can catch up.
         """
         tasks: list[tuple[Path, list[Path], Path | None]] = []
         for coll in sorted([p for p in staging_root.iterdir() if p.is_dir()],
@@ -1655,15 +1658,16 @@ class App:
                  if p.is_file() and p.suffix.lower() == ".jpg" and p.stem.isdigit()],
                 key=lambda p: int(p.stem),
             )
-            if not images:
-                continue
             is_generic = coll.name.lower() == "generic"
+            mp3 = (None if is_generic else
+                   next((p for p in coll.iterdir()
+                         if p.suffix.lower() == ".mp3"), None))
+            if not images and not mp3:
+                continue
             if is_generic:
                 for i in range(0, len(images), 10):
                     tasks.append((coll, images[i:i + 10], None))
             else:
-                mp3 = next((p for p in coll.iterdir()
-                            if p.suffix.lower() == ".mp3"), None)
                 tasks.append((coll, images, mp3))
         return tasks
 
@@ -1752,11 +1756,16 @@ class App:
             filtered: list[tuple[Path, list[Path], Path | None]] = []
             for coll, imgs, mp3 in tasks:
                 imgs_in_scope = [p for p in imgs if p in file_filter]
+                mp3_selected = (mp3 is not None and mp3 in file_filter)
                 if imgs_in_scope:
                     # Music is per-collection (not per-image), so include it
                     # whenever we're pushing any image from the themed
                     # collection, even if the user didn't click the mp3 row.
                     filtered.append((coll, imgs_in_scope, mp3))
+                elif mp3_selected:
+                    # User selected only the mp3 (e.g. images were pushed in
+                    # a prior run and only the music is left).
+                    filtered.append((coll, [], mp3))
             tasks = filtered
 
         if not tasks:
@@ -1844,7 +1853,10 @@ class App:
             pushed_coll = pushed_root / coll_name
             pushed_coll.mkdir(parents=True, exist_ok=True)
 
-            log(f"== {coll_name}  batch of {len(batch)} ==")
+            if batch:
+                log(f"== {coll_name}  batch of {len(batch)} ==")
+            elif mp3 is not None:
+                log(f"== {coll_name}  music only ==")
 
             for img in batch:
                 if cancelled():
