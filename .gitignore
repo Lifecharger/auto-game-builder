@@ -131,3 +131,43 @@ tools/comic_translator/config.local.json
 # r2manager — local paths, bucket names, and ElevenLabs key live in config.py
 tools/r2manager/config.py
 tools/r2manager/__pycache__/
+
+# --- Baseline safety excludes (release hardening) ---
+
+# Build outputs (generic, platform-wide)
+build/
+dist/
+.gradle/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+node_modules/
+android/build/
+android/app/build/
+android/.gradle/
+ios/build/
+*.apk
+*.aab
+*.ipa
+*.app
+*.so
+
+# Signing / secrets (generic, catch-all)
+*.keystore
+*.jks
+key.properties
+local.properties
+google-services.json
+GoogleService-Info.plist
+firebase-adminsdk*.json
+service_account*.json
+.env
+.env.*
+*.pem
+*.key
+mcp_config.json
+mcp_servers.json
+settings.json
+
+# IDE (catch-all)
+*.iml
