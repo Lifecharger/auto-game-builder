@@ -1950,13 +1950,39 @@ def update_claude_md(app_id: int, body: GddUpdate):
     return {"status": "ok"}
 
 
+# ── Art Bible (Visual Identity Anchor) ───────────────────────
+
+@app.get("/api/apps/{app_id}/art-bible")
+def get_art_bible(app_id: int):
+    a = db().get_app(app_id)
+    if not a:
+        raise HTTPException(404, "App not found")
+    art_path = os.path.join(a.project_path, "design", "art-bible.md")
+    if os.path.isfile(art_path):
+        with open(art_path, "r", encoding="utf-8") as f:
+            return {"content": f.read(), "exists": True}
+    return {"content": "", "exists": False}
+
+@app.put("/api/apps/{app_id}/art-bible")
+def update_art_bible(app_id: int, body: GddUpdate):
+    a = db().get_app(app_id)
+    if not a:
+        raise HTTPException(404, "App not found")
+    design_dir = os.path.join(a.project_path, "design")
+    os.makedirs(design_dir, exist_ok=True)
+    art_path = os.path.join(design_dir, "art-bible.md")
+    with open(art_path, "w", encoding="utf-8") as f:
+        f.write(body.content)
+    return {"ok": True}
+
+
 # ── Async Enhance (background thread, no timeout issues) ─────
 
 _enhance_status: dict[int, dict] = {}  # app_id -> {type, status, error}
 
 
 class EnhanceRequest(BaseModel):
-    type: str = "gdd"  # "gdd" or "claude-md"
+    type: str = "gdd"  # "gdd", "claude-md", or "art-bible"
 
 
 @app.post("/api/apps/{app_id}/enhance")
@@ -1971,8 +1997,10 @@ def enhance_doc(app_id: int, body: EnhanceRequest):
         doc_path = os.path.join(a.project_path, "gdd.md")
     elif doc_type == "claude-md":
         doc_path = os.path.join(a.project_path, "CLAUDE.md")
+    elif doc_type == "art-bible":
+        doc_path = os.path.join(a.project_path, "design", "art-bible.md")
     else:
-        raise HTTPException(400, "type must be 'gdd' or 'claude-md'")
+        raise HTTPException(400, "type must be 'gdd', 'claude-md', or 'art-bible'")
 
     if not os.path.isfile(doc_path):
         raise HTTPException(404, f"{doc_type} file not found")
@@ -2008,6 +2036,24 @@ Current design document:
 {content}
 
 Return ONLY the enhanced document text. No extra commentary."""
+            elif doc_type == "art-bible":
+                art_knowledge = _load_studio_knowledge("art_bible")
+                prompt = f"""Enhance and restructure the following Art Bible — the visual identity anchor every future asset-generation task references.
+
+Reference spec for a complete art bible:
+{art_knowledge}
+
+Rules:
+- Preserve all existing visual direction and specifics from the original
+- Fill in gaps with reasonable suggestions clearly marked as [SUGGESTED]
+- Palette entries MUST use hex codes
+- Include: identity statement, palette, typography, style prohibitions, and technical constraints (resolution, format, transparency)
+- Keep it tight and actionable — this is a reference doc, not marketing copy
+
+Current art bible:
+{content}
+
+Return ONLY the enhanced art bible content. No extra commentary."""
             else:
                 prompt = f"""Enhance and restructure the following CLAUDE.md project instructions file. Make it well-organized with clear sections, better structure, and more detail. Preserve all existing rules and conventions.
 
@@ -2360,6 +2406,13 @@ IMPORTANT: Read gdd.md in the project root. This is the Game Design Document / A
 Follow its vision, goals, and specifications when working on tasks or generating ideas.
 """
 
+    art_bible_path = os.path.join(a.project_path, "design", "art-bible.md")
+    art_bible_section = ""
+    if os.path.isfile(art_bible_path):
+        art_bible_section = """
+IMPORTANT: Also read design/art-bible.md — the visual identity anchor. Every asset you generate (sprites, UI, backgrounds) MUST match its palette, style, and prohibitions.
+"""
+
     status_contract = f"""
 CRITICAL — MANDATORY TASK STATUS CONTRACT (APPLIES TO EVERY TASK YOU PICK):
 You MUST follow these steps IN ORDER for EVERY task. Skipping any step is a failure.
@@ -2430,7 +2483,7 @@ You MUST follow these steps IN ORDER for EVERY task. Skipping any step is a fail
     if not prompt:
         prompt = f"""You are autonomously working on {a.name} ({a.app_type} project).
 Project path: {a.project_path}
-{gdd_section}
+{gdd_section}{art_bible_section}
 STEP 1 - READ TASKS:
 Read tasklist.json in the project root. It has a "tasks" array. Each task has: id, title, description, type, priority, status, response.
 Focus on tasks with status "pending". Work on them in this order:
@@ -2748,6 +2801,11 @@ def _generate_task_script(a, config: dict, task: dict) -> str:
     if os.path.isfile(gdd_path):
         gdd_section = "\nIMPORTANT: Read gdd.md in the project root for design guidance.\n"
 
+    art_bible_path = os.path.join(a.project_path, "design", "art-bible.md")
+    art_bible_section = ""
+    if os.path.isfile(art_bible_path):
+        art_bible_section = "\nIMPORTANT: Also read design/art-bible.md for visual direction before generating any asset.\n"
+
     idea_generation_rules = ""
     if is_idea_generation_task:
         brainstorm_knowledge = _load_studio_knowledge("brainstorm")
@@ -2762,9 +2820,19 @@ def _generate_task_script(a, config: dict, task: dict) -> str:
 {brainstorm_knowledge}
 7. Every idea must connect to the core loop or directly improve retention/engagement. No feature creep."""
 
+    coding_rules_section = ""
+    if not is_idea_generation_task:
+        code_quality_knowledge = _load_studio_knowledge("code_quality")
+        if code_quality_knowledge.strip():
+            coding_rules_section = f"""
+
+CODING RULES — APPLY WHILE WRITING, NOT AFTER:
+Follow these standards as you write code. Do NOT write code and plan to fix it in a later review — write it correctly the first time.
+{code_quality_knowledge}"""
+
     prompt = f"""You are working on {a.name} ({a.app_type} project).
 Project path: {a.project_path}
-{gdd_section}
+{gdd_section}{art_bible_section}
 YOU HAVE ONE SPECIFIC TASK TO DO:
 
 Task #{task_id}: in progress
@@ -2786,7 +2854,7 @@ INSTRUCTIONS:
    - Set "completed_by" to "{ai_agent}"
 5. Do not leave this task in "in_progress" at the end of the run.
 6. If this is a buildable project, verify the build still works. Do NOT bump the app version — the deploy pipeline handles version bumping.
-7. If this task is too large to finish in one session: FIRST create the sub-tasks as new entries in tasklist.json with status "pending" and SAVE. THEN mark this task "divided" with response listing the sub-task IDs. Sub-tasks MUST exist before marking divided.{idea_generation_rules}"""
+7. If this task is too large to finish in one session: FIRST create the sub-tasks as new entries in tasklist.json with status "pending" and SAVE. THEN mark this task "divided" with response listing the sub-task IDs. Sub-tasks MUST exist before marking divided.{idea_generation_rules}{coding_rules_section}"""
     automation_instructions = _load_automation_instructions()
     prompt = f"""{prompt}
 

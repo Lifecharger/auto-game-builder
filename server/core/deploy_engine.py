@@ -268,10 +268,20 @@ class DeployEngine:
         # queue_pos and worker_was_running must be captured INSIDE the
         # lock — reading len() outside the lock produced duplicate
         # position numbers when multiple requests raced.
+        #
+        # The 'queued' status + deploy_status update also happen inside
+        # the lock. If we released the lock first and set status after,
+        # the worker could pop this job and flip the DB status to
+        # 'building' before our 'queued' write landed, overwriting it
+        # and leaving the card stuck on 'queued' forever. Holding the
+        # lock guarantees we win the ordering: queued is written, lock
+        # releases, then the worker is free to run and flip to building.
         with self._deploy_queue_lock:
             worker_was_running = self._deploy_worker_running
             self._deploy_queue.append((app, track, build_target, upload, max_retries))
             queue_pos = len(self._deploy_queue)
+            self._update_status(app.id, phase="queued", message=f"Queued (position {queue_pos})")
+            self._set_app_status(app.id, "queued")
             if not self._deploy_worker_running:
                 self._deploy_worker_running = True
                 threading.Thread(target=self._deploy_worker, daemon=True).start()
@@ -279,13 +289,8 @@ class DeployEngine:
         msg = f"Building {target_label}"
         if upload:
             msg += f" + upload to {track}"
-        # If a worker was already running when we appended, something is
-        # ahead of us — we're genuinely queued. If we started the worker
-        # ourselves, the queue was empty and we'll be popped immediately.
         if worker_was_running:
             msg += f" (queued #{queue_pos})"
-            self._update_status(app.id, phase="queued", message=f"Queued (position {queue_pos})")
-            self._set_app_status(app.id, "queued")
         return {"ok": True, "message": msg}
 
     def _deploy_worker(self):
@@ -447,6 +452,10 @@ class DeployEngine:
                         "idle",
                         publish_status=publish_map.get(track, "internal_test"),
                     )
+                    # Fire-and-forget: if the app has a GitHub remote configured,
+                    # spawn a Claude agent in a daemon thread to commit and push.
+                    # Runs off the deploy queue so the next deploy isn't blocked.
+                    self._maybe_git_push(app, new_version or app.current_version, track)
                 else:
                     err = upload_result.get("error", "Unknown") if upload_result else "No result"
                     self._update_status(
@@ -1249,3 +1258,136 @@ INSTRUCTIONS (Lead Programmer + Engine Specialist Knowledge):
         if upload_error:
             return {"error": upload_error}
         return result
+
+    def _maybe_git_push(self, app: App, version: str, track: str):
+        """If app has github_url configured, spawn a Claude agent (daemon thread)
+        to audit .gitignore, commit safely, and push. Never blocks the deploy
+        queue; failures are logged but do not affect the deploy status."""
+        url = (getattr(app, "github_url", "") or "").strip()
+        if not url:
+            return
+        threading.Thread(
+            target=self._run_git_push_agent,
+            args=(app, version, track),
+            daemon=True,
+            name=f"git-push-{app.id}",
+        ).start()
+
+    def _run_git_push_agent(self, app: App, version: str, track: str):
+        """Run Claude to safely commit and push to app.github_url.
+
+        The agent is instructed to verify .gitignore excludes secrets and large
+        build artifacts before staging anything. Non-interactive git
+        (GIT_TERMINAL_PROMPT=0) so missing credentials fail fast instead of
+        hanging. Timeout is 10 minutes."""
+        process = None
+        try:
+            claude_path = self.settings.get("claude_path", "") or "claude"
+            bash_exe = self.settings.get("bash_path", "") or "bash"
+            project_path_unix = to_unix_path(app.project_path)
+            pp_q = shlex.quote(project_path_unix)
+            cb_q = shlex.quote(to_unix_path(claude_path))
+            mcp_config_path = os.path.join(app.project_path, "mcp_config.json")
+            mcp_flag = f"--mcp-config '{project_path_unix}/mcp_config.json'" if os.path.isfile(mcp_config_path) else ""
+
+            prompt = f"""You are finalizing a successful Google Play upload for {app.name} ({app.app_type}).
+Track: {track}
+Version: {version}
+GitHub remote: {app.github_url}
+Project path: {app.project_path}
+
+TASK: Safely commit and push the current code to the GitHub remote above.
+DO NOT change any source code. Your only job is gitignore + commit + push.
+
+STEP 1 — INITIALIZE REPO IF NEEDED:
+- If `.git/` does not exist, run `git init` and `git branch -M main`.
+
+STEP 2 — VERIFY / UPDATE .gitignore (MANDATORY):
+Read `.gitignore`. If missing, create one. Ensure it EXCLUDES all of the following (append any missing entries; do not remove existing entries):
+- Build outputs: `build/`, `dist/`, `.gradle/`, `.dart_tool/`, `.flutter-plugins`, `.flutter-plugins-dependencies`, `node_modules/`, `__pycache__/`, `android/build/`, `android/app/build/`, `android/.gradle/`, `ios/build/`, `*.apk`, `*.aab`, `*.ipa`, `*.exe`, `*.app`, `*.so`, `*.dll`
+- Signing / secrets: `*.keystore`, `*.jks`, `key.properties`, `local.properties`, `google-services.json`, `GoogleService-Info.plist`, `firebase-adminsdk*.json`, `service_account*.json`, `.env`, `.env.*`, `*.pem`, `*.key`, `mcp_config.json`, `mcp_servers.json`, `settings.json`
+- Editor / OS: `.DS_Store`, `Thumbs.db`, `.idea/`, `.vscode/`, `*.iml`
+- Anything else that looks like a secret or a large generated binary.
+
+STEP 3 — SAFETY AUDIT (BEFORE STAGING):
+Run `git status --porcelain`. For EACH changed or untracked file:
+- REJECT (do not stage) if the path or name suggests a secret: contains `keystore`, `.jks`, `key.properties`, `service_account`, `firebase-adminsdk`, `google-services.json`, `.env`, `.pem`, `.key`, `mcp_config.json`, `mcp_servers.json`, `settings.json`, or any API token file.
+- REJECT any binary build artifact under `build/`, `dist/`, `out/`, `android/app/build/`, `ios/build/` (apk, aab, ipa, exe, so, dll).
+- REJECT any file larger than 10 MB (`git ls-files -s` / `du -b` / `stat -c %s`). Add it to `.gitignore` instead.
+- If a rejected file is already tracked, run `git rm --cached <path>` and commit that removal as part of this commit.
+
+STEP 4 — CONFIGURE REMOTE:
+- `git remote get-url origin` — if it fails, run `git remote add origin {app.github_url}`.
+- If origin is set but does NOT match `{app.github_url}`, STOP and report. DO NOT overwrite it.
+
+STEP 5 — COMMIT (only if there is something safe to stage):
+- Stage files by explicit path — NEVER use `git add -A` or `git add .` blindly. Add only files that passed the audit.
+- Commit message exactly: `Release v{version} to {track}`
+- If after the audit there is nothing to stage, skip the commit and continue to Step 6 (there may still be unpushed local commits).
+
+STEP 6 — PUSH:
+- Get current branch: `git rev-parse --abbrev-ref HEAD`. If on a detached HEAD, abort and report.
+- Run `git push -u origin <branch>`.
+- NEVER use `--force` or `--force-with-lease`.
+- If push fails due to non-fast-forward, abort and report — DO NOT force.
+- If push prompts for credentials (GIT_TERMINAL_PROMPT is disabled so it will just fail), report the auth failure.
+
+HARD RULES:
+- Do NOT modify source code.
+- Do NOT delete files from the working tree (only `git rm --cached` to untrack).
+- Do NOT commit secrets or large binaries under any circumstance.
+- Do NOT run interactive commands.
+- If anything is ambiguous or risky, abort and explain — do not guess.
+
+At the end, print a one-paragraph summary of what you committed (commit SHA) and pushed, or why you skipped."""
+
+            env = os.environ.copy()
+            env["GIT_TERMINAL_PROMPT"] = "0"
+
+            cmd = f'cd {pp_q} && {cb_q} -p --dangerously-skip-permissions --verbose {mcp_flag}'
+            process = subprocess.Popen(
+                [bash_exe, "-l", "-c", cmd],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                cwd=app.project_path,
+                env=env,
+            )
+            try:
+                stdout, _ = process.communicate(input=prompt, timeout=600)
+            except subprocess.TimeoutExpired:
+                try:
+                    self._kill_build_tree(process)
+                except Exception:
+                    process.kill()
+                logger.warning("git push agent timed out for app %s", app.id)
+                event_log.append(
+                    "app.git_push",
+                    {"app_id": app.id, "ok": False, "version": version, "track": track, "error": "timeout"},
+                )
+                return
+
+            ok = process.returncode == 0
+            tail = "\n".join((stdout or "").splitlines()[-20:])
+            logger.info(
+                "git push agent for app %s finished rc=%s\n%s",
+                app.id, process.returncode, tail,
+            )
+            event_log.append(
+                "app.git_push",
+                {"app_id": app.id, "ok": ok, "version": version, "track": track},
+            )
+        except Exception as e:
+            logger.exception("git push agent crashed for app %s: %s", app.id, e)
+            try:
+                if process and process.poll() is None:
+                    self._kill_build_tree(process)
+            except Exception:
+                pass
+            event_log.append(
+                "app.git_push",
+                {"app_id": app.id, "ok": False, "version": version, "track": track, "error": str(e)},
+            )

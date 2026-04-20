@@ -767,6 +767,50 @@ class ApiService {
     }
   }
 
+  // Art Bible
+  static Future<ApiResult<String>> getArtBible(int appId) async {
+    try {
+      final response = await _getWithRetry(Uri.parse('$_base/api/apps/$appId/art-bible'));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return ApiResult.success((data['content'] as String?) ?? '');
+      }
+      return ApiResult.failure(_httpError(response.statusCode));
+    } catch (e) {
+      return ApiResult.failure(_friendlyError(e));
+    }
+  }
+
+  static Future<ApiResult<bool>> updateArtBible(int appId, String content) async {
+    try {
+      final response = await http
+          .put(
+            Uri.parse('$_base/api/apps/$appId/art-bible'),
+            headers: _headers,
+            body: jsonEncode({'content': content}),
+          )
+          .timeout(const Duration(seconds: 60));
+      if (response.statusCode == 200) return const ApiResult.success(true);
+      return ApiResult.failure(_httpError(response.statusCode));
+    } catch (e) {
+      return ApiResult.failure(_friendlyError(e));
+    }
+  }
+
+  static Future<ApiResult<bool>> enhanceArtBible(int appId, String currentContent) async {
+    try {
+      final response = await http
+          .post(Uri.parse('$_base/api/apps/$appId/enhance'),
+              headers: _headers,
+              body: jsonEncode({'type': 'art-bible'}))
+          .timeout(const Duration(seconds: 15));
+      if (response.statusCode == 200) return const ApiResult.success(true);
+      return ApiResult.failure(_httpError(response.statusCode));
+    } catch (e) {
+      return ApiResult.failure(_friendlyError(e));
+    }
+  }
+
   static Future<ApiResult<Map<String, dynamic>>> getEnhanceStatus(int appId) async {
     try {
       final response = await _getWithRetry(Uri.parse('$_base/api/apps/$appId/enhance/status'));

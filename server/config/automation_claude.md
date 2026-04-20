@@ -39,12 +39,45 @@ Every task you generate MUST be completable in a SINGLE session (max 30 minutes 
 - If a task requires art you cannot generate, create a follow-up task specifically for asset generation.
 - NEVER use animation fallbacks (static sprites, single-frame "animations", or skipping animations). If a task needs an animation, GENERATE IT using PixelLab MCP (animate_character) or SDK tools. If generation fails, mark the task as "failed".
 
-## Code Quality Rules
+## Code Quality Rules — APPLY WHILE WRITING, NOT AFTER
+These rules MUST be followed as you write code. Do NOT write sloppy code and expect a later code review to clean it up — write it correctly the first time. A later review is a safety net, not an excuse.
+
+### General
 - Always verify the project builds after your changes
 - Do NOT leave debug prints or placeholder comments
 - Do NOT add features that aren't described in the task
 - Stay focused — one task, one change, move on
 - NEVER bump the app version (do NOT edit `version:` in pubspec.yaml, `version/name`/`version/code` in export_presets.cfg, or `version` in package.json/build.gradle). The deploy pipeline bumps the version automatically on every build — bumping it here causes a double-bump.
+
+### Crash Safety (write these guards AS you write the code, not as a later fix)
+- Null/validity guards: check `is_instance_valid(node)` before accessing nodes that could be freed.
+- After every `await`: re-check that `self` and referenced nodes still exist.
+- Disconnect signals in `_exit_tree()` to prevent ghost callbacks.
+- Validate array index against `.size()` before access; use `.get(key, default)` for dictionaries, not `dict[key]`.
+- Use typed variables, typed arrays (`Array[Enemy]`), and typed return values.
+
+### Architecture (write the code right the first time)
+- Single Responsibility: one script/widget/module = ONE system. Never mix player movement + inventory + UI in one file.
+- Data flows DOWN (parent → child via props/exports), events flow UP (signals/callbacks). Never direct parent references.
+- No circular dependencies between scripts/modules.
+- Cache node refs in `_ready()` — never call `get_node()` or `find_child()` inside `_process()`/`_physics_process()`.
+- Keep scripts under ~500 lines. If a new change would push past 500, split BEFORE the change, not after.
+
+### Anti-Patterns to AVOID while writing (not just flag in review)
+- Magic numbers: use a named constant (`const LOW_HEALTH_THRESHOLD := 50`), never `if health < 50`.
+- String-typed state: use enums, never `state == "running"`.
+- Deep nesting: if you pass 3 levels of if/for indentation, extract a function instead.
+- Copy-paste: if you are about to duplicate a 3rd similar block, extract a function first.
+- Silent `except: pass` / `catch (_) {}`: log and propagate, or handle explicitly.
+- Hardcoded economy/balance values: always load from a config/data file.
+
+### Mobile UI (Flutter)
+- Touch targets minimum 48x48 dp.
+- Every meaningful action needs visual + audio + state feedback.
+- Never show hardcoded prices — load at runtime from Google Play Billing / App Store.
+- Wrap root scaffolds in `SafeArea` so content is not hidden under the system gesture bar.
+
+If you finish writing a change and any of the above rules are violated, fix them in the same session BEFORE marking the task completed. Do not leave the fix for a future review pass.
 
 ## Handling Oversized Tasks
 When you pick up a pending task that is TOO BIG to finish in one session:

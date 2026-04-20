@@ -142,13 +142,16 @@ No circular dependencies. The app never holds authoritative state — always re-
 
 Available agents: `claude`, `gemini`, `codex`, `local`
 
-### GDD & CLAUDE.md
+### GDD & CLAUDE.md & Art Bible
 | Method | Path | Body |
 |--------|------|------|
 | GET | `/api/apps/{app_id}/gdd` | — |
 | PUT | `/api/apps/{app_id}/gdd` | `{content}` |
 | GET | `/api/apps/{app_id}/claude-md` | — → `{content:"..."}` |
 | PUT | `/api/apps/{app_id}/claude-md` | `{content:"..."}` → `{status:"ok"}` |
+| GET | `/api/apps/{app_id}/art-bible` | — → `{content, exists}` (reads `design/art-bible.md`) |
+| PUT | `/api/apps/{app_id}/art-bible` | `{content}` → `{ok:true}` |
+| POST | `/api/apps/{app_id}/enhance` | `{type}` where `type` ∈ `gdd` · `claude-md` · `art-bible` |
 
 ### Ideas
 | Method | Path | Params |

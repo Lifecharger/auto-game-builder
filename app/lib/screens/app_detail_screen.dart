@@ -31,8 +31,12 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
   String? _claudeMdContent;
   bool _claudeMdLoading = true;
   String? _claudeMdError;
+  String? _artBibleContent;
+  bool _artBibleLoading = true;
+  String? _artBibleError;
   bool _gddEnhancing = false;
   bool _claudeMdEnhancing = false;
+  bool _artBibleEnhancing = false;
   Timer? _enhanceTimer;
   Map<String, dynamic>? _deployStatus;
 
@@ -73,6 +77,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
     final cachedBuilds = cache.getBuilds(appId: widget.appId);
     final cachedGdd = cache.getGdd(widget.appId);
     final cachedClaudeMd = cache.getClaudeMd(widget.appId);
+    final cachedArtBible = cache.getArtBible(widget.appId);
 
     setState(() {
       _loadError = null;
@@ -91,6 +96,10 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
         _claudeMdContent = cachedClaudeMd;
         _claudeMdLoading = false;
       }
+      if (cachedArtBible != null) {
+        _artBibleContent = cachedArtBible;
+        _artBibleLoading = false;
+      }
       // Only block the whole screen on the spinner when there's literally
       // nothing to show; otherwise let the cached render stand while the
       // network fills in the rest.
@@ -105,6 +114,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
       ApiService.getMcpPresets(),
       ApiService.getAppMcp(widget.appId),
       ApiService.getClaudeMd(widget.appId),
+      ApiService.getArtBible(widget.appId),
     ]);
 
     final appResult = results[0] as ApiResult<AppModel>;
@@ -114,6 +124,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
     final presetsResult = results[4] as ApiResult<List<dynamic>>;
     final appMcpResult = results[5] as ApiResult<List<String>>;
     final claudeMdResult = results[6] as ApiResult<String>;
+    final artBibleResult = results[7] as ApiResult<String>;
 
     if (!mounted) return;
 
@@ -139,6 +150,9 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
     if (claudeMdResult.ok) {
       await cache.setClaudeMd(widget.appId, claudeMdResult.data ?? '');
     }
+    if (artBibleResult.ok) {
+      await cache.setArtBible(widget.appId, artBibleResult.data ?? '');
+    }
 
     if (!mounted) return;
     setState(() {
@@ -161,6 +175,13 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
         _claudeMdError = claudeMdResult.error;
       }
       _claudeMdLoading = false;
+      if (artBibleResult.ok) {
+        _artBibleContent = artBibleResult.data;
+        _artBibleError = null;
+      } else if (_artBibleContent == null) {
+        _artBibleError = artBibleResult.error;
+      }
+      _artBibleLoading = false;
       _loading = false;
       if (app != null) {
         _selectedStrategy = app.fixStrategy;
@@ -331,6 +352,8 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                       _buildClaudeMdCard(),
                       const SizedBox(height: 16),
                       _buildGddCard(),
+                      const SizedBox(height: 16),
+                      _buildArtBibleCard(),
                       const SizedBox(height: 16),
                       _buildBuildsSection(),
                       const SizedBox(height: 80),
@@ -864,6 +887,25 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
     }
   }
 
+  Future<void> _retryArtBible() async {
+    setState(() { _artBibleLoading = true; _artBibleError = null; });
+    final result = await ApiService.getArtBible(widget.appId);
+    if (result.ok) {
+      await CacheService.instance.setArtBible(widget.appId, result.data ?? '');
+    }
+    if (mounted) {
+      setState(() {
+        _artBibleLoading = false;
+        if (result.ok) {
+          _artBibleContent = result.data;
+          _artBibleError = null;
+        } else {
+          _artBibleError = result.error;
+        }
+      });
+    }
+  }
+
   Widget _buildClaudeMdCard() {
     final hasContent = _claudeMdContent != null && _claudeMdContent!.trim().isNotEmpty;
     final hasError = _claudeMdError != null;
@@ -1184,12 +1226,187 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
     ).whenComplete(() => gddController.dispose());
   }
 
-  /// Fire-and-forget enhance for both GDD and CLAUDE.md.
+  Widget _buildArtBibleCard() {
+    final hasContent = _artBibleContent != null && _artBibleContent!.trim().isNotEmpty;
+    final hasError = _artBibleError != null;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.auto_stories, color: AppColors.accent),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Art Bible',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                if (_artBibleEnhancing)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: SizedBox(
+                      width: 16, height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.warning),
+                    ),
+                  ),
+                if (!hasError && hasContent && !_artBibleEnhancing)
+                  TextButton.icon(
+                    onPressed: () => _fireAndForgetEnhance(type: 'art-bible'),
+                    icon: const Icon(Icons.auto_awesome, size: 18),
+                    label: const Text('Enhance'),
+                  ),
+                if (!hasError)
+                  TextButton.icon(
+                    onPressed: () => _showArtBibleSheet(),
+                    icon: Icon(hasContent ? Icons.edit : Icons.add, size: 18),
+                    label: Text(hasContent ? 'Edit' : 'Add'),
+                  ),
+                if (hasError)
+                  TextButton.icon(
+                    onPressed: _retryArtBible,
+                    icon: const Icon(Icons.refresh, size: 18),
+                    label: const Text('Retry'),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (_artBibleLoading)
+              const Center(child: CircularProgressIndicator())
+            else if (hasError)
+              Text(
+                'Failed to load: $_artBibleError',
+                style: TextStyle(fontSize: 13, color: AppColors.error),
+              )
+            else if (hasContent)
+              Text(
+                _artBibleContent!.trim(),
+                maxLines: 8,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade300),
+              )
+            else
+              Text(
+                'No art bible yet. Tap Add to define the visual identity — palette, typography, prohibitions.',
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showArtBibleSheet() {
+    final controller = TextEditingController(text: _artBibleContent?.trim() ?? '');
+    bool saving = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.bgCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            final mq = MediaQuery.of(ctx);
+            return SingleChildScrollView(
+              padding: EdgeInsets.only(
+                left: 20, right: 20, top: 20,
+                bottom: mq.viewInsets.bottom + mq.padding.bottom + 20,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Art Bible - ${_app?.name ?? 'App'}',
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 4),
+                  Text('Visual identity anchor — palette, typography, style prohibitions. Every asset task references this.',
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: controller,
+                    maxLines: 10,
+                    decoration: const InputDecoration(
+                      hintText: 'Identity statement, palette (hex), typography, prohibitions, technical specs...',
+                      alignLabelWithHint: true,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity, height: 48,
+                    child: FilledButton.icon(
+                      onPressed: saving ? null : () async {
+                        final text = controller.text.trim();
+                        if (text.isEmpty) {
+                          ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
+                            content: Text('Cannot save empty art bible'),
+                            backgroundColor: AppColors.error,
+                          ));
+                          return;
+                        }
+                        setSheetState(() => saving = true);
+                        final result = await ApiService.updateArtBible(
+                            widget.appId, controller.text);
+                        if (result.ok) {
+                          await CacheService.instance
+                              .setArtBible(widget.appId, controller.text);
+                        }
+                        if (ctx.mounted) Navigator.pop(ctx);
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                            content: Text(result.ok ? 'Art bible saved' : result.error ?? 'Failed'),
+                            backgroundColor: result.ok ? AppColors.success : AppColors.error));
+                          if (result.ok) {
+                            setState(() => _artBibleContent = controller.text);
+                          }
+                        }
+                      },
+                      icon: saving
+                          ? const SizedBox(width: 18, height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Icon(Icons.save),
+                      label: Text(saving ? 'Saving...' : 'Save'),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    ).whenComplete(() => controller.dispose());
+  }
+
+  /// Fire-and-forget enhance for GDD, CLAUDE.md, and Art Bible.
   /// Triggers background enhance on server, polls for completion.
   void _fireAndForgetEnhance({required String type}) async {
-    final isGdd = type == 'gdd';
-    final content = isGdd ? _gddContent : _claudeMdContent;
-    final label = isGdd ? 'Design doc' : 'CLAUDE.md';
+    String? content;
+    String label;
+    switch (type) {
+      case 'gdd':
+        content = _gddContent;
+        label = 'Design doc';
+        break;
+      case 'claude-md':
+        content = _claudeMdContent;
+        label = 'CLAUDE.md';
+        break;
+      case 'art-bible':
+        content = _artBibleContent;
+        label = 'Art bible';
+        break;
+      default:
+        return;
+    }
 
     if (content == null || content.trim().isEmpty) return;
 
@@ -1207,12 +1424,11 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
     );
     if (confirm != true || !mounted) return;
 
-    // Mark as enhancing
     setState(() {
-      if (isGdd) {
-        _gddEnhancing = true;
-      } else {
-        _claudeMdEnhancing = true;
+      switch (type) {
+        case 'gdd': _gddEnhancing = true; break;
+        case 'claude-md': _claudeMdEnhancing = true; break;
+        case 'art-bible': _artBibleEnhancing = true; break;
       }
     });
 
@@ -1221,17 +1437,26 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
       backgroundColor: AppColors.info,
     ));
 
-    // Fire the enhance request (returns immediately)
-    final future = isGdd
-        ? ApiService.enhanceGdd(widget.appId, content)
-        : ApiService.enhanceClaudeMd(widget.appId, content);
+    final Future<ApiResult<bool>> future;
+    switch (type) {
+      case 'gdd':
+        future = ApiService.enhanceGdd(widget.appId, content);
+        break;
+      case 'claude-md':
+        future = ApiService.enhanceClaudeMd(widget.appId, content);
+        break;
+      case 'art-bible':
+        future = ApiService.enhanceArtBible(widget.appId, content);
+        break;
+      default:
+        return;
+    }
 
     future.then((result) {
       if (!mounted) return;
       if (!result.ok) {
         setState(() {
-          if (isGdd) _gddEnhancing = false;
-          else _claudeMdEnhancing = false;
+          _clearEnhancingFlag(type);
         });
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('Failed to start: ${result.error}'),
@@ -1239,14 +1464,10 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
         ));
         return;
       }
-      // Poll for completion every 10 seconds
-      _pollEnhanceStatus(isGdd, label);
+      _pollEnhanceStatus(type, label);
     }).catchError((e) {
       if (!mounted) return;
-      setState(() {
-        if (isGdd) _gddEnhancing = false;
-        else _claudeMdEnhancing = false;
-      });
+      setState(() { _clearEnhancingFlag(type); });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('$label enhance error: $e'),
         backgroundColor: AppColors.error,
@@ -1254,7 +1475,15 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
     });
   }
 
-  void _pollEnhanceStatus(bool isGdd, String label) {
+  void _clearEnhancingFlag(String type) {
+    switch (type) {
+      case 'gdd': _gddEnhancing = false; break;
+      case 'claude-md': _claudeMdEnhancing = false; break;
+      case 'art-bible': _artBibleEnhancing = false; break;
+    }
+  }
+
+  void _pollEnhanceStatus(String type, String label) {
     _enhanceTimer?.cancel();
     _enhanceTimer = Timer.periodic(const Duration(seconds: 10), (timer) async {
       if (!mounted) { timer.cancel(); return; }
@@ -1262,30 +1491,41 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
       if (!mounted) { timer.cancel(); return; }
       if (!result.ok) return;
       final status = result.data!['status'] as String? ?? 'idle';
-      if (status == 'running') return; // Still working
+      if (status == 'running') return;
       timer.cancel();
       if (status == 'done') {
-        // Reload the content from server
-        final refreshed = isGdd
-            ? await ApiService.getGdd(widget.appId)
-            : await ApiService.getClaudeMd(widget.appId);
-        if (refreshed.ok) {
-          if (isGdd) {
-            await CacheService.instance
-                .setGdd(widget.appId, refreshed.data ?? '');
-          } else {
-            await CacheService.instance
-                .setClaudeMd(widget.appId, refreshed.data ?? '');
-          }
+        final ApiResult<String> refreshed;
+        switch (type) {
+          case 'gdd':
+            refreshed = await ApiService.getGdd(widget.appId);
+            if (refreshed.ok) {
+              await CacheService.instance.setGdd(widget.appId, refreshed.data ?? '');
+            }
+            break;
+          case 'claude-md':
+            refreshed = await ApiService.getClaudeMd(widget.appId);
+            if (refreshed.ok) {
+              await CacheService.instance.setClaudeMd(widget.appId, refreshed.data ?? '');
+            }
+            break;
+          case 'art-bible':
+            refreshed = await ApiService.getArtBible(widget.appId);
+            if (refreshed.ok) {
+              await CacheService.instance.setArtBible(widget.appId, refreshed.data ?? '');
+            }
+            break;
+          default:
+            return;
         }
         if (!mounted) return;
         setState(() {
-          if (isGdd) {
-            _gddEnhancing = false;
-            if (refreshed.ok) _gddContent = refreshed.data;
-          } else {
-            _claudeMdEnhancing = false;
-            if (refreshed.ok) _claudeMdContent = refreshed.data;
+          _clearEnhancingFlag(type);
+          if (refreshed.ok) {
+            switch (type) {
+              case 'gdd': _gddContent = refreshed.data; break;
+              case 'claude-md': _claudeMdContent = refreshed.data; break;
+              case 'art-bible': _artBibleContent = refreshed.data; break;
+            }
           }
         });
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -1295,10 +1535,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
       } else {
         final error = result.data?['error'] as String? ?? 'Enhancement failed';
         if (!mounted) return;
-        setState(() {
-          if (isGdd) _gddEnhancing = false;
-          else _claudeMdEnhancing = false;
-        });
+        setState(() { _clearEnhancingFlag(type); });
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(error),
           backgroundColor: AppColors.error,

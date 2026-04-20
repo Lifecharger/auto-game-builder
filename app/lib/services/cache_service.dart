@@ -278,6 +278,13 @@ class CacheService {
     await Hive.box<String>(CacheBoxes.appDocs).put('claudemd_$appId', content);
   }
 
+  String? getArtBible(int appId) =>
+      Hive.box<String>(CacheBoxes.appDocs).get('artbible_$appId');
+
+  Future<void> setArtBible(int appId, String content) async {
+    await Hive.box<String>(CacheBoxes.appDocs).put('artbible_$appId', content);
+  }
+
   // ── App icons ────────────────────────────────────────
 
   /// Returns cached icon bytes for [appId] when the cache entry was
