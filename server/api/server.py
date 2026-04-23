@@ -2853,7 +2853,7 @@ INSTRUCTIONS:
    - Write blocker/error details in the "response" field
    - Set "completed_by" to "{ai_agent}"
 5. Do not leave this task in "in_progress" at the end of the run.
-6. If this is a buildable project, verify the build still works. Do NOT bump the app version — the deploy pipeline handles version bumping.
+6. If this is a buildable project, verify the build still works. ALWAYS wrap build commands in `timeout 300` (e.g. `timeout 300 <godot/flutter build command> 2>&1 | tail -50`) — Godot's Android export on Windows can hang after producing the APK, and Flutter/Gradle daemons can stall. If the timeout fires but the output artifact (APK/AAB) exists with a recent mtime, treat the build as successful. Do NOT bump the app version — the deploy pipeline handles version bumping.
 7. If this task is too large to finish in one session: FIRST create the sub-tasks as new entries in tasklist.json with status "pending" and SAVE. THEN mark this task "divided" with response listing the sub-task IDs. Sub-tasks MUST exist before marking divided.{idea_generation_rules}{coding_rules_section}"""
     automation_instructions = _load_automation_instructions()
     prompt = f"""{prompt}
