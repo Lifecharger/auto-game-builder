@@ -132,6 +132,10 @@ tools/comic_translator/config.local.json
 tools/r2manager/config.py
 tools/r2manager/__pycache__/
 
+# Character pipeline output (defensive — actual output lives at Desktop\Characters)
+Characters/
+**/Characters/
+
 # --- Baseline safety excludes (release hardening) ---
 
 # Build outputs (generic, platform-wide)

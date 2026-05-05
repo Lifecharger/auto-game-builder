@@ -7,6 +7,7 @@ import '../models/app_model.dart';
 import '../models/issue_model.dart';
 import '../models/build_model.dart';
 import '../models/automation_model.dart';
+import 'cache_service.dart';
 
 class ApiResult<T> {
   final T? data;
@@ -39,6 +40,11 @@ class ApiService {
   static Map<String, String> get _headers => {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
+        // dart:io HttpClient (which IOClient wraps) auto-decompresses gzip
+        // responses; this header makes the negotiation explicit so the
+        // server's GZipMiddleware always kicks in even on platforms where
+        // the underlying client doesn't advertise gzip by default.
+        'Accept-Encoding': 'gzip',
         if (AppConfig.apiKey.isNotEmpty) 'X-API-Key': AppConfig.apiKey,
       };
 
@@ -53,12 +59,16 @@ class ApiService {
     Uri uri, {
     Duration timeout = const Duration(seconds: 10),
     int maxRetries = 3,
+    Map<String, String>? extraHeaders,
   }) async {
+    final mergedHeaders = extraHeaders == null
+        ? _headers
+        : (Map<String, String>.from(_headers)..addAll(extraHeaders));
     late Object lastError;
     for (var attempt = 0; attempt <= maxRetries; attempt++) {
       try {
         final response = await http
-            .get(uri, headers: _headers)
+            .get(uri, headers: mergedHeaders)
             .timeout(timeout);
         // Retry on 429 rate-limit
         if (response.statusCode == 429) {
@@ -67,7 +77,8 @@ class ApiService {
           await Future.delayed(Duration(seconds: retryAfter ?? (1 << attempt)));
           continue;
         }
-        // Don't retry on success or other client errors (4xx)
+        // Don't retry on success or other client errors (4xx) — 304 is
+        // also a non-error "use your cache" signal, not something to retry.
         if (response.statusCode < 500) return response;
         // Retry on server errors
         if (attempt == maxRetries) return response;
@@ -502,18 +513,57 @@ class ApiService {
   }
 
   // App Tasks (tasklist.json)
+  //
+  // Cache-aware: we keep the last server response in Hive (CacheService.tasks)
+  // along with its Last-Modified header. On every fetch we send
+  // If-Modified-Since; the server returns 304 with no body when the file
+  // hasn't moved, and we resolve from cache. On network failure we also
+  // serve cached data so the screen renders instead of showing a spinner.
+  //
+  // Caching is keyed by appId only — we skip cache writes when a status
+  // filter is in play so a filtered subset never overwrites the full list.
   static Future<ApiResult<List<dynamic>>> getAppTasks(int appId, {String? status}) async {
+    final cache = CacheService.instance;
+    final cacheable = status == null;
     try {
       final params = <String, String>{};
       if (status != null) params['status'] = status;
       final uri = Uri.parse('$_base/api/apps/$appId/tasks')
           .replace(queryParameters: params.isNotEmpty ? params : null);
-      final response = await _getWithRetry(uri);
+
+      final extra = <String, String>{};
+      if (cacheable) {
+        final lm = cache.getTasksLastModified(appId);
+        if (lm != null && lm.isNotEmpty) extra['If-Modified-Since'] = lm;
+      }
+
+      final response = await _getWithRetry(uri, extraHeaders: extra);
+
+      if (response.statusCode == 304 && cacheable) {
+        return ApiResult.success(cache.getTasks(appId));
+      }
       if (response.statusCode == 200) {
-        return ApiResult.success(jsonDecode(response.body));
+        final decoded = jsonDecode(response.body);
+        final list = decoded is List ? decoded : const [];
+        if (cacheable) {
+          final lm = response.headers['last-modified'] ?? '';
+          await cache.saveTasks(appId, list, lm);
+        }
+        return ApiResult.success(list);
+      }
+      // Hard failure — fall back to cache if we have one rather than
+      // leaving the screen empty.
+      if (cacheable) {
+        final cached = cache.getTasks(appId);
+        if (cached.isNotEmpty) return ApiResult.success(cached);
       }
       return ApiResult.failure(_httpError(response.statusCode));
     } catch (e) {
+      // Network/timeout error: serve cached if available.
+      if (cacheable) {
+        final cached = cache.getTasks(appId);
+        if (cached.isNotEmpty) return ApiResult.success(cached);
+      }
       return ApiResult.failure(_friendlyError(e));
     }
   }

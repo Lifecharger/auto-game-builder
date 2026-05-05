@@ -107,29 +107,43 @@ def animate(image_path: str, prompt: str, video_length: int = 6,
         page.on("request", on_request)
 
         print(f"Navigating to {IMAGINE_URL}...")
-        page.goto(IMAGINE_URL, wait_until="networkidle", timeout=60000)
+        page.goto(IMAGINE_URL, wait_until="load", timeout=60000)
 
         # Dismiss ALL cookie consent banners. Grok keeps inventing new ones —
         # this purges every variant we've seen plus a generic text-match fallback.
+        # Also dismiss the Radix dialog-portal overlay (upgrade/announcement modals)
+        # which intercepts pointer events and blocks every click below it.
+        # The OneTrust SDK observes the DOM and re-injects its banner after
+        # removal. Solution: kill the elements AND inject a permanent style
+        # rule that hides + disables pointer events on any future re-injections.
+        page.add_style_tag(content="""
+            #onetrust-consent-sdk, #onetrust-button-group, #onetrust-banner-sdk,
+            #CybotCookiebotDialog, [data-nosnippet="true"] { display: none !important; pointer-events: none !important; }
+            #dialog-portal { pointer-events: none !important; }
+            body { pointer-events: auto !important; overflow: auto !important; }
+        """)
         page.evaluate("""() => {
-            // Known IDs / data attributes
-            ['onetrust-consent-sdk', 'CybotCookiebotDialog'].forEach(id => {
+            ['onetrust-consent-sdk', 'onetrust-button-group', 'onetrust-banner-sdk',
+             'CybotCookiebotDialog', 'dialog-portal'].forEach(id => {
                 const el = document.getElementById(id);
-                if (el) el.remove();
+                if (el) { try { el.remove(); } catch(e) { el.style.display='none'; el.style.pointerEvents='none'; } }
             });
             document.querySelectorAll('[data-cookie-banner="true"]').forEach(el => el.remove());
-            // Generic fallback: any fixed-position dialog containing the words
-            // "Tümünü Reddet" / "Reject All" / "Accept All" / "Tüm Tanımlama"
+            document.querySelectorAll('[role="dialog"]').forEach(el => el.remove());
+            document.querySelectorAll('[data-state="open"][aria-hidden="true"]').forEach(el => el.remove());
+            document.querySelectorAll('[data-nosnippet="true"]').forEach(el => el.remove());
             const consentTextRe = /Tümünü Reddet|Reject All|Accept All|Tüm Tanımlama|Cookie/i;
             document.querySelectorAll('div, section, aside').forEach(el => {
                 const cs = window.getComputedStyle(el);
                 if (cs.position !== 'fixed') return;
                 if (consentTextRe.test(el.innerText || '')) {
-                    // Only remove if it's small (a popup, not the whole page)
                     const r = el.getBoundingClientRect();
                     if (r.width < 700 && r.height < 600) el.remove();
                 }
             });
+            document.body.style.pointerEvents = 'auto';
+            document.body.style.overflow = 'auto';
+            document.body.removeAttribute('data-scroll-locked');
         }""")
         time.sleep(1)
 
@@ -168,13 +182,14 @@ def animate(image_path: str, prompt: str, video_length: int = 6,
                 print(f"  WARNING: Could not set resolution to {resolution}")
 
         # Step 4: Upload the image via the file input — use the MULTI input
-        # (name="files") which is the multi-ref-i2i path for animation references
+        # (name="files") which is the multi-ref-i2i path for animation references.
+        # Wait for it to mount: the file input is added to the DOM by React after
+        # the Video mode switch, and .count() does NOT auto-wait.
         print(f"Uploading {os.path.basename(image_path)}...")
         try:
             file_input = page.locator('input[type="file"][name="files"]').first
-            if file_input.count() == 0:
-                file_input = page.locator('input[type="file"][accept*="image"]').first
-            file_input.set_input_files(image_path, timeout=10000)
+            file_input.wait_for(state="attached", timeout=15000)
+            file_input.set_input_files(image_path, timeout=15000)
             print("  Upload triggered, waiting for upload-file to complete...")
             # Wait for upload-file to complete. media/post/create fires later
             # as part of the submit chain, not the upload chain.

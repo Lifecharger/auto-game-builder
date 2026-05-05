@@ -37,6 +37,7 @@ def generate_images(
     output: str = None,
     pro: bool = False,
     model: str = None,
+    output_dir: str = None,
 ) -> list[str]:
     cookies = get_cookies()
     if not cookies.get("sso"):
@@ -168,7 +169,8 @@ def generate_images(
 
     # Download the images
     import requests
-    os.makedirs(DOWNLOADS_DIR, exist_ok=True)
+    save_dir = output_dir or DOWNLOADS_DIR
+    os.makedirs(save_dir, exist_ok=True)
     saved = []
 
     for i, url in enumerate(results):
@@ -176,11 +178,11 @@ def generate_images(
             base, ext = os.path.splitext(output)
             ext = ext or ".png"
             if len(results) > 1:
-                filepath = os.path.join(DOWNLOADS_DIR, f"{base}_{i+1}{ext}")
+                filepath = os.path.join(save_dir, f"{base}_{i+1}{ext}")
             else:
-                filepath = os.path.join(DOWNLOADS_DIR, f"{base}{ext}")
+                filepath = os.path.join(save_dir, f"{base}{ext}")
         else:
-            filepath = os.path.join(DOWNLOADS_DIR, f"grok_{request_id[:8]}_{i+1}.png")
+            filepath = os.path.join(save_dir, f"grok_{request_id[:8]}_{i+1}.png")
 
         try:
             dl_headers = {}
@@ -195,7 +197,7 @@ def generate_images(
         except Exception as e:
             print(f"  Download failed for image {i+1}: {e}")
 
-    print(f"Done. {len(saved)} image(s) saved to {DOWNLOADS_DIR}")
+    print(f"Done. {len(saved)} image(s) saved to {save_dir}")
     return saved
 
 

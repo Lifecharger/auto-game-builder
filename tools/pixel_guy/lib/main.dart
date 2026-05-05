@@ -217,13 +217,28 @@ final List<String> _preferredExtractionPythonPaths = [
 ];
 
 String? _resolveExtractionScriptPath() {
+  // Honour an explicit absolute path env var first -- ironclad escape
+  // hatch when the auto-walk fails (e.g. unusual install layouts).
+  final envOverride = Platform.environment['PIXEL_GUY_EXTRACT_SCRIPT'];
+  if (envOverride != null && envOverride.isNotEmpty &&
+      File(envOverride).existsSync()) {
+    return File(envOverride).absolute.path.replaceAll('\\', '/');
+  }
   final exeDir = Directory(Platform.resolvedExecutable).parent;
+  // The Flutter Windows debug build sits five levels deep:
+  //   <project>/build/windows/x64/runner/Debug/<name>.exe
+  // so we walk up to seven parents to reach the project root in both
+  // debug and release tree shapes.
   final searchDirs = <Directory>[
     Directory.current,
     exeDir,
     exeDir.parent,
     exeDir.parent.parent,
     exeDir.parent.parent.parent,
+    exeDir.parent.parent.parent.parent,
+    exeDir.parent.parent.parent.parent.parent,
+    exeDir.parent.parent.parent.parent.parent.parent,
+    exeDir.parent.parent.parent.parent.parent.parent.parent,
   ];
   for (final dir in searchDirs) {
     final candidate = File('${dir.path}/extract_single.py');

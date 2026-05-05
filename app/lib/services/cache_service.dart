@@ -23,6 +23,7 @@ class CacheService {
     CacheBoxes.sessions,
     CacheBoxes.syncMeta,
     CacheBoxes.appDocs,
+    CacheBoxes.tasks,
   ];
 
   Future<void> openBoxes() async {
@@ -74,6 +75,7 @@ class CacheService {
       await Hive.box<String>(CacheBoxes.builds).clear();
       await Hive.box<String>(CacheBoxes.sessions).clear();
       await Hive.box<String>(CacheBoxes.appDocs).clear();
+      await Hive.box<String>(CacheBoxes.tasks).clear();
       await box.clear();
       await box.put('schema_version', _schemaVersion.toString());
       if (preservedClientId != null && preservedClientId.isNotEmpty) {
@@ -259,8 +261,37 @@ class CacheService {
     await Hive.box<String>(CacheBoxes.sessions).clear();
     await Hive.box<String>(CacheBoxes.syncMeta).clear();
     await Hive.box<String>(CacheBoxes.appDocs).clear();
+    await Hive.box<String>(CacheBoxes.tasks).clear();
     await Hive.box<Uint8List>(CacheBoxes.appIcons).clear();
   }
+
+  // ── Per-app tasks (tasklist.json snapshot) ───────────
+
+  /// Replace the cached tasklist for [appId] and remember the server's
+  /// Last-Modified header so the next fetch can send If-Modified-Since
+  /// and get a 304 when nothing has changed.
+  Future<void> saveTasks(int appId, List<dynamic> tasks, String lastModified) async {
+    final box = Hive.box<String>(CacheBoxes.tasks);
+    await box.put('app_$appId', jsonEncode(tasks));
+    if (lastModified.isNotEmpty) {
+      await box.put('app_${appId}_lm', lastModified);
+    }
+  }
+
+  List<dynamic> getTasks(int appId) {
+    final box = Hive.box<String>(CacheBoxes.tasks);
+    final raw = box.get('app_$appId');
+    if (raw == null) return const [];
+    try {
+      final decoded = jsonDecode(raw);
+      return decoded is List ? decoded : const [];
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  String? getTasksLastModified(int appId) =>
+      Hive.box<String>(CacheBoxes.tasks).get('app_${appId}_lm');
 
   // ── Per-app docs (GDD, CLAUDE.md) ────────────────────
 

@@ -359,6 +359,9 @@ class DeployEngine:
                     output_path = build.output_path
                     # Mark all completed tasks as "built"
                     self._mark_tasks_built(app, new_version or app.current_version)
+                    # Cap the built-task pile so the tasklist doesn't bloat to
+                    # 500+ entries (which makes mobile pulls slow over Cloudflare).
+                    self._archive_built_overflow(app)
                     break
 
                 # Check if build hung vs failed
@@ -973,6 +976,76 @@ class DeployEngine:
                 return build
             time.sleep(3)
         return self.db.get_build(build_id)
+
+    def _archive_built_overflow(self, app: App, keep: int = 200):
+        """After a successful build, archive 'built' tasks beyond the last `keep`.
+        Active tasks (idea/pending/in_progress/failed/etc.) are never touched —
+        only the done pile is capped. No-op when nothing to archive.
+
+        Called from the deploy flow right after _mark_tasks_built. Without this,
+        autonomous Claude sessions writing tasklist.json directly bypass the
+        per-task POST archiver and the file grows unbounded (Pixel Adventurer
+        was sitting at 500 tasks / 542 KB before this hook landed)."""
+        try:
+            tl_path = os.path.join(app.project_path, "tasklist.json")
+            if not os.path.isfile(tl_path):
+                return
+            with open(tl_path, "rb") as f:
+                raw = f.read()
+            try:
+                text = raw.decode("utf-8")
+            except UnicodeDecodeError:
+                text = raw.decode("latin-1")
+            data = json.loads(text)
+            tasks = data.get("tasks", data) if isinstance(data, dict) else data
+            if not isinstance(tasks, list):
+                return
+
+            done_statuses = ("completed", "built", "divided", "archived")
+            active = [t for t in tasks if t.get("status") not in done_statuses]
+            done = [t for t in tasks if t.get("status") in done_statuses]
+            done.sort(key=lambda t: t.get("id", 0))
+            if len(done) <= keep:
+                return  # nothing to archive
+
+            overflow = done[:-keep]
+            keep_done = done[-keep:]
+
+            archive_dir = os.path.join(app.project_path, "task_archives")
+            os.makedirs(archive_dir, exist_ok=True)
+            archive_file = os.path.join(
+                archive_dir,
+                f"archived_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+            )
+            with open(archive_file, "w", encoding="utf-8") as af:
+                json.dump(
+                    {"archived_tasks": overflow, "archived_at": datetime.now().isoformat()},
+                    af, indent=2, ensure_ascii=False,
+                )
+
+            new_tasks = active + keep_done
+            new_tasks.sort(key=lambda t: t.get("id", 0))
+            payload = json.dumps(
+                {"tasks": new_tasks} if isinstance(data, dict) else new_tasks,
+                indent=2, ensure_ascii=False,
+            )
+            with open(tl_path, "w", encoding="utf-8") as f:
+                f.write(payload)
+
+            # Bump app.updated_at so /api/sync delta + the next /api/events
+            # reconcile pass pick up the new task counts. Mirrors what
+            # _save_tasklist does in server.py for in-band edits.
+            try:
+                self.db.touch_app(app.id)
+            except Exception as e:
+                logger.debug("touch_app after archive failed for %s: %s", app.id, e)
+
+            logger.info(
+                "[DeployEngine] Archived %d built tasks for %s (kept last %d active=%d)",
+                len(overflow), app.name, keep, len(active),
+            )
+        except Exception as e:
+            logger.warning("[DeployEngine] Archive overflow failed for %s: %s", app.name, e)
 
     def _mark_tasks_built(self, app: App, version: str):
         """After successful build, mark all 'completed' tasks as 'built' with the build version."""

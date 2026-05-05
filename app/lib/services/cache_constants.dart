@@ -9,4 +9,7 @@ class CacheBoxes {
   /// payloads that are too big to ship through /api/sync but still
   /// benefit from a cache-first render.
   static const String appDocs = 'app_docs';
+  /// Per-app tasklist.json snapshots + Last-Modified header for conditional
+  /// GET. Keyed by `app_<id>` (tasks JSON) and `app_<id>_lm` (last-modified).
+  static const String tasks = 'tasks_cache';
 }
