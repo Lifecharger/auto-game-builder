@@ -1,0 +1,63 @@
+{
+  "@@locale": "en",
+  "appTitle": "Auto Game Builder",
+  "@appTitle": {
+    "description": "The application title displayed in the launcher and as a fallback."
+  },
+  "save": "Save",
+  "@save": {
+    "description": "Generic Save button label."
+  },
+  "cancel": "Cancel",
+  "@cancel": {
+    "description": "Generic Cancel button label."
+  },
+  "retry": "Retry",
+  "@retry": {
+    "description": "Retry button label, e.g. after a failed network call."
+  },
+  "edit": "Edit",
+  "@edit": {
+    "description": "Generic Edit button label."
+  },
+  "add": "Add",
+  "@add": {
+    "description": "Generic Add button label."
+  },
+  "settings": "Settings",
+  "@settings": {
+    "description": "Settings tab / screen label."
+  },
+  "apps": "Apps",
+  "@apps": {
+    "description": "Apps tab label in the bottom navigation."
+  },
+  "tasks": "Tasks",
+  "@tasks": {
+    "description": "Tasks tab / list label."
+  },
+  "builds": "Builds",
+  "@builds": {
+    "description": "Builds tab label in the bottom navigation."
+  },
+  "logs": "Logs",
+  "@logs": {
+    "description": "Logs tab label in the bottom navigation."
+  },
+  "dashboard": "Dashboard",
+  "@dashboard": {
+    "description": "Dashboard tab label in the bottom navigation."
+  },
+  "issues": "Issues",
+  "@issues": {
+    "description": "Issues tab label in the bottom navigation."
+  },
+  "control": "Control",
+  "@control": {
+    "description": "Control tab label in the bottom navigation."
+  },
+  "chatLogs": "Chat & Logs",
+  "@chatLogs": {
+    "description": "Chat & Logs tab label in the bottom navigation."
+  }
+}

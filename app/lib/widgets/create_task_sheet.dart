@@ -183,7 +183,7 @@ class CreateTaskSheet {
                                 final title = titleController.text.trim();
                                 if (title.isEmpty) {
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
+                                    SnackBar(
                                       content: Text('Title is required'),
                                       backgroundColor: AppColors.warning,
                                     ),

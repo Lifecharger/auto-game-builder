@@ -678,7 +678,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
     if (pendingItems.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text('No pending items to work on'),
             backgroundColor: AppColors.warning,
           ),
@@ -787,7 +787,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
   Future<void> _createTestTask() async {
     if (_selectedAppId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text('Select an app first'),
           backgroundColor: AppColors.warning,
         ),
@@ -811,7 +811,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
 
     if (result.ok) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text('Test task created'),
           backgroundColor: AppColors.success,
         ),
@@ -830,7 +830,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
   Future<void> _generateIdeas() async {
     if (_selectedAppId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text('Select an app first'),
           backgroundColor: AppColors.warning,
         ),
@@ -1249,7 +1249,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
   Future<void> _codeCheck() async {
     if (_selectedAppId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text('Select an app first'),
           backgroundColor: AppColors.warning,
         ),
@@ -1340,7 +1340,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
   Future<void> _designReview() async {
     if (_selectedAppId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Select an app first'), backgroundColor: AppColors.warning),
+        SnackBar(content: Text('Select an app first'), backgroundColor: AppColors.warning),
       );
       return;
     }
@@ -1365,7 +1365,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
   Future<void> _runStudioAction(String action, String successMessage) async {
     if (_selectedAppId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Select an app first'), backgroundColor: AppColors.warning),
+        SnackBar(content: Text('Select an app first'), backgroundColor: AppColors.warning),
       );
       return;
     }

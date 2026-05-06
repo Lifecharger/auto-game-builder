@@ -145,7 +145,7 @@ class BrainstormSheet {
                                 final name = nameController.text.trim();
                                 if (concept.isEmpty && name.isEmpty) {
                                   ScaffoldMessenger.of(ctx).showSnackBar(
-                                    const SnackBar(
+                                    SnackBar(
                                         content: Text(
                                             'Enter a concept or project name'),
                                         backgroundColor:

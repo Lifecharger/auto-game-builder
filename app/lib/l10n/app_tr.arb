@@ -1,0 +1,18 @@
+{
+  "@@locale": "tr",
+  "appTitle": "Auto Game Builder",
+  "save": "Kaydet",
+  "cancel": "İptal",
+  "retry": "Tekrar Dene",
+  "edit": "Düzenle",
+  "add": "Ekle",
+  "settings": "Ayarlar",
+  "apps": "Uygulamalar",
+  "tasks": "Görevler",
+  "builds": "Yapımlar",
+  "logs": "Günlükler",
+  "dashboard": "Panel",
+  "issues": "Sorunlar",
+  "control": "Kontrol",
+  "chatLogs": "Sohbet & Günlükler"
+}

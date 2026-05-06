@@ -1,252 +1,207 @@
-I have enough context from the server code to write a complete art bible. The platform manages pixel-art mobile games with PixelLab/Godot/Flutter tooling. Writing the art bible now.
+# Art Bible — Auto Game Builder Dashboard
+
+Source of truth for the AGB control-room mobile app's visual identity. Scope is the dashboard itself (screens, widgets, theme) — *not* the games it manages. Each managed game has its own art-bible.md under its own project.
+
+All values live in `app/lib/theme.dart`. If you change a color or radius in one place, change it here too.
 
 ---
 
-# Art Bible — Auto Game Builder Mobile Games
+## 1. Identity in One Line
 
-*Version 1.0 — Source of truth for all asset generation (PixelLab, Grok, ElevenLabs, Meshy)*
+A late-night control room: deep navy panels, cards lit by a single coral accent, every status earning its own vivid pill. Calm field, loud signal.
 
----
-
-## 1. Visual Identity Statement
-
-**Warm pixel art adventure — vibrant, readable, joyful on a 5-inch screen.** When any art call is ambiguous, choose clarity over complexity, warmth over coolness, and character over realism.
-
-Supporting principles:
-- **Readable at thumb-distance.** Every sprite, icon, and tile must read as a distinct silhouette at 1× display size. If you need to squint, it fails.
-- **Colour tells the story.** Game state, character role, rarity tier, and danger level communicate through palette alone — before the player reads a single label.
-- **Pixel craft, not pixel retro.** Clean, deliberate pixel placement. Not NES-era noise. Not smooth-interpolated blur. Every pixel is intentional.
+The dashboard is a *tool*, not a game. It should feel reliable and unhurried. Color is reserved for state — never decoration.
 
 ---
 
-## 2. Mood & Atmosphere by Game State
+## 2. Palette (current — dark-only)
 
-| State | Primary Emotion | Lighting Character | AI Style Note |
-|---|---|---|---|
-| **Explore / Overworld** | Wonder, safety | Warm afternoon sun, 5500 K, soft shadows, high ambient | `top-down pixel art, warm sunlit village, soft shadows, inviting, golden hour` |
-| **Combat / Encounter** | Tension, urgency | High contrast, 4000 K cool-warm split, rim-lit characters, pulsing vignette | `pixel art battle scene, dramatic contrast, red-orange enemy, cool blue hero, dynamic` |
-| **Menu / Hub** | Calm confidence | Dark starfield backdrop, candlelit UI panels, medium contrast | `pixel art menu screen, deep navy background, warm gold UI panels, stars, cozy` |
-| **Victory** | Elation, reward | Burst of white → gold, full saturation spike, particle bloom | `pixel art victory, golden light burst, confetti particles, bright saturated, triumphant` |
-| **Defeat / Game Over** | Tension, retry urge | Desaturated, 15% saturation, cool grey-blue tint, dim vignette | `pixel art defeat screen, desaturated, faded, grey-blue, solemn, retry prompt` |
-
----
-
-## 3. Color Palette
-
-### Core Colors (backbone of every scene)
-
-| Role | Name | Hex |
+### Surfaces
+| Token | Hex | Use |
 |---|---|---|
-| Deep background | Midnight Navy | `#1A1A2E` |
-| Ground / terrain | Rich Earth | `#5C3D2E` |
-| Nature / foliage | Forest Green | `#3D6B45` |
-| Architecture / stone | Slate Grey | `#8B9DA5` |
-| Light / highlight | Warm Cream | `#F0E6C8` |
+| `bgDark` | `#1A1A2E` | Scaffold background, screen body |
+| `bgSidebar` | `#16213E` | App bar, bottom nav, drawer |
+| `bgCard` | `#0F3460` | Cards, chips, snackbars |
 
-### Accent Colors (used for secondary elements, UI chrome)
+Three navies stacked, each one step lighter than the last. Reads as elevation without needing shadows.
 
-| Role | Name | Hex |
+### Brand
+| Token | Hex | Use |
 |---|---|---|
-| Rewards / XP / gold UI | Hero Gold | `#FFD166` |
-| Enemies / danger / errors | Danger Crimson | `#EF476F` |
-| Water / magic / sky | Horizon Blue | `#4CC9F0` |
-| Fire / energy / hot VFX | Ember Orange | `#F4845F` |
-| Healing / success / nature magic | Life Green | `#6BCB77` |
+| `accent` | `#E94560` | Primary action, FAB, focused inputs, selected chips |
 
-### Signature Colors (reserved — rare moments only)
+The coral is the only warm color in the palette. Use it sparingly — one accent per screen is the rule. If two things are coral, neither one feels primary.
 
-| Role | Name | Hex |
+### Semantic
+| Token | Hex | Meaning |
 |---|---|---|
-| Legendary / rare tier | Arcane Violet | `#9B5DE5` |
-| Boss encounter / critical moment | Inferno Red | `#FF6B35` |
-| Victory fanfare / final reward | Trophy Gold | `#FFC300` |
-
-**Palette rules:**
-- Never introduce an out-of-palette colour without a deliberate reason documented in a task.
-- On-screen UI must use only core + accent colours; signature colours appear only at the moment they name.
-- Dark backgrounds must be `#1A1A2E` or a 10–20% lighter tint of it — never pure `#000000`.
+| `success` | `#2ECC71` | Done, published, completed |
+| `warning` | `#F39C12` | Pending, fixing, attention-needed |
+| `error` | `#E74C3C` | Failed, crashed, blocked |
+| `info` | `#3498DB` | Building, in-progress, neutral status |
 
 ---
 
-## 4. Character Art Direction
+## 3. Status Colors (the "pill" system)
 
-**Silhouette rule:** Every character silhouette must be recognisable in a 16×16 greyscale thumbnail. If the outline alone doesn't tell hero from enemy from NPC, redesign the silhouette.
+Every state gets a unique color. The phone is glanceable — a user shouldn't have to read text to know if a build is running, queued, or failed.
 
-**Proportion system:**
-- Base sprite canvas: 32×32 px (enemies) or 48×48 px (hero, bosses)
-- Head-to-body ratio: 1:3 (slightly large head, mild stylisation — not chibi, not realistic)
-- Limbs: stubby but distinct; exaggerated action poses during animation
+### App lifecycle (`AppColors.statusColor`)
+| Status | Color | Hex |
+|---|---|---|
+| idle | grey | — |
+| queued | amber | `#F1C40F` |
+| building | info blue | `#3498DB` |
+| uploading | purple | `#9B59B6` |
+| working | teal | `#1ABC9C` |
+| fixing | warning orange | `#F39C12` |
+| deploying | info blue | `#3498DB` |
+| error | red | `#E74C3C` |
+| published | green | `#2ECC71` |
 
-**Line weight:**
-- 1 px hard black outline on all characters at base resolution
-- No anti-aliased edges — ever
-- Inner detail lines are 1 px, same palette colour darkened 40%
+### Task status (`AppColors.taskStatusColor`)
+| Status | Color | Hex |
+|---|---|---|
+| pending | orange | `#F39C12` |
+| in_progress | blue | `#3498DB` |
+| completed | green | `#2ECC71` |
+| **built** | **purple** | **`#9B59B6`** |
+| failed | red | `#E74C3C` |
+| divided | blue | `#3498DB` |
 
-**Shading approach:**
-- Cel shading with exactly **2 tone levels**: flat fill + 1 shadow value (base colour darkened 30%), no mid-tone gradients
-- 1–2 highlight pixels in `#F0E6C8` tint on the topmost visible surface
-- No dithering on character sprites (reserved for environment textures only)
+The purple **built** badge is signature — it marks tasks that shipped in a real build, distinct from "completed but not yet bundled." Don't reassign that purple to anything else.
 
-**Default idle stance:** Front-facing, arms slightly out from body, weight on both feet, 2-frame breathing cycle (frame 1: neutral, frame 2: +1px height shift on torso)
+### Task type (`AppColors.taskTypeColor`)
+| Type | Color | Hex |
+|---|---|---|
+| issue | orange | `#F39C12` |
+| bug | red | `#E74C3C` |
+| fix | blue | `#3498DB` |
+| feature | green | `#2ECC71` |
+| idea | lilac | `#AB47BC` |
 
-**Rejected styles:**
-- Anime large-eye proportions
-- Photorealistic muscle/skin shading
-- Traced-photo outlines
-- Pure 1:4 adult proportions (too stiff for mobile)
-
----
-
-## 5. Environment & Level Art
-
-**Perspective:** Top-down orthographic (45° tile grid). Godot TileMap system.
-
-**Tile system:**
-- Tile size: **16×16 px** base (rendered 2× → 32×32 on screen at standard DPI)
-- Texel density: 16 px per in-game metre
-- Tileset atlas: 256×256 px per atlas sheet; max 16×16 tiles per sheet
-- Dithering allowed on terrain edges only (2-pixel dither strip at biome boundaries)
-
-**Scale conventions:**
-- Player character occupies ~2×2 tiles at default zoom
-- Doorways: minimum 2-tile width
-- Interactive objects (chests, signs): 1×1 or 1×2 tile, centred within tile grid
-
-**Background / skybox treatment:**
-- Overworld background: scrolling parallax, 3 layers (`#1A1A2E` sky → silhouette mountains in `#2D3B5A` → mid-ground trees in `#3D6B45`)
-- Interior: solid `#2A1E15` dark wood ceiling at 8 px top strip; no visible sky
-- No photographic backgrounds. No gradient mesh fills — use flat banded gradients max 4 steps.
-
-**Lighting pass:** Global illumination is baked into tile art. Dynamic lighting (torches, spells) uses additive sprite overlays at 40% opacity using palette colours — never white bloom.
-
----
-
-## 6. UI Visual Language
-
-**Button shape:** Rounded rectangle, `border-radius` equivalent = 6 px at 1× scale. 3 px drop shadow in a darkened version of the button colour (`-30%` lightness). Minimum touch target: 48×48 dp (Flutter) / 44×44 pt (Godot screen-space).
-
-**Border style:** 2 px solid inner border, lighter tint of background colour (+20% lightness). Outer edge: 1 px hard shadow line.
-
-**Font family:**
-- Primary: **Pixelify Sans** (Google Fonts — pixel-style) at 8, 12, 16, 24 px steps only
-- Fallback: **Nunito** (round, friendly, legible at small sizes)
-- NO italic text in-game (pixel fonts don't anti-alias; italics become unreadable)
-
-**Icon style:** 16×16 px pixel icons for in-game HUD; 32×32 px for menus. Single-colour with 1-shade fill, matching the palette role (e.g., health = `#6BCB77`, currency = `#FFD166`). All icons ship with transparent background.
-
-**Panel treatment:**
-- Main panels: `#1A1A2E` fill, `#FFD166` 2 px top border, 6 px corner radius
-- Tooltip panels: `#2D2D4A` fill, 1 px `#8B9DA5` border
-- Scrollable lists: no visible border, inner shadow only
-
-**Color-role mapping for UI states:**
-
-| State | Colour |
+### Agent (`AppColors.agentColor`)
+| Agent | Color |
 |---|---|
-| Primary action / CTA | `#FFD166` (Hero Gold) |
-| Destructive / delete | `#EF476F` (Danger Crimson) |
-| Success / confirm | `#6BCB77` (Life Green) |
-| Warning / caution | `#F4845F` (Ember Orange) |
-| Disabled | `#8B9DA5` at 50% opacity |
-| Selected / focused | 2 px `#4CC9F0` outline |
+| claude | coral (`accent`) |
+| gemini | blue (`info`) |
+| codex | green (`success`) |
+| local | orange (`warning`) |
+
+### Priority (`AppColors.priorityColor` / `priorityLabel`)
+1 Critical → red · 2 High → orange · 3 Medium → yellow · 4 Low → blue · 5 Wishlist → grey
 
 ---
 
-## 7. VFX & Particle Style
+## 4. Shape & Spacing
 
-**Particle count budget:**
-- Hit/impact: max 12 particles
-- Explosion/death: max 24 particles
-- Level-up / reward burst: max 40 particles (screen-space, one-shot)
-- Ambient (campfire, water): max 8 particles per emitter; max 3 simultaneous emitters
-
-**Shape language:** Round soft circles (4–6 px diameter at 1×) for magic and healing; sharp 2×2 squares for physical hits and dirt; 1 px sparks for fire/electricity. No complex mesh particles.
-
-**Color rules:**
-- All particles must use palette hex values — no arbitrary colours
-- Hit particles: use the attacker's colour theme (enemy = `#EF476F`, player = `#4CC9F0`)
-- Healing: `#6BCB77` → fade to `#F0E6C8`
-- Fire: `#FF6B35` → `#FFD166` → `#F0E6C8` (hottest to coolest)
-- Coin/XP: `#FFD166` with `#FFC300` core
-
-**Timing:**
-- Hit flash: 0.08 s white flash on sprite, then fade 0.12 s
-- Impact burst: spawn all particles at 0, fade out over 0.3–0.4 s
-- Level-up burst: 0.6 s full cycle; particles arc outward then gravity-fall
-- Ambient: 1.5–3 s looping, staggered spawn
-- No slow-dissolve lingering effects beyond 0.6 s — mobile GPU budget
-
----
-
-## 8. Asset Standards
-
-### Sprite Resolutions
-
-| Asset Class | Canvas Size | Export |
+| Element | Radius | Notes |
 |---|---|---|
-| Hero sprite (all frames) | 48×48 px per frame | PNG RGBA, no background |
-| Enemy sprites | 32×32 px per frame | PNG RGBA, no background |
-| Boss sprites | 64×64 px per frame | PNG RGBA, no background |
-| NPC / prop | 16×16 or 32×32 px | PNG RGBA, no background |
-| Tileset atlas | 256×256 px | PNG RGBA |
-| UI icons (HUD) | 16×16 px | PNG RGBA, no background |
-| UI icons (menu) | 32×32 px | PNG RGBA, no background |
-| App icon / launcher | 1024×1024 px | PNG, solid background |
-| Background / parallax layer | 512×512 px (tiling) or 480×852 px (portrait full-screen) | PNG RGB |
-| Splash screen | 1080×1920 px | PNG RGB |
+| Cards | 12 px | `RoundedRectangleBorder` |
+| Inputs | 8 px | `OutlineInputBorder` |
+| Chips | 8 px | |
+| Snackbar | 8 px | Floating behavior |
+| Card elevation | 2 | M3 elevation; no custom shadows |
 
-### Audio Formats
-
-| Use | Format | Bitrate |
-|---|---|---|
-| Sound effects (short) | `.ogg` Vorbis | 96 kbps |
-| Music / ambient loops | `.ogg` Vorbis | 128 kbps |
-| Voice / narration | `.ogg` Vorbis | 128 kbps |
-
-**No `.mp3` in Godot projects** (patent/licensing edge cases in some regions). Use `.ogg` exclusively.
-
-### Atlas & Texture Rules
-
-- All character animations must be packed into a **single spritesheet** per character (horizontal strip, left-to-right frame order)
-- Frame order convention: `idle (4f) → walk (6f) → attack (5f) → hurt (2f) → death (6f)`
-- Max spritesheet width: 512 px; wrap to next row if exceeded
-- Compression: no lossy compression on sprites. Lossless PNG only.
-- All sprites require **transparent background** (no magenta/white fill as transparency key)
-- Export at 1× base resolution; scaling is handled at runtime (Godot: `filter = false` on all pixel art textures)
+Material 3 is on (`useMaterial3: true`). Don't add custom shadows or gradients — let M3 elevation do the work.
 
 ---
 
-## 9. Style Prohibitions
+## 5. Typography
 
-These are hard rejections. An asset matching any item below gets regenerated.
+System default — Roboto on Android, SF on iOS. No custom font shipped, no Google Fonts dependency.
 
-**Visual style:**
-- No photorealism or photographic textures
-- No 3D renders passed off as 2D art (exception: Meshy-generated 3D models for dedicated 3D scenes)
-- No smooth gradient meshes or radial gradients on character/tile art
-- No neon cyberpunk palette (`#00FFFF`, `#FF00FF` against black)
-- No muddy, unsaturated brown-grey colour schemes
-- No semi-transparency / alpha < 80% on character outlines (causes ghosting at pixel scale)
+If a custom font is ever added, it goes here first (this doc), then `pubspec.yaml`, then `theme.dart`.
 
-**Character style:**
-- No anime large-eye proportions (iris height > 40% of face height)
-- No hyper-realistic muscle anatomy
-- No Western cartoon rubber-hose limbs (Fleischer style)
-- No clipart-style thick outlines > 2 px at base resolution
-
-**UI style:**
-- No bevelled/embossed 3D button effects (skeuomorphic)
-- No drop shadows with blur radius > 4 px
-- No white text on yellow or gold backgrounds
-- No font sizes below 8 px (pixel font) or 10 dp (vector font)
-- No more than 3 font sizes on a single screen
-
-**Technical:**
-- No anti-aliased pixel art sprites (set Godot import filter = off / nearest-neighbour)
-- No placeholder grey boxes, colour fills, or "TODO: add sprite here" comments
-- No lorem ipsum text in any shipped screen
-- No hardcoded price strings in UI — always load from Play Store/App Store billing at runtime
+Hierarchy:
+- **App bar / screen titles**: M3 `titleLarge`
+- **Card headers**: M3 `titleMedium`, white
+- **Body**: M3 `bodyMedium`, white87 on dark bgs
+- **Status labels in pills**: `bodySmall`, white, semibold
 
 ---
 
-*Identity summary: Warm pixel art, top-down, portrait mobile. Palette anchored to Midnight Navy `#1A1A2E` + Hero Gold `#FFD166` + Danger Crimson `#EF476F`. Every asset ships at exact canvas size with transparent background, no anti-aliasing, and palette-only colours.*
+## 6. Iconography
+
+Material Icons only — no custom icon set. App-type icons are mapped in `AppColors.appTypeIcon`:
+
+| Type | Icon |
+|---|---|
+| flutter | `phone_android` |
+| godot | `games` |
+| python | `terminal` |
+| web | `web` |
+| phaser | `sports_esports` |
+
+App launcher icon: `app_icon.ico` (Windows) + Flutter-generated mobile variants. Style: flat, single-color, dashboard motif. When updating, regenerate all densities — never ship a single-density icon.
+
+---
+
+## 7. Brand & Voice
+
+- Parent brand: **Life Charger** (all apps use `com.lifecharger.*` package).
+- Dashboard tone: terse, technical, no marketing fluff. Status text is verbs ("Building," "Fixing," "Uploading"), never adjectives ("Awesome!").
+- No emoji in UI strings. No exclamation points except in legitimate error toasts.
+
+---
+
+## 8. Dark / Light Mode (planned)
+
+Currently the theme is hardcoded `Brightness.dark` with literal hex constants. To support light mode without breaking the existing screens, the migration goes in this order:
+
+1. **Tokenize first.** Every widget that calls `AppColors.bgDark`, `bgSidebar`, `bgCard` directly must be replaced with `Theme.of(context).colorScheme.surface` / `surfaceContainer` / `surfaceContainerHigh`. This is mechanical but unavoidable — literal references can't respond to a theme switch.
+2. **Define both schemes.** Add `buildDarkTheme()` and `buildLightTheme()` in `theme.dart`, both using the same `accent` (`#E94560`) but different surfaces. Light surfaces: `#FFFFFF` / `#F5F5F7` / `#E8EAF0` — three steps of elevation, just inverted.
+3. **Audit semantic colors.** Status pills need a contrast pass for light mode. Orange `#F39C12` and yellow `#F1C40F` will read poorly on white — bump saturation or darken ~10%. Run them through WCAG AA.
+4. **`ThemeMode` toggle in settings.** Three options: System / Dark / Light. Persist to Hive (`syncMeta` box, key `theme_mode`). Default to System.
+5. **Test the screen with the most colored chrome first** — `app_detail_screen.dart` and the dashboard cards. If those look right in both modes, the rest will follow.
+
+Rules that must hold across both modes:
+- Coral `#E94560` stays the only accent in either mode.
+- Status colors keep their *meaning* — green = success, red = error, purple = built. Hue may shift slightly for contrast; meaning never does.
+- The "one coral per screen" rule applies in light mode too.
+
+Anti-patterns to avoid:
+- A "midnight" or "AMOLED black" mode. Stay with `#1A1A2E` — the navy is the brand.
+- Per-screen theme overrides. The whole app switches together; no exceptions.
+- Sepia / solarized / "fun" modes until dark+light ships cleanly.
+
+---
+
+## 9. Components
+
+### Card
+- Background: `colorScheme.surfaceContainer` (current: `bgCard`)
+- Radius: 12 px
+- Padding: 16 px
+- Elevation: 2
+
+### Pill / status badge
+- Pill = colored background + white text
+- Padding: 8 px horizontal, 4 px vertical
+- Radius: 12 px (full pill)
+- Color = the relevant status / task / agent color from §3
+
+### FAB
+- Background: `accent`, foreground white
+- Single FAB per screen. If you need two actions, use a bottom sheet.
+
+### Snackbar
+- Floating behavior, 8 px radius
+- Background: `bgCard`
+- White text — no colored snackbars
+
+### Bottom nav
+- Background: `bgSidebar`
+- Selected: `accent`
+- Unselected: grey
+
+---
+
+## 10. Update Discipline
+
+When `theme.dart` changes:
+1. Update §2 / §3 tables in this file.
+2. If a status / task type is added, update §3 *and* the relevant `switch` in `theme.dart`.
+3. If light mode lands, replace §8 with the as-built spec.
+
+This document is canon. If a screen disagrees with this file, the screen is wrong.

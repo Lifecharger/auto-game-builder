@@ -162,7 +162,7 @@ class _ChatScreenState extends State<ChatScreen> {
               });
               _save();
             },
-            child: const Text('Delete',
+            child: Text('Delete',
                 style: TextStyle(color: AppColors.error)),
           ),
         ],
@@ -362,7 +362,7 @@ class _ChatScreenState extends State<ChatScreen> {
                           setState(() => _active?.messages.clear());
                           _save();
                         },
-                        child: const Text('Clear',
+                        child: Text('Clear',
                             style: TextStyle(color: AppColors.error)),
                       ),
                     ],

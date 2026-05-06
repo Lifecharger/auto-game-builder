@@ -65,7 +65,7 @@ class _ServerConfigSectionState extends State<ServerConfigSection> {
       if (!mounted) return;
       setState(() => _editing = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text('Settings saved — restart server to apply'),
           backgroundColor: AppColors.success,
         ),
@@ -158,7 +158,7 @@ class _ServerConfigSectionState extends State<ServerConfigSection> {
           padding: const EdgeInsets.all(16),
           child: Column(
             children: [
-              const Row(
+              Row(
                 children: [
                   Icon(Icons.settings_applications, color: AppColors.warning),
                   SizedBox(width: 8),
@@ -185,7 +185,7 @@ class _ServerConfigSectionState extends State<ServerConfigSection> {
         padding: const EdgeInsets.only(top: 12, bottom: 4),
         child: Text(
           _sectionLabels[sectionKey]!,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w600,
             color: AppColors.accent,
@@ -206,7 +206,7 @@ class _ServerConfigSectionState extends State<ServerConfigSection> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              children: const [
+              children: [
                 Icon(Icons.settings_applications, color: AppColors.warning),
                 SizedBox(width: 8),
                 Text('Server Configuration',

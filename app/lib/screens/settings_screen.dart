@@ -10,7 +10,10 @@ import '../config.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../services/billing_service.dart';
+import '../services/locale_service.dart';
+import '../services/theme_service.dart';
 import '../theme.dart';
+import '../theme/palette.dart';
 import '../widgets/settings/server_config_section.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -136,7 +139,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (mounted) {
       setState(() => _connectionResult = null);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text('API URL saved'),
           backgroundColor: AppColors.success,
         ),
@@ -150,7 +153,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (!launched && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text('Could not open link'),
             backgroundColor: AppColors.error,
           ),
@@ -160,7 +163,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       debugPrint('Failed to open link: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text('Could not open link'),
             backgroundColor: AppColors.error,
           ),
@@ -203,6 +206,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: ListView(
           padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomPadding),
           children: [
+            _ThemePickerSection(),
+            const SizedBox(height: 12),
+            _LanguagePickerSection(),
+            const SizedBox(height: 12),
             // Google Account card
             Card(
               child: Padding(
@@ -210,7 +217,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Row(
+                    Row(
                       children: [
                         Icon(Icons.account_circle, color: AppColors.info),
                         SizedBox(width: 8),
@@ -310,7 +317,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Row(
+                    Row(
                       children: [
                         Icon(Icons.cloud, color: AppColors.info),
                         SizedBox(width: 8),
@@ -400,7 +407,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Row(
+                      Row(
                         children: [
                           Icon(Icons.favorite, color: AppColors.accent),
                           SizedBox(width: 8),
@@ -469,7 +476,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Row(
+                    Row(
                       children: [
                         Icon(Icons.palette, color: AppColors.accent),
                         SizedBox(width: 8),
@@ -510,7 +517,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Row(
+                    Row(
                       children: [
                         Icon(Icons.info_outline, color: AppColors.accent),
                         SizedBox(width: 8),
@@ -545,7 +552,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       setState(() => _serverRunning = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text('Server stopped'),
             backgroundColor: AppColors.warning,
           ),
@@ -574,7 +581,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (scriptPath == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text('start_server.py not found'),
             backgroundColor: AppColors.error,
           ),
@@ -684,7 +691,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Row(
+              Row(
                 children: [
                   Icon(Icons.cloud_sync, color: AppColors.info),
                   SizedBox(width: 8),
@@ -735,7 +742,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         onPressed: () {
                           Clipboard.setData(ClipboardData(text: workerUrl));
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
+                            SnackBar(
                               content: Text('Worker URL copied'),
                               backgroundColor: AppColors.success,
                               duration: Duration(seconds: 2),
@@ -821,7 +828,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           children: [
             Row(
               children: [
-                const Icon(Icons.cloud_sync, color: AppColors.info),
+                Icon(Icons.cloud_sync, color: AppColors.info),
                 const SizedBox(width: 8),
                 const Expanded(
                   child: Text(
@@ -1009,7 +1016,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     if (apiKey.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text('No API key found — restart the server to generate one'),
           backgroundColor: AppColors.error,
         ),
@@ -1061,14 +1068,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _urlController.text = AppConfig.baseUrl;
       setState(() => _editingWorkerUrl = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text('Paired successfully!'),
           backgroundColor: AppColors.success,
         ),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text('Invalid QR code data'),
           backgroundColor: AppColors.error,
         ),
@@ -1083,7 +1090,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (mounted) {
       setState(() => _editingWorkerUrl = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text('Worker URL saved'),
           backgroundColor: AppColors.success,
         ),
@@ -1105,6 +1112,213 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 }
 
+
+class _ThemePickerSection extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.palette, color: AppColors.accent),
+                const SizedBox(width: 8),
+                const Text(
+                  'Theme',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ListenableBuilder(
+              listenable: ThemeService.instance,
+              builder: (context, _) {
+                final activeKey = ThemeService.instance.currentKey;
+                return SizedBox(
+                  height: 120,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: AppPalette.all.length,
+                    separatorBuilder: (_, _) => const SizedBox(width: 12),
+                    itemBuilder: (context, i) {
+                      final p = AppPalette.all[i];
+                      final selected = p.key == activeKey;
+                      return _ThemePickerTile(
+                        palette: p,
+                        selected: selected,
+                        onTap: () => ThemeService.instance.setTheme(p.key),
+                      );
+                    },
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ThemePickerTile extends StatelessWidget {
+  const _ThemePickerTile({
+    required this.palette,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final AppPalette palette;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final borderColor = selected ? palette.accent : Colors.white24;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        width: 96,
+        height: 120,
+        constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: palette.bgSidebar,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: borderColor, width: selected ? 2 : 1),
+        ),
+        child: Stack(
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    _swatch(palette.bgDark),
+                    const SizedBox(width: 4),
+                    _swatch(palette.bgCard),
+                    const SizedBox(width: 4),
+                    _swatch(palette.accent),
+                  ],
+                ),
+                const Spacer(),
+                Text(
+                  palette.displayName,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: palette.brightness == Brightness.dark
+                        ? Colors.white
+                        : Colors.black87,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+            if (selected)
+              Positioned(
+                top: 0,
+                right: 0,
+                child: Container(
+                  width: 20,
+                  height: 20,
+                  decoration: BoxDecoration(
+                    color: palette.accent,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.check, size: 14, color: Colors.white),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _swatch(Color color) {
+    final borderColor = palette.brightness == Brightness.light
+        ? Colors.black26
+        : Colors.white24;
+    return Container(
+      width: 20,
+      height: 20,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: borderColor, width: 1),
+      ),
+    );
+  }
+}
+
+class _LanguagePickerSection extends StatelessWidget {
+  static const _options = <_LangOption>[
+    _LangOption('en', 'English'),
+    _LangOption('tr', 'Türkçe'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.language, color: AppColors.info),
+                const SizedBox(width: 8),
+                const Text(
+                  'Language',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ListenableBuilder(
+              listenable: LocaleService.instance,
+              builder: (context, _) {
+                final activeCode =
+                    LocaleService.instance.currentLocale.languageCode;
+                return Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final opt in _options)
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(minHeight: 48),
+                        child: ChoiceChip(
+                          label: Padding(
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 6, horizontal: 4),
+                            child: Text(opt.label,
+                                style: const TextStyle(fontSize: 14)),
+                          ),
+                          selected: opt.code == activeCode,
+                          onSelected: (_) => LocaleService.instance
+                              .setLocale(Locale(opt.code)),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LangOption {
+  final String code;
+  final String label;
+  const _LangOption(this.code, this.label);
+}
 
 /// Full-screen QR scanner for pairing.
 class _QrScanScreen extends StatefulWidget {

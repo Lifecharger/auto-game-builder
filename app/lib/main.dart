@@ -3,10 +3,13 @@ import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
 import 'config.dart';
+import 'l10n/app_localizations.dart';
 import 'services/app_state.dart';
 import 'services/auth_service.dart';
 import 'services/cache_service.dart';
 import 'services/event_service.dart';
+import 'services/locale_service.dart';
+import 'services/theme_service.dart';
 import 'services/update_checker.dart';
 import 'theme.dart';
 import 'screens/dashboard_screen.dart';
@@ -32,6 +35,9 @@ void main() async {
   } catch (e) {
     debugPrint('AppConfig.load failed, using defaults: $e');
   }
+
+  await ThemeService.instance.load();
+  await LocaleService.instance.load();
 
   // Try silent sign-in (non-blocking if it fails)
   try {
@@ -59,13 +65,23 @@ class AppManagerMobile extends StatelessWidget {
         state.loadApps().then((_) => events.start());
         return state;
       },
-      child: MaterialApp(
-        title: 'Auto Game Builder',
-        debugShowCheckedModeBanner: false,
-        theme: buildAppTheme(),
-        home: AppConfig.baseUrl.isEmpty
-            ? const LoginScreen()
-            : const MainShell(),
+      child: ListenableBuilder(
+        listenable: Listenable.merge(
+          [ThemeService.instance, LocaleService.instance],
+        ),
+        builder: (context, _) {
+          return MaterialApp(
+            title: 'Auto Game Builder',
+            debugShowCheckedModeBanner: false,
+            theme: buildAppTheme(),
+            locale: LocaleService.instance.currentLocale,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: AppConfig.baseUrl.isEmpty
+                ? const LoginScreen()
+                : const MainShell(),
+          );
+        },
       ),
     );
   }
@@ -149,7 +165,7 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
       context: context,
       barrierDismissible: true,
       builder: (ctx) => AlertDialog(
-        icon: const Icon(Icons.system_update, size: 40, color: AppColors.info),
+        icon: Icon(Icons.system_update, size: 40, color: AppColors.info),
         title: const Text('Update Available'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -205,6 +221,7 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
     final appState = context.watch<AppState>();
     final connected = appState.connected;
     final pendingCount = appState.pendingTaskCount;
+    final l10n = AppLocalizations.of(context)!;
 
     final showOffline = appState.showOfflineBanner;
 
@@ -287,14 +304,14 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
                       width: 8,
                       height: 8,
                       decoration: BoxDecoration(
-                        color: connected ? Colors.green : Colors.red,
+                        color: connected ? AppColors.success : AppColors.error,
                         shape: BoxShape.circle,
                       ),
                     ),
                   ),
               ],
             ),
-            label: 'Dashboard',
+            label: l10n.dashboard,
           ),
           BottomNavigationBarItem(
             icon: Badge(
@@ -302,19 +319,19 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
               label: Text('$pendingCount', style: const TextStyle(fontSize: 10)),
               child: const Icon(Icons.bug_report),
             ),
-            label: 'Issues',
+            label: l10n.issues,
           ),
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.tune),
-            label: 'Control',
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.tune),
+            label: l10n.control,
           ),
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.forum),
-            label: 'Chat & Logs',
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.forum),
+            label: l10n.chatLogs,
           ),
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.settings),
-            label: 'Settings',
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.settings),
+            label: l10n.settings,
           ),
         ],
       ),

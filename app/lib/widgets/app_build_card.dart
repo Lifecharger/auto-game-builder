@@ -127,7 +127,7 @@ class _AppBuildCardState extends State<AppBuildCard> {
         context: context,
         builder: (ctx) => AlertDialog(
           backgroundColor: AppColors.bgCard,
-          icon: const Icon(Icons.warning_amber, size: 40, color: AppColors.error),
+          icon: Icon(Icons.warning_amber, size: 40, color: AppColors.error),
           title: const Text('Deploy to Production?'),
           content: const Text(
             'This will build and publish to ALL users on Google Play.\n\nMake sure you have tested on internal/beta first.',
@@ -213,7 +213,7 @@ class _AppBuildCardState extends State<AppBuildCard> {
           'message': 'Build cancelled',
         };
       });
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Build cancelled'),
         backgroundColor: AppColors.success,
       ));
@@ -265,7 +265,7 @@ class _AppBuildCardState extends State<AppBuildCard> {
             // Header
             Row(
               children: [
-                const Icon(Icons.build_circle, color: AppColors.accent),
+                Icon(Icons.build_circle, color: AppColors.accent),
                 const SizedBox(width: 8),
                 const Text('Build & Deploy', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ],
@@ -441,9 +441,9 @@ class _AppBuildCardState extends State<AppBuildCard> {
               const SizedBox(height: 8),
               Row(
                 children: [
-                  const Icon(Icons.check_circle, color: AppColors.success, size: 18),
+                  Icon(Icons.check_circle, color: AppColors.success, size: 18),
                   const SizedBox(width: 6),
-                  Expanded(child: Text(message, style: const TextStyle(fontSize: 13, color: AppColors.success))),
+                  Expanded(child: Text(message, style: TextStyle(fontSize: 13, color: AppColors.success))),
                 ],
               ),
             ],
@@ -453,9 +453,9 @@ class _AppBuildCardState extends State<AppBuildCard> {
               const SizedBox(height: 8),
               Row(
                 children: [
-                  const Icon(Icons.error, color: AppColors.error, size: 18),
+                  Icon(Icons.error, color: AppColors.error, size: 18),
                   const SizedBox(width: 6),
-                  Expanded(child: Text(message, style: const TextStyle(fontSize: 13, color: AppColors.error))),
+                  Expanded(child: Text(message, style: TextStyle(fontSize: 13, color: AppColors.error))),
                 ],
               ),
               const SizedBox(height: 8),
@@ -476,7 +476,7 @@ class _AppBuildCardState extends State<AppBuildCard> {
                         context: context,
                         builder: (ctx) => AlertDialog(
                           backgroundColor: AppColors.bgCard,
-                          icon: const Icon(Icons.replay, color: AppColors.warning),
+                          icon: Icon(Icons.replay, color: AppColors.warning),
                           title: const Text('Rebuild?'),
                           content: const Text('Start a new build from scratch?'),
                           actions: [

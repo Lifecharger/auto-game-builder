@@ -77,7 +77,7 @@ class IssueTaskCard extends StatelessWidget {
           color: AppColors.success.withValues(alpha: 0.2),
           borderRadius: BorderRadius.circular(12),
         ),
-        child: const Row(
+        child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.check_circle, color: AppColors.success),
@@ -96,7 +96,7 @@ class IssueTaskCard extends StatelessWidget {
           color: AppColors.error.withValues(alpha: 0.2),
           borderRadius: BorderRadius.circular(12),
         ),
-        child: const Row(
+        child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text('Delete',
@@ -114,7 +114,11 @@ class IssueTaskCard extends StatelessWidget {
             builder: (ctx) => AlertDialog(
               backgroundColor: AppColors.bgCard,
               title: const Text('Mark Complete'),
-              content: Text('Mark "${item['title']}" as completed?'),
+              content: Text(
+                'Mark "${item['title']}" as completed?',
+                maxLines: 4,
+                overflow: TextOverflow.ellipsis,
+              ),
               actions: [
                 TextButton(
                     onPressed: () => Navigator.pop(ctx, false),
@@ -135,8 +139,11 @@ class IssueTaskCard extends StatelessWidget {
             builder: (ctx) => AlertDialog(
               backgroundColor: AppColors.bgCard,
               title: const Text('Delete'),
-              content:
-                  Text('Delete "${item['title']}"?\nThis cannot be undone.'),
+              content: Text(
+                'Delete "${item['title']}"?\nThis cannot be undone.',
+                maxLines: 4,
+                overflow: TextOverflow.ellipsis,
+              ),
               actions: [
                 TextButton(
                     onPressed: () => Navigator.pop(ctx, false),

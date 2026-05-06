@@ -104,7 +104,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     color: AppColors.accent.withOpacity(0.15),
                     borderRadius: BorderRadius.circular(24),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.sports_esports,
                     size: 48,
                     color: AppColors.accent,
@@ -144,13 +144,13 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.error_outline,
+                        Icon(Icons.error_outline,
                             color: AppColors.error, size: 20),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             _error!,
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: AppColors.error,
                               fontSize: 13,
                             ),

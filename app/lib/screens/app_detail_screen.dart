@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../l10n/app_localizations.dart';
 import '../models/app_model.dart';
 import '../models/build_model.dart';
 import '../services/api_service.dart';
@@ -203,7 +204,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
       if (result.ok) {
         setState(() => _selectedStrategy = strategy);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text('AI agent updated'),
             backgroundColor: AppColors.success,
           ),
@@ -285,6 +286,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       appBar: AppBar(
         title: Text(_app?.name ?? 'App Detail'),
@@ -311,7 +313,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                       ElevatedButton.icon(
                         onPressed: _loadData,
                         icon: const Icon(Icons.refresh),
-                        label: const Text('Retry'),
+                        label: Text(l10n.retry),
                       ),
                     ],
                   ),
@@ -373,7 +375,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Row(
+                Row(
                   children: [
                     Icon(Icons.terminal, color: AppColors.accent),
                     SizedBox(width: 8),
@@ -408,7 +410,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Row(
+                Row(
                   children: [
                     Icon(Icons.web, color: AppColors.accent),
                     SizedBox(width: 8),
@@ -640,14 +642,14 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
       final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (!launched && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not open link'), backgroundColor: AppColors.error),
+          SnackBar(content: Text('Could not open link'), backgroundColor: AppColors.error),
         );
       }
     } catch (e) {
       debugPrint('Failed to launch URL: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not open link'), backgroundColor: AppColors.error),
+          SnackBar(content: Text('Could not open link'), backgroundColor: AppColors.error),
         );
       }
     }
@@ -755,7 +757,9 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                           ));
                         }
                       },
-                      child: Text(saving ? 'Saving...' : 'Save'),
+                      child: Text(saving
+                          ? 'Saving...'
+                          : AppLocalizations.of(ctx)!.save),
                     ),
                   ),
                 ],
@@ -804,7 +808,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
           children: [
             Row(
               children: [
-                const Icon(Icons.smart_toy, color: AppColors.accent),
+                Icon(Icons.smart_toy, color: AppColors.accent),
                 const SizedBox(width: 8),
                 const Text(
                   'AI Agent',
@@ -820,21 +824,24 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
               segments: _aiAgents.map((agent) {
                 return ButtonSegment<String>(
                   value: agent,
-                  label: Text(_aiLabels[agent] ?? agent),
-                  icon: agent == 'claude'
-                      ? const Icon(Icons.auto_awesome, size: 18)
-                      : agent == 'gemini'
-                          ? const Icon(Icons.diamond, size: 18)
-                          : agent == 'codex'
-                              ? const Icon(Icons.code, size: 18)
-                              : agent == 'local'
-                                  ? const Icon(Icons.computer, size: 18)
-                                  : const Icon(Icons.block, size: 18),
+                  label: Text(
+                    _aiLabels[agent] ?? agent,
+                    maxLines: 1,
+                    overflow: TextOverflow.fade,
+                    softWrap: false,
+                    style: const TextStyle(fontSize: 12),
+                  ),
                 );
               }).toList(),
               selected: {_selectedStrategy},
               onSelectionChanged: (set) => _saveStrategy(set.first),
+              showSelectedIcon: false,
               style: ButtonStyle(
+                visualDensity: VisualDensity.compact,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                padding: WidgetStateProperty.all(
+                  const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+                ),
                 backgroundColor: WidgetStateProperty.resolveWith((states) {
                   if (states.contains(WidgetState.selected)) {
                     return AppColors.accent.withValues(alpha: 0.3);
@@ -917,11 +924,13 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
           children: [
             Row(
               children: [
-                const Icon(Icons.terminal, color: AppColors.info),
+                Icon(Icons.terminal, color: AppColors.info),
                 const SizedBox(width: 8),
                 const Expanded(
                   child: Text(
                     'CLAUDE.md',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -937,22 +946,25 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                     ),
                   ),
                 if (!hasError && hasContent && !_claudeMdEnhancing)
-                  TextButton.icon(
+                  IconButton(
+                    tooltip: 'Enhance',
+                    visualDensity: VisualDensity.compact,
                     onPressed: () => _fireAndForgetEnhance(type: 'claude-md'),
-                    icon: const Icon(Icons.auto_awesome, size: 18),
-                    label: const Text('Enhance'),
+                    icon: const Icon(Icons.auto_awesome, size: 20),
                   ),
                 if (!hasError)
-                  TextButton.icon(
+                  IconButton(
+                    tooltip: hasContent ? 'Edit' : 'Add',
+                    visualDensity: VisualDensity.compact,
                     onPressed: () => _showClaudeMdSheet(),
-                    icon: Icon(hasContent ? Icons.edit : Icons.add, size: 18),
-                    label: Text(hasContent ? 'Edit' : 'Add'),
+                    icon: Icon(hasContent ? Icons.edit : Icons.add, size: 20),
                   ),
                 if (hasError)
-                  TextButton.icon(
+                  IconButton(
+                    tooltip: 'Retry',
+                    visualDensity: VisualDensity.compact,
                     onPressed: _retryClaudeMd,
-                    icon: const Icon(Icons.refresh, size: 18),
-                    label: const Text('Retry'),
+                    icon: const Icon(Icons.refresh, size: 20),
                   ),
               ],
             ),
@@ -1027,7 +1039,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                       onPressed: saving ? null : () async {
                         final text = controller.text.trim();
                         if (text.isEmpty) {
-                          ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
+                          ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
                             content: Text('Cannot save empty CLAUDE.md'),
                             backgroundColor: AppColors.error,
                           ));
@@ -1077,11 +1089,13 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
           children: [
             Row(
               children: [
-                const Icon(Icons.description_outlined, color: AppColors.info),
+                Icon(Icons.description_outlined, color: AppColors.info),
                 const SizedBox(width: 8),
                 const Expanded(
                   child: Text(
                     'Design Document',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -1097,22 +1111,25 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                     ),
                   ),
                 if (!hasError && hasContent && !_gddEnhancing)
-                  TextButton.icon(
+                  IconButton(
+                    tooltip: 'Enhance',
+                    visualDensity: VisualDensity.compact,
                     onPressed: () => _fireAndForgetEnhance(type: 'gdd'),
-                    icon: const Icon(Icons.auto_awesome, size: 18),
-                    label: const Text('Enhance'),
+                    icon: const Icon(Icons.auto_awesome, size: 20),
                   ),
                 if (!hasError)
-                  TextButton.icon(
+                  IconButton(
+                    tooltip: hasContent ? 'Edit' : 'Add',
+                    visualDensity: VisualDensity.compact,
                     onPressed: () => _showGddSheet(),
-                    icon: Icon(hasContent ? Icons.edit : Icons.add, size: 18),
-                    label: Text(hasContent ? 'Edit' : 'Add'),
+                    icon: Icon(hasContent ? Icons.edit : Icons.add, size: 20),
                   ),
                 if (hasError)
-                  TextButton.icon(
+                  IconButton(
+                    tooltip: 'Retry',
+                    visualDensity: VisualDensity.compact,
                     onPressed: _retryGdd,
-                    icon: const Icon(Icons.refresh, size: 18),
-                    label: const Text('Retry'),
+                    icon: const Icon(Icons.refresh, size: 20),
                   ),
               ],
             ),
@@ -1187,7 +1204,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                       onPressed: saving ? null : () async {
                         final text = gddController.text.trim();
                         if (text.isEmpty) {
-                          ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
+                          ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
                             content: Text('Cannot save empty design document'),
                             backgroundColor: AppColors.error,
                           ));
@@ -1237,11 +1254,13 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
           children: [
             Row(
               children: [
-                const Icon(Icons.auto_stories, color: AppColors.accent),
+                Icon(Icons.auto_stories, color: AppColors.accent),
                 const SizedBox(width: 8),
                 const Expanded(
                   child: Text(
                     'Art Bible',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -1257,22 +1276,25 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                     ),
                   ),
                 if (!hasError && hasContent && !_artBibleEnhancing)
-                  TextButton.icon(
+                  IconButton(
+                    tooltip: 'Enhance',
+                    visualDensity: VisualDensity.compact,
                     onPressed: () => _fireAndForgetEnhance(type: 'art-bible'),
-                    icon: const Icon(Icons.auto_awesome, size: 18),
-                    label: const Text('Enhance'),
+                    icon: const Icon(Icons.auto_awesome, size: 20),
                   ),
                 if (!hasError)
-                  TextButton.icon(
+                  IconButton(
+                    tooltip: hasContent ? 'Edit' : 'Add',
+                    visualDensity: VisualDensity.compact,
                     onPressed: () => _showArtBibleSheet(),
-                    icon: Icon(hasContent ? Icons.edit : Icons.add, size: 18),
-                    label: Text(hasContent ? 'Edit' : 'Add'),
+                    icon: Icon(hasContent ? Icons.edit : Icons.add, size: 20),
                   ),
                 if (hasError)
-                  TextButton.icon(
+                  IconButton(
+                    tooltip: 'Retry',
+                    visualDensity: VisualDensity.compact,
                     onPressed: _retryArtBible,
-                    icon: const Icon(Icons.refresh, size: 18),
-                    label: const Text('Retry'),
+                    icon: const Icon(Icons.refresh, size: 20),
                   ),
               ],
             ),
@@ -1347,7 +1369,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                       onPressed: saving ? null : () async {
                         final text = controller.text.trim();
                         if (text.isEmpty) {
-                          ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
+                          ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
                             content: Text('Cannot save empty art bible'),
                             backgroundColor: AppColors.error,
                           ));
@@ -1417,7 +1439,9 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
         title: Text('Enhance $label?'),
         content: const Text('AI will rewrite the document. This cannot be undone.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(d, false),
+              child: Text(AppLocalizations.of(d)!.cancel)),
           FilledButton(onPressed: () => Navigator.pop(d, true), child: const Text('Enhance')),
         ],
       ),

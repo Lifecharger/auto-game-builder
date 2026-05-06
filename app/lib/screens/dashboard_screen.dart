@@ -687,7 +687,7 @@ class _AppCard extends StatelessWidget {
                 children: [
                   if (appStatus != _AppStatus.active)
                     ListTile(
-                      leading: const Icon(Icons.replay, color: AppColors.info),
+                      leading: Icon(Icons.replay, color: AppColors.info),
                       title: const Text('Move back to Active'),
                       subtitle: const Text('Resume active development'),
                       onTap: () {
@@ -701,7 +701,7 @@ class _AppCard extends StatelessWidget {
                     ),
                   if (!isCompleted)
                     ListTile(
-                      leading: const Icon(Icons.check_circle_outline, color: AppColors.success),
+                      leading: Icon(Icons.check_circle_outline, color: AppColors.success),
                       title: const Text('Mark as Completed'),
                       subtitle: const Text('Move to completed folder'),
                       onTap: () {
@@ -711,7 +711,7 @@ class _AppCard extends StatelessWidget {
                     ),
                   if (!isPostponed)
                     ListTile(
-                      leading: const Icon(Icons.pause_circle_outline, color: AppColors.warning),
+                      leading: Icon(Icons.pause_circle_outline, color: AppColors.warning),
                       title: const Text('Postpone'),
                       subtitle: const Text('Put on hold for later'),
                       onTap: () {
@@ -758,7 +758,7 @@ class _AppCard extends StatelessWidget {
                             shape: BoxShape.circle,
                             border: Border.all(color: AppColors.bgDark, width: 1),
                           ),
-                          child: const Icon(
+                          child: Icon(
                             Icons.bug_report,
                             size: 12,
                             color: AppColors.info,
@@ -905,7 +905,7 @@ class _AppCard extends StatelessWidget {
           color: AppColors.warning.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(4),
         ),
-        child: const Text(
+        child: Text(
           'not installed',
           style: TextStyle(fontSize: 10, color: AppColors.warning, fontWeight: FontWeight.w500),
         ),
@@ -976,7 +976,7 @@ class _TaskSummaryCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(Icons.analytics_outlined, size: 18, color: AppColors.accent),
+                Icon(Icons.analytics_outlined, size: 18, color: AppColors.accent),
                 const SizedBox(width: 8),
                 const Text('Task Overview',
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),

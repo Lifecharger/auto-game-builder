@@ -188,7 +188,7 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Delete', style: TextStyle(color: AppColors.error)),
+            child: Text('Delete', style: TextStyle(color: AppColors.error)),
           ),
         ],
       ),
@@ -326,7 +326,7 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
                       child: Column(
                         children: [
                           Text('Failed to load: $loadError',
-                              style: const TextStyle(color: AppColors.error)),
+                              style: TextStyle(color: AppColors.error)),
                           const SizedBox(height: 8),
                           TextButton.icon(
                             onPressed: () {
@@ -577,7 +577,7 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
                         onPressed: submitting ? null : () async {
                           if (selectedAppId == null) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Select an app'),
+                              SnackBar(content: Text('Select an app'),
                                 backgroundColor: AppColors.warning));
                             return;
                           }
@@ -1215,9 +1215,9 @@ class _AutomationCardState extends State<_AutomationCard> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(children: [
-                          const Icon(Icons.bolt, size: 16, color: AppColors.warning),
+                          Icon(Icons.bolt, size: 16, color: AppColors.warning),
                           const SizedBox(width: 6),
-                          const Text(
+                          Text(
                             'One-shot run ends in',
                             style: TextStyle(
                               fontSize: 12,
@@ -1228,7 +1228,7 @@ class _AutomationCardState extends State<_AutomationCard> {
                           const Spacer(),
                           Text(
                             _fmt(oneShotRemaining),
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
                               fontFamily: 'monospace',
@@ -1271,7 +1271,7 @@ class _AutomationCardState extends State<_AutomationCard> {
               ),
               const SizedBox(width: 4),
               _runOnceLoading
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 20, height: 20,
                       child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.warning),
                     )
@@ -1322,13 +1322,13 @@ class _AutomationCardState extends State<_AutomationCard> {
                   color: _oneShotActive ? AppColors.warning.withValues(alpha: 0.5) : AppColors.warning),
                 iconSize: 20, tooltip: _oneShotActive ? 'Run Once (in progress)' : 'Run Once'),
               IconButton(onPressed: () { HapticFeedback.lightImpact(); widget.onEdit(); },
-                icon: const Icon(Icons.edit_outlined, color: AppColors.accent),
+                icon: Icon(Icons.edit_outlined, color: AppColors.accent),
                 iconSize: 20, tooltip: 'Edit'),
               IconButton(onPressed: widget.onGdd,
-                icon: const Icon(Icons.description_outlined, color: AppColors.info),
+                icon: Icon(Icons.description_outlined, color: AppColors.info),
                 iconSize: 20, tooltip: 'Design Doc'),
               IconButton(onPressed: () { HapticFeedback.mediumImpact(); widget.onDelete(); },
-                icon: const Icon(Icons.delete_outline, color: AppColors.error),
+                icon: Icon(Icons.delete_outline, color: AppColors.error),
                 iconSize: 20, tooltip: 'Delete'),
             ]),
           ],

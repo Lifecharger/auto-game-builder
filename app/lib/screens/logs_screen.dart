@@ -241,7 +241,7 @@ class _LogsScreenState extends State<LogsScreen> with WidgetsBindingObserver {
                                                   child: Text(appName,
                                                     maxLines: 1,
                                                     overflow: TextOverflow.ellipsis,
-                                                    style: const TextStyle(fontSize: 11, color: AppColors.accent,
+                                                    style: TextStyle(fontSize: 11, color: AppColors.accent,
                                                       fontWeight: FontWeight.w600)),
                                                 ),
                                               ),

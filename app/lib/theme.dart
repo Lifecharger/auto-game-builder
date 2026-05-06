@@ -1,14 +1,23 @@
 import 'package:flutter/material.dart';
+import 'theme/palette.dart';
 
 class AppColors {
-  static const Color bgDark = Color(0xFF1A1A2E);
-  static const Color bgSidebar = Color(0xFF16213E);
-  static const Color bgCard = Color(0xFF0F3460);
-  static const Color accent = Color(0xFFE94560);
-  static const Color success = Color(0xFF2ECC71);
-  static const Color warning = Color(0xFFF39C12);
-  static const Color error = Color(0xFFE74C3C);
-  static const Color info = Color(0xFF3498DB);
+  static AppPalette _activePalette = AppPalette.navy;
+
+  static AppPalette get activePalette => _activePalette;
+
+  static void applyPalette(AppPalette p) {
+    _activePalette = p;
+  }
+
+  static Color get bgDark => _activePalette.bgDark;
+  static Color get bgSidebar => _activePalette.bgSidebar;
+  static Color get bgCard => _activePalette.bgCard;
+  static Color get accent => _activePalette.accent;
+  static Color get success => _activePalette.success;
+  static Color get warning => _activePalette.warning;
+  static Color get error => _activePalette.error;
+  static Color get info => _activePalette.info;
 
   static Color statusColor(String status) {
     switch (status.toLowerCase()) {
@@ -122,10 +131,14 @@ class AppColors {
 }
 
 ThemeData buildAppTheme() {
+  final palette = AppColors.activePalette;
+  final isDark = palette.brightness == Brightness.dark;
+  final onBg = isDark ? Colors.white : Colors.black87;
+  final mutedOn = isDark ? Colors.grey : Colors.grey.shade700;
   return ThemeData(
     useMaterial3: true,
-    brightness: Brightness.dark,
-    colorScheme: ColorScheme.dark(
+    brightness: palette.brightness,
+    colorScheme: (isDark ? ColorScheme.dark : ColorScheme.light)(
       primary: AppColors.accent,
       secondary: AppColors.accent,
       surface: AppColors.bgSidebar,
@@ -133,9 +146,9 @@ ThemeData buildAppTheme() {
     ),
     scaffoldBackgroundColor: AppColors.bgDark,
     cardColor: AppColors.bgCard,
-    appBarTheme: const AppBarTheme(
+    appBarTheme: AppBarTheme(
       backgroundColor: AppColors.bgSidebar,
-      foregroundColor: Colors.white,
+      foregroundColor: onBg,
       elevation: 0,
     ),
     cardTheme: CardThemeData(
@@ -143,19 +156,19 @@ ThemeData buildAppTheme() {
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ),
-    floatingActionButtonTheme: const FloatingActionButtonThemeData(
+    floatingActionButtonTheme: FloatingActionButtonThemeData(
       backgroundColor: AppColors.accent,
       foregroundColor: Colors.white,
     ),
-    bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+    bottomNavigationBarTheme: BottomNavigationBarThemeData(
       backgroundColor: AppColors.bgSidebar,
       selectedItemColor: AppColors.accent,
-      unselectedItemColor: Colors.grey,
+      unselectedItemColor: mutedOn,
     ),
     chipTheme: ChipThemeData(
       backgroundColor: AppColors.bgCard,
       selectedColor: AppColors.accent,
-      labelStyle: const TextStyle(color: Colors.white),
+      labelStyle: TextStyle(color: onBg),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
     ),
     inputDecorationTheme: InputDecorationTheme(
@@ -163,20 +176,20 @@ ThemeData buildAppTheme() {
       fillColor: AppColors.bgDark,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide(color: Colors.grey.shade700),
+        borderSide: BorderSide(color: mutedOn),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide(color: Colors.grey.shade700),
+        borderSide: BorderSide(color: mutedOn),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: AppColors.accent),
+        borderSide: BorderSide(color: AppColors.accent),
       ),
     ),
     snackBarTheme: SnackBarThemeData(
       backgroundColor: AppColors.bgCard,
-      contentTextStyle: const TextStyle(color: Colors.white),
+      contentTextStyle: TextStyle(color: onBg),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       behavior: SnackBarBehavior.floating,
     ),

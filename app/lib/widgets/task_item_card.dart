@@ -184,7 +184,7 @@ class TaskItemCard extends StatelessWidget {
                                   color: AppColors.error.withValues(alpha: 0.2),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
-                                child: const Row(
+                                child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Icon(Icons.priority_high,
@@ -379,7 +379,7 @@ class TaskItemCard extends StatelessWidget {
                             style: IconButton.styleFrom(
                               backgroundColor: AppColors.error.withValues(alpha: 0.15),
                             ),
-                            icon: const Icon(Icons.delete_outline, size: 20, color: AppColors.error),
+                            icon: Icon(Icons.delete_outline, size: 20, color: AppColors.error),
                           ),
                         ),
                     ],

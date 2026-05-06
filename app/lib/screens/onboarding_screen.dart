@@ -353,7 +353,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(height: 32),
-          const Center(
+          Center(
             child: Icon(
               Icons.dns_outlined,
               size: 56,
@@ -459,7 +459,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(height: 32),
-          const Center(
+          Center(
             child: Icon(
               Icons.cloud_outlined,
               size: 56,
@@ -619,7 +619,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(height: 16),
-          const Center(
+          Center(
             child: Icon(
               Icons.terminal,
               size: 56,
@@ -666,9 +666,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.code, size: 18, color: AppColors.info),
+                    Icon(Icons.code, size: 18, color: AppColors.info),
                     const SizedBox(width: 8),
-                    const Text(
+                    Text(
                       'View on GitHub',
                       style: TextStyle(
                         fontSize: 14,
@@ -779,7 +779,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               color: AppColors.success.withOpacity(0.15),
               shape: BoxShape.circle,
             ),
-            child: const Icon(
+            child: Icon(
               Icons.check_circle_outline,
               size: 56,
               color: AppColors.success,
@@ -860,7 +860,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           Expanded(
                             child: SelectableText(
                               _detectedWorkerUrl,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontFamily: 'monospace',
                                 fontSize: 14,
                                 color: AppColors.accent,
@@ -874,7 +874,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                               Clipboard.setData(
                                   ClipboardData(text: _detectedWorkerUrl));
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
+                                SnackBar(
                                   content: Text('Worker URL copied'),
                                   backgroundColor: AppColors.success,
                                   duration: Duration(seconds: 2),
@@ -938,13 +938,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.open_in_new,
+                          Icon(Icons.open_in_new,
                               size: 16, color: AppColors.info),
                           const SizedBox(width: 8),
                           Flexible(
                             child: Text(
                               playStoreUrl,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 12,
                                 color: AppColors.info,
                                 decoration: TextDecoration.underline,
@@ -998,7 +998,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       debugPrint('Failed to open URL: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text('Could not open link'),
             backgroundColor: AppColors.error,
           ),
@@ -1094,7 +1094,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             alignment: Alignment.center,
             child: Text(
               '$number',
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.accent,
                 fontWeight: FontWeight.bold,
                 fontSize: 13,

@@ -128,7 +128,7 @@ class CreateAppSheet {
                                 final name = nameController.text.trim();
                                 if (name.isEmpty) {
                                   ScaffoldMessenger.of(ctx).showSnackBar(
-                                    const SnackBar(
+                                    SnackBar(
                                         content: Text('Name is required'),
                                         backgroundColor: AppColors.warning),
                                   );
