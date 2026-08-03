@@ -56,6 +56,8 @@ def main():
 
     print("Waiting for animation...")
     task = poll_task("/openapi/v1/animations", task_id)
+    # API v1 nests output URLs under "result"; flatten so the lookups below work
+    task = {**task, **(task.get("result") or {})}
     name = args.name or f"anim_{args.action_id}"
 
     if not args.no_download:

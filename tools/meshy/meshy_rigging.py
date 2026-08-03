@@ -47,6 +47,8 @@ def main():
 
     print("Waiting for rigging...")
     task = poll_task("/openapi/v1/rigging", task_id)
+    # API v1 nests output URLs under "result"; flatten so the lookups below work
+    task = {**task, **(task.get("result") or {})}
     name = args.name or "rigged"
 
     if not args.no_download:
