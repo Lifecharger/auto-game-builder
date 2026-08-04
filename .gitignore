@@ -102,6 +102,11 @@ server/automations/configs.json
 # Character Creator (Godot project, WIP)
 tools/character_creator/
 
+# Mixamo Downloader studio (moved from C:/Projects 2026-08-04) — 9+ GB of FBX
+# animation archive, character meshes, wardrobe assets and rig queue. Personal
+# asset pipeline, never commit.
+tools/mixamo_downloader/
+
 # CCGS personal-use bundle (director gates + 49 agents + 72 skills + hooks + rules
 # + skill testing framework). Copied verbatim from github.com/Donchitos/Claude-Code-Game-Studios
 # for interactive personal dev sessions. Not part of AGB's autonomous pipeline — never commit.
