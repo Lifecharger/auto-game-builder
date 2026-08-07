@@ -212,6 +212,7 @@ class TaskCreate(BaseModel):
     task_type: str = "issue"  # issue|idea|feature|fix
     priority: str = "normal"  # normal|urgent
     attachments: Optional[list] = None  # base64-encoded images from mobile
+    depends_on: Optional[list] = None  # ids of tasks that must finish first
 
 class GddUpdate(BaseModel):
     content: str
@@ -1586,6 +1587,94 @@ def _save_tasklist(a, tasks: list):
         logger.debug("publish app_changed failed for %s: %s", a.id, e)
 
 
+def _tasklist_mtime(path: str):
+    try:
+        return os.path.getmtime(path)
+    except OSError:
+        return None
+
+
+def _mutate_tasklist(a, mutate):
+    """Guarded read-modify-write for tasklist.json.
+
+    The per-path lock serializes server-side writers, but external writers
+    (Claude sessions editing the file directly) can slip a write in between
+    our read and our os.replace — the last replace wins and their update is
+    silently lost. Guard: capture the file mtime before reading; if it moved
+    by the time we're ready to write, discard our copy and re-run `mutate`
+    on a fresh read (up to 3 attempts, final attempt writes unconditionally).
+
+    `mutate` receives the task list, mutates it in place or returns a
+    replacement, and returns (tasks, result). It may run more than once,
+    so it must be safe to re-apply.
+    """
+    path = _tasklist_path(a)
+    lock = _get_tasklist_lock(path)
+    with lock:
+        result = None
+        for attempt in range(3):
+            before = _tasklist_mtime(path)
+            tasks = _load_tasklist(a)
+            tasks, result = mutate(tasks)
+            if _tasklist_mtime(path) != before and attempt < 2:
+                logger.warning("tasklist.json changed externally mid-write (%s) — re-applying mutation", path)
+                continue
+            _save_tasklist(a, tasks)
+            break
+        return result
+
+
+DONE_TASK_STATUSES = ("completed", "built", "divided", "archived")
+
+
+def _unmet_dependencies(task: dict, tasks: list) -> list:
+    """Return depends_on ids that are still unfinished. A dependency that no
+    longer exists in the active list (archived or deleted) counts as met."""
+    deps = task.get("depends_on") or []
+    if not isinstance(deps, list):
+        return []
+    status_by_id = {t.get("id"): t.get("status") for t in tasks if isinstance(t, dict)}
+    return [d for d in deps
+            if d in status_by_id and status_by_id[d] not in DONE_TASK_STATUSES]
+
+
+def _annotate_task_extras(app_id: int, tasks: list, normalized: list):
+    """Add blocked/blocked_by dependency info and fetchable attachment URLs
+    to normalized tasks (paths on disk are useless to the mobile app)."""
+    for n in normalized:
+        unmet = _unmet_dependencies(n, tasks)
+        n["blocked_by"] = unmet
+        n["blocked"] = bool(unmet)
+        paths = n.get("attachments")
+        if isinstance(paths, list) and paths:
+            n["attachment_urls"] = [
+                f"/api/apps/{app_id}/tasks/{n.get('id')}/attachments/{i}"
+                for i in range(len(paths))
+            ]
+
+
+def _load_archived_tasks(a) -> list:
+    """Load every archived task from task_archives/*.json, newest file first."""
+    archive_dir = os.path.join(a.project_path, "task_archives")
+    if not os.path.isdir(archive_dir):
+        return []
+    try:
+        files = sorted((f for f in os.listdir(archive_dir) if f.endswith(".json")), reverse=True)
+    except OSError:
+        return []
+    archived = []
+    for name in files:
+        try:
+            with open(os.path.join(archive_dir, name), "r", encoding="utf-8") as f:
+                data = json.load(f)
+            for t in data.get("archived_tasks", []):
+                if isinstance(t, dict):
+                    archived.append(_repair_task_text(t))
+        except Exception as e:
+            logger.debug("Failed to read task archive %s: %s", name, e)
+    return archived
+
+
 @app.get("/api/apps/{app_id}/tasks")
 def get_app_tasks(app_id: int, request: Request, status: Optional[str] = None):
     a = db().get_app(app_id)
@@ -1611,13 +1700,17 @@ def get_app_tasks(app_id: int, request: Request, status: Optional[str] = None):
         except (TypeError, ValueError):
             pass
 
-    tasks = _load_tasklist(a)
+    all_tasks = _load_tasklist(a)
+    tasks = all_tasks
     if status:
         tasks = [t for t in tasks if t.get("status") == status]
     # Get agent from automation config
     configs = _load_automation_configs()
     agent = configs.get(str(app_id), {}).get("ai_agent", "")
     normalized = [_normalize_task(t, agent) for t in tasks]
+    # Dependency state must be computed against the FULL list, not the
+    # status-filtered slice, or blockers outside the filter look "met".
+    _annotate_task_extras(app_id, all_tasks, normalized)
     # Sort by created_at descending (newest first) for consistent ordering
     normalized.sort(key=lambda x: x.get("created_at", ""), reverse=True)
 
@@ -1630,9 +1723,7 @@ def add_app_task(app_id: int, body: TaskCreate):
     a = db().get_app(app_id)
     if not a:
         raise HTTPException(404, "App not found")
-    lock = _get_tasklist_lock(_tasklist_path(a))
-    with lock:
-        tasks = _load_tasklist(a)
+    def _add(tasks):
         new_id = max((t.get("id", 0) for t in tasks), default=0) + 1
         task = {
             "id": new_id,
@@ -1645,6 +1736,8 @@ def add_app_task(app_id: int, body: TaskCreate):
             "response": "",
             "created_at": datetime.now().isoformat(),
         }
+        if body.depends_on:
+            task["depends_on"] = [int(d) for d in body.depends_on if isinstance(d, (int, str)) and str(d).isdigit()]
 
         # Save image attachments to disk
         MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024  # 10 MB per attachment
@@ -1674,9 +1767,8 @@ def add_app_task(app_id: int, body: TaskCreate):
         tasks.append(task)
 
         # Auto-archive: keep active tasks + last 100 done tasks, archive the rest
-        done_statuses = ("completed", "built", "divided", "archived")
-        active = [t for t in tasks if t.get("status") not in done_statuses]
-        done = [t for t in tasks if t.get("status") in done_statuses]
+        active = [t for t in tasks if t.get("status") not in DONE_TASK_STATUSES]
+        done = [t for t in tasks if t.get("status") in DONE_TASK_STATUSES]
         if len(done) > 100:
             overflow = done[:-100]
             keep_done = done[-100:]
@@ -1688,7 +1780,9 @@ def add_app_task(app_id: int, body: TaskCreate):
             tasks = active + keep_done
             tasks.sort(key=lambda t: t.get("id", 0))
 
-        _save_tasklist(a, tasks)
+        return tasks, new_id
+
+    new_id = _mutate_tasklist(a, _add)
 
     # Also create as DB issue for tracking
     db().create_issue(
@@ -1707,17 +1801,17 @@ def update_app_task(app_id: int, task_id: int, updates: dict):
     a = db().get_app(app_id)
     if not a:
         raise HTTPException(404, "App not found")
-    lock = _get_tasklist_lock(_tasklist_path(a))
-    with lock:
-        tasks = _load_tasklist(a)
+    def _update(tasks):
         task = next((t for t in tasks if t.get("id") == task_id), None)
         if not task:
             raise HTTPException(404, f"Task {task_id} not found")
-        allowed = {"status", "response", "completed_by", "priority", "title", "description"}
+        allowed = {"status", "response", "completed_by", "priority", "title", "description", "depends_on"}
         for key, val in updates.items():
             if key in allowed:
                 task[key] = val
-        _save_tasklist(a, tasks)
+        return tasks, True
+
+    _mutate_tasklist(a, _update)
     return {"ok": True}
 
 
@@ -1726,18 +1820,13 @@ def delete_app_task(app_id: int, task_id: int):
     a = db().get_app(app_id)
     if not a:
         raise HTTPException(404, "App not found")
-    lock = _get_tasklist_lock(_tasklist_path(a))
-    with lock:
-        tasks = _load_tasklist(a)
-
+    def _delete(tasks):
         task_to_delete = next((t for t in tasks if t.get("id") == task_id), None)
         if not task_to_delete:
             raise HTTPException(404, "Task not found")
+        return [t for t in tasks if t.get("id") != task_id], task_to_delete.get("title")
 
-        title = task_to_delete.get("title")
-
-        new_tasks = [t for t in tasks if t.get("id") != task_id]
-        _save_tasklist(a, new_tasks)
+    title = _mutate_tasklist(a, _delete)
 
     # Also delete DB issue if it exists (matched by title and app_id)
     issues = db().get_issues(app_id=app_id)
@@ -1772,23 +1861,93 @@ def archive_app_tasks(app_id: int):
     a = db().get_app(app_id)
     if not a:
         raise HTTPException(404, "App not found")
-    tasks = _load_tasklist(a)
-    done_statuses = ("completed", "built", "divided", "archived")
-    active = [t for t in tasks if t.get("status") not in done_statuses]
-    done = [t for t in tasks if t.get("status") in done_statuses]
-    if len(done) <= 100:
-        return {"ok": True, "archived": 0, "remaining": len(tasks)}
-    overflow = done[:-100]
-    keep_done = done[-100:]
-    archive_dir = os.path.join(a.project_path, "task_archives")
-    os.makedirs(archive_dir, exist_ok=True)
-    archive_file = os.path.join(archive_dir, f"archived_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json")
-    with open(archive_file, "w", encoding="utf-8") as af:
-        json.dump({"archived_tasks": overflow, "archived_at": datetime.now().isoformat()}, af, indent=2, ensure_ascii=False)
-    tasks = active + keep_done
-    tasks.sort(key=lambda t: t.get("id", 0))
-    _save_tasklist(a, tasks)
-    return {"ok": True, "archived": len(overflow), "remaining": len(tasks)}
+
+    def _archive(tasks):
+        active = [t for t in tasks if t.get("status") not in DONE_TASK_STATUSES]
+        done = [t for t in tasks if t.get("status") in DONE_TASK_STATUSES]
+        if len(done) <= 100:
+            return tasks, {"ok": True, "archived": 0, "remaining": len(tasks)}
+        overflow = done[:-100]
+        keep_done = done[-100:]
+        archive_dir = os.path.join(a.project_path, "task_archives")
+        os.makedirs(archive_dir, exist_ok=True)
+        archive_file = os.path.join(archive_dir, f"archived_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json")
+        with open(archive_file, "w", encoding="utf-8") as af:
+            json.dump({"archived_tasks": overflow, "archived_at": datetime.now().isoformat()}, af, indent=2, ensure_ascii=False)
+        tasks = active + keep_done
+        tasks.sort(key=lambda t: t.get("id", 0))
+        return tasks, {"ok": True, "archived": len(overflow), "remaining": len(tasks)}
+
+    return _mutate_tasklist(a, _archive)
+
+
+@app.get("/api/apps/{app_id}/tasks/search")
+def search_app_tasks(app_id: int, q: str, limit: int = 100):
+    """Keyword search over title, description AND response of active plus
+    archived tasks — responses double as the project changelog, so a single
+    search must cover both corpora. All space-separated terms must match
+    (case-insensitive substring AND)."""
+    a = db().get_app(app_id)
+    if not a:
+        raise HTTPException(404, "App not found")
+    terms = [t for t in q.strip().lower().split() if t]
+    if not terms:
+        return []
+    configs = _load_automation_configs()
+    agent = configs.get(str(app_id), {}).get("ai_agent", "")
+
+    def matches(t: dict) -> bool:
+        hay = " ".join(str(t.get(k, "")) for k in ("title", "description", "response", "ai_response")).lower()
+        return all(term in hay for term in terms)
+
+    active_tasks = _load_tasklist(a)
+    results = []
+    for t in active_tasks:
+        if isinstance(t, dict) and matches(t):
+            n = _normalize_task(t, agent)
+            n["archived"] = False
+            results.append(n)
+    _annotate_task_extras(app_id, active_tasks, results)
+    for t in _load_archived_tasks(a):
+        if matches(t):
+            n = _normalize_task(t, agent)
+            n["archived"] = True
+            paths = n.get("attachments")
+            if isinstance(paths, list) and paths:
+                n["attachment_urls"] = [
+                    f"/api/apps/{app_id}/tasks/{n.get('id')}/attachments/{i}"
+                    for i in range(len(paths))
+                ]
+            results.append(n)
+    # Active matches first (newest first), then archived (newest first)
+    results.sort(key=lambda x: (x.get("archived", False), -(x.get("id") or 0)))
+    return results[:max(1, min(limit, 500))]
+
+
+@app.get("/api/apps/{app_id}/tasks/{task_id}/attachments/{index}")
+def get_task_attachment(app_id: int, task_id: int, index: int):
+    """Serve an image attached to a task. Attachments are stored as absolute
+    paths under the project's task_attachments dir; the mobile app can only
+    reach them through this endpoint."""
+    a = db().get_app(app_id)
+    if not a:
+        raise HTTPException(404, "App not found")
+    task = next((t for t in _load_tasklist(a) if t.get("id") == task_id), None)
+    if not task:
+        task = next((t for t in _load_archived_tasks(a) if t.get("id") == task_id), None)
+    if not task:
+        raise HTTPException(404, f"Task {task_id} not found")
+    attachments = task.get("attachments") or []
+    if not isinstance(attachments, list) or not (0 <= index < len(attachments)):
+        raise HTTPException(404, "Attachment not found")
+    path = os.path.normpath(str(attachments[index]))
+    project_root = os.path.normpath(a.project_path)
+    if os.path.normcase(path) != os.path.normcase(project_root) and \
+            not os.path.normcase(path).startswith(os.path.normcase(project_root) + os.sep):
+        raise HTTPException(403, "Attachment path outside project")
+    if not os.path.isfile(path):
+        raise HTTPException(404, "Attachment file missing")
+    return FileResponse(path, media_type="image/png")
 
 
 # ── Logs (unified across all apps) ──────────────────────────
@@ -2519,6 +2678,7 @@ Focus on tasks with status "pending". Work on them in this order:
 1. Priority "urgent" first
 2. Then OLDEST tasks first (lowest ID = oldest = highest priority)
 3. Do NOT skip old tasks to work on newer ones
+4. DEPENDENCIES: a task may have a "depends_on" list of task ids. SKIP any task whose depends_on contains a task that is not yet "completed" or "built" — work on the blocker first if it is pending, otherwise leave the dependent task alone.
 
 STEP 2 - MARK IN PROGRESS:
 Before starting work on a task, update tasklist.json immediately:
@@ -2735,7 +2895,7 @@ You MUST follow these steps IN ORDER for EVERY task. Skipping any step is a fail
         prompt = f"""You are autonomously working on {a.name} ({a.app_type} project).
 Project path: {a.project_path}
 {gdd_section}
-Read tasklist.json, fix pending tasks. Work in this order: urgent first, then oldest (lowest ID) first. Crashes and build failures ALWAYS come first.
+Read tasklist.json, fix pending tasks. Work in this order: urgent first, then oldest (lowest ID) first. Crashes and build failures ALWAYS come first. SKIP any task whose "depends_on" list contains a task id that is not yet "completed" or "built" — work on the blocker first if it is pending.
 Before starting each task, set its "status" to "in_progress" in tasklist.json immediately.
 After completing each task, set "status" to "completed", write what you did in "response", and set "completed_by" to "{ai_agent}".
 If you cannot complete a task you started, set "status" to "failed", set "completed_by" to "{ai_agent}", and explain why in "response".
@@ -3271,15 +3431,19 @@ def run_specific_task(app_id: int, task_id: int):
     if app_mcp:
         config["mcp_servers"] = app_mcp
 
-    lock = _get_tasklist_lock(_tasklist_path(a))
-    with lock:
-        tasks = _load_tasklist(a)
+    def _start(tasks):
         task = next((t for t in tasks if t.get("id") == task_id), None)
         if not task:
             raise HTTPException(404, f"Task {task_id} not found")
+        unmet = _unmet_dependencies(task, tasks)
+        if unmet:
+            raise HTTPException(409, "Task {} is blocked by unfinished task(s): {}".format(
+                task_id, ", ".join(f"#{d}" for d in unmet)))
         # Set task status to in_progress immediately so mobile UI reflects it
         task["status"] = "in_progress"
-        _save_tasklist(a, tasks)
+        return tasks, task
+
+    task = _mutate_tasklist(a, _start)
 
     one_shot = _generate_task_script(a, config, task)
     script_name = f"{a.slug}_task_{task_id}.sh"

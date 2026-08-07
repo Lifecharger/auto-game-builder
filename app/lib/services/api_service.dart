@@ -568,6 +568,27 @@ class ApiService {
     }
   }
 
+  /// Server-side keyword search across active AND archived tasks
+  /// (title, description and response fields).
+  static Future<ApiResult<List<dynamic>>> searchAppTasks(int appId, String query) async {
+    try {
+      final uri = Uri.parse('$_base/api/apps/$appId/tasks/search')
+          .replace(queryParameters: {'q': query});
+      final response = await _getWithRetry(uri);
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        return ApiResult.success(decoded is List ? decoded : const []);
+      }
+      return ApiResult.failure(_httpError(response.statusCode));
+    } catch (e) {
+      return ApiResult.failure(_friendlyError(e));
+    }
+  }
+
+  /// Absolute URL for a task attachment served by the API.
+  static String taskAttachmentUrl(int appId, int taskId, int index) =>
+      '$_base/api/apps/$appId/tasks/$taskId/attachments/$index';
+
   static Future<ApiResult<Map<String, dynamic>>> getAppTasksStatus(int appId) async {
     try {
       final response = await _getWithRetry(Uri.parse('$_base/api/apps/$appId/tasks/status'));
@@ -587,6 +608,7 @@ class ApiService {
     String taskType = 'issue',
     String priority = 'normal',
     List<String>? attachments,
+    List<int>? dependsOn,
   }) async {
     try {
       final body = <String, dynamic>{
@@ -599,6 +621,9 @@ class ApiService {
       }
       if (attachments != null && attachments.isNotEmpty) {
         body['attachments'] = attachments;
+      }
+      if (dependsOn != null && dependsOn.isNotEmpty) {
+        body['depends_on'] = dependsOn;
       }
       final response = await http
           .post(

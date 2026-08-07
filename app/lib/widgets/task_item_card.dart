@@ -1,8 +1,7 @@
 import 'dart:async';
-import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../services/api_service.dart';
 import '../theme.dart';
 
 class TaskItemCard extends StatelessWidget {
@@ -15,6 +14,7 @@ class TaskItemCard extends StatelessWidget {
   final VoidCallback? onDelete;
   final VoidCallback? onReset;
   final DateTime? inProgressSince;
+  final void Function(int blockerId)? onBlockerTap;
 
   const TaskItemCard({
     super.key,
@@ -27,6 +27,7 @@ class TaskItemCard extends StatelessWidget {
     this.onDelete,
     this.onReset,
     this.inProgressSince,
+    this.onBlockerTap,
   });
 
   void _showCopyMenu(BuildContext context, String title, String description, String aiResponse) {
@@ -70,7 +71,45 @@ class TaskItemCard extends StatelessWidget {
     });
   }
 
-  void _showFullImage(BuildContext context, Uint8List bytes) {
+  /// Attachment URLs resolved against the server base. The server sends
+  /// relative `/api/...` paths so they work through any tunnel host.
+  List<String> get _attachmentUrls {
+    final urls = (item['attachment_urls'] as List<dynamic>?)
+        ?.whereType<String>()
+        .map((u) => u.startsWith('http') ? u : '${ApiService.baseUrl}$u')
+        .toList();
+    return urls ?? const [];
+  }
+
+  Widget _networkImage(String url, {BoxFit fit = BoxFit.cover, double? height}) {
+    return Image.network(
+      url,
+      headers: ApiService.authHeaders,
+      height: height,
+      fit: fit,
+      loadingBuilder: (ctx, child, progress) => progress == null
+          ? child
+          : Container(
+              height: height ?? 120,
+              width: height ?? 120,
+              alignment: Alignment.center,
+              color: AppColors.bgDark,
+              child: const SizedBox(
+                width: 20, height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+      errorBuilder: (ctx, e, st) => Container(
+        height: height ?? 120,
+        width: height ?? 120,
+        alignment: Alignment.center,
+        color: AppColors.bgDark,
+        child: Icon(Icons.broken_image, color: Colors.grey.shade600),
+      ),
+    );
+  }
+
+  void _showFullImage(BuildContext context, String url) {
     showDialog(
       context: context,
       builder: (ctx) => Dialog(
@@ -81,9 +120,61 @@ class TaskItemCard extends StatelessWidget {
           child: InteractiveViewer(
             child: ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: Image.memory(bytes),
+              child: _networkImage(url, fit: BoxFit.contain),
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  void _showAttachmentsViewer(BuildContext context, List<String> urls) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(16),
+        child: SizedBox(
+          height: MediaQuery.of(ctx).size.height * 0.7,
+          child: PageView.builder(
+            itemCount: urls.length,
+            itemBuilder: (_, i) => GestureDetector(
+              onTap: () => Navigator.pop(ctx),
+              child: InteractiveViewer(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: _networkImage(urls[i], fit: BoxFit.contain),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showBlockerMenu(BuildContext context, List<int> blockedBy) {
+    if (onBlockerTap == null || blockedBy.isEmpty) return;
+    if (blockedBy.length == 1) {
+      onBlockerTap!(blockedBy.first);
+      return;
+    }
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.bgCard,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: blockedBy
+              .map((id) => ListTile(
+                    leading: const Icon(Icons.lock_outline, size: 20),
+                    title: Text('Blocked by #$id'),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      onBlockerTap!(id);
+                    },
+                  ))
+              .toList(),
         ),
       ),
     );
@@ -100,11 +191,16 @@ class TaskItemCard extends StatelessWidget {
     final status = item['status'] ?? 'pending';
     final agent = (item['agent'] ?? item['ai_agent'] ?? '').toString();
     final appName = (item['app_name'] ?? '').toString();
-    final attachments = (item['attachments'] as List<dynamic>?)
-        ?.whereType<String>()
-        .toList();
+    final attachmentUrls = _attachmentUrls;
+    final isArchived = item['archived'] == true;
+    final blockedBy = (item['blocked_by'] as List<dynamic>?)
+            ?.whereType<num>()
+            .map((e) => e.toInt())
+            .toList() ??
+        const <int>[];
+    final isBlocked = item['blocked'] == true && blockedBy.isNotEmpty;
 
-    return Card(
+    final card = Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
@@ -201,6 +297,61 @@ class TaskItemCard extends StatelessWidget {
                                   ],
                                 ),
                               ),
+                            if (isBlocked)
+                              GestureDetector(
+                                onTap: () => _showBlockerMenu(context, blockedBy),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.warning.withValues(alpha: 0.2),
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(
+                                        color: AppColors.warning.withValues(alpha: 0.5)),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.lock_outline,
+                                          size: 12, color: AppColors.warning),
+                                      const SizedBox(width: 2),
+                                      Text(
+                                        'blocked by ${blockedBy.map((id) => '#$id').join(', ')}',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: AppColors.warning,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            if (isArchived)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.inventory_2_outlined,
+                                        size: 12, color: Colors.grey.shade400),
+                                    const SizedBox(width: 2),
+                                    Text(
+                                      'archived',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.grey.shade400,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             if (agent.isNotEmpty)
                               Container(
                                 padding: const EdgeInsets.symmetric(
@@ -287,36 +438,25 @@ class TaskItemCard extends StatelessWidget {
                     style: TextStyle(fontSize: 13, color: Colors.grey.shade300, height: 1.4),
                   ),
                 ],
-                if (attachments != null && attachments.isNotEmpty) ...[
-                  () {
-                    final decoded = <Uint8List>[];
-                    for (final a in attachments) {
-                      try { decoded.add(base64Decode(a)); } catch (e) { debugPrint('Failed to decode attachment: $e'); }
-                    }
-                    if (decoded.isEmpty) return const SizedBox.shrink();
-                    return Padding(
-                      padding: const EdgeInsets.only(top: 10),
-                      child: SizedBox(
-                        height: 120,
-                        child: ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: decoded.length,
-                          separatorBuilder: (_, __) => const SizedBox(width: 8),
-                          itemBuilder: (ctx, i) {
-                            final bytes = decoded[i];
-                            return GestureDetector(
-                              onTap: () => _showFullImage(ctx, bytes),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: Image.memory(bytes, height: 120, fit: BoxFit.cover),
-                              ),
-                            );
-                          },
+                if (attachmentUrls.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 10),
+                    child: SizedBox(
+                      height: 120,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: attachmentUrls.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 8),
+                        itemBuilder: (ctx, i) => GestureDetector(
+                          onTap: () => _showFullImage(ctx, attachmentUrls[i]),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: _networkImage(attachmentUrls[i], height: 120),
+                          ),
                         ),
                       ),
-                    );
-                  }(),
-                ],
+                    ),
+                  ),
                 if (aiResponse.isNotEmpty) ...[
                   const SizedBox(height: 10),
                   if (title.toLowerCase().startsWith('code check'))
@@ -385,12 +525,37 @@ class TaskItemCard extends StatelessWidget {
                     ],
                   ),
                 ],
+                if (attachmentUrls.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 44,
+                    child: OutlinedButton.icon(
+                      onPressed: () => _showAttachmentsViewer(context, attachmentUrls),
+                      icon: const Icon(Icons.attach_file, size: 18),
+                      label: Text(
+                        'Attachments (${attachmentUrls.length})',
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.info,
+                        side: BorderSide(color: AppColors.info.withValues(alpha: 0.5)),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ],
           ),
         ),
       ),
     );
+
+    // Blocked and archived tasks read as inert: dimmed but still tappable
+    // (expanding shows details; the blocked chip links to the blocker).
+    if (isBlocked || isArchived) {
+      return Opacity(opacity: 0.6, child: card);
+    }
+    return card;
   }
 
   Widget _buildPlainAiResponse(String aiResponse) {

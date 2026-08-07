@@ -25,6 +25,7 @@ class IssueTaskCard extends StatelessWidget {
   final VoidCallback onCardDelete;
   final VoidCallback onSwipeDelete;
   final VoidCallback onComplete;
+  final void Function(int blockerId)? onBlockerTap;
 
   const IssueTaskCard({
     super.key,
@@ -38,6 +39,7 @@ class IssueTaskCard extends StatelessWidget {
     required this.onCardDelete,
     required this.onSwipeDelete,
     required this.onComplete,
+    this.onBlockerTap,
   });
 
   @override
@@ -45,8 +47,14 @@ class IssueTaskCard extends StatelessWidget {
     final status = item['status'] ?? 'pending';
     final taskType =
         (item['task_type'] ?? item['type'] ?? 'issue').toString();
-    final canDelete = status != 'completed';
-    final canComplete = status != 'completed' && item['_source'] != 'idea';
+    // Archived tasks (from search results) are read-only history — no
+    // actions, no swipes. Blocked tasks can't be run until their blocker
+    // finishes, but can still be deleted or completed manually.
+    final isArchived = item['archived'] == true;
+    final isBlocked = item['blocked'] == true;
+    final canDelete = status != 'completed' && !isArchived;
+    final canComplete =
+        status != 'completed' && item['_source'] != 'idea' && !isArchived;
 
     final card = TaskItemCard(
       item: item,
@@ -55,9 +63,10 @@ class IssueTaskCard extends StatelessWidget {
       isExpanded: isExpanded,
       inProgressSince: inProgressSince,
       onTap: onTap,
-      onFixNow: onFix,
+      onFixNow: isArchived || isBlocked ? null : onFix,
       onDelete: canDelete ? onCardDelete : null,
       onReset: status == 'in_progress' ? onReset : null,
+      onBlockerTap: onBlockerTap,
     );
 
     if (!canDelete && !canComplete) return card;

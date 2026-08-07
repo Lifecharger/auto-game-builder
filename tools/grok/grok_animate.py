@@ -118,7 +118,8 @@ def animate(image_path: str, prompt: str, video_length: int = 6,
         # rule that hides + disables pointer events on any future re-injections.
         page.add_style_tag(content="""
             #onetrust-consent-sdk, #onetrust-button-group, #onetrust-banner-sdk,
-            #CybotCookiebotDialog, [data-nosnippet="true"] { display: none !important; pointer-events: none !important; }
+            #CybotCookiebotDialog, [data-nosnippet="true"],
+            [data-cookie-banner="true"] { display: none !important; pointer-events: none !important; }
             #dialog-portal { pointer-events: none !important; }
             body { pointer-events: auto !important; overflow: auto !important; }
         """)

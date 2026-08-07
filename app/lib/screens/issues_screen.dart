@@ -40,6 +40,13 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
   String _typeFilter = 'all';
   String _searchQuery = '';
 
+  // Server-side search (single search across active + archived tasks;
+  // matches title, description AND response fields).
+  List<dynamic> _searchResults = [];
+  bool _searchLoading = false;
+  Timer? _searchDebounce;
+  int _searchSeq = 0;
+
   // App category filter: "in_progress", "postponed", or "completed"
   String _appCategory = 'in_progress';
   Set<int> _completedAppIds = {};
@@ -298,6 +305,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
   void dispose() {
     _appStateRef?.removeListener(_handleIssuesRequest);
     _pollTimer?.cancel();
+    _searchDebounce?.cancel();
     _searchController.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -460,19 +468,110 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
   }
 
   List<dynamic> get _filteredItems {
-    return _allItems.where((item) {
+    // With an active query the source is the server search result set
+    // (already matched on title/description/response across active +
+    // archived tasks); status/type chips still narrow it locally.
+    final source = _searchQuery.trim().isNotEmpty ? _searchResults : _allItems;
+    return source.where((item) {
       final status = (item['status'] ?? 'pending').toString().toLowerCase();
       final type = (item['task_type'] ?? item['type'] ?? 'issue').toString().toLowerCase();
       if (_statusFilter != 'all' && status != _statusFilter) return false;
       if (_typeFilter != 'all' && type != _typeFilter) return false;
-      if (_searchQuery.isNotEmpty) {
-        final title = (item['title'] ?? '').toString().toLowerCase();
-        final desc = (item['description'] ?? '').toString().toLowerCase();
-        final query = _searchQuery.toLowerCase();
-        if (!title.contains(query) && !desc.contains(query)) return false;
-      }
       return true;
     }).toList();
+  }
+
+  /// Debounced server-side search across active + archived tasks.
+  void _scheduleServerSearch() {
+    _searchDebounce?.cancel();
+    final q = _searchQuery.trim();
+    if (q.isEmpty || _selectedAppId == null) {
+      setState(() {
+        _searchResults = [];
+        _searchLoading = false;
+      });
+      return;
+    }
+    setState(() => _searchLoading = true);
+    _searchDebounce = Timer(const Duration(milliseconds: 400), () async {
+      final appId = _selectedAppId!;
+      final seq = ++_searchSeq;
+      final result = await ApiService.searchAppTasks(appId, q);
+      if (!mounted || seq != _searchSeq || appId != _selectedAppId) return;
+      setState(() {
+        _searchLoading = false;
+        if (result.ok) {
+          final items = result.data!;
+          for (final t in items) {
+            final type = (t['task_type'] ?? t['type'] ?? 'issue').toString();
+            t['_source'] = type == 'idea' ? 'idea' : 'task';
+          }
+          _searchResults = items;
+        }
+      });
+    });
+  }
+
+  /// Show the blocker task's details when a "blocked by #N" chip is tapped.
+  void _showBlockerDialog(int blockerId) {
+    final blocker =
+        _allItems.where((i) => i['id'] == blockerId).firstOrNull;
+    if (blocker == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Task #$blockerId is not in the current list (archived or deleted)'),
+          backgroundColor: AppColors.warning,
+        ),
+      );
+      return;
+    }
+    final status = (blocker['status'] ?? 'pending').toString();
+    final desc = (blocker['description'] ?? '').toString().trim();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.bgCard,
+        title: Text('#$blockerId ${blocker['title'] ?? ''}',
+            style: const TextStyle(fontSize: 16)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppColors.taskStatusColor(status).withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                status,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppColors.taskStatusColor(status),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            if (desc.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Text(desc,
+                      style: TextStyle(
+                          fontSize: 13, color: Colors.grey.shade300)),
+                ),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showCreateSheet() {
@@ -670,16 +769,24 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
 
   Future<void> _workOnAll() async {
     if (_selectedAppId == null) return;
+    // Blocked tasks (unmet depends_on) are skipped — their blocker has to
+    // finish first; the server would reject the run anyway.
+    final blockedCount = _allItems.where((item) {
+      final status = (item['status'] ?? 'pending').toString().toLowerCase();
+      return status == 'pending' && item['blocked'] == true;
+    }).length;
     final pendingItems = _allItems.where((item) {
       final status = (item['status'] ?? 'pending').toString().toLowerCase();
-      return status == 'pending';
+      return status == 'pending' && item['blocked'] != true;
     }).toList();
 
     if (pendingItems.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('No pending items to work on'),
+            content: Text(blockedCount > 0
+                ? 'All pending items are blocked by dependencies'
+                : 'No pending items to work on'),
             backgroundColor: AppColors.warning,
           ),
         );
@@ -692,7 +799,9 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.bgCard,
         title: const Text('Work on All Pending'),
-        content: Text('Run AI on all ${pendingItems.length} pending item(s)?\nThey will be processed sequentially.'),
+        content: Text(
+            'Run AI on all ${pendingItems.length} pending item(s)?\nThey will be processed sequentially.'
+            '${blockedCount > 0 ? '\n($blockedCount blocked item(s) will be skipped.)' : ''}'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -1601,8 +1710,10 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
                     _allItems = [];
                   }
                   _expandedIndex = null;
+                  _searchResults = [];
                 });
                 if (_selectedAppId != null) _loadItems();
+                _scheduleServerSearch();
               },
               style: ButtonStyle(
                 backgroundColor: WidgetStateProperty.resolveWith((states) {
@@ -1642,18 +1753,27 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
                 setState(() {
                   _selectedAppId = val;
                   _expandedIndex = null;
+                  _searchResults = [];
                 });
                 _loadItems();
+                _scheduleServerSearch();
               },
             ),
           ),
           TaskFiltersWidget(
             searchController: _searchController,
             searchQuery: _searchQuery,
-            onSearchChanged: (val) => setState(() => _searchQuery = val),
+            onSearchChanged: (val) {
+              setState(() => _searchQuery = val);
+              _scheduleServerSearch();
+            },
             onSearchClear: () {
               _searchController.clear();
-              setState(() => _searchQuery = '');
+              setState(() {
+                _searchQuery = '';
+                _searchResults = [];
+                _searchLoading = false;
+              });
             },
             statusFilter: _statusFilter,
             statusOptions: _statusOptions,
@@ -1672,6 +1792,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
               });
             },
           ),
+          if (_searchLoading) const LinearProgressIndicator(minHeight: 2),
           // Item list
           Expanded(
             child: _selectedAppId == null
@@ -1785,6 +1906,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
                                     onCardDelete: () => _deleteItem(item),
                                     onSwipeDelete: () => _deleteItemDirect(item),
                                     onComplete: () => _completeItem(item),
+                                    onBlockerTap: _showBlockerDialog,
                                   );
                                 },
                               ),

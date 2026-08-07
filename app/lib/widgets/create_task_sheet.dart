@@ -18,6 +18,10 @@ class CreateTaskSheet {
     String priority = 'normal';
     bool submitting = false;
     List<File> attachedImages = [];
+    // Optional dependencies: this task stays blocked until they finish.
+    final dependsOn = <int>{};
+    List<Map<String, dynamic>>? openTasks; // null = not loaded yet
+    bool showDependsOn = false;
 
     showModalBottomSheet(
       context: context,
@@ -113,6 +117,95 @@ class CreateTaskSheet {
                       }).toList(),
                     ),
                     const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        const Text('Depends on',
+                            style: TextStyle(fontWeight: FontWeight.w600)),
+                        const SizedBox(width: 6),
+                        if (dependsOn.isNotEmpty)
+                          Text(dependsOn.map((id) => '#$id').join(', '),
+                              style: TextStyle(
+                                  fontSize: 12, color: Colors.grey.shade400)),
+                        const Spacer(),
+                        IconButton(
+                          icon: Icon(
+                            showDependsOn
+                                ? Icons.expand_less
+                                : Icons.expand_more,
+                            size: 20,
+                          ),
+                          onPressed: () async {
+                            setSheetState(() => showDependsOn = !showDependsOn);
+                            if (showDependsOn && openTasks == null) {
+                              final result =
+                                  await ApiService.getAppTasks(appId);
+                              if (result.ok) {
+                                const doneStatuses = {
+                                  'completed', 'built', 'divided', 'archived'
+                                };
+                                setSheetState(() {
+                                  openTasks = result.data!
+                                      .whereType<Map<String, dynamic>>()
+                                      .where((t) =>
+                                          t['id'] != null &&
+                                          !doneStatuses.contains(
+                                              (t['status'] ?? '')
+                                                  .toString()
+                                                  .toLowerCase()))
+                                      .toList();
+                                });
+                              } else {
+                                setSheetState(() => openTasks = []);
+                              }
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                    if (showDependsOn) ...[
+                      if (openTasks == null)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 12),
+                          child: Center(
+                              child: SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2))),
+                        )
+                      else if (openTasks!.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Text('No open tasks to depend on',
+                              style: TextStyle(
+                                  fontSize: 12, color: Colors.grey.shade500)),
+                        )
+                      else
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: openTasks!.map((t) {
+                            final id = t['id'] as int;
+                            final selected = dependsOn.contains(id);
+                            final label = '#$id ${t['title'] ?? ''}';
+                            return FilterChip(
+                              label: Text(
+                                label.length > 34
+                                    ? '${label.substring(0, 32)}…'
+                                    : label,
+                                style: const TextStyle(fontSize: 11),
+                              ),
+                              selected: selected,
+                              selectedColor:
+                                  AppColors.warning.withValues(alpha: 0.35),
+                              onSelected: (sel) => setSheetState(() =>
+                                  sel ? dependsOn.add(id) : dependsOn.remove(id)),
+                            );
+                          }).toList(),
+                        ),
+                      const SizedBox(height: 8),
+                    ],
+                    const SizedBox(height: 8),
                     const Text('Attachments',
                         style: TextStyle(fontWeight: FontWeight.w600)),
                     const SizedBox(height: 8),
@@ -206,6 +299,7 @@ class CreateTaskSheet {
                                   taskType: taskType,
                                   priority: priority,
                                   attachments: base64Attachments,
+                                  dependsOn: dependsOn.toList()..sort(),
                                 );
                                 if (ctx.mounted) Navigator.pop(ctx);
                                 if (context.mounted) {
