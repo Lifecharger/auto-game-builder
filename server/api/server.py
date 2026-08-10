@@ -1146,7 +1146,7 @@ _ICON_CANDIDATES_COMMON: tuple[str, ...] = (
     "icon.png", "icon.jpg", "icon.jpeg",
     "app_icon.png", "app_icon.jpg",
     "assets/icon.png", "assets/icon.jpg", "assets/icon.jpeg",
-    "assets/icon_512.png", "assets/icon_1024.png", "assets/icon_256.png",
+    "assets/icon_512.png", "assets/icon_1024.png", "assets/icon_256.png", "assets/icon_192.png",
     "assets/app_icon.png", "assets/app_icon.jpg",
     "assets/images/icon.png", "assets/images/icon.jpg",
     "assets/images/app_icon.png", "assets/images/app_icon.jpg",

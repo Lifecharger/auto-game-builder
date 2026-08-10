@@ -165,6 +165,15 @@ class DeployEngine:
         """Cancel an active deploy/build for the given app."""
         self._cancelled.add(app_id)
 
+        # Drop any jobs still waiting in the queue for this app. Leaving them
+        # in place resurrected cancelled deploys: the stale tuple kept its
+        # original upload flag while a later deploy() call overwrote the
+        # visible status, so a "build-only" request could silently upload.
+        with self._deploy_queue_lock:
+            self._deploy_queue = [
+                job for job in self._deploy_queue if job[0].id != app_id
+            ]
+
         # Kill active build subprocess and its entire process tree
         proc = self._active_processes.get(app_id)
         if proc and proc.poll() is None:
@@ -245,6 +254,13 @@ class DeployEngine:
             self._cancelled.discard(app_id)
             if app_id in self._active_deploys and self._active_deploys[app_id].get("phase") not in ("done", "failed"):
                 return {"error": "Build already in progress"}
+            # A queued tuple can outlive its visible status (e.g. after a
+            # cancel), so check the queue itself — a second job for the same
+            # app would overwrite the status record and mask the first job's
+            # actual track/upload flags.
+            with self._deploy_queue_lock:
+                if any(job[0].id == app_id for job in self._deploy_queue):
+                    return {"error": "Build already queued"}
 
         target_label = targets[build_target]["label"]
         status = {
