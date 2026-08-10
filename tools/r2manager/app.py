@@ -1,7 +1,7 @@
 """
 r2manager - minimal asset browser for the Jigsaw R2 buckets.
 
-Browse the Downloads folder (new/incoming assets) and the two Pushed folders
+Browse the Incoming folder (newly generated assets) and the two Pushed folders
 (Hot Jigsaw = teen bucket, Kid Jigsaw = kid bucket). For any file: view
 thumbnail, read EXIF metadata, play the paired mp4, open in Explorer.
 """
@@ -15,6 +15,7 @@ import hashlib
 import subprocess
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
 from pathlib import Path
 
 import cv2
@@ -28,12 +29,21 @@ from PIL import Image, ImageTk
 sys.path.insert(0, str(Path(__file__).parent))
 from exif_writer import write_exif  # noqa: E402
 
+# Animated-WebP encoding is shared with the Hot Idle wall pipeline so accepted
+# assets match the WebPs already in the bucket (256px wide, 24fps, q60).
+sys.path.insert(0, str(Path(__file__).parent.parent / "hotidle_wall_webp"))
+try:
+    from encode_upload import encode_file as encode_webp  # noqa: E402
+except ImportError as e:
+    encode_webp = None
+    print(f"r2manager: WebP encoding unavailable ({e})")
+
 
 # Machine-local config lives in config.py (gitignored). See config.example.py
 # for the template new users should copy.
 try:
     from config import (  # noqa: F401
-        DOWNLOADS,
+        INCOMING,
         STAGING_ROOTS,
         PUSHED_ROOTS,
         BUCKET_BY_RATING,
@@ -421,7 +431,7 @@ class App:
         self._thumb_cache: dict[Path, ImageTk.PhotoImage] = {}  # keep refs alive
 
         self._build_ui()
-        self.refresh_downloads()
+        self.refresh_incoming()
         self.refresh_accepted()
         self.refresh_pushed()
 
@@ -442,12 +452,12 @@ class App:
         nb = ttk.Notebook(self.root)
         nb.pack(fill="both", expand=True)
 
-        # Downloads tab
-        self.downloads_tab = ttk.Frame(nb)
-        nb.add(self.downloads_tab, text="Downloads")
-        self._build_downloads_tab(self.downloads_tab)
+        # Incoming tab
+        self.incoming_tab = ttk.Frame(nb)
+        nb.add(self.incoming_tab, text="Incoming")
+        self._build_incoming_tab(self.incoming_tab)
 
-        # Accepted tab (between Downloads and Pushed)
+        # Accepted tab (between Incoming and Pushed)
         self.accepted_tab = ttk.Frame(nb)
         nb.add(self.accepted_tab, text="Accepted")
         self._build_collection_tab(self.accepted_tab, kind="accepted")
@@ -457,7 +467,7 @@ class App:
         nb.add(self.pushed_tab, text="Pushed")
         self._build_collection_tab(self.pushed_tab, kind="pushed")
 
-    def _build_downloads_tab(self, parent):
+    def _build_incoming_tab(self, parent):
         paned = ttk.Panedwindow(parent, orient="horizontal")
         paned.pack(fill="both", expand=True)
 
@@ -467,8 +477,8 @@ class App:
 
         top_bar = ttk.Frame(left)
         top_bar.pack(fill="x", padx=4, pady=4)
-        ttk.Label(top_bar, text=str(DOWNLOADS)).pack(side="left")
-        ttk.Button(top_bar, text="Refresh", command=self.refresh_downloads).pack(side="right")
+        ttk.Label(top_bar, text=str(INCOMING)).pack(side="left")
+        ttk.Button(top_bar, text="Refresh", command=self.refresh_incoming).pack(side="right")
         ttk.Button(top_bar, text="Match Videos", command=self.match_videos).pack(side="right", padx=(0, 4))
         ttk.Button(top_bar, text="AI Tag", command=self.ai_tag).pack(side="right", padx=(0, 4))
         ttk.Button(top_bar, text="Tag Selected", command=self.ai_tag_selected).pack(side="right", padx=(0, 4))
@@ -486,6 +496,10 @@ class App:
         self.collection_var = tk.StringVar()
         ttk.Entry(action_bar, textvariable=self.collection_var, width=28).pack(side="left", padx=(4, 8))
         ttk.Button(action_bar, text="Accept →", command=self.accept_selected).pack(side="left")
+        # Same move, minus the renumbering — for assets whose number already
+        # means something in the bucket (rescued videos for existing images).
+        ttk.Button(action_bar, text="Save Accept →",
+                   command=self.accept_keep_names).pack(side="left", padx=(4, 0))
         ttk.Button(action_bar, text="Reject ✕", command=self.reject_selected).pack(side="left", padx=(4, 0))
 
         ttk.Label(action_bar, text="  Search tags:").pack(side="left", padx=(12, 2))
@@ -538,6 +552,10 @@ class App:
         if kind == "accepted":
             ttk.Button(top_bar, text="Push to R2", command=self.push_all).pack(side="right", padx=(0, 4))
             ttk.Button(top_bar, text="Generate Music", command=self.generate_music_selected).pack(side="right", padx=(0, 4))
+            # Catches videos accepted before the encode step existed, and any
+            # whose encode failed — without one, Hot Idle has nothing to play.
+            ttk.Button(top_bar, text="Fix WebPs",
+                       command=self.encode_missing_webps).pack(side="right", padx=(0, 4))
 
         tree = ttk.Treeview(left, columns=("rating",), show="tree headings")
         tree.heading("#0", text="Collection / File")
@@ -562,7 +580,7 @@ class App:
         right = self._build_preview_pane(paned, kind=kind)
         paned.add(right, weight=3)
 
-    def _build_preview_pane(self, parent, kind: str = "downloads"):
+    def _build_preview_pane(self, parent, kind: str = "incoming"):
         frame = ttk.Frame(parent)
 
         preview_label = tk.Label(frame, bg="#222", text="(select a file)", fg="#888")
@@ -605,7 +623,7 @@ class App:
         return frame
 
     # ---------- Refresh ----------
-    def refresh_downloads(self):
+    def refresh_incoming(self):
         """Scan disk, cache per-image metadata, then render (respecting filter)."""
         # Flush the thumbnail cache — files may have been renamed (Match
         # Videos, Accept, Reject), and the cache key is the Path, which a
@@ -613,10 +631,10 @@ class App:
         self._thumb_cache.clear()
         self._dl_paths: dict[str, Path] = {}
         self._dl_rows: list[tuple[Path, tuple, str]] = []  # (path, row-values, searchable-text)
-        if not DOWNLOADS.exists():
+        if not INCOMING.exists():
             self._render_dl_tree()
             return
-        images = [p for p in DOWNLOADS.iterdir()
+        images = [p for p in INCOMING.iterdir()
                   if p.is_file() and p.suffix.lower() in IMAGE_EXTS]
 
         def sort_key(p: Path):
@@ -656,7 +674,7 @@ class App:
         return tk_img
 
     def _render_dl_tree(self):
-        """Rebuild the Downloads tree, applying the search-tags filter."""
+        """Rebuild the Incoming tree, applying the search-tags filter."""
         self.dl_tree.delete(*self.dl_tree.get_children())
         self._dl_paths.clear()
         query = (self.search_var.get() if hasattr(self, "search_var") else "").strip().lower()
@@ -702,7 +720,8 @@ class App:
                                  key=lambda p: p.name.lower())
             for coll in collections:
                 images = [p for p in coll.iterdir()
-                          if p.is_file() and p.suffix.lower() in IMAGE_EXTS]
+                          if p.is_file() and p.suffix.lower() in IMAGE_EXTS
+                          and not self._is_video_twin(p)]
 
                 def sort_key(p: Path):
                     stem = p.stem.split("-")[0]
@@ -722,6 +741,18 @@ class App:
         self._populate_collection_tree(
             self.pushed_tree, self._current_pushed_roots(), self._pushed_paths)
 
+    @staticmethod
+    def _is_video_twin(p: Path) -> bool:
+        """True for a .webp that is a video's animated twin, not a puzzle image.
+
+        `.webp` is a legitimate source-image format, so the extension alone can't
+        tell the two apart — the giveaway is a video of the same stem sitting
+        next to it. Without this the twins list and count as extra images in the
+        Accepted and Pushed trees.
+        """
+        return (p.suffix.lower() == ".webp"
+                and any(p.with_suffix(e).exists() for e in VIDEO_EXTS))
+
     def _collection_readiness(self, coll: Path) -> dict:
         """Count images/videos/music in a collection folder. Skips -extra videos."""
         imgs = vids = music = 0
@@ -731,6 +762,8 @@ class App:
             ext = p.suffix.lower()
             stem = p.stem
             if ext in IMAGE_EXTS and stem.split("-")[0].isdigit():
+                if self._is_video_twin(p):
+                    continue
                 imgs += 1
             elif ext in VIDEO_EXTS and "-extra" not in stem:
                 vids += 1
@@ -769,7 +802,8 @@ class App:
                 stats = self._collection_readiness(coll)
                 readiness = self._readiness_label(stats)
                 images = [p for p in coll.iterdir()
-                          if p.is_file() and p.suffix.lower() in IMAGE_EXTS]
+                          if p.is_file() and p.suffix.lower() in IMAGE_EXTS
+                          and not self._is_video_twin(p)]
 
                 def sort_key(p: Path):
                     stem = p.stem.split("-")[0]
@@ -894,15 +928,15 @@ class App:
 
     # ---------- Match Videos ----------
     def match_videos(self):
-        if not DOWNLOADS.exists():
-            messagebox.showerror("Match Videos", f"Downloads folder not found: {DOWNLOADS}")
+        if not INCOMING.exists():
+            messagebox.showerror("Match Videos", f"Incoming folder not found: {INCOMING}")
             return
         if getattr(self, "_match_running", False):
             return
         self._match_running = True
 
         win = tk.Toplevel(self.root)
-        win.title("Matching Videos (Downloads)")
+        win.title("Matching Videos (Incoming)")
         win.geometry("720x480")
         win.transient(self.root)
 
@@ -948,7 +982,7 @@ class App:
                 if summary:
                     messagebox.showinfo("Match Videos", summary, parent=win)
                 btn.configure(text="Close", command=win.destroy)
-                self.refresh_downloads()
+                self.refresh_incoming()
             self.root.after(0, finish)
 
         threading.Thread(target=worker, daemon=True).start()
@@ -959,7 +993,7 @@ class App:
         log("Step 1: Byte-exact dedupe of images...")
         seen: dict[tuple[int, str], Path] = {}  # (size, full-file-sha256) -> path
         removed = 0
-        img_files = [x for x in DOWNLOADS.iterdir()
+        img_files = [x for x in INCOMING.iterdir()
                      if x.is_file() and x.suffix.lower() in IMAGE_EXTS]
         for p in img_files:
             if cancelled():
@@ -982,8 +1016,8 @@ class App:
 
         # Step 2: extract thumbs in parallel
         log("Step 2: Extracting thumbnails...")
-        videos = [p for p in DOWNLOADS.iterdir() if p.is_file() and p.suffix.lower() in VIDEO_EXTS]
-        images = [p for p in DOWNLOADS.iterdir() if p.is_file() and p.suffix.lower() in IMAGE_EXTS]
+        videos = [p for p in INCOMING.iterdir() if p.is_file() and p.suffix.lower() in VIDEO_EXTS]
+        images = [p for p in INCOMING.iterdir() if p.is_file() and p.suffix.lower() in IMAGE_EXTS]
 
         def sort_key(p: Path):
             return (0, int(p.stem)) if p.stem.isdigit() else (1, p.stem)
@@ -1102,7 +1136,7 @@ class App:
 
         # Step 4: rename via temp dir to avoid collisions
         log("Step 4: Renaming...")
-        temp_dir = DOWNLOADS / "_temp_sorting"
+        temp_dir = INCOMING / "_temp_sorting"
         if temp_dir.exists():
             shutil.rmtree(temp_dir, ignore_errors=True)
         temp_dir.mkdir()
@@ -1186,7 +1220,7 @@ class App:
         # Step 5: move everything back
         log("Step 5: Restoring files...")
         for p in temp_dir.iterdir():
-            dest = DOWNLOADS / p.name
+            dest = INCOMING / p.name
             if dest.exists():
                 try:
                     dest.unlink()
@@ -1336,10 +1370,43 @@ class App:
         win.wait_window()
         return result["picked"]
 
-    def accept_selected(self):
+    # Numbers that have been Save Accepted, i.e. an asset now exists for them and
+    # they must never be queued for regeneration again. Kept as a local ledger
+    # rather than inferred from the bucket: the manifest is edge-cached, so a
+    # freshly pushed video can still read as missing for a while.
+    RESCUE_LEDGER = INCOMING.parent / "rescue_ledger.json"
+
+    def _ledger_add(self, numbers: list[int]) -> None:
+        if not numbers:
+            return
+        try:
+            existing = set(json.loads(self.RESCUE_LEDGER.read_text(encoding="utf-8"))
+                           .get("handled", [])) if self.RESCUE_LEDGER.exists() else set()
+            existing.update(numbers)
+            self.RESCUE_LEDGER.write_text(
+                json.dumps({"handled": sorted(existing),
+                            "updated": datetime.now().isoformat(timespec="seconds")},
+                           indent=2),
+                encoding="utf-8")
+        except Exception as e:
+            print(f"rescue ledger write failed: {e}")
+
+    def accept_keep_names(self):
+        """Accept without renumbering — see accept_selected(keep_names=True)."""
+        self.accept_selected(keep_names=True)
+
+    def accept_selected(self, keep_names: bool = False):
+        """Move selected bundles from Incoming into the staging collection.
+
+        Normally each bundle is renumbered to the next free slot in the target
+        collection. `keep_names` keeps the original filename instead, which is
+        what rescued assets need: a video generated for the bucket's existing
+        <n>.jpg has to push back as <n>.mp4 or it pairs with the wrong image.
+        """
+        title = "Save Accept" if keep_names else "Accept"
         sel = self.dl_tree.selection()
         if not sel:
-            messagebox.showinfo("Accept", "Select one or more files in the Downloads list.")
+            messagebox.showinfo(title, "Select one or more files in the Incoming list.")
             return
         imgs = [self._dl_paths[iid] for iid in sel
                 if iid in self._dl_paths and self._dl_paths[iid].exists()]
@@ -1360,7 +1427,7 @@ class App:
 
         staging_root = self._current_staging_root()
         if staging_root is None:
-            messagebox.showerror("Accept", "No staging root for the current rating.")
+            messagebox.showerror(title, "No staging root for the current rating.")
             return
 
         requested = self.collection_var.get()
@@ -1381,6 +1448,9 @@ class App:
         accepted = 0
         total_moved = 0
         total_deleted = 0
+        accepted_videos: list[Path] = []
+        skipped_clash: list[tuple[str, str]] = []
+        ledger_nums: list[int] = []
         for img in imgs:
             # Video picker per image (if >1 video pairs this img)
             videos = self._paired_videos_for(img)
@@ -1393,7 +1463,17 @@ class App:
             elif len(videos) == 1:
                 chosen = videos[0]
 
-            n = self._next_number(target)
+            if keep_names:
+                n = img.stem
+                # Renumbering can't collide by construction; keeping the name can.
+                # Overwriting here would silently replace a different asset that
+                # already owns this number, so refuse and let the user look.
+                clash = next((p for p in target.glob(f"{n}.*")), None)
+                if clash is not None:
+                    skipped_clash.append((img.name, clash.name))
+                    continue
+            else:
+                n = self._next_number(target)
             moves: list[tuple[Path, Path]] = [(img, target / f"{n}{img.suffix.lower()}")]
             img_sidecar = img.with_suffix(".json")
             if img_sidecar.exists():
@@ -1417,6 +1497,8 @@ class App:
                 for src, dest in moves:
                     shutil.move(str(src), str(dest))
                     total_moved += 1
+                    if dest.suffix.lower() in VIDEO_EXTS:
+                        accepted_videos.append(dest)
                 for p in deletes:
                     try:
                         p.unlink()
@@ -1424,26 +1506,123 @@ class App:
                     except Exception as e:
                         print(f"accept: couldn't delete {p.name}: {e}")
             except Exception as e:
-                messagebox.showerror("Accept",
+                messagebox.showerror(title,
                                      f"Move failed on {img.name}: {e}\n\n"
                                      f"Accepted so far: {accepted}.")
                 break
             accepted += 1
+            # Only after the move actually landed — a number recorded for a
+            # failed accept would be dropped from the queue with nothing to show.
+            if keep_names and str(n).isdigit():
+                ledger_nums.append(int(n))
 
-        self.refresh_downloads()
+        self._ledger_add(ledger_nums)
+        self.refresh_incoming()
         self.refresh_accepted()
         self.refresh_pushed()
         msg = f"Accepted {accepted}/{len(imgs)} file(s) → {target.name}/"
+        if keep_names:
+            msg += "\nOriginal filenames kept (no renumbering)."
         if total_moved:
             msg += f"\nMoved {total_moved} file(s) total."
         if total_deleted:
             msg += f"\nDeleted {total_deleted} unused video/sidecar file(s)."
-        messagebox.showinfo("Accept", msg)
+        if skipped_clash:
+            listed = "\n".join(f"  {a} — {b} already there"
+                               for a, b in skipped_clash[:8])
+            more = (f"\n  (+{len(skipped_clash) - 8} more)"
+                    if len(skipped_clash) > 8 else "")
+            msg += (f"\n\nSkipped {len(skipped_clash)} — that number is taken "
+                    f"in {target.name}/:\n{listed}{more}")
+        messagebox.showinfo(title, msg)
+
+        if accepted_videos:
+            self.encode_webps(accepted_videos)
+
+    # ---------- Animated WebP ----------
+    def encode_missing_webps(self):
+        """Encode twins for every accepted video that has none yet."""
+        roots = self._current_accepted_roots()
+        todo: list[Path] = []
+        for root in roots.values():
+            if not root.exists():
+                continue
+            for coll in sorted(p for p in root.iterdir() if p.is_dir()):
+                for vid in sorted(coll.iterdir()):
+                    if (vid.is_file() and vid.suffix.lower() in VIDEO_EXTS
+                            and "-extra" not in vid.stem
+                            and not vid.with_suffix(".webp").exists()):
+                        todo.append(vid)
+        if not todo:
+            messagebox.showinfo(
+                "Fix WebPs", "Every accepted video already has a WebP twin.")
+            return
+        if not messagebox.askyesno(
+                "Fix WebPs",
+                f"{len(todo)} accepted video(s) have no WebP twin.\n\nEncode them now?"):
+            return
+        self.encode_webps(todo)
+
+    def encode_webps(self, videos: list[Path]):
+        """Encode accepted mp4s to the animated WebP twins Hot Idle plays.
+
+        Runs off the UI thread — a batch of 6s clips takes a few seconds each.
+        """
+        if encode_webp is None:
+            messagebox.showerror(
+                "WebP", "WebP encoding is unavailable — could not import "
+                        "encode_upload.py from tools/hotidle_wall_webp.")
+            return
+        todo = [v for v in videos if v.exists()
+                and not v.with_suffix(".webp").exists()]
+        if not todo:
+            return
+
+        win = tk.Toplevel(self.root)
+        win.title(f"Encoding {len(todo)} animated WebP(s)")
+        win.geometry("640x360")
+        win.transient(self.root)
+
+        pbar = ttk.Progressbar(win, mode="determinate", maximum=len(todo), length=200)
+        pbar.pack(fill="x", padx=6, pady=(6, 0))
+        log_text = tk.Text(win, wrap="word", font=("Consolas", 9))
+        log_text.pack(fill="both", expand=True, padx=6, pady=6)
+        btn = ttk.Button(win, text="Close", state="disabled", command=win.destroy)
+        btn.pack(pady=(0, 6))
+
+        def log(m):
+            self.root.after(0, lambda: (log_text.insert("end", m + "\n"), log_text.see("end")))
+
+        def worker():
+            ok_n = fail_n = 0
+            for i, vid in enumerate(todo, 1):
+                dest = vid.with_suffix(".webp")
+                try:
+                    ok, err = encode_webp(vid, dest)
+                except Exception as e:
+                    ok, err = False, str(e)
+                if ok:
+                    ok_n += 1
+                    log(f"  ✓ {dest.parent.name}/{dest.name}  "
+                        f"({dest.stat().st_size // 1024} KB)")
+                else:
+                    fail_n += 1
+                    log(f"  FAIL {vid.name}: {err}")
+                self.root.after(0, lambda v=i: pbar.configure(value=v))
+
+            def finish():
+                btn.configure(state="normal")
+                self.refresh_accepted()
+                messagebox.showinfo(
+                    "WebP", f"Encoded {ok_n} WebP(s), {fail_n} failed.", parent=win)
+            self.root.after(0, finish)
+
+        threading.Thread(target=worker, daemon=True).start()
 
     def reject_selected(self):
         sel = self.dl_tree.selection()
         if not sel:
-            messagebox.showinfo("Reject", "Select one or more files in the Downloads list.")
+            messagebox.showinfo("Reject", "Select one or more files in the Incoming list.")
             return
         imgs = [self._dl_paths[iid] for iid in sel
                 if iid in self._dl_paths and self._dl_paths[iid].exists()]
@@ -1465,7 +1644,7 @@ class App:
         ok = messagebox.askyesno(
             "Reject (delete)",
             f"Permanently delete {len(bundle)} file(s) across {len(imgs)} "
-            f"image bundle(s) from Downloads?\n\n  {preview}{more}",
+            f"image bundle(s) from Incoming?\n\n  {preview}{more}",
         )
         if not ok:
             return
@@ -1478,18 +1657,18 @@ class App:
             except Exception as e:
                 print(f"reject err {p.name}: {e}")
 
-        self.refresh_downloads()
+        self.refresh_incoming()
         messagebox.showinfo("Reject", f"Deleted {deleted}/{len(bundle)} file(s).")
 
     # ---------- AI Tag ----------
     def ai_tag(self):
         # Batch mode — skip already-tagged to save quota
-        self._run_tag_dialog(title="AI Tagging (Downloads)", todo=None, force=False)
+        self._run_tag_dialog(title="AI Tagging (Incoming)", todo=None, force=False)
 
     def ai_tag_selected(self):
         sel = self.dl_tree.selection()
         if not sel:
-            messagebox.showinfo("Tag Selected", "Select one or more files in the Downloads list first.")
+            messagebox.showinfo("Tag Selected", "Select one or more files in the Incoming list first.")
             return
         todo: list[Path] = []
         for iid in sel:
@@ -1503,8 +1682,8 @@ class App:
         self._run_tag_dialog(title=f"AI Tagging ({len(todo)} selected)", todo=todo, force=True)
 
     def _run_tag_dialog(self, title: str, todo: list[Path] | None, force: bool = False):
-        if not DOWNLOADS.exists():
-            messagebox.showerror("AI Tag", f"Downloads folder not found: {DOWNLOADS}")
+        if not INCOMING.exists():
+            messagebox.showerror("AI Tag", f"Incoming folder not found: {INCOMING}")
             return
         if not GEMINI_BIN or GEMINI_BIN == "gemini":
             if not shutil.which("gemini.cmd") and not shutil.which("gemini"):
@@ -1561,7 +1740,7 @@ class App:
                 if summary:
                     messagebox.showinfo("AI Tag", summary, parent=win)
                 btn.configure(text="Close", command=win.destroy)
-                self.refresh_downloads()
+                self.refresh_incoming()
             self.root.after(0, finish)
 
         threading.Thread(target=worker, daemon=True).start()
@@ -1570,7 +1749,7 @@ class App:
                 todo: list[Path] | None, force: bool) -> str | None:
         if todo is None:
             all_jpgs = sorted(
-                [p for p in DOWNLOADS.iterdir()
+                [p for p in INCOMING.iterdir()
                  if p.is_file() and p.suffix.lower() in {".jpg", ".jpeg"}],
                 key=lambda p: (0, int(p.stem)) if p.stem.isdigit() else (1, p.stem),
             )
@@ -1883,11 +2062,30 @@ class App:
                     log(f"  ✓ {vid_key}")
                 done += 1; set_progress(done, total_files, f"Uploaded {done}/{total_files}")
 
-                # Move image + video + sidecar json to pushed folder (json not uploaded)
+                # Animated WebP twin — Hot Idle plays these instead of the mp4.
+                # The scanner ignores .webp outside images//thumbs/, so this key
+                # never shows up in the manifest; the app derives it from the
+                # video URL (/videos/N.mp4 -> /videos_webp/N.webp).
+                webp = img.with_suffix(".webp")
+                if webp.exists():
+                    webp_key = f"collections/{coll_name}/videos_webp/{webp.name}"
+                    ok, err = self._r2_put(bucket, webp_key, webp)
+                    if not ok:
+                        failed += 1
+                        log(f"  FAIL webp {webp_key}: {err}")
+                        return f"Stopped — webp upload failed: {webp.name}\n{err}"
+                    log(f"  ✓ {webp_key}")
+                elif vid.exists():
+                    log(f"  ! no WebP twin for {vid.name} — Hot Idle can't play it")
+
+                # Move image + video + webp + sidecar json to pushed folder
+                # (json is local bookkeeping and is never uploaded)
                 try:
                     shutil.move(str(img), str(pushed_coll / img.name))
                     if vid.exists():
                         shutil.move(str(vid), str(pushed_coll / vid.name))
+                    if webp.exists():
+                        shutil.move(str(webp), str(pushed_coll / webp.name))
                     if img_json.exists():
                         shutil.move(str(img_json), str(pushed_coll / img_json.name))
                 except Exception as e:

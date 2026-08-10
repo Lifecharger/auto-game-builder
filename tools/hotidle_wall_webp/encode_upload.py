@@ -9,8 +9,9 @@ The r2-scanner worker ignores .webp files outside images//thumbs/, so these
 uploads never appear in the manifest; the app derives the URL from the MP4
 URL (/videos/N.mp4 -> /videos_webp/N.webp).
 
-Settings match the in-app frame extractor's display size (256px wide) at
-half its 24fps target. Reads the Cloudflare Global API Key from D:/keys at
+Settings match the in-app frame extractor's display size (256px wide) at its
+24fps target. `encode_file()` is the shared entry point — r2manager imports it
+so accepted assets encode identically. Reads the Cloudflare Global API Key from D:/keys at
 runtime (NEVER embed it). Resume-safe in both phases: encode skips existing
 non-empty outputs, upload skips keys whose remote size already matches.
 
@@ -18,6 +19,7 @@ Usage:
     python encode_upload.py              # encode then upload
     python encode_upload.py --encode-only
     python encode_upload.py --upload-only
+    python encode_upload.py --fps 24 --out D:/Backup/hotjigsaw_r2_webp24
 """
 import argparse
 import concurrent.futures
@@ -34,9 +36,14 @@ import imageio_ffmpeg
 FFMPEG = imageio_ffmpeg.get_ffmpeg_exe()
 
 SRC_DIR = Path(r"D:/Backup/hotjigsaw_r2")
+# Mutable so --out / --fps can retarget a run (e.g. the 24fps re-encode)
+# without disturbing the previous output set, which doubles as rollback.
 OUT_DIR = Path(r"D:/Backup/hotjigsaw_r2_webp")
 
-FPS = 12
+# 24fps matches what is actually in the bucket today (sampled objects decode to
+# 241 frames over 10s). The original 12fps pass was superseded by the 24fps
+# re-encode; --fps still overrides for one-off experiments.
+FPS = 24
 WIDTH = 256
 QUALITY = 60
 PARALLEL = max(2, (os.cpu_count() or 4) // 2)
@@ -53,23 +60,37 @@ def r2_key_for(flat_name: str) -> str:
     return key.replace("/videos/", "/videos_webp/")
 
 
-def encode_one(src: Path) -> tuple[str, bool, str]:
-    dest = OUT_DIR / (src.stem + ".webp")
-    if dest.exists() and dest.stat().st_size > 0:
-        return (src.name, True, "skip")
+def encode_file(src: Path, dest: Path, fps: int = None, width: int = None,
+                quality: int = None) -> tuple[bool, str]:
+    """Encode one mp4 to an animated WebP. Returns (ok, error-text).
+
+    Single source of truth for the wall-video encode settings — r2manager calls
+    this too, so accepted assets get byte-comparable WebPs to the bucket's
+    existing ones. Writes via a .tmp file so a killed run can't leave a
+    half-written WebP that later looks like a finished one.
+    """
+    dest.parent.mkdir(parents=True, exist_ok=True)
     tmp = dest.with_suffix(".webp.tmp")
     proc = subprocess.run(
         [FFMPEG, "-y", "-i", str(src),
-         "-vf", f"fps={FPS},scale={WIDTH}:-2:flags=lanczos",
-         "-c:v", "libwebp_anim", "-q:v", str(QUALITY),
+         "-vf", f"fps={fps or FPS},scale={width or WIDTH}:-2:flags=lanczos",
+         "-c:v", "libwebp_anim", "-q:v", str(quality or QUALITY),
          "-loop", "0", "-an", "-f", "webp", str(tmp)],
         capture_output=True, text=True,
     )
     if proc.returncode != 0 or not tmp.exists() or tmp.stat().st_size == 0:
         tmp.unlink(missing_ok=True)
-        return (src.name, False, proc.stderr[-300:])
+        return (False, proc.stderr[-300:])
     tmp.replace(dest)
-    return (src.name, True, "ok")
+    return (True, "")
+
+
+def encode_one(src: Path) -> tuple[str, bool, str]:
+    dest = OUT_DIR / (src.stem + ".webp")
+    if dest.exists() and dest.stat().st_size > 0:
+        return (src.name, True, "skip")
+    ok, err = encode_file(src, dest)
+    return (src.name, ok, "ok" if ok else err)
 
 
 def encode_all() -> bool:
@@ -150,10 +171,16 @@ def upload_all() -> bool:
 
 
 def main() -> None:
+    global FPS, OUT_DIR
     ap = argparse.ArgumentParser()
     ap.add_argument("--encode-only", action="store_true")
     ap.add_argument("--upload-only", action="store_true")
+    ap.add_argument("--fps", type=int, default=FPS)
+    ap.add_argument("--out", type=Path, default=OUT_DIR)
     args = ap.parse_args()
+    FPS = args.fps
+    OUT_DIR = args.out
+    print(f"fps={FPS} out={OUT_DIR}", flush=True)
 
     ok = True
     if not args.upload_only:

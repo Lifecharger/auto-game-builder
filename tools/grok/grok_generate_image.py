@@ -22,7 +22,12 @@ import websocket
 
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 HISTORY_FILE = os.path.join(_SCRIPT_DIR, "grok_download_history.json")
-DOWNLOADS_DIR = os.path.join(os.path.expanduser("~"), "Downloads", "grok-generated")
+# Generated images land in the r2manager Incoming folder so the review UI picks
+# them up directly. Kept out of ~/Downloads on purpose — that folder is used for
+# other things and must stay free of pipeline clutter.
+DOWNLOADS_DIR = os.environ.get("GROK_OUTPUT_DIR") or os.path.join(
+    os.path.expanduser("~"), "Desktop", "Asset Generation Pipeline", "_Incoming"
+)
 
 
 def get_cookies() -> dict:
@@ -146,13 +151,25 @@ def generate_images(
 
     ws_thread = threading.Thread(target=ws.run_forever, daemon=True)
     ws_thread.start()
-    # Wait for done signal, but if images arrived and no done signal, use short timeout
-    done_event.wait(timeout=15)
-    if not done_event.is_set() and image_map:
-        print(f"  No done signal received, but {len(image_map)} image(s) ready. Proceeding...")
-    elif not done_event.is_set():
-        # No images yet, wait longer
-        done_event.wait(timeout=105)
+    # Wait for the done signal. Images stream in one by one, so a batch that has
+    # only partially arrived must not be cut short — keep waiting while new
+    # images keep showing up, and give up once the stream has gone quiet.
+    QUIET_SECS = 25
+    HARD_LIMIT = 180
+    start = time.time()
+    seen = 0
+    last_new = start
+    while not done_event.wait(timeout=1):
+        now = time.time()
+        if len(image_map) > seen:
+            seen = len(image_map)
+            last_new = now
+        if seen and now - last_new >= QUIET_SECS:
+            print(f"  No done signal received, but {seen} image(s) ready and the stream went quiet. Proceeding...")
+            break
+        if now - start >= HARD_LIMIT:
+            print(f"  Timed out after {HARD_LIMIT}s with {seen} image(s).")
+            break
     ws.close()
 
     results = list(image_map.values())
@@ -184,18 +201,27 @@ def generate_images(
         else:
             filepath = os.path.join(save_dir, f"grok_{request_id[:8]}_{i+1}.png")
 
-        try:
-            dl_headers = {}
-            if "assets.grok.com" in url:
-                dl_headers["Cookie"] = cookie_str
-            resp = requests.get(url, headers=dl_headers, timeout=60)
-            resp.raise_for_status()
-            with open(filepath, "wb") as f:
-                f.write(resp.content)
-            saved.append(filepath)
-            print(f"  Saved: {filepath}")
-        except Exception as e:
-            print(f"  Download failed for image {i+1}: {e}")
+        dl_headers = {}
+        if "assets.grok.com" in url:
+            dl_headers["Cookie"] = cookie_str
+        # The CDN lags behind the websocket notification — a freshly announced
+        # image can 404 for a few seconds before it is actually served.
+        last_err = None
+        for attempt in range(6):
+            try:
+                resp = requests.get(url, headers=dl_headers, timeout=60)
+                resp.raise_for_status()
+                with open(filepath, "wb") as f:
+                    f.write(resp.content)
+                saved.append(filepath)
+                print(f"  Saved: {filepath}")
+                last_err = None
+                break
+            except Exception as e:
+                last_err = e
+                time.sleep(2 * (attempt + 1))
+        if last_err is not None:
+            print(f"  Download failed for image {i+1}: {last_err}")
 
     print(f"Done. {len(saved)} image(s) saved to {save_dir}")
     return saved

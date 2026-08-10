@@ -8,8 +8,10 @@ import shutil
 from pathlib import Path
 
 
-# Incoming assets (where new downloads land).
-DOWNLOADS = Path(r"C:\Users\YOU\Downloads")
+# Incoming assets — a dedicated staging folder that newly generated images and
+# videos are written into. Keep this separate from the OS Downloads folder so
+# unrelated files never show up in the review list.
+INCOMING = Path(r"C:\Path\To\Asset Generation Pipeline\_Incoming")
 
 # Staging area where un-pushed assets wait, keyed by content rating.
 STAGING_ROOTS = {

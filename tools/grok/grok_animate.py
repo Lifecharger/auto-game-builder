@@ -18,21 +18,25 @@ Workflow:
     1. Generate base with grok_generate_image.py --pro --aspect 16:9
     2. Pass the local PNG to this tool with an animation prompt
     3. Tool uploads to Grok, sets 6s + 480p (cheapest), submits via UI
-    4. Grok auto-favorites the input + output
-    5. (default) After --wait-seconds, runs grok_downloader to fetch result
-       to ~/Downloads/grok-favorites/
+    4. Tool keeps the page open, grabs the rendered mp4 URL off it, and downloads
+       the video directly to --output (default: the r2manager Incoming folder)
+
+Retrieval deliberately does NOT use favorites / grok_downloader.py. That path
+scrapes grok.com/imagine/saved and breaks every time Grok reworks that UI.
 
 Usage:
     python grok_animate.py -i character.png -d "idle breathing"
     python grok_animate.py -i char.png -d "punch attack" --length 10 --resolution 720p
-    python grok_animate.py -i char.png -d "walk cycle" --no-download --show-browser
+    python grok_animate.py -i char.png -d "hair in the wind" -o out/467.mp4 --show-browser
 
 Defaults: 6s / 480p (cheapest = fastest = least credits)
 """
 import argparse
 import json
 import os
+import re
 import sys
+import tempfile
 import time
 import uuid
 from pathlib import Path
@@ -43,6 +47,11 @@ _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 HISTORY_FILE = os.path.join(_SCRIPT_DIR, "grok_download_history.json")
 PROFILE_DIR = str(Path.home() / ".grok-playwright")
 IMAGINE_URL = "https://grok.com/imagine"
+
+# Rendered videos land in the r2manager Incoming folder, same as generated images.
+OUTPUT_DIR = os.environ.get("GROK_OUTPUT_DIR") or os.path.join(
+    os.path.expanduser("~"), "Desktop", "Asset Generation Pipeline", "_Incoming"
+)
 
 
 def _load_sso_cookies():
@@ -63,12 +72,81 @@ def _load_sso_cookies():
     ]
 
 
+# A finished render lives at
+# assets.grok.com/users/<uid>/generated/<uuid>/generated_video.mp4
+# Anything else on the page (media.x.ai promos, storage.googleapis.com
+# agent-skill covers) is decoration and must never be picked up.
+GENERATED_VIDEO_RE = re.compile(
+    r"assets\.grok\.com/.+/generated/[^/]+/generated_video\.mp4", re.I
+)
+
+# Grayscale MSE between an i2v result's first frame and the still it was made
+# from. Measured on real Hot Jigsaw renders: true pairs scored 191 and 631,
+# unrelated clips 6609, 14398 and 15589. The threshold sits in the middle of
+# that 10x gap, so it tolerates i2v drift without ever accepting a stray clip.
+FIRST_FRAME_MSE_MAX = 2000
+
+REFUSAL_PHRASES = (
+    "can't help", "cannot help", "can't generate", "cannot generate",
+    "unable to generate", "violates", "content policy", "guidelines",
+    "not allowed", "inappropriate", "flagged",
+)
+
+
+def _first_frame_mse(video_path: str, image_path: str) -> float | None:
+    """Grayscale MSE between the video's first frame and the source still.
+
+    Returns None if the comparison can't be made (missing cv2, unreadable file),
+    which callers must treat as "unverified", not as "match".
+    """
+    try:
+        import cv2
+        import numpy as np
+    except ImportError:
+        return None
+
+    cap = cv2.VideoCapture(video_path)
+    ok, frame = cap.read()
+    cap.release()
+    if not ok:
+        return None
+    src = cv2.imread(image_path)
+    if src is None:
+        return None
+
+    size = (128, 256)
+    a = cv2.cvtColor(cv2.resize(frame, size), cv2.COLOR_BGR2GRAY).astype("float32")
+    b = cv2.cvtColor(cv2.resize(src, size), cv2.COLOR_BGR2GRAY).astype("float32")
+    return float(np.mean((a - b) ** 2))
+
+
+def _dom_video_srcs(page):
+    """Any <video>/<source> src currently in the DOM (blob: URLs filtered out)."""
+    try:
+        srcs = page.eval_on_selector_all(
+            "video, video source",
+            "els => els.map(e => e.currentSrc || e.src).filter(Boolean)",
+        )
+    except Exception:
+        return []
+    return [s for s in srcs if s.startswith("http") and ".mp4" in s.lower()]
+
+
 def animate(image_path: str, prompt: str, video_length: int = 6,
-            resolution: str = "480p", headless: bool = True) -> bool:
+            resolution: str = "480p", headless: bool = True,
+            output_path: str | None = None, wait_seconds: int = 240) -> str | None:
+    """Submit an i2v job and download the rendered video directly.
+
+    Returns the saved video path, or None on failure.
+
+    The result is pulled straight off the generation page — we do NOT go through
+    favorites/grok_downloader.py, which depends on scraping grok.com/imagine/saved
+    and breaks whenever that UI changes.
+    """
     image_path = os.path.abspath(image_path)
     if not os.path.isfile(image_path):
         print(f"ERROR: Image not found: {image_path}")
-        return False
+        return None
 
     print(f"Launching Chromium (headless={headless})...")
     with sync_playwright() as pw:
@@ -105,6 +183,15 @@ def animate(image_path: str, prompt: str, video_length: int = 6,
                 if sig in req.url:
                     seen_endpoints.add(sig)
         page.on("request", on_request)
+
+        # Collect every rendered .mp4 the page pulls, in arrival order. This is
+        # how we get the result without touching favorites.
+        video_urls: list[str] = []
+        def on_response(resp):
+            url = resp.url
+            if ".mp4" in url.lower() and url.startswith("http") and url not in video_urls:
+                video_urls.append(url)
+        page.on("response", on_response)
 
         print(f"Navigating to {IMAGINE_URL}...")
         page.goto(IMAGINE_URL, wait_until="load", timeout=60000)
@@ -220,6 +307,12 @@ def animate(image_path: str, prompt: str, video_length: int = 6,
         #   1. Click the submit button directly
         #   2. Ctrl+Enter (chat-app standard shortcut)
         #   3. Programmatic form.requestSubmit()
+        # Everything the page has loaded up to now is furniture: Grok's own promo
+        # clips plus the gallery of past generations. Only URLs that appear AFTER
+        # this line can be our result.
+        pre_submit_urls = set(video_urls) | set(_dom_video_srcs(page))
+        print(f"Baseline: {len(pre_submit_urls)} pre-existing video URL(s) on the page")
+
         print("Submitting...")
 
         def _submitted():
@@ -280,13 +373,97 @@ def animate(image_path: str, prompt: str, video_length: int = 6,
             page.screenshot(path=str(Path.home() / "grok_animate_debug.png"))
             print(f"Debug screenshot: {Path.home() / 'grok_animate_debug.png'}")
             ctx.close()
-            return False
+            return None
 
-        # Let the request complete
-        print("Letting the server start processing for 5s...")
-        time.sleep(5)
+        # Wait for renders that were not already on the page before we submitted.
+        # Grok makes an unprompted baseline clip from the uploaded still on top of
+        # the prompted one, so expect up to two; we keep waiting through a quiet
+        # period so the prompted result (the slower of the two) is included.
+        def fresh():
+            pool = list(dict.fromkeys(video_urls + _dom_video_srcs(page)))
+            return [u for u in pool
+                    if u not in pre_submit_urls and GENERATED_VIDEO_RE.search(u)]
+
+        print(f"Waiting up to {wait_seconds}s for a new render...")
+        deadline = time.time() + wait_seconds
+        seen_count = 0
+        settle_until = None
+        while time.time() < deadline:
+            found = fresh()
+            if len(found) > seen_count:
+                seen_count = len(found)
+                print(f"  {seen_count} new render(s) seen; waiting for stragglers...")
+                settle_until = time.time() + 25
+            elif found and settle_until and time.time() > settle_until:
+                break
+            time.sleep(2)
+
+        candidates = fresh()
+        if not candidates:
+            page_text = ""
+            try:
+                page_text = (page.inner_text("body") or "").lower()
+            except Exception:
+                pass
+            hit = next((p for p in REFUSAL_PHRASES if p in page_text), None)
+            if hit:
+                print(f"\nREFUSED: Grok declined this prompt (matched '{hit}').")
+            else:
+                print("\nFAILED: no new render appeared before the timeout.")
+            page.screenshot(path=str(Path.home() / "grok_animate_debug.png"))
+            print(f"Debug screenshot: {Path.home() / 'grok_animate_debug.png'}")
+            ctx.close()
+            return None
+
+        print(f"{len(candidates)} new render(s) to verify (newest first):")
+
+        if output_path:
+            dest = Path(os.path.abspath(output_path))
+        else:
+            dest = Path(OUTPUT_DIR) / f"{Path(image_path).stem}.mp4"
+        dest.parent.mkdir(parents=True, exist_ok=True)
+
+        # Newest first: the prompted render finishes after the auto baseline clip.
+        for url in reversed(candidates):
+            short = url.split("/generated/")[-1][:36]
+            try:
+                resp = ctx.request.get(url, timeout=120000)
+                if not resp.ok:
+                    print(f"  [{short}] HTTP {resp.status} — skipping")
+                    continue
+                body = resp.body()
+            except Exception as e:
+                print(f"  [{short}] download failed: {e} — skipping")
+                continue
+
+            if len(body) < 10000:
+                print(f"  [{short}] only {len(body)} bytes — skipping")
+                continue
+
+            tmp = Path(tempfile.gettempdir()) / f"grok_verify_{uuid.uuid4().hex}.mp4"
+            tmp.write_bytes(body)
+            try:
+                mse = _first_frame_mse(str(tmp), image_path)
+                if mse is None:
+                    print(f"  [{short}] UNVERIFIED (cv2 unavailable or unreadable) — "
+                          f"accepting on position alone")
+                elif mse > FIRST_FRAME_MSE_MAX:
+                    print(f"  [{short}] MSE {mse:.0f} — not from this image, skipping")
+                    continue
+                else:
+                    print(f"  [{short}] MSE {mse:.0f} — verified match")
+
+                dest.write_bytes(body)
+            finally:
+                tmp.unlink(missing_ok=True)
+
+            print(f"Saved {len(body) // 1024} KB -> {dest}")
+            ctx.close()
+            return str(dest)
+
+        print("\nFAILED: new renders appeared but none came from this image.")
         ctx.close()
-        return True
+        return None
 
 
 def main():
@@ -299,32 +476,19 @@ def main():
                         help="Video resolution (default 480p = cheapest)")
     parser.add_argument("--show-browser", action="store_true",
                         help="Show the browser window (debugging)")
-    parser.add_argument("--no-download", action="store_true",
-                        help="Skip the auto-download step (you'll need to run grok_downloader.py manually)")
-    parser.add_argument("--wait-seconds", type=int, default=120,
-                        help="How long to wait before running the downloader (default 120s for video)")
+    parser.add_argument("--output", "-o",
+                        help=f"Where to write the mp4 (default: {OUTPUT_DIR}\\<image-stem>.mp4)")
+    parser.add_argument("--wait-seconds", type=int, default=240,
+                        help="How long to wait for the render before giving up (default 240s)")
     args = parser.parse_args()
 
-    ok = animate(args.image, args.description, args.length, args.resolution,
-                 headless=not args.show_browser)
-    if not ok:
+    saved = animate(args.image, args.description, args.length, args.resolution,
+                    headless=not args.show_browser, output_path=args.output,
+                    wait_seconds=args.wait_seconds)
+    if not saved:
         sys.exit(1)
 
-    print("\nAnimation request submitted.")
-    if args.no_download:
-        print("Skipping auto-download (--no-download). Run grok_downloader.py to fetch.")
-        return
-
-    print(f"Waiting {args.wait_seconds}s for Grok to render the video...")
-    time.sleep(args.wait_seconds)
-    print("Running downloader...")
-    from grok_downloader import GrokDownloader
-    result = GrokDownloader().run(since_hours=0.5)
-    if result.get("ok"):
-        print(f"Downloaded {result.get('new_downloads', 0)} new items to {result.get('folder', '?')}")
-    else:
-        print(f"Downloader error: {result.get('error', '?')}")
-        sys.exit(1)
+    print(f"\nDone: {saved}")
 
 
 if __name__ == "__main__":
