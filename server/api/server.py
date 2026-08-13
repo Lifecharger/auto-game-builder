@@ -68,10 +68,10 @@ from core.internet_monitor import InternetMonitor
 
 def _cleanup_stale_db_state(db_inst: DBManager):
     """Reset DB records stuck from a previous crash (zombie state cleanup)."""
-    # Reset apps stuck in "building" or "fixing" back to "idle"
+    # Reset apps stuck in "building", "fixing" or "uploading" back to "idle"
     try:
         for a in db_inst.get_all_apps():
-            if a.status in ("building", "fixing"):
+            if a.status in ("building", "fixing", "uploading"):
                 print(f"[Startup] Resetting stuck app '{a.name}' from '{a.status}' to 'idle'")
                 db_inst.update_app(a.id, status="idle")
     except Exception as e:

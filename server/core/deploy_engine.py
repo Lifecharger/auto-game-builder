@@ -481,6 +481,7 @@ class DeployEngine:
                         app.id, phase="failed",
                         message=f"Upload failed after 3 attempts: {err}"
                     )
+                    self._set_app_status(app.id, "error")
             else:
                 # Build-only complete
                 self._update_status(
@@ -1303,7 +1304,19 @@ INSTRUCTIONS (Lead Programmer + Engine Specialist Knowledge):
                 credentials = service_account.Credentials.from_service_account_file(
                     sa_key, scopes=SCOPES
                 )
-                service = google_build("androidpublisher", "v3", credentials=credentials)
+                # Play validates the whole bundle before answering the final
+                # upload chunk; large (Godot) AABs take >60s, which blows the
+                # google client's default 60s read timeout. Use a long
+                # per-request timeout, and strip 308 from redirect codes like
+                # googleapiclient.http.build_http does (resumable uploads
+                # answer chunks with 308, which bare httplib2 treats as a
+                # broken redirect).
+                import httplib2
+                import google_auth_httplib2
+                raw_http = httplib2.Http(timeout=540)
+                raw_http.redirect_codes = raw_http.redirect_codes - {308}
+                authed_http = google_auth_httplib2.AuthorizedHttp(credentials, http=raw_http)
+                service = google_build("androidpublisher", "v3", http=authed_http)
 
                 package = app.package_name
 

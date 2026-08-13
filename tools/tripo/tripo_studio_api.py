@@ -93,42 +93,64 @@ class TripoStudio:
     def __init__(self, base: str = API_BASE):
         self.base = base
 
+    def _refresh_token(self) -> bool:
+        """JWT rotates every ~30-60 min. Re-sniff it from the CDP Chrome
+        (port 9222, logged-in studio tab) via refresh_studio_token."""
+        try:
+            from refresh_studio_token import refresh
+            return bool(refresh(wait_seconds=20, reload=True))
+        except Exception as e:
+            print(f"[!] token refresh failed: {e}")
+            return False
+
+    def _request(self, method: str, path: str, body: dict | None = None) -> dict:
+        for attempt in (1, 2):
+            r = requests.request(method, f"{self.base}{path}", json=body,
+                                 headers=_headers(), timeout=60)
+            if r.status_code == 401 and attempt == 1 and self._refresh_token():
+                continue
+            r.raise_for_status()
+            data = r.json()
+            if data.get("code") != 0:
+                raise RuntimeError(f"Studio API error on {path}: {data}")
+            return data.get("data", {})
+        return {}
+
     def _post(self, path: str, body: dict) -> dict:
-        r = requests.post(f"{self.base}{path}", json=body, headers=_headers(), timeout=60)
-        r.raise_for_status()
-        data = r.json()
-        if data.get("code") != 0:
-            raise RuntimeError(f"Studio API error on {path}: {data}")
-        return data.get("data", {})
+        return self._request("POST", path, body)
 
     def _get(self, path: str) -> dict:
-        r = requests.get(f"{self.base}{path}", headers=_headers(), timeout=60)
-        r.raise_for_status()
-        data = r.json()
-        if data.get("code") != 0:
-            raise RuntimeError(f"Studio API error on {path}: {data}")
-        return data.get("data", {})
+        return self._request("GET", path)
 
     def balance(self) -> dict:
         return self._get("/v2/web/user/profile/payment")
 
     def text_to_model(self, prompt: str, *,
                        model_version: str = "v3.1-20260211",
-                       geometry_quality: str = "standard",
+                       geometry_quality: str = "detailed",
                        texture: bool = True,
+                       pbr: bool = True,
+                       texture_quality: str = "standard",
+                       texture_alignment: str = "original_image",
                        generate_parts: bool = False,
                        smart_poly: bool = False,
                        quad: bool = False,
                        face_limit: int = 50000,
                        t_pose: bool = True,
-                       visibility: str = "public",
+                       visibility: str = "shareable",
                        sketch_to_render: bool = False,
                        gen_image_model_version: str = "flux.1_dev") -> dict:
+        # Endpoint + payload re-captured 2026-08-11 from studio.tripo3d.ai
+        # (the old operation/image-prompt-model endpoint returns 410 Gone).
+        # texture_quality "standard" = 2K, "detailed" = 4K.
         body = {
             "prompt": prompt,
             "model_version": model_version,
             "geometry_quality": geometry_quality,
             "texture": texture,
+            "pbr": pbr,
+            "texture_quality": texture_quality,
+            "texture_alignment": texture_alignment,
             "generate_parts": generate_parts,
             "smart_poly": smart_poly,
             "quad": quad,
@@ -138,7 +160,7 @@ class TripoStudio:
             "sketch_to_render": sketch_to_render,
             "gen_image_model_version": gen_image_model_version,
         }
-        return self._post("/v2/studio/operation/image-prompt-model", body)
+        return self._post("/v2/studio/operation/text_to_model", body)
 
     def progress(self, operator_ids: list) -> list:
         return self._post("/v2/studio/progress", {"ids": operator_ids})
@@ -162,6 +184,28 @@ class TripoStudio:
 
     def project_detail(self, project_id: str) -> dict:
         return self._get(f"/v2/studio/project/detail/v3/{project_id}")
+
+    # Rigging (captured 2026-08-11 from the studio Animate panel; the
+    # "v1.0-20240301" model is the "Good for Humanoid" option, 20 credits)
+    def pre_rig_check(self, project_id: str,
+                      model_version: str = "v1.0-20240301") -> dict:
+        return self._post("/v2/studio/operation/pre_rig_check",
+                          {"model_version": model_version, "project_id": project_id})
+
+    def rig_model(self, project_id: str,
+                  model_version: str = "v1.0-20240301",
+                  rig_type: str = "biped") -> dict:
+        return self._post("/v2/studio/operation/rigging_model",
+                          {"model_version": model_version, "project_id": project_id,
+                           "rig_type": rig_type})
+
+    # Apply library animations to a rigged project (captured 2026-08-11).
+    # animations: e.g. ["preset:biped:walk", "preset:biped:idle", "preset:biped:sit"]
+    def retarget_model(self, project_id: str, animations: list,
+                       rig_type: str = "biped") -> dict:
+        return self._post("/v2/studio/operation/retarget_model",
+                          {"animations": animations, "model_version": "default",
+                           "project_id": project_id, "rig_type": rig_type})
 
 
 def main():
