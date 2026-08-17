@@ -55,6 +55,7 @@ def _get_tool_paths() -> dict:
         "bash_exe": s.get("bash_path", "") or "bash",
         "flutter_path": s.get("flutter_path", "") or "flutter",
         "godot_path": s.get("godot_path", "") or "godot",
+        "unity_path": s.get("unity_path", "") or "Unity",
     }
 
 
@@ -2782,12 +2783,14 @@ ENDPROMPT
     python3 -c "
 import json, os, sys, tempfile, shutil
 tl = os.path.join('$PROJECT_DIR', 'tasklist.json')
+if not os.path.isfile(tl) and tl[:1] == '/' and tl[2:3] == '/':
+    tl = tl[1] + ':' + tl[2:]  # MSYS /c/... -> c:/... for native Windows python3
 if not os.path.isfile(tl):
     sys.exit(0)
 try:
-    with open(tl, encoding="utf-8") as f:
+    with open(tl, encoding='utf-8') as f:
         data = json.load(f)
-except (json.JSONDecodeError, IOError):
+except Exception:
     sys.exit(0)
 tasks = data.get('tasks', data) if isinstance(data, dict) else data
 changed = False
@@ -2936,12 +2939,14 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S')] One-shot run completed (exit: $EXIT_CODE)" 
 python3 -c "
 import json, os, sys, tempfile, shutil
 tl = os.path.join('$PROJECT_DIR', 'tasklist.json')
+if not os.path.isfile(tl) and tl[:1] == '/' and tl[2:3] == '/':
+    tl = tl[1] + ':' + tl[2:]  # MSYS /c/... -> c:/... for native Windows python3
 if not os.path.isfile(tl):
     sys.exit(0)
 try:
-    with open(tl, encoding="utf-8") as f:
+    with open(tl, encoding='utf-8') as f:
         data = json.load(f)
-except (json.JSONDecodeError, IOError):
+except Exception:
     sys.exit(0)
 tasks = data.get('tasks', data) if isinstance(data, dict) else data
 changed = False
@@ -3078,12 +3083,14 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S')] Task #{task_id} run completed (exit: $EXIT_
 python3 -c "
 import json, os, sys, tempfile, shutil
 tl = os.path.join('$PROJECT_DIR', 'tasklist.json')
+if not os.path.isfile(tl) and tl[:1] == '/' and tl[2:3] == '/':
+    tl = tl[1] + ':' + tl[2:]  # MSYS /c/... -> c:/... for native Windows python3
 if not os.path.isfile(tl):
     sys.exit(0)
 try:
-    with open(tl, encoding="utf-8") as f:
+    with open(tl, encoding='utf-8') as f:
         data = json.load(f)
-except (json.JSONDecodeError, IOError):
+except Exception:
     sys.exit(0)
 tasks = data.get('tasks', data) if isinstance(data, dict) else data
 changed = False

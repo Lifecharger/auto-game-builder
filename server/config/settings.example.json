@@ -17,6 +17,7 @@
   },
   "engines": {
     "godot_path": "",
+    "unity_path": "",
     "flutter_path": ""
   },
   "system": {

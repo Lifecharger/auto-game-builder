@@ -56,6 +56,8 @@ class AppDetector:
             result["package_name"] = self._detect_godot_package(project_path)
         elif result["app_type"] == "phaser":
             result["package_name"] = self._detect_phaser_package(project_path)
+        elif result["app_type"] == "unity":
+            result["package_name"] = self._detect_unity_package(project_path)
 
         return result
 
@@ -106,6 +108,31 @@ class AppDetector:
                     return match.group(1)
             except Exception as e:
                 logger.debug("Failed to read export_presets.cfg: %s", e)
+        return ""
+
+    def _detect_unity_package(self, project_path: str) -> str:
+        """Package id from ProjectSettings.asset.
+
+        Unity keeps it per platform under applicationIdentifier: -> Android: id.
+        """
+        settings = os.path.join(project_path, "ProjectSettings", "ProjectSettings.asset")
+        if not os.path.isfile(settings):
+            return ""
+        try:
+            with open(settings, "r", encoding="utf-8", errors="ignore") as handle:
+                in_block = False
+                for line in handle:
+                    if "applicationIdentifier:" in line:
+                        in_block = True
+                        continue
+                    if in_block:
+                        match = re.match(r"\s+(\w+):\s*(\S+)", line)
+                        if not match:
+                            break
+                        if match.group(1) in ("Android", "Standalone"):
+                            return match.group(2)
+        except OSError:
+            pass
         return ""
 
     def _detect_phaser_package(self, project_path: str) -> str:

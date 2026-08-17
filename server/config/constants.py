@@ -23,6 +23,18 @@ TECH_STACKS = {
         "package_detect": None,
         "scaffold_cmd": None,
     },
+    "unity": {
+        "name": "Unity 6 (Android)",
+        # ProjectVersion.txt is the one file every Unity project has and nothing
+        # else does; Assets/ alone is far too common a folder name.
+        "detect_file": "ProjectSettings/ProjectVersion.txt",
+        "version_file": "ProjectSettings/ProjectSettings.asset",
+        "version_pattern": r"bundleVersion:\s*(.+)",
+        "default_build_cmd": None,   # built from unity_path, see BuildEngine
+        "default_build_output": "build/{slug}.aab",
+        "package_detect": "ProjectSettings/ProjectSettings.asset",
+        "scaffold_cmd": None,
+    },
     "phaser": {
         "name": "Phaser (Web + Android)",
         "detect_file": "capacitor.config.ts",
@@ -73,6 +85,7 @@ DEFAULT_SETTINGS = {
     "codex_path": "",
     "flutter_path": "",
     "godot_path": "",
+    "unity_path": "",
     "autofix_interval": "600",  # seconds between sessions
     "internet_check_url": "https://api.anthropic.com",
     "internet_check_interval": "30",  # seconds

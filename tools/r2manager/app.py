@@ -857,6 +857,20 @@ class App:
     def _show_file(self, path: Path, preview_label, meta_text, extras_btn, extras_menu):
         self._current_path = path
 
+        # The tree can hold entries for files that were moved away after the last
+        # scan (a push from another window, a manual move in Explorer). Show that
+        # instead of blowing up on stat().
+        if not path.exists():
+            preview_label.configure(image="", text="(file no longer on disk)")
+            preview_label.image = None
+            meta_text.delete("1.0", "end")
+            meta_text.insert("end", f"Path: {path}\n")
+            meta_text.insert("end", "File is gone — it was probably already pushed "
+                                    "and moved to the Pushed folder.\nRefresh the list.\n")
+            extras_menu.delete(0, "end")
+            extras_btn.state(["disabled"])
+            return
+
         # thumbnail
         try:
             img = Image.open(path)

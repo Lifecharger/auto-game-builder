@@ -92,6 +92,33 @@ REFUSAL_PHRASES = (
     "not allowed", "inappropriate", "flagged",
 )
 
+# Quota exhaustion, which is NOT a per-prompt refusal: every later submission
+# will fail the same way, so a batch driver has to stop rather than burn the
+# rest of its queue. Phrases are deliberately long and specific — a short one
+# like "kredi" or "upgrade" also matches the permanent upsell furniture on the
+# page and would halt a healthy run.
+LIMIT_PHRASES = (
+    "limitinize ulaştınız", "limitine ulaştınız", "sınırınıza ulaştınız",
+    "haftalık limit", "günlük limit", "kredin kalmadı", "krediniz kalmadı",
+    "you've reached your limit", "you have reached your limit",
+    "reached your weekly limit", "reached your daily limit",
+    "out of credits", "no credits remaining", "no generations left",
+    "quota exceeded", "rate limit exceeded",
+)
+
+
+class GrokLimitReached(RuntimeError):
+    """Grok reported the account is out of generations for this period."""
+
+
+def _limit_phrase(page):
+    """The matched quota phrase if one is on the page right now, else None."""
+    try:
+        text = (page.inner_text("body") or "").lower()
+    except Exception:
+        return None
+    return next((p for p in LIMIT_PHRASES if p in text), None)
+
 
 def _first_frame_mse(video_path: str, image_path: str) -> float | None:
     """Grayscale MSE between the video's first frame and the source still.
@@ -241,33 +268,47 @@ def animate(image_path: str, prompt: str, video_length: int = 6,
             ctx.close()
             return False
 
-        # Step 1: Switch to Video mode
+        # Step 1: Switch to Video mode.
+        #
+        # Select the tab by aria-label, NOT by text: the mode tabs are icon-only
+        # (empty innerText), so a has_text="Video" filter matches nothing. This
+        # is also why the switch must be fatal. Failing it leaves the composer in
+        # Görsel mode, where the upload opens the image editor and the submit
+        # posts an ordinary chat message — conversations/new fires, no video job
+        # is ever created, and the run burns 240s per image waiting for a render
+        # that cannot arrive. A warning here reads as success everywhere else.
         print("Switching to Video mode...")
         try:
-            # The Video tab is a [role="radio"] inside the "Oluşturma modu" radiogroup
-            page.locator('[role="radiogroup"][aria-label="Oluşturma modu"] [role="radio"]').filter(has_text="Video").click(timeout=5000)
+            page.locator('[role="radiogroup"][aria-label="Oluşturma modu"] '
+                         '[role="radio"][aria-label="Video"]').click(timeout=5000)
             time.sleep(0.5)
             print("  Switched to Video mode")
         except Exception as e:
-            print(f"  WARNING: Could not click Video tab ({e})")
+            print(f"ERROR: Could not switch to Video mode ({e}). Refusing to "
+                  f"generate in image mode.")
+            page.screenshot(path=str(Path.home() / "grok_animate_debug.png"))
+            ctx.close()
+            return False
 
-        # Step 2: Set duration if not default (6s)
-        if video_length != 6:
-            try:
-                page.locator('[role="radiogroup"][aria-label="Video Süresi"] [role="radio"]').filter(has_text=f"{video_length}s").click(timeout=3000)
-                time.sleep(0.3)
-                print(f"  Set duration to {video_length}s")
-            except Exception:
-                print(f"  WARNING: Could not set duration to {video_length}s")
+        # Steps 2 and 3: Set duration and resolution explicitly.
+        #
+        # Never skip these by assuming the UI default matches ours — Grok's
+        # duration default is 10s, so "it's already 6s" silently bought the
+        # longer clip and charged the quota for it. The video controls only
+        # exist once Video mode is active, hence the ordering.
+        try:
+            page.locator('[role="radiogroup"][aria-label="Video Süresi"] [role="radio"]').filter(has_text=f"{video_length}s").click(timeout=3000)
+            time.sleep(0.3)
+            print(f"  Set duration to {video_length}s")
+        except Exception:
+            print(f"  WARNING: Could not set duration to {video_length}s")
 
-        # Step 3: Set resolution if not default (480p)
-        if resolution != "480p":
-            try:
-                page.locator('[role="radiogroup"][aria-label="Video Çözünürlüğü"] [role="radio"]').filter(has_text=resolution).click(timeout=3000)
-                time.sleep(0.3)
-                print(f"  Set resolution to {resolution}")
-            except Exception:
-                print(f"  WARNING: Could not set resolution to {resolution}")
+        try:
+            page.locator('[role="radiogroup"][aria-label="Video Çözünürlüğü"] [role="radio"]').filter(has_text=resolution).click(timeout=3000)
+            time.sleep(0.3)
+            print(f"  Set resolution to {resolution}")
+        except Exception:
+            print(f"  WARNING: Could not set resolution to {resolution}")
 
         # Step 4: Upload the image via the file input — use the MULTI input
         # (name="files") which is the multi-ref-i2i path for animation references.
@@ -396,6 +437,19 @@ def animate(image_path: str, prompt: str, video_length: int = 6,
                 settle_until = time.time() + 25
             elif found and settle_until and time.time() > settle_until:
                 break
+            # Catch the quota notice while it is still on screen. It arrives as
+            # a toast seconds after submit and auto-dismisses well before this
+            # loop times out, so the check below — which only runs once the wait
+            # is over — reads a clean page and books an exhausted account as a
+            # generic failure. That is how a hit weekly limit reads as three
+            # mystery stalls and costs 12 minutes instead of stopping at once.
+            if not found:
+                early_hit = _limit_phrase(page)
+                if early_hit:
+                    print(f"\nLIMIT: Grok is out of generations (matched '{early_hit}').")
+                    page.screenshot(path=str(Path.home() / "grok_animate_debug.png"))
+                    ctx.close()
+                    raise GrokLimitReached(early_hit)
             time.sleep(2)
 
         candidates = fresh()
@@ -405,6 +459,16 @@ def animate(image_path: str, prompt: str, video_length: int = 6,
                 page_text = (page.inner_text("body") or "").lower()
             except Exception:
                 pass
+            # Quota first: a limit message often also contains upsell wording
+            # that the refusal list would match, and the two need different
+            # handling (stop the whole run vs. skip this one prompt).
+            limit_hit = next((p for p in LIMIT_PHRASES if p in page_text), None)
+            if limit_hit:
+                print(f"\nLIMIT: Grok is out of generations (matched '{limit_hit}').")
+                page.screenshot(path=str(Path.home() / "grok_animate_debug.png"))
+                ctx.close()
+                raise GrokLimitReached(limit_hit)
+
             hit = next((p for p in REFUSAL_PHRASES if p in page_text), None)
             if hit:
                 print(f"\nREFUSED: Grok declined this prompt (matched '{hit}').")
@@ -467,6 +531,14 @@ def animate(image_path: str, prompt: str, video_length: int = 6,
 
 
 def main():
+    # See rescue_hotjigsaw_videos.main(): an unencodable character in Grok's
+    # error text must never take down a run that has already paid for a render.
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
+
     parser = argparse.ArgumentParser(description="Animate a character image via Grok image-to-video")
     parser.add_argument("--image", "-i", required=True, help="Path to local image (PNG/JPG)")
     parser.add_argument("--description", "-d", required=True, help="Animation prompt (e.g. 'punch attack')")
@@ -482,9 +554,13 @@ def main():
                         help="How long to wait for the render before giving up (default 240s)")
     args = parser.parse_args()
 
-    saved = animate(args.image, args.description, args.length, args.resolution,
-                    headless=not args.show_browser, output_path=args.output,
-                    wait_seconds=args.wait_seconds)
+    try:
+        saved = animate(args.image, args.description, args.length, args.resolution,
+                        headless=not args.show_browser, output_path=args.output,
+                        wait_seconds=args.wait_seconds)
+    except GrokLimitReached as e:
+        print(f"\nQuota exhausted: {e}")
+        sys.exit(2)
     if not saved:
         sys.exit(1)
 

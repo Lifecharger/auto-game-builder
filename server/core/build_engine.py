@@ -1,4 +1,4 @@
-"""Build engine for Flutter and Godot apps."""
+"""Build engine for Flutter, Godot, Phaser and Unity apps."""
 
 import shlex
 import subprocess
@@ -60,6 +60,7 @@ class BuildEngine:
             "flutter": "pubspec.yaml",
             "godot": "export_presets.cfg",
             "phaser": "package.json",
+            "unity": "ProjectSettings/ProjectVersion.txt",
         }.get(app.app_type)
         if marker and not os.path.isfile(os.path.join(app.project_path, marker)):
             err = (
@@ -149,6 +150,8 @@ class BuildEngine:
                 return f'{prelude} && flutter build apk --debug'
         elif app.app_type == "godot":
             return f'{shlex.quote(godot)} --headless --export-release "Android" build/{app.slug}.apk'
+        elif app.app_type == "unity":
+            return self._unity_build_command(app, build_type)
         elif app.app_type == "phaser":
             # Runs via bash -l -c. Commands use bash-native syntax / forward slashes.
             # npm install is idempotent; npx cap add android runs once (only if missing).
@@ -170,6 +173,37 @@ class BuildEngine:
 
         return "echo 'No build command configured'"
 
+    def _unity_build_command(self, app: App, build_type: str) -> str:
+        """Unity builds head-lessly through an editor method in the project.
+
+        The project must ship Assets/Editor/BuildPlayer.cs (Aab / Apk / DebugApk);
+        signing passwords come from the environment, never from here.
+
+        Unity LOCKS a project folder, so this fails while the editor has the same
+        project open - the lock file check gives that a readable error instead of a
+        wall of Unity log noise.
+        """
+        unity = self.settings.get("unity_path", "") or "Unity"
+        method = {
+            "appbundle": "Aab",
+            "apk": "Apk",
+            "debug": "DebugApk",
+        }.get(build_type, "Aab")
+        pp = shlex.quote(app.project_path)
+        lock = os.path.join(app.project_path, "Temp", "UnityLockfile")
+        guard = (
+            f'if [ -f {shlex.quote(lock)} ]; then '
+            f'echo "Refusing to build: the Unity editor has this project open '
+            f'(Temp/UnityLockfile). Close it and retry."; exit 1; fi'
+        )
+        return (
+            f'{guard} && cd {pp} && '
+            f'{shlex.quote(unity)} -batchmode -quit -nographics '
+            f'-projectPath {pp} '
+            f'-executeMethod HotCollector.EditorTools.BuildPlayer.{method} '
+            f'-logFile build/unity_build.log'
+        )
+
     def _get_output_path(self, app: App, build_type: str) -> str:
         if app.build_output_path:
             return os.path.normpath(os.path.join(app.project_path, app.build_output_path)).replace("\\", "/")
@@ -186,6 +220,11 @@ class BuildEngine:
         elif app.app_type == "godot":
             return os.path.normpath(
                 os.path.join(app.project_path, f"build/{app.slug}.apk")
+            ).replace("\\", "/")
+        elif app.app_type == "unity":
+            extension = "aab" if build_type == "appbundle" else "apk"
+            return os.path.normpath(
+                os.path.join(app.project_path, f"build/{app.slug}.{extension}")
             ).replace("\\", "/")
         elif app.app_type == "phaser":
             if build_type == "appbundle":
