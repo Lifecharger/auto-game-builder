@@ -77,6 +77,20 @@ TECH_STACKS = {
     },
 }
 
+# Marker-file detection is order-sensitive: the first stack whose detect_file
+# is present wins. Unity comes before Godot because a project migrated from
+# Godot can still carry a stale project.godot next to ProjectSettings/, and
+# Phaser comes before React Native because a Capacitor project also has a
+# package.json. Anything not listed here is never auto-detected.
+DETECTION_ORDER = (
+    "unity",
+    "flutter",
+    "phaser",
+    "godot",
+    "react_native",
+    "python",
+)
+
 # ── Default Tool Paths ───────────────────────────────────────────
 
 DEFAULT_SETTINGS = {

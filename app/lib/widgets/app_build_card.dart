@@ -50,6 +50,11 @@ class _AppBuildCardState extends State<AppBuildCard> {
       {'key': 'web', 'label': 'Web', 'icon': 'web'},
       {'key': 'linux', 'label': 'Linux', 'icon': 'computer'},
     ],
+    'unity': [
+      {'key': 'apk', 'label': 'APK', 'icon': 'phone_android'},
+      {'key': 'aab', 'label': 'AAB', 'icon': 'inventory_2'},
+      {'key': 'debug', 'label': 'Debug APK', 'icon': 'bug_report'},
+    ],
     'phaser': [
       {'key': 'apk', 'label': 'APK', 'icon': 'phone_android'},
       {'key': 'aab', 'label': 'AAB', 'icon': 'inventory_2'},
@@ -105,8 +110,14 @@ class _AppBuildCardState extends State<AppBuildCard> {
     final upload = prefs.getBool('build_upload_${widget.appId}');
     final track = prefs.getString('build_track_${widget.appId}');
     if (mounted) {
+      // A saved target can belong to the app's previous engine (e.g. a Godot
+      // project ported to Unity keeps 'windows'), which the server rejects as
+      // an invalid target. Fall back to the default when it no longer applies.
+      final available = _buildTargets[widget.appType.toLowerCase()] ?? const [];
+      final targetIsValid =
+          target != null && available.any((t) => t['key'] == target);
       setState(() {
-        if (target != null) _buildTarget = target;
+        if (targetIsValid) _buildTarget = target;
         if (upload != null) _uploadAfterBuild = upload;
         if (track != null) _buildTrack = track;
       });

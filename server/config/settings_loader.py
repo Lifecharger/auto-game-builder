@@ -7,6 +7,7 @@ hardcoding anything. Paths support ~ expansion and {placeholder} references.
 import json
 import os
 import platform
+import re
 import shutil
 from pathlib import Path
 from typing import Optional
@@ -41,6 +42,42 @@ def _detect_tool(name: str) -> str:
     """Try to find a tool on PATH."""
     found = shutil.which(name)
     return found or ""
+
+
+def _detect_unity() -> str:
+    """Find a Unity editor binary. Unity Hub installs are never on PATH.
+
+    Hub keeps one folder per installed version; the newest is picked when
+    several are present. Returns "" when nothing is installed.
+    """
+    system = platform.system()
+    if system == "Windows":
+        hub_roots = [r"C:\Program Files\Unity\Hub\Editor"]
+        rel = os.path.join("Editor", "Unity.exe")
+    elif system == "Darwin":
+        hub_roots = ["/Applications/Unity/Hub/Editor"]
+        rel = os.path.join("Unity.app", "Contents", "MacOS", "Unity")
+    else:
+        hub_roots = [os.path.expanduser("~/Unity/Hub/Editor")]
+        rel = os.path.join("Editor", "Unity")
+
+    candidates = []
+    for root in hub_roots:
+        if not os.path.isdir(root):
+            continue
+        for version in os.listdir(root):
+            binary = os.path.join(root, version, rel)
+            if os.path.isfile(binary):
+                candidates.append((_version_key(version), binary))
+    if candidates:
+        return max(candidates)[1]
+    return _detect_tool("Unity")
+
+
+def _version_key(version: str) -> tuple:
+    """Sortable key for a Unity version folder like '6000.4.1f1'."""
+    return tuple(int(part) if part.isdigit() else 0
+                 for part in re.split(r"[.f]", version) if part)
 
 
 def _expand_path(p: str) -> str:
@@ -102,6 +139,8 @@ def get_settings(force_reload: bool = False) -> dict:
         flat["flutter_path"] = _detect_tool("flutter") or ""
     if not flat.get("godot_path"):
         flat["godot_path"] = _detect_tool("godot") or ""
+    if not flat.get("unity_path"):
+        flat["unity_path"] = _detect_unity()
     if not flat.get("aider_path"):
         flat["aider_path"] = _detect_tool("aider") or ""
     if not flat.get("cloudflared_path"):
@@ -153,6 +192,7 @@ def save_settings(settings_dict: dict) -> None:
         "engines": {
             "godot_path": settings_dict.get("godot_path", ""),
             "flutter_path": settings_dict.get("flutter_path", ""),
+            "unity_path": settings_dict.get("unity_path", ""),
         },
         "system": {
             "bash_path": settings_dict.get("bash_path", ""),

@@ -1,4 +1,4 @@
-"""Parse and bump versions for Flutter and Godot projects."""
+"""Parse and bump versions for Flutter, Godot and Unity projects."""
 
 import os
 import re
@@ -35,6 +35,9 @@ class VersionManager:
         elif app_type == "godot":
             new = self._bump_semver(old, bump_type)
             self._write_godot_version(project_path, old, new)
+        elif app_type == "unity":
+            new = self._bump_semver(old, bump_type)
+            self._write_unity_version(project_path, old, new)
         else:
             new = self._bump_semver(old, bump_type)
 
@@ -113,3 +116,42 @@ class VersionManager:
                 f.write(content)
         except Exception:
             pass
+
+    def _write_unity_version(self, project_path: str, old: str, new: str):
+        """Write bundleVersion and keep AndroidBundleVersionCode in step.
+
+        Unity stores both in ProjectSettings/ProjectSettings.asset (YAML). Play
+        rejects an upload whose versionCode is not strictly greater than the
+        previous one, so the code is always incremented rather than derived
+        from the semver patch (which repeats across a minor bump).
+        """
+        settings = os.path.join(project_path, "ProjectSettings", "ProjectSettings.asset")
+        try:
+            with open(settings, "r", encoding="utf-8") as f:
+                content = f.read()
+        except OSError as e:
+            raise RuntimeError(f"Failed to read Unity settings at {settings}") from e
+
+        content = re.sub(
+            r"^(\s*bundleVersion:\s*)" + re.escape(old) + r"\s*$",
+            lambda m: m.group(1) + new,
+            content,
+            count=1,
+            flags=re.MULTILINE,
+        )
+        code_match = re.search(r"^(\s*)AndroidBundleVersionCode:\s*(\d+)\s*$", content, re.MULTILINE)
+        if code_match:
+            next_code = int(code_match.group(2)) + 1
+            content = re.sub(
+                r"^(\s*)AndroidBundleVersionCode:\s*\d+\s*$",
+                lambda m: f"{m.group(1)}AndroidBundleVersionCode: {next_code}",
+                content,
+                count=1,
+                flags=re.MULTILINE,
+            )
+        try:
+            with open(settings, "w", encoding="utf-8", newline="") as f:
+                f.write(content)
+        except OSError as e:
+            raise RuntimeError(f"Failed to write Unity settings at {settings}") from e
+

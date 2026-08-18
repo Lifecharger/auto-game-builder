@@ -103,6 +103,7 @@ class _ServerConfigSectionState extends State<ServerConfigSection> {
     'aider_path': Icons.smart_toy,
     'flutter_path': Icons.flutter_dash,
     'godot_path': Icons.videogame_asset,
+    'unity_path': Icons.threed_rotation,
     'bash_path': Icons.terminal,
     'cloudflared_path': Icons.cloud,
     'npx_path': Icons.code,

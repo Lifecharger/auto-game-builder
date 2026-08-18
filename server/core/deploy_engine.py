@@ -1,4 +1,4 @@
-"""Deploy engine: build apps (Flutter/Godot/Phaser), auto-fix on failure, upload to Google Play."""
+"""Deploy engine: build apps (Flutter/Godot/Unity/Phaser), auto-fix on failure, upload to Google Play."""
 
 import logging
 import os
@@ -22,10 +22,15 @@ from database.db_manager import DBManager
 from database.models import App
 from config.path_utils import to_unix_path
 from core.event_log import event_log
+from core import unity_project
 SCOPES = ["https://www.googleapis.com/auth/androidpublisher"]
 
 # Valid Google Play tracks
 VALID_TRACKS = ["internal", "alpha", "beta", "production"]
+
+# Wall-clock ceilings for the engines that build via a polled log file.
+GODOT_MAX_BUILD_SECONDS = 900     # 15 min
+UNITY_MAX_BUILD_SECONDS = 2700    # 45 min — IL2CPP Android builds are slow
 
 # Build targets per app type
 BUILD_TARGETS = {
@@ -83,6 +88,23 @@ BUILD_TARGETS = {
             "output": "build/{slug}.x86_64",
         },
     },
+    # Unity has no CLI export command — every target runs a static C# method
+    # inside the project (see core/unity_project.py). Output paths mirror what
+    # Assets/Editor/BuildPlayer.cs writes.
+    "unity": {
+        "apk": {
+            "label": "APK",
+            "output": "build/{slug}.apk",
+        },
+        "aab": {
+            "label": "AAB",
+            "output": "build/{slug}.aab",
+        },
+        "debug": {
+            "label": "Debug APK",
+            "output": "build/{slug}.apk",
+        },
+    },
     "phaser": {
         "apk": {
             "label": "APK",
@@ -131,7 +153,9 @@ class DeployEngine:
         self._active_processes: dict[int, subprocess.Popen] = {}  # app_id -> build subprocess
         self._cancelled: set[int] = set()  # app_ids with cancelled deploys
         self._shutting_down = False
-        self._godot_build_lock = threading.Lock()  # serialize Godot builds to avoid gradle conflicts
+        # Serialize Godot/Unity builds — both drive Gradle and collide on the
+        # daemon (and Unity additionally on its single-editor project lock).
+        self._engine_build_lock = threading.Lock()
         self._deploy_queue: list[tuple] = []  # sequential deploy queue
         self._deploy_queue_lock = threading.Lock()
         self._deploy_worker_running = False
@@ -506,6 +530,8 @@ class DeployEngine:
                 return self._bump_flutter_version(app)
             elif app.app_type == "godot":
                 return self._bump_godot_version(app)
+            elif app.app_type == "unity":
+                return self._bump_unity_version(app)
             elif app.app_type == "phaser":
                 return self._bump_phaser_version(app)
         except Exception as e:
@@ -594,6 +620,50 @@ class DeployEngine:
             f.write(content)
         return f"{new_name}+{code}"
 
+    def _bump_unity_version(self, app: App) -> Optional[str]:
+        """Bump bundleVersion + AndroidBundleVersionCode in ProjectSettings.asset.
+
+        Unity's YAML keeps the two apart: bundleVersion is the display semver
+        ("1.0.23") and AndroidBundleVersionCode is the integer Play orders
+        uploads by. Both must move or the next upload is rejected.
+        """
+        settings_path = os.path.join(app.project_path, "ProjectSettings", "ProjectSettings.asset")
+        if not os.path.isfile(settings_path):
+            return None
+        with open(settings_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        name_match = re.search(r"^(\s*)bundleVersion:\s*(\S+)\s*$", content, re.MULTILINE)
+        code_match = re.search(r"^(\s*)AndroidBundleVersionCode:\s*(\d+)\s*$", content, re.MULTILINE)
+        if not name_match or not code_match:
+            return None
+
+        # bundleVersion is free-form text in Unity; only bump it when it is a
+        # semver we can reason about, otherwise leave the name and move the code.
+        new_name = name_match.group(2)
+        parts = new_name.split(".")
+        if all(p.isdigit() for p in parts) and parts:
+            while len(parts) < 3:
+                parts.append("0")
+            parts[-1] = str(int(parts[-1]) + 1)
+            new_name = ".".join(parts)
+            content = re.sub(
+                r"^(\s*)bundleVersion:\s*\S+\s*$",
+                lambda m: f"{m.group(1)}bundleVersion: {new_name}",
+                content, count=1, flags=re.MULTILINE,
+            )
+
+        new_code = int(code_match.group(2)) + 1
+        content = re.sub(
+            r"^(\s*)AndroidBundleVersionCode:\s*\d+\s*$",
+            lambda m: f"{m.group(1)}AndroidBundleVersionCode: {new_code}",
+            content, count=1, flags=re.MULTILINE,
+        )
+
+        with open(settings_path, "w", encoding="utf-8", newline="") as f:
+            f.write(content)
+        return f"{new_name}+{new_code}"
+
     def _prepare_godot_android(self, app: App):
         """Sync Android build template with the Godot binary to prevent version mismatch."""
         godot = self.settings.get("godot_path", "") or "godot"
@@ -672,11 +742,15 @@ class DeployEngine:
         cmd = self._get_build_cmd(app, build_target)
         output_path = self._get_build_output(app, build_target)
 
-        # Ensure output directory exists for Godot
+        # Godot and Unity both export into build/ and both spawn Gradle, so they
+        # share the log-file build path below; only the pre-build prep differs.
         is_godot = app.app_type == "godot"
-        if is_godot:
+        is_unity = app.app_type == "unity"
+        uses_log_file = is_godot or is_unity
+        if uses_log_file:
             build_dir = os.path.join(app.project_path, "build")
             os.makedirs(build_dir, exist_ok=True)
+        if is_godot:
             # Kill any stale Godot processes for this app
             self._kill_stale_godot_processes(app)
             # Sync Android template version with Godot binary to prevent mismatch
@@ -698,31 +772,42 @@ class DeployEngine:
         process = None
         flutter_cwd = app.project_path
 
-        acquired_godot_lock = False
-        # Godot builds serialize via lock to avoid gradle daemon conflicts
-        if is_godot:
+        acquired_engine_lock = False
+        # Godot and Unity builds serialize via lock to avoid gradle daemon conflicts
+        if uses_log_file:
             self._update_status(app.id, message=f"Waiting for build slot...")
-            if not self._godot_build_lock.acquire(timeout=300):
-                logger.warning("Godot build lock stuck for 5 min, creating new lock for app %s", app.id)
-                self._godot_build_lock = threading.Lock()
-                self._godot_build_lock.acquire()
-            acquired_godot_lock = True
+            if not self._engine_build_lock.acquire(timeout=300):
+                logger.warning("Engine build lock stuck for 5 min, creating new lock for app %s", app.id)
+                self._engine_build_lock = threading.Lock()
+                self._engine_build_lock.acquire()
+            acquired_engine_lock = True
 
         try:
-            if is_godot:
+            if uses_log_file:
                 self._update_status(app.id, message=f"Building...")
 
-            if is_godot:
-                # GODOT BUILDS: Write to log file instead of pipe.
-                # Godot spawns Gradle which inherits pipe handles — the pipe
+            if uses_log_file:
+                # GODOT / UNITY BUILDS: Write to log file instead of pipe.
+                # Both spawn Gradle, which inherits pipe handles — the pipe
                 # never gets EOF because the Gradle daemon holds it open.
                 # This caused builds to hang forever despite the AAB being ready.
-                # Hard guard: refuse to build if export_presets.cfg is missing.
-                if not os.path.isfile(os.path.join(app.project_path, "export_presets.cfg")):
+                # Hard guard: refuse to build if the project marker is missing.
+                marker = "export_presets.cfg" if is_godot else os.path.join(
+                    "ProjectSettings", "ProjectVersion.txt")
+                if not os.path.isfile(os.path.join(app.project_path, marker)):
                     raise RuntimeError(
-                        f"Refusing to build: export_presets.cfg not found in {app.project_path}. "
+                        f"Refusing to build: {marker} not found in {app.project_path}. "
                         f"Fix the project_path for app id={app.id} ({app.name})."
                     )
+                if is_unity:
+                    # Unity refuses to open a project the editor already holds;
+                    # without this the log is 500 lines of licence/lock noise.
+                    lock = unity_project.editor_lock_holder(app.project_path)
+                    if lock:
+                        raise RuntimeError(
+                            f"Refusing to build: the Unity editor has {app.name} open "
+                            f"({lock}). Close the editor and retry."
+                        )
                 log_file_path = os.path.join(app.project_path, "build", "build_log.txt")
                 with open(log_file_path, "w", encoding="utf-8") as log_f:
                     process = subprocess.Popen(
@@ -734,8 +819,10 @@ class DeployEngine:
                 self._active_processes[app.id] = process
 
                 # Monitor: poll for build output file + process exit
-                # Godot builds are done when the output file appears and stabilizes
-                max_build_time = 900  # 15 min max for Godot builds
+                # The build is done when the output file appears and stabilizes.
+                # Unity gets a longer ceiling — an IL2CPP Android build compiles
+                # the whole scripting runtime and routinely runs past 15 min.
+                max_build_time = UNITY_MAX_BUILD_SECONDS if is_unity else GODOT_MAX_BUILD_SECONDS
                 output_stable_time = None
 
                 while time.time() - start < max_build_time:
@@ -797,7 +884,6 @@ class DeployEngine:
                 # the wrong place (e.g. C:\Hot Idle\build instead of C:\Projects\Hot Idle\build).
                 marker = {
                     "flutter": "pubspec.yaml",
-                    "godot": "export_presets.cfg",
                     "phaser": "package.json",
                 }.get(app.app_type)
                 if marker and not os.path.isfile(os.path.join(flutter_cwd, marker)):
@@ -834,8 +920,10 @@ class DeployEngine:
                     self._kill_build_tree(process)
 
             duration = int(time.time() - start)
-            # For Godot: success = output file exists (don't rely on exit code since we kill the process)
-            if is_godot:
+            # Godot/Unity: success = output file exists. The exit code is
+            # meaningless here because we kill the process ourselves once the
+            # artifact stops growing.
+            if uses_log_file:
                 build_file_exists = os.path.isfile(output_path) and os.path.getsize(output_path) > 0
                 file_fresh = False
                 if build_file_exists:
@@ -866,15 +954,15 @@ class DeployEngine:
             self.db.update_build(
                 build_id,
                 status="failed",
-                log_output=f"Error: {e}\nCmd: {cmd}\nCwd: {flutter_cwd if not is_godot else app.project_path}\nTraceback:\n{tb}\n" + "\n".join(output_lines[-100:]),
+                log_output=f"Error: {e}\nCmd: {cmd}\nCwd: {flutter_cwd if not uses_log_file else app.project_path}\nTraceback:\n{tb}\n" + "\n".join(output_lines[-100:]),
                 duration_seconds=int(time.time() - start),
                 completed_at=datetime.now().isoformat(),
             )
         finally:
             self._active_processes.pop(app.id, None)
-            if acquired_godot_lock:
+            if acquired_engine_lock:
                 try:
-                    self._godot_build_lock.release()
+                    self._engine_build_lock.release()
                 except RuntimeError:
                     pass
 
@@ -933,6 +1021,19 @@ class DeployEngine:
             preset = target_info.get("preset", "Android")
             output = target_info.get("output", f"build/{app.slug}.aab").format(slug=app.slug)
             return [godot, "--headless", "--export-release", preset, output]
+        elif app.app_type == "unity":
+            unity = self.settings.get("unity_path", "") or "Unity"
+            method = unity_project.resolve_build_method(app.project_path, build_target)
+            # `-logFile -` streams the editor log to stdout, which _run_build
+            # redirects into build/build_log.txt — without it Unity writes to its
+            # own per-user log and the failure reason never reaches the UI.
+            return [
+                unity,
+                "-batchmode", "-quit", "-nographics",
+                "-projectPath", app.project_path,
+                "-executeMethod", method,
+                "-logFile", "-",
+            ]
         elif app.app_type == "phaser":
             # Phaser runs a shell pipeline: npm install → vite build → cap sync → gradle
             pp = shlex.quote(app.project_path)
@@ -975,7 +1076,7 @@ class DeployEngine:
         target_info = targets.get(build_target, {})
         relative = target_info.get("output", "")
 
-        if app.app_type == "godot":
+        if app.app_type in ("godot", "unity"):
             relative = relative.format(slug=app.slug)
 
         # Flutter build output is relative to the Flutter project root
@@ -1112,6 +1213,20 @@ class DeployEngine:
         mcp_config_path = os.path.join(app.project_path, "mcp_config.json")
         mcp_flag = f"--mcp-config '{project_path_unix}/mcp_config.json'" if os.path.isfile(mcp_config_path) else ""
 
+        engine_checks = {
+            "godot": (
+                "7. Verify no script uses := in lambdas (Godot 4.6.1 parser bug that can cause silent hangs).\n"
+                "8. If you can't find any script errors, check for export preset issues in export_presets.cfg."
+            ),
+            "unity": (
+                "7. Check Assets/Editor/BuildPlayer.cs — a compile error anywhere in an Editor script means\n"
+                "   -executeMethod never resolves and Unity sits idle until it is killed.\n"
+                "8. Check for editor scripts that block on a dialog (EditorUtility.DisplayDialog) or wait on\n"
+                "   input — batchmode has no UI, so these hang forever.\n"
+                "9. Check that every scene listed in EditorBuildSettings.asset still exists on disk."
+            ),
+        }.get(app.app_type, "7. If you can't find any script errors, check the build/packaging configuration.")
+
         prompt = f"""The {app.app_type} build for {app.name} HUNG during export — the build process started but produced no output and had to be killed.
 
 Project path: {app.project_path}
@@ -1121,16 +1236,16 @@ App type: {app.app_type}
 This is a {app.app_type} project. The headless export hung silently.
 
 DIAGNOSE AND FIX (Engine Specialist + DevOps Knowledge):
-1. Check ALL script files (.gd for Godot, .dart for Flutter) for syntax errors, undefined references, missing imports, or circular dependencies.
-2. Check scene files (.tscn) for broken references to scripts or resources that don't exist.
-3. Check project.godot autoloads for missing scripts.
-4. Check for any preload/load paths that reference non-existent files.
-5. Look for infinite loops in _ready() or _init() that would hang the export.
+1. Check ALL script files (.gd for Godot, .cs for Unity, .dart for Flutter) for syntax errors, undefined references, missing imports, or circular dependencies.
+2. Check scene files (.tscn for Godot, .unity for Unity) for broken references to scripts or resources that don't exist.
+3. Check engine startup config (project.godot autoloads for Godot, RuntimeInitializeOnLoad / [InitializeOnLoad] for Unity) for missing scripts.
+4. Check for any preload/load/Resources.Load paths that reference non-existent files.
+5. Look for infinite loops in engine entry points (_ready()/_init() in Godot, Awake()/Start()/static constructors in Unity) that would hang the export.
 6. Check for blocking I/O operations without timeouts (HTTP requests, file reads on missing paths).
-7. Verify no script uses := in lambdas (Godot 4.6.1 parser bug that can cause silent hangs).
-8. If you find errors, FIX THEM. Only fix build-breaking issues, do NOT change game logic.
-9. If you can't find any script errors, check if there are export preset issues in export_presets.cfg.
-10. Do NOT attempt to run the build yourself — just fix the code."""
+{engine_checks}
+
+Then: if you find errors, FIX THEM. Only fix build-breaking issues, do NOT change game logic.
+Do NOT attempt to run the build yourself — just fix the code."""
 
         try:
             bash_exe = self.settings.get("bash_path", "") or "bash"

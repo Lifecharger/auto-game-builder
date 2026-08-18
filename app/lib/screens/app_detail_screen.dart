@@ -328,6 +328,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                       const SizedBox(height: 16),
                       if (_app!.appType.toLowerCase() == 'flutter' ||
                           _app!.appType.toLowerCase() == 'godot' ||
+                          _app!.appType.toLowerCase() == 'unity' ||
                           _app!.appType.toLowerCase() == 'phaser')
                         AppBuildCard(
                           appId: widget.appId,

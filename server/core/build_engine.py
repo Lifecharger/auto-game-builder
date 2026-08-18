@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import Callable, Optional
 from database.db_manager import DBManager
 from database.models import App
+from core import unity_project
 
 
 class BuildEngine:
@@ -51,8 +52,23 @@ class BuildEngine:
         return build_id
 
     def _run_build(self, app: App, build_type: str, build_id: int):
-        cmd = self._get_build_command(app, build_type)
-        output_path = self._get_output_path(app, build_type)
+        # Resolving the command can fail on its own (e.g. a Unity project with
+        # no BuildPlayer editor script). Record that as a failed build instead
+        # of letting the worker thread die with the row stuck on "running".
+        try:
+            cmd = self._get_build_command(app, build_type)
+            output_path = self._get_output_path(app, build_type)
+        except Exception as e:
+            self.db.update_build(
+                build_id,
+                status="failed",
+                log_output=f"Cannot start build: {e}",
+                duration_seconds=0,
+                completed_at=datetime.now().isoformat(),
+            )
+            self.db.update_app(app.id, status="error")
+            self._emit("build_completed", build_id, False)
+            return
 
         # Hard guard: refuse to build if cwd lacks the expected project marker.
         # Prevents silently producing builds in the wrong directory.
@@ -176,21 +192,19 @@ class BuildEngine:
     def _unity_build_command(self, app: App, build_type: str) -> str:
         """Unity builds head-lessly through an editor method in the project.
 
-        The project must ship Assets/Editor/BuildPlayer.cs (Aab / Apk / DebugApk);
-        signing passwords come from the environment, never from here.
+        The project must ship a BuildPlayer editor script exposing static
+        Aab / Apk / DebugApk; its namespace is read from the script itself
+        (core/unity_project.py) rather than assumed. Signing passwords come
+        from the environment, never from here.
 
         Unity LOCKS a project folder, so this fails while the editor has the same
         project open - the lock file check gives that a readable error instead of a
         wall of Unity log noise.
         """
         unity = self.settings.get("unity_path", "") or "Unity"
-        method = {
-            "appbundle": "Aab",
-            "apk": "Apk",
-            "debug": "DebugApk",
-        }.get(build_type, "Aab")
+        method = unity_project.resolve_build_method(app.project_path, build_type)
         pp = shlex.quote(app.project_path)
-        lock = os.path.join(app.project_path, "Temp", "UnityLockfile")
+        lock = os.path.join(app.project_path, unity_project.LOCKFILE_REL)
         guard = (
             f'if [ -f {shlex.quote(lock)} ]; then '
             f'echo "Refusing to build: the Unity editor has this project open '
@@ -200,7 +214,7 @@ class BuildEngine:
             f'{guard} && cd {pp} && '
             f'{shlex.quote(unity)} -batchmode -quit -nographics '
             f'-projectPath {pp} '
-            f'-executeMethod HotCollector.EditorTools.BuildPlayer.{method} '
+            f'-executeMethod {method} '
             f'-logFile build/unity_build.log'
         )
 

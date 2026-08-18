@@ -48,7 +48,7 @@ One-tap Studio Actions — each button creates an enriched task in your project'
 **Built-in knowledge base** at `server/config/studio/*.md` — 15 condensed specialist files covering brainstorming, GDD templates, gameplay/UX, code quality, visual audit, polish, consistency scanning, tech debt, asset audit, content audit, scope, performance, art bible, asset specs. Each is ~40-60 lines, autonomous-first, and loads into task prompts automatically based on the action.
 
 ### Build & Deploy
-- **One-tap builds** for Flutter, Godot, Phaser (Capacitor), and React Native projects
+- **One-tap builds** for Flutter, Godot, Unity, Phaser (Capacitor), and React Native projects
 - **Build targets**: AAB, APK, EXE (Windows), IPA (iOS), APP (macOS), Web
 - **Google Play deployment** — automatic version bumping, AAB upload, track selection (internal/alpha/beta/production)
 - **Python projects** supported for `python -m build` workflows
@@ -155,6 +155,7 @@ auto-game-builder/
 |--------|-----------|---------------|----------|
 | **Flutter** | `pubspec.yaml` | AAB, APK, EXE, IPA, Web | `flutter create` |
 | **Godot 4.x** | `project.godot` | APK, AAB, Windows, Web, Linux | — |
+| **Unity 6** | `ProjectSettings/ProjectVersion.txt` | AAB, APK, Debug APK | — (see [Unity Support](#unity-support)) |
 | **Phaser** | `capacitor.config.ts` | AAB, APK, Web | Custom template |
 | **React Native** | `package.json` | AAB, APK | `npx react-native init` |
 | **Python** | `pyproject.toml` | `dist/` | — |
@@ -198,6 +199,7 @@ flutter build appbundle --release  # Android AAB (Google Play)
 ### Optional (for full functionality)
 - **Flutter SDK** — [flutter.dev](https://flutter.dev/docs/get-started/install) (for building Flutter games)
 - **Godot Engine** — [godotengine.org](https://godotengine.org/download) (for building Godot games)
+- **Unity 6 + Android Build Support** — [unity.com/download](https://unity.com/download) (for building Unity games; install via Unity Hub)
 - **Node.js** — [nodejs.org](https://nodejs.org/) (for Phaser/Capacitor builds, React Native, Mobile MCP, wrangler)
 - **Ollama** — [ollama.com](https://ollama.com/) (for local/offline AI via Aider)
 
@@ -232,6 +234,7 @@ To access your server from your phone over the internet:
 - **[Meshy AI](https://github.com/pasie15/meshy-ai-mcp-server)** — 3D model generation (text-to-3D, image-to-3D, rigging, animation). Get API key at [meshy.ai](https://www.meshy.ai/)
 - **[Mobile MCP](https://github.com/mobile-next/mobile-mcp)** — Device testing. Requires Node.js
 - **Godot MCP** — Cloud-based, requires [Claude Max](https://claude.ai) subscription
+- **[Unity MCP](https://github.com/CoplayDev/unity-mcp)** — Drives the running Unity editor (scenes, GameObjects, components, scripts, tests). Requires [uv](https://docs.astral.sh/uv/) and the MCP for Unity package installed in the project
 - **Cloudflare MCP** — Cloud-based, requires [Claude Max](https://claude.ai) subscription
 
 ## API Reference
@@ -252,6 +255,68 @@ To access your server from your phone over the internet:
 | **Enhance** | `POST /api/apps/{id}/enhance` | AI-powered document improvement |
 | **Logs** | `GET /api/logs` | Build and automation log viewer |
 | **Health** | `GET /api/health` | Server status (no auth required) |
+
+## Unity Support
+
+Unity 6 Android projects are first-class alongside Flutter, Godot and Phaser: detection,
+version bumping, head-less builds, and Google Play upload all work from the phone.
+
+**What is different from the other engines:** Unity has no CLI export command. Every
+build runs a static C# method inside the project, so a Unity project must ship its own
+editor build script before Auto Game Builder can build it.
+
+### Requirements
+
+1. **Unity 6 with Android Build Support**, installed through Unity Hub. The path is
+   auto-detected from the Hub folder and stored as `engines.unity_path` in
+   `server/config/settings.json` — set it manually if you installed Unity elsewhere.
+2. **An editor build script** at `Assets/Editor/BuildPlayer.cs` exposing three static
+   methods on a `BuildPlayer` class:
+
+   | Method | Build target | Output |
+   |--------|--------------|--------|
+   | `Aab()` | `aab` | `build/<slug>.aab` |
+   | `Apk()` | `apk` | `build/<slug>.apk` |
+   | `DebugApk()` | `debug` | `build/<slug>.apk` |
+
+   The class may live in any namespace — it is read from the file, not assumed. If the
+   script is missing, the build fails with that reason instead of producing nothing.
+   Keystore passwords belong in environment variables read by that script, never in the
+   project or in this repo.
+
+### Adding a Unity project
+
+Unity projects are **created in Unity Hub, then imported** — there is no scaffolding for
+them yet (see the roadmap). Put the project under your `projects_root` and either:
+
+- `POST /api/apps/scan` — registers new folders and refreshes the engine of existing ones, or
+- `POST /api/apps/{id}/detect-engine` — re-reads one app's engine from disk.
+
+Engine re-detection also runs automatically at server start, so a project **ported from
+another engine** (for example Godot → Unity) starts reporting the new one on the next
+restart without any manual edit.
+
+### Versioning
+
+Unity keeps two separate values in `ProjectSettings/ProjectSettings.asset`:
+
+- `bundleVersion` — the display semver (`1.0.23`)
+- `AndroidBundleVersionCode` — the integer Google Play orders uploads by (`24`)
+
+The deploy pipeline bumps both on every `aab`/`apk` build, and the version code is always
+incremented rather than derived from the patch number, so a minor bump can never repeat a
+code Play has already seen. **When porting a project from another engine, copy the last
+shipped version into these two fields first** — otherwise the first Unity upload starts at
+code 1 and Play rejects it.
+
+### Building
+
+Unity locks a project folder while the editor has it open, so a head-less build **cannot
+run while you have that project open in Unity**. The deploy engine checks for
+`Temp/UnityLockfile` and refuses with a readable message rather than a wall of Unity log
+output. Builds are serialized with Godot builds (both drive Gradle), write their full
+editor log to `build/build_log.txt`, and are allowed up to 45 minutes — an IL2CPP Android
+build compiles the whole scripting runtime and routinely runs past the Godot ceiling.
 
 ## Configuration
 
@@ -299,7 +364,8 @@ Games and apps you build with Auto Game Builder are **entirely yours**. You own 
 - [x] **Local AI** — Offline AI mode via Aider + Ollama
 - [x] **Tools Reorganization** — Vendor subfolders (grok, pixellab, meshy, tripo, chrome, blender, media, extract) + merged standalone projects (pixel_guy, comic_translator, animation_generator) + Tripo Studio JWT browser-path refresher
 - [x] **Studio Actions Expansion** — 8 new one-tap skill buttons (consistency, tech-debt, asset-audit, content-audit, scope, perf, art-bible, asset-spec) distilled from the Claude Code Game Studios framework
-- [ ] **Experimental Unity Support** — Unity engine project creation, build pipeline, and deployment
+- [x] **Unity Support** — Detection, head-less build pipeline, version bumping, and Google Play deployment for Unity 6 Android projects ([details](#unity-support))
+- [ ] **Unity Project Scaffolding** — Create new Unity projects from the app (today they are created in Unity Hub and imported)
 - [ ] **Genre Selection & Database** — Genre-based project templates with curated mechanics, assets, and configurations
 
 ## License

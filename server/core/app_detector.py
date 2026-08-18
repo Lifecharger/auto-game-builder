@@ -4,7 +4,7 @@ import logging
 import os
 import re
 import shutil
-from config.constants import TECH_STACKS
+from config.constants import DETECTION_ORDER, TECH_STACKS
 
 logger = logging.getLogger(__name__)
 
@@ -29,11 +29,9 @@ class AppDetector:
         result["has_claude_md"] = os.path.isfile(os.path.join(project_path, "CLAUDE.md"))
         result["has_git"] = os.path.isdir(os.path.join(project_path, ".git"))
 
-        # Detect type by marker files
-        for tech_key, tech in TECH_STACKS.items():
-            if tech_key == "custom":
-                continue
-            detect_file = tech.get("detect_file")
+        # Detect type by marker files, most-specific stack first (DETECTION_ORDER)
+        for tech_key in DETECTION_ORDER:
+            detect_file = TECH_STACKS.get(tech_key, {}).get("detect_file")
             if detect_file and os.path.isfile(os.path.join(project_path, detect_file)):
                 result["app_type"] = tech_key
                 break
@@ -168,6 +166,17 @@ class AppDetector:
             candidates = [
                 os.path.join(project_path, "icon.png"),
                 os.path.join(project_path, "icon.svg"),
+            ]
+        elif app_type == "unity":
+            # Unity keeps the launcher icon reference in ProjectSettings.asset
+            # (a GUID, not a path), so probe the conventional art locations.
+            candidates = [
+                os.path.join(project_path, "Assets", "icon.png"),
+                os.path.join(project_path, "Assets", "app_icon.png"),
+                os.path.join(project_path, "Assets", "Art", "icon.png"),
+                os.path.join(project_path, "Assets", "Art", "UI", "app_icon.png"),
+                os.path.join(project_path, "Assets", "Resources", "icon.png"),
+                os.path.join(project_path, "Assets", "Textures", "icon.png"),
             ]
         elif app_type == "react_native":
             candidates = [

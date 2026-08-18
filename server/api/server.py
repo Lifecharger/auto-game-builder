@@ -34,6 +34,7 @@ from pydantic import BaseModel
 # Add parent to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from database.db_manager import DBManager
+from config.constants import TECH_STACKS
 from config.settings_loader import get_settings
 from config.path_utils import to_unix_path
 
@@ -59,6 +60,7 @@ def _get_tool_paths() -> dict:
     }
 
 
+from core.app_detector import AppDetector
 from core.autofix_engine import AutoFixEngine
 from core.client_cursors import client_cursors
 from core.deploy_engine import DeployEngine
@@ -92,6 +94,37 @@ def _cleanup_stale_db_state(db_inst: DBManager):
         print(f"[Startup] Build cleanup warning: {e}")
 
 
+def _detect_engine(a) -> Optional[str]:
+    """Engine currently on disk for an app, or None if it can't be determined.
+
+    Returns None (rather than "custom") when the project folder is missing or
+    carries no marker file, so a temporarily-unreachable drive never rewrites a
+    known-good app_type.
+    """
+    if not a.project_path or not os.path.isdir(a.project_path):
+        return None
+    detected = AppDetector().detect(a.project_path).get("app_type", "custom")
+    return None if detected == "custom" else detected
+
+
+def _resync_app_engines(db_inst: DBManager):
+    """Re-detect each app's engine so a migrated project stops reporting the old one.
+
+    app_type is written once at import and then never revisited, so a project
+    ported between engines (Godot -> Unity) kept serving the stale engine to the
+    dashboard AND to the build/deploy engines, which pick their command from it.
+    """
+    try:
+        for a in db_inst.get_all_apps():
+            detected = _detect_engine(a)
+            if detected and detected != a.app_type:
+                logger.info("Engine changed for '%s': %s -> %s", a.name, a.app_type, detected)
+                print(f"[Startup] Engine changed for '{a.name}': {a.app_type} -> {detected}")
+                db_inst.update_app(a.id, app_type=detected)
+    except Exception as e:
+        print(f"[Startup] Engine re-detect warning: {e}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Capture the main event loop so event_bus.publish() works from worker
@@ -103,6 +136,7 @@ async def lifespan(app: FastAPI):
 
     app.state.db = DBManager(DB_PATH)
     _cleanup_stale_db_state(app.state.db)
+    _resync_app_engines(app.state.db)
     settings = get_settings()
     app.state.internet = InternetMonitor(
         check_url=settings.get("internet_check_url", "https://api.anthropic.com"),
@@ -192,6 +226,7 @@ class IssueUpdate(BaseModel):
 class AppUpdate(BaseModel):
     notes: Optional[str] = None
     status: Optional[str] = None
+    app_type: Optional[str] = None
     publish_status: Optional[str] = None
     fix_strategy: Optional[str] = None
     package_name: Optional[str] = None
@@ -220,7 +255,7 @@ class GddUpdate(BaseModel):
 
 class AppCreate(BaseModel):
     name: str
-    app_type: str = "flutter"  # flutter|godot|python|web
+    app_type: str = "flutter"  # flutter|godot|unity|phaser|python|web
     fix_strategy: str = "claude"
 
 class AutomationCreate(BaseModel):
@@ -244,7 +279,8 @@ class BuildTrigger(BaseModel):
 
 class DeployRequest(BaseModel):
     track: str = "internal"  # internal|alpha|beta|production
-    build_target: str = "aab"  # apk|aab|exe|web|ios (flutter) / apk|aab|windows|web|linux (godot)
+    build_target: str = "aab"  # flutter: apk|aab|exe|web|ios / godot: apk|aab|windows|web|linux
+                               # unity: apk|aab|debug / phaser: apk|aab|debug|web
     upload: bool = False  # upload to Google Play after build
 
 
@@ -566,9 +602,36 @@ def update_app(app_id: int, body: AppUpdate):
     if not a:
         raise HTTPException(404, "App not found")
     updates = {k: v for k, v in body.model_dump().items() if v is not None}
+    if "app_type" in updates and updates["app_type"] not in TECH_STACKS:
+        raise HTTPException(
+            400, f"Unknown app_type '{updates['app_type']}'. Valid: {sorted(TECH_STACKS)}")
     if updates:
         db().update_app(app_id, **updates)
     return {"ok": True}
+
+
+@app.post("/api/apps/{app_id}/detect-engine")
+def detect_app_engine(app_id: int):
+    """Re-read the engine from disk and persist it if it changed.
+
+    The same sweep runs at server start; this is the on-demand version for when
+    a project is ported between engines while the server is up.
+    """
+    a = db().get_app(app_id)
+    if not a:
+        raise HTTPException(404, "App not found")
+    detected = _detect_engine(a)
+    if not detected:
+        raise HTTPException(
+            400,
+            f"Cannot detect an engine at {a.project_path or '(no project_path set)'} — "
+            f"no known marker file found.",
+        )
+    changed = detected != a.app_type
+    if changed:
+        logger.info("Engine changed for app %s: %s -> %s", a.id, a.app_type, detected)
+        db().update_app(app_id, app_type=detected)
+    return {"ok": True, "app_type": detected, "previous": a.app_type, "changed": changed}
 
 
 # ── Per-App MCP Config ──────────────────────────────────────
@@ -653,7 +716,6 @@ def set_app_mcp(app_id: int, body: AppMcpUpdate):
 @app.post("/api/apps/scan")
 def scan_projects():
     """Scan projects_root for existing projects and register them."""
-    from core.app_detector import AppDetector
     detector = AppDetector()
     s = get_settings()
     projects_root = s.get("projects_root", os.path.join(str(Path.home()), "Projects"))
@@ -665,6 +727,7 @@ def scan_projects():
     imported = 0
     skipped = []
     results = []
+    retyped = []
 
     for entry in sorted(os.listdir(projects_root)):
         project_path = os.path.join(projects_root, entry)
@@ -677,9 +740,15 @@ def scan_projects():
         found += 1
         slug = detector.generate_slug(entry)
 
-        # Skip if already registered
+        # Already registered — don't re-import, but do refresh the engine so a
+        # project ported to another engine stops reporting the old one.
         existing = db().get_app_by_slug(slug)
         if existing:
+            detected = _detect_engine(existing)
+            if detected and detected != existing.app_type:
+                db().update_app(existing.id, app_type=detected)
+                retyped.append({"id": existing.id, "name": entry,
+                                "from": existing.app_type, "to": detected})
             skipped.append(entry)
             continue
 
@@ -688,6 +757,7 @@ def scan_projects():
         if info["app_type"] == "custom":
             # Check subfolders for known project types
             type_markers = {
+                os.path.join("ProjectSettings", "ProjectVersion.txt"): "unity",
                 "pubspec.yaml": "flutter",
                 "project.godot": "godot",
                 "package.json": "react_native",
@@ -770,6 +840,7 @@ def scan_projects():
         "found": found,
         "imported": imported,
         "skipped": len(skipped),
+        "retyped": retyped,
         "apps": results,
     }
 
@@ -933,7 +1004,7 @@ def create_new_app(body: AppCreate):
     keystore_path = ""
     key_alias = ""
     key_password = ""
-    if body.app_type in ("flutter", "godot", "phaser") and package_name:
+    if body.app_type in ("flutter", "godot", "unity", "phaser") and package_name:
         keys_dir = s.get("keys_dir", "")
         if not keys_dir:
             keys_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "keys")
@@ -1042,7 +1113,8 @@ def _resolve_flutter_root(project_path: str) -> str:
 
 
 def _read_project_version(a) -> str:
-    """Read the actual version from project files (pubspec.yaml or export_presets.cfg)."""
+    """Read the actual version from project files (pubspec.yaml, export_presets.cfg,
+    ProjectSettings.asset or package.json, depending on the engine)."""
     import re as _re
     try:
         if a.app_type == "flutter":
@@ -1061,6 +1133,19 @@ def _read_project_version(a) -> str:
                     content = f.read()
                 name_match = _re.search(r'version/name="([^"]+)"', content)
                 code_match = _re.search(r'version/code=(\d+)', content)
+                if name_match and code_match:
+                    return f"{name_match.group(1)}+{code_match.group(1)}"
+                elif name_match:
+                    return name_match.group(1)
+        elif a.app_type == "unity":
+            # Unity splits the display version (bundleVersion) from the integer
+            # Play orders uploads by (AndroidBundleVersionCode).
+            settings_asset = os.path.join(a.project_path, "ProjectSettings", "ProjectSettings.asset")
+            if os.path.isfile(settings_asset):
+                with open(settings_asset, "r", encoding="utf-8", errors="replace") as f:
+                    content = f.read()
+                name_match = _re.search(r"^\s*bundleVersion:\s*(\S+)\s*$", content, _re.MULTILINE)
+                code_match = _re.search(r"^\s*AndroidBundleVersionCode:\s*(\d+)\s*$", content, _re.MULTILINE)
                 if name_match and code_match:
                     return f"{name_match.group(1)}+{code_match.group(1)}"
                 elif name_match:
@@ -1175,6 +1260,16 @@ _ICON_CANDIDATES_BY_TYPE: dict[str, tuple[str, ...]] = {
         *_ICON_CANDIDATES_COMMON,
         # Non-standard but observed in real projects.
         "assets/images/ui/icon.png", "assets/images/ui/icon.jpg",
+    ),
+    # Unity references its launcher icon by GUID inside ProjectSettings.asset,
+    # so there is no canonical path to read — probe the conventional art dirs.
+    "unity": (
+        "Assets/icon.png", "Assets/icon.jpg",
+        "Assets/app_icon.png", "Assets/app_icon.jpg",
+        "Assets/Art/icon.png", "Assets/Art/app_icon.png",
+        "Assets/Art/UI/icon.png", "Assets/Art/UI/app_icon.png",
+        "Assets/Resources/icon.png", "Assets/Textures/icon.png",
+        *_ICON_CANDIDATES_COMMON,
     ),
     "phaser": (
         "public/icon.png", "public/favicon.png", "public/logo.png",
@@ -3822,6 +3917,16 @@ MCP_PRESETS = {
         "config": {},
         "auth_type": "none",
         "cloud": True,
+    },
+    "unity": {
+        "label": "Unity",
+        "description": "Unity editor control: scenes, GameObjects, components, scripts, builds, tests",
+        "config": {
+            "command": "uvx",
+            "args": ["--from", "mcpforunityserver", "mcp-for-unity", "--transport", "stdio"],
+        },
+        "auth_type": "none",
+        "cloud": False,
     },
     "cloudflare": {
         "label": "Cloudflare",

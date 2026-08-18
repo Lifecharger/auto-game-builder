@@ -118,6 +118,8 @@ class AppColors {
         return Icons.phone_android;
       case 'godot':
         return Icons.games;
+      case 'unity':
+        return Icons.threed_rotation;
       case 'python':
         return Icons.terminal;
       case 'web':

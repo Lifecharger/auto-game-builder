@@ -17,6 +17,7 @@ sys.path.insert(0, _SERVER_DIR)
 from config.settings_loader import (
     _detect_bash,
     _detect_tool,
+    _detect_unity,
     save_settings,
 )
 
@@ -187,6 +188,17 @@ def _install_mcp_servers(detections: dict, credentials: dict) -> dict:
     mcp_servers["godot"] = {"preset": True, "cloud": True}
     print("    \033[32m[OK]\033[0m Godot MCP (cloud-based, no setup needed)")
 
+    # Unity MCP (requires uvx; talks to the running Unity editor)
+    if detections.get("uvx"):
+        mcp_servers["unity"] = {
+            "command": "uvx",
+            "args": ["--from", "mcpforunityserver", "mcp-for-unity", "--transport", "stdio"],
+            "preset": True,
+        }
+        print("    \033[32m[OK]\033[0m Unity MCP ready")
+    else:
+        print("    \033[90m[--]\033[0m Unity MCP skipped (uvx not found — install uv: https://docs.astral.sh/uv/)")
+
     # Cloudflare MCP (cloud — no install needed)
     mcp_servers["cloudflare"] = {"preset": True, "cloud": True}
     print("    \033[32m[OK]\033[0m Cloudflare MCP (cloud-based, no setup needed)")
@@ -310,7 +322,7 @@ Python: {sys.version.split()[0]}
 YOUR TASK:
 1. Read the guide file at {guide_path} — it explains everything.
 2. Install Python dependencies: pip install -r {req_path}
-3. Search my system for all tools (claude, gemini, codex, aider, flutter, godot, bash, cloudflared, npx, wrangler).
+3. Search my system for all tools (claude, gemini, codex, aider, flutter, godot, unity, bash, cloudflared, npx, wrangler).
 4. Create {config_path} using {example_path} as template. Fill in every tool path you found.
 5. Ask me for projects_root (where I keep game projects).
 6. Ask me for optional API keys (PixelLab, ElevenLabs) — I can skip these.
@@ -478,6 +490,8 @@ def run_wizard():
     engines = {
         "flutter": _detect_tool("flutter"),
         "godot": _detect_tool("godot"),
+        # Unity Hub installs are never on PATH, so this probes the Hub folder.
+        "unity": _detect_unity(),
     }
     for name, path in engines.items():
         _print_status(name.title(), path)
@@ -588,6 +602,7 @@ def run_wizard():
         "aider_path": agents["aider"],
         "godot_path": engines["godot"],
         "flutter_path": engines["flutter"],
+        "unity_path": engines["unity"],
         "bash_path": system_tools["bash"],
         "cloudflared_path": system_tools["cloudflared"],
         "wrangler_path": system_tools["wrangler"],
@@ -634,7 +649,7 @@ def run_wizard():
     for name in ("claude", "gemini", "codex", "aider"):
         if agents[name]:
             summary_items.append(f"{name.title()}")
-    for name in ("flutter", "godot"):
+    for name in ("flutter", "godot", "unity"):
         if engines[name]:
             summary_items.append(f"{name.title()}")
     if summary_items:

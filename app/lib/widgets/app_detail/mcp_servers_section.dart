@@ -67,6 +67,8 @@ class _McpServersSectionState extends State<McpServersSection> {
         return Icons.mic;
       case 'godot':
         return Icons.videogame_asset;
+      case 'unity':
+        return Icons.threed_rotation;
       case 'cloudflare':
         return Icons.cloud;
       case 'meshy':

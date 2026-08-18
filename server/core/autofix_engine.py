@@ -85,6 +85,44 @@ Description:
 - Do NOT introduce placeholder assets — generate real assets or note as follow-up
 """
 
+UNITY_FIX_TEMPLATE = """You are fixing a {category} in {app_name}, a Unity 6 game.
+Project path: {project_path}
+
+{context_section}
+
+## The Issue
+Title: {title}
+Category: {category}
+Priority: {priority}
+Description:
+{description}
+
+{raw_data_section}
+
+## Instructions
+1. Read the relevant scripts in {project_path}/Assets/Scripts/
+2. Identify the root cause — understand WHY it's broken, not just WHERE
+3. Apply the minimal fix in C#
+4. Verify the fix doesn't break related systems (check serialized field references and scene wiring)
+5. Summarize what you changed
+
+## Code Quality (Lead Programmer + Unity Specialist Standards)
+- Null-check before touching anything that can be destroyed; Unity's fake-null means
+  `if (obj == null)` is the correct check, not `is null` / `?.` on UnityEngine.Object
+- Cache GetComponent<T>() results in Awake()/Start() — never call it in Update()
+- Unsubscribe every event you subscribe to in OnDisable()/OnDestroy() or the callback leaks
+- Never allocate per frame in Update() (no LINQ, no new List, no string concat)
+- Use [SerializeField] private fields over public fields for inspector wiring
+- Coroutines stop with their GameObject — re-check state after every yield
+
+## Constraints
+- Do NOT change bundleVersion or AndroidBundleVersionCode — the deploy pipeline owns versions
+- Renaming or reordering a serialized field breaks existing scene/prefab wiring — avoid it
+- Never edit .meta files by hand; never delete one for an asset that still exists
+- Prefer minimal, surgical fixes over large refactors
+- Do NOT introduce placeholder assets — generate real assets or note as follow-up
+"""
+
 GENERIC_FIX_TEMPLATE = """You are fixing a {category} in {app_name}.
 Project path: {project_path}
 
@@ -350,6 +388,8 @@ class AutoFixEngine:
             template = FLUTTER_FIX_TEMPLATE
         elif app.app_type == "godot":
             template = GODOT_FIX_TEMPLATE
+        elif app.app_type == "unity":
+            template = UNITY_FIX_TEMPLATE
         else:
             template = GENERIC_FIX_TEMPLATE
 

@@ -99,14 +99,17 @@ def _find_relevant_files(task: str, project_path: str) -> list[str]:
 
     # Search for files containing these keywords
     scored_files: dict[str, int] = {}
-    code_extensions = {'.dart', '.py', '.gd', '.yaml', '.toml', '.cfg', '.json', '.xml'}
+    code_extensions = {'.dart', '.py', '.gd', '.cs', '.yaml', '.toml', '.cfg', '.json', '.xml'}
 
     for root, dirs, files in os.walk(project_path):
-        # Skip build/hidden/generated directories
+        # Skip build/hidden/generated directories.
+        # Library/Temp/Obj are Unity's regenerated caches — walking them is
+        # thousands of files of noise that can bury the real source.
         dirs[:] = [d for d in dirs if d not in {
             '.git', '.dart_tool', 'build', 'node_modules', '.godot',
             '__pycache__', '.gradle', 'android', 'ios', 'web', 'linux',
             'macos', 'windows', '.import',
+            'Library', 'Temp', 'Obj', 'Logs', 'UserSettings',
         }]
 
         for fname in files:
@@ -164,6 +167,8 @@ def _build_context(project_path: str, output_path: str):
                         break
         except Exception:
             pass
+    elif os.path.isfile(os.path.join(project_path, "ProjectSettings", "ProjectVersion.txt")):
+        lines.append("Unity project")
     elif os.path.isfile(os.path.join(project_path, "project.godot")):
         lines.append("Godot project")
     elif os.path.isfile(os.path.join(project_path, "requirements.txt")):

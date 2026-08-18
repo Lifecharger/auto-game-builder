@@ -76,7 +76,8 @@ No circular dependencies. The app never holds authoritative state — always re-
 | GET | `/api/apps` | `?include_archived=bool` |
 | GET | `/api/apps/{app_id}` | — |
 | POST | `/api/apps` | `{name, app_type, fix_strategy}` |
-| PATCH | `/api/apps/{app_id}` | `{notes, status, publish_status, fix_strategy, package_name, project_path, github_url, play_store_url, website_url, console_url}` |
+| PATCH | `/api/apps/{app_id}` | `{notes, status, publish_status, fix_strategy, package_name, project_path, app_type, github_url, play_store_url, website_url, console_url}` |
+| POST | `/api/apps/{app_id}/detect-engine` | — → `{app_type, previous, changed}` (re-reads the engine from disk) |
 
 ### Issues
 | Method | Path | Body / Params |
@@ -205,6 +206,7 @@ POST /api/pipeline/catalog/import
 |--------|--------|
 | Tasks | `pending` · `in_progress` · `completed` · `built` · `failed` |
 | Apps | `idle` · `building` · `fixing` |
+| Engines (`app_type`) | `flutter` · `godot` · `unity` · `phaser` · `react_native` · `python` · `custom` |
 | Builds | `running` · `failed` · `success` |
 | Deploy tracks | `internal` · `alpha` · `beta` · `production` |
 
@@ -234,6 +236,7 @@ from config.settings_loader import get_settings
 s = get_settings()
 flutter  = s.get("flutter_path", "flutter")
 godot    = s.get("godot_path",   "godot")
+unity    = s.get("unity_path",   "Unity")
 projects = s.get("projects_root", "~/Projects")
 keys     = s.get("keys_dir", "")
 tools    = s.get("tools_dir", "")
@@ -247,7 +250,7 @@ Never use `os.path.expanduser("~/…")` directly for project paths — always go
 ```json
 {
   "cloudflare":  { ... },
-  "engines":     { "flutter_path": "...", "godot_path": "..." },
+  "engines":     { "flutter_path": "...", "godot_path": "...", "unity_path": "..." },
   "paths":       { "keys_dir": "...", "tools_dir": "...", "projects_root": "..." }
 }
 ```
