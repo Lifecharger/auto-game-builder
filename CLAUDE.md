@@ -93,7 +93,8 @@ No circular dependencies. The app never holds authoritative state — always re-
 |--------|------|---------------|
 | GET | `/api/apps/{app_id}/tasks` | `?status=str` |
 | GET | `/api/apps/{app_id}/tasks/status` | — (task statistics) |
-| POST | `/api/apps/{app_id}/tasks` | `{app_id, title, description, task_type, priority, attachments}` — attachments = base64 list; 120 s timeout |
+| POST | `/api/apps/{app_id}/tasks` | `{app_id, title, description, task_type, priority, attachments}` — attachments = base64 list (PDF · PNG · JPEG · GIF · WEBP, max 10; 25 MB per PDF, 10 MB per image); 120 s timeout |
+| GET | `/api/apps/{app_id}/tasks/{task_id}/attachments/{index}` | — (serves the stored file with its own media type) |
 | PATCH | `/api/apps/{app_id}/tasks/{task_id}` | any field |
 | DELETE | `/api/apps/{app_id}/tasks/{task_id}` | — |
 | POST | `/api/apps/{app_id}/tasks/archive` | — (force-archive, keeps last 100) |

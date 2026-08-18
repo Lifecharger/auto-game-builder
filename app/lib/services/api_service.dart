@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 import '../config.dart';
 import '../models/app_model.dart';
 import '../models/issue_model.dart';
@@ -32,6 +33,20 @@ class ApiService {
     if (statusCode == 403) return 'Access denied (403)';
     if (statusCode == 401) return 'Unauthorized (401)';
     return 'Request failed ($statusCode)';
+  }
+
+  /// FastAPI reports refusals as `{"detail": "..."}`. Prefer that message over
+  /// a generic status-code string so the user learns what to fix.
+  static String _detailOrHttpError(http.Response response) {
+    try {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map && decoded['detail'] is String) {
+        return decoded['detail'] as String;
+      }
+    } on FormatException {
+      // Non-JSON error body — fall through to the generic message.
+    }
+    return _httpError(response.statusCode);
   }
 
   static String get _base => AppConfig.baseUrl;
@@ -589,6 +604,31 @@ class ApiService {
   static String taskAttachmentUrl(int appId, int taskId, int index) =>
       '$_base/api/apps/$appId/tasks/$taskId/attachments/$index';
 
+  /// Download an attachment into the app cache and return the local path.
+  /// The attachment endpoint requires the API key header, so an external
+  /// viewer cannot fetch the URL itself — the bytes have to come through here.
+  static Future<ApiResult<String>> downloadAttachment(
+    String url, {
+    required String filename,
+  }) async {
+    try {
+      final uri = Uri.parse(url.startsWith('http') ? url : '$_base$url');
+      final response = await http
+          .get(uri, headers: authHeaders)
+          .timeout(const Duration(seconds: 60));
+      if (response.statusCode != 200) {
+        return ApiResult.failure(_httpError(response.statusCode));
+      }
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/attachments/$filename');
+      await file.parent.create(recursive: true);
+      await file.writeAsBytes(response.bodyBytes);
+      return ApiResult.success(file.path);
+    } catch (e) {
+      return ApiResult.failure(_friendlyError(e));
+    }
+  }
+
   static Future<ApiResult<Map<String, dynamic>>> getAppTasksStatus(int appId) async {
     try {
       final response = await _getWithRetry(Uri.parse('$_base/api/apps/$appId/tasks/status'));
@@ -633,6 +673,11 @@ class ApiService {
           )
           .timeout(Duration(seconds: attachments != null && attachments.isNotEmpty ? 120 : 10));
       if (response.statusCode == 200 || response.statusCode == 201) return const ApiResult.success(true);
+      // A rejected attachment (unsupported type, too large) comes back as a
+      // 400 with a human-readable detail — show it instead of a bare code.
+      if (response.statusCode == 400) {
+        return ApiResult.failure(_detailOrHttpError(response));
+      }
       return ApiResult.failure(_httpError(response.statusCode));
     } catch (e) {
       return ApiResult.failure(_friendlyError(e));

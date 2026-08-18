@@ -247,7 +247,7 @@ class TaskCreate(BaseModel):
     description: str = ""
     task_type: str = "issue"  # issue|idea|feature|fix
     priority: str = "normal"  # normal|urgent
-    attachments: Optional[list] = None  # base64-encoded images from mobile
+    attachments: Optional[list] = None  # base64-encoded images/PDFs from mobile
     depends_on: Optional[list] = None  # ids of tasks that must finish first
 
 class GddUpdate(BaseModel):
@@ -1734,6 +1734,103 @@ def _unmet_dependencies(task: dict, tasks: list) -> list:
             if d in status_by_id and status_by_id[d] not in DONE_TASK_STATUSES]
 
 
+# ── Task attachments ────────────────────────────────────────
+# Attachments arrive base64-encoded from mobile. The payload carries no MIME
+# type, so the content type is decided by magic bytes — never by guessing.
+ATTACHMENT_SIGNATURES = (
+    (b"%PDF-", ".pdf", "application/pdf"),
+    (b"\x89PNG\r\n\x1a\n", ".png", "image/png"),
+    (b"\xff\xd8\xff", ".jpg", "image/jpeg"),
+    (b"GIF87a", ".gif", "image/gif"),
+    (b"GIF89a", ".gif", "image/gif"),
+)
+ATTACHMENT_MEDIA_TYPES = {
+    ".pdf": "application/pdf",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+}
+MAX_ATTACHMENTS = 10
+MAX_IMAGE_ATTACHMENT_BYTES = 10 * 1024 * 1024   # 10 MB
+MAX_PDF_ATTACHMENT_BYTES = 25 * 1024 * 1024     # 25 MB — documents run larger
+
+
+def _detect_attachment_type(data: bytes) -> tuple:
+    """Return (extension, media_type) for a supported attachment payload.
+
+    Raises ValueError for anything we cannot identify — an attachment stored
+    under the wrong type is worse than a rejected upload."""
+    # WEBP is RIFF-framed: "RIFF" <4-byte size> "WEBP"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return ".webp", "image/webp"
+    for magic, ext, media_type in ATTACHMENT_SIGNATURES:
+        if data.startswith(magic):
+            return ext, media_type
+    raise ValueError("unsupported attachment format (allowed: PDF, PNG, JPEG, GIF, WEBP)")
+
+
+def _attachment_media_type(path: str) -> str:
+    """Media type for a stored attachment, keyed off its extension."""
+    ext = os.path.splitext(path)[1].lower()
+    media_type = ATTACHMENT_MEDIA_TYPES.get(ext)
+    if not media_type:
+        raise HTTPException(415, f"Unsupported attachment type '{ext or path}'")
+    return media_type
+
+
+def _add_attachment_urls(app_id: int, task: dict):
+    """Attach fetchable URLs + media types to a normalized task. On-disk paths
+    are useless to the mobile app, and it needs the type to know whether an
+    attachment renders as an image or opens as a document."""
+    paths = task.get("attachments")
+    if not isinstance(paths, list) or not paths:
+        return
+    task["attachment_urls"] = [
+        f"/api/apps/{app_id}/tasks/{task.get('id')}/attachments/{i}"
+        for i in range(len(paths))
+    ]
+    task["attachment_types"] = [
+        ATTACHMENT_MEDIA_TYPES.get(os.path.splitext(str(p))[1].lower(), "application/octet-stream")
+        for p in paths
+    ]
+
+
+def _save_task_attachments(project_path: str, task_id: int, attachments: list) -> list:
+    """Decode and store base64 attachments (images or PDFs) for a task.
+    Returns the saved absolute paths. Rejects oversized or unknown payloads
+    loudly instead of dropping them silently."""
+    import base64
+
+    if len(attachments) > MAX_ATTACHMENTS:
+        raise HTTPException(400, f"Too many attachments (max {MAX_ATTACHMENTS})")
+    attach_dir = os.path.join(project_path, "task_attachments", str(task_id))
+    os.makedirs(attach_dir, exist_ok=True)
+    saved_paths = []
+    for idx, b64 in enumerate(attachments):
+        try:
+            data = base64.b64decode(b64)
+        except Exception as e:
+            raise HTTPException(400, f"Attachment {idx + 1} is not valid base64") from e
+        try:
+            ext, _ = _detect_attachment_type(data)
+        except ValueError as e:
+            raise HTTPException(400, f"Attachment {idx + 1}: {e}") from e
+        limit = MAX_PDF_ATTACHMENT_BYTES if ext == ".pdf" else MAX_IMAGE_ATTACHMENT_BYTES
+        if len(data) > limit:
+            raise HTTPException(
+                400,
+                f"Attachment {idx + 1} is {len(data) // (1024 * 1024)} MB, "
+                f"over the {limit // (1024 * 1024)} MB limit",
+            )
+        path = os.path.join(attach_dir, f"attachment_{idx}{ext}")
+        with open(path, "wb") as f:
+            f.write(data)
+        saved_paths.append(path)
+    return saved_paths
+
+
 def _annotate_task_extras(app_id: int, tasks: list, normalized: list):
     """Add blocked/blocked_by dependency info and fetchable attachment URLs
     to normalized tasks (paths on disk are useless to the mobile app)."""
@@ -1741,12 +1838,7 @@ def _annotate_task_extras(app_id: int, tasks: list, normalized: list):
         unmet = _unmet_dependencies(n, tasks)
         n["blocked_by"] = unmet
         n["blocked"] = bool(unmet)
-        paths = n.get("attachments")
-        if isinstance(paths, list) and paths:
-            n["attachment_urls"] = [
-                f"/api/apps/{app_id}/tasks/{n.get('id')}/attachments/{i}"
-                for i in range(len(paths))
-            ]
+        _add_attachment_urls(app_id, n)
 
 
 def _load_archived_tasks(a) -> list:
@@ -1835,28 +1927,9 @@ def add_app_task(app_id: int, body: TaskCreate):
         if body.depends_on:
             task["depends_on"] = [int(d) for d in body.depends_on if isinstance(d, (int, str)) and str(d).isdigit()]
 
-        # Save image attachments to disk
-        MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024  # 10 MB per attachment
-        MAX_ATTACHMENTS = 10
+        # Save attachments (images or PDFs) to disk
         if body.attachments:
-            import base64
-            if len(body.attachments) > MAX_ATTACHMENTS:
-                raise HTTPException(status_code=400, detail=f"Too many attachments (max {MAX_ATTACHMENTS})")
-            attach_dir = os.path.join(a.project_path, "task_attachments", str(new_id))
-            os.makedirs(attach_dir, exist_ok=True)
-            saved_paths = []
-            for idx, b64 in enumerate(body.attachments):
-                try:
-                    img_bytes = base64.b64decode(b64)
-                    if len(img_bytes) > MAX_ATTACHMENT_SIZE:
-                        logger.warning("Attachment %d exceeds size limit (%d bytes), skipping", idx, len(img_bytes))
-                        continue
-                    img_path = os.path.join(attach_dir, f"image_{idx}.png")
-                    with open(img_path, "wb") as img_f:
-                        img_f.write(img_bytes)
-                    saved_paths.append(img_path)
-                except Exception as e:
-                    logger.debug("Failed to save attachment %d: %s", idx, e)
+            saved_paths = _save_task_attachments(a.project_path, new_id, body.attachments)
             if saved_paths:
                 task["attachments"] = saved_paths
 
@@ -2008,12 +2081,7 @@ def search_app_tasks(app_id: int, q: str, limit: int = 100):
         if matches(t):
             n = _normalize_task(t, agent)
             n["archived"] = True
-            paths = n.get("attachments")
-            if isinstance(paths, list) and paths:
-                n["attachment_urls"] = [
-                    f"/api/apps/{app_id}/tasks/{n.get('id')}/attachments/{i}"
-                    for i in range(len(paths))
-                ]
+            _add_attachment_urls(app_id, n)
             results.append(n)
     # Active matches first (newest first), then archived (newest first)
     results.sort(key=lambda x: (x.get("archived", False), -(x.get("id") or 0)))
@@ -2022,9 +2090,9 @@ def search_app_tasks(app_id: int, q: str, limit: int = 100):
 
 @app.get("/api/apps/{app_id}/tasks/{task_id}/attachments/{index}")
 def get_task_attachment(app_id: int, task_id: int, index: int):
-    """Serve an image attached to a task. Attachments are stored as absolute
-    paths under the project's task_attachments dir; the mobile app can only
-    reach them through this endpoint."""
+    """Serve a file attached to a task (image or PDF). Attachments are stored
+    as absolute paths under the project's task_attachments dir; the mobile app
+    can only reach them through this endpoint."""
     a = db().get_app(app_id)
     if not a:
         raise HTTPException(404, "App not found")
@@ -2043,7 +2111,13 @@ def get_task_attachment(app_id: int, task_id: int, index: int):
         raise HTTPException(403, "Attachment path outside project")
     if not os.path.isfile(path):
         raise HTTPException(404, "Attachment file missing")
-    return FileResponse(path, media_type="image/png")
+    media_type = _attachment_media_type(path)
+    return FileResponse(
+        path,
+        media_type=media_type,
+        filename=os.path.basename(path),
+        content_disposition_type="inline",
+    )
 
 
 # ── Logs (unified across all apps) ──────────────────────────

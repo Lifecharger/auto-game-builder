@@ -90,7 +90,7 @@ Mobile App  ──►  Cloudflare Worker Proxy
 - Each app has a `tasklist.json` file in its project folder.
 - Tasks have types: `issue`, `idea`, `feature`, `fix`.
 - Tasks have statuses: `pending`, `in_progress`, `partial`, `completed`, `built`, `divided`, `failed`, `archived`.
-- Tasks support image attachments (base64-encoded, saved to `task_attachments/`).
+- Tasks support image and PDF attachments (base64-encoded, saved to `task_attachments/`; the type is detected from the file's magic bytes).
 - Completed tasks are auto-archived (kept to the last 100 done tasks; excess moved to `task_archives/`).
 - File writes are atomic (temp file + `os.replace`) with `.bak` backup to prevent corruption.
 - Per-file locks prevent concurrent read-modify-write race conditions.

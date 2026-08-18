@@ -1,8 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:open_filex/open_filex.dart';
 import '../services/api_service.dart';
 import '../theme.dart';
+
+const String _pdfMimeType = 'application/pdf';
 
 class TaskItemCard extends StatelessWidget {
   final Map<String, dynamic> item;
@@ -71,14 +74,28 @@ class TaskItemCard extends StatelessWidget {
     });
   }
 
-  /// Attachment URLs resolved against the server base. The server sends
-  /// relative `/api/...` paths so they work through any tunnel host.
-  List<String> get _attachmentUrls {
+  /// Attachments resolved against the server base, paired with the media type
+  /// the server reported. The server sends relative `/api/...` paths so they
+  /// work through any tunnel host. Responses without `attachment_types` (older
+  /// servers) are treated as images, which is what they were.
+  List<({String url, bool isPdf})> get _attachments {
     final urls = (item['attachment_urls'] as List<dynamic>?)
-        ?.whereType<String>()
-        .map((u) => u.startsWith('http') ? u : '${ApiService.baseUrl}$u')
-        .toList();
-    return urls ?? const [];
+            ?.whereType<String>()
+            .toList() ??
+        const <String>[];
+    final types = (item['attachment_types'] as List<dynamic>?)
+            ?.whereType<String>()
+            .toList() ??
+        const <String>[];
+    return [
+      for (var i = 0; i < urls.length; i++)
+        (
+          url: urls[i].startsWith('http')
+              ? urls[i]
+              : '${ApiService.baseUrl}${urls[i]}',
+          isPdf: i < types.length && types[i] == _pdfMimeType,
+        ),
+    ];
   }
 
   Widget _networkImage(String url, {BoxFit fit = BoxFit.cover, double? height}) {
@@ -128,7 +145,72 @@ class TaskItemCard extends StatelessWidget {
     );
   }
 
-  void _showAttachmentsViewer(BuildContext context, List<String> urls) {
+  /// A PDF cannot be rendered inline, and the API needs an auth header the
+  /// system viewer cannot send — so pull the bytes down first, then hand the
+  /// cached file to whatever viewer the device has.
+  Future<void> _openPdf(BuildContext context, String url, int index) async {
+    HapticFeedback.lightImpact();
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(const SnackBar(
+      content: Text('Opening PDF…'),
+      duration: Duration(seconds: 1),
+    ));
+    final result = await ApiService.downloadAttachment(
+      url,
+      filename: 'task_${item['id']}_$index.pdf',
+    );
+    if (!result.ok) {
+      messenger.showSnackBar(SnackBar(
+        content: Text(result.error ?? 'Could not download the PDF'),
+        backgroundColor: AppColors.error,
+      ));
+      return;
+    }
+    final opened = await OpenFilex.open(result.data!, type: _pdfMimeType);
+    if (opened.type != ResultType.done) {
+      messenger.showSnackBar(SnackBar(
+        content: Text('Could not open the PDF: ${opened.message}'),
+        backgroundColor: AppColors.error,
+      ));
+    }
+  }
+
+  /// PDF stand-in tile — icon plus a tap hint, sized like an image thumbnail.
+  Widget _pdfTile({double size = 120}) {
+    return Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      color: AppColors.bgDark,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.picture_as_pdf, size: size * 0.35, color: AppColors.error),
+          const SizedBox(height: 6),
+          Text('Open PDF',
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade300)),
+        ],
+      ),
+    );
+  }
+
+  Widget _attachmentThumb(
+      BuildContext context, ({String url, bool isPdf}) attachment, int index) {
+    return GestureDetector(
+      onTap: () => attachment.isPdf
+          ? _openPdf(context, attachment.url, index)
+          : _showFullImage(context, attachment.url),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: attachment.isPdf
+            ? _pdfTile()
+            : _networkImage(attachment.url, height: 120),
+      ),
+    );
+  }
+
+  void _showAttachmentsViewer(
+      BuildContext context, List<({String url, bool isPdf})> attachments) {
     showDialog(
       context: context,
       builder: (ctx) => Dialog(
@@ -137,16 +219,40 @@ class TaskItemCard extends StatelessWidget {
         child: SizedBox(
           height: MediaQuery.of(ctx).size.height * 0.7,
           child: PageView.builder(
-            itemCount: urls.length,
-            itemBuilder: (_, i) => GestureDetector(
-              onTap: () => Navigator.pop(ctx),
-              child: InteractiveViewer(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: _networkImage(urls[i], fit: BoxFit.contain),
-                ),
-              ),
-            ),
+            itemCount: attachments.length,
+            itemBuilder: (_, i) => attachments[i].isPdf
+                ? Center(
+                    child: SizedBox(
+                      height: 160,
+                      width: 160,
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(12),
+                          onTap: () {
+                            // Close the viewer first: the PDF opens in another
+                            // app, and any error lands on the card's snackbar.
+                            Navigator.pop(ctx);
+                            _openPdf(context, attachments[i].url, i);
+                          },
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: _pdfTile(size: 160),
+                          ),
+                        ),
+                      ),
+                    ),
+                  )
+                : GestureDetector(
+                    onTap: () => Navigator.pop(ctx),
+                    child: InteractiveViewer(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: _networkImage(attachments[i].url,
+                            fit: BoxFit.contain),
+                      ),
+                    ),
+                  ),
           ),
         ),
       ),
@@ -191,7 +297,7 @@ class TaskItemCard extends StatelessWidget {
     final status = item['status'] ?? 'pending';
     final agent = (item['agent'] ?? item['ai_agent'] ?? '').toString();
     final appName = (item['app_name'] ?? '').toString();
-    final attachmentUrls = _attachmentUrls;
+    final attachments = _attachments;
     final isArchived = item['archived'] == true;
     final blockedBy = (item['blocked_by'] as List<dynamic>?)
             ?.whereType<num>()
@@ -438,22 +544,17 @@ class TaskItemCard extends StatelessWidget {
                     style: TextStyle(fontSize: 13, color: Colors.grey.shade300, height: 1.4),
                   ),
                 ],
-                if (attachmentUrls.isNotEmpty)
+                if (attachments.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 10),
                     child: SizedBox(
                       height: 120,
                       child: ListView.separated(
                         scrollDirection: Axis.horizontal,
-                        itemCount: attachmentUrls.length,
+                        itemCount: attachments.length,
                         separatorBuilder: (_, __) => const SizedBox(width: 8),
-                        itemBuilder: (ctx, i) => GestureDetector(
-                          onTap: () => _showFullImage(ctx, attachmentUrls[i]),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: _networkImage(attachmentUrls[i], height: 120),
-                          ),
-                        ),
+                        itemBuilder: (ctx, i) =>
+                            _attachmentThumb(ctx, attachments[i], i),
                       ),
                     ),
                   ),
@@ -525,16 +626,16 @@ class TaskItemCard extends StatelessWidget {
                     ],
                   ),
                 ],
-                if (attachmentUrls.isNotEmpty) ...[
+                if (attachments.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   SizedBox(
                     width: double.infinity,
-                    height: 44,
+                    height: 48,
                     child: OutlinedButton.icon(
-                      onPressed: () => _showAttachmentsViewer(context, attachmentUrls),
+                      onPressed: () => _showAttachmentsViewer(context, attachments),
                       icon: const Icon(Icons.attach_file, size: 18),
                       label: Text(
-                        'Attachments (${attachmentUrls.length})',
+                        'Attachments (${attachments.length})',
                       ),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppColors.info,

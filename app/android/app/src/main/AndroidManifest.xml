@@ -1,7 +1,16 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.CAMERA"/>
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"/>
+    <!-- open_filex declares these for opening files from shared media storage.
+         PDF attachments are opened from this app's own cache directory through
+         its FileProvider (which needs no permission), so they are kept out of
+         the merged manifest. -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" tools:node="remove"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" tools:node="remove"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" tools:node="remove"/>
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" tools:node="remove"/>
     <application
         android:label="AGB Companion"
         android:usesCleartextTraffic="true"

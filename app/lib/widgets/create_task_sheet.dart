@@ -1,12 +1,32 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import '../services/api_service.dart';
 import '../theme.dart';
 
+/// A file staged for upload. The sheet has to remember whether a pick is a
+/// document or an image: PDFs cannot be shown as a thumbnail.
+class _StagedAttachment {
+  final File file;
+  final String name;
+  final bool isPdf;
+
+  const _StagedAttachment({
+    required this.file,
+    required this.name,
+    required this.isPdf,
+  });
+}
+
 class CreateTaskSheet {
+  /// Mirrors the server's per-attachment PDF limit
+  /// (`MAX_PDF_ATTACHMENT_BYTES` in server/api/server.py) so the user is told
+  /// before a multi-megabyte upload is attempted.
+  static const int _maxPdfBytes = 25 * 1024 * 1024;
+  static const double _tileSize = 80;
   static void show({
     required BuildContext context,
     required int appId,
@@ -17,7 +37,7 @@ class CreateTaskSheet {
     String taskType = 'issue';
     String priority = 'normal';
     bool submitting = false;
-    List<File> attachedImages = [];
+    List<_StagedAttachment> attachedFiles = [];
     // Optional dependencies: this task stays blocked until they finish.
     final dependsOn = <int>{};
     List<Map<String, dynamic>>? openTasks; // null = not loaded yet
@@ -209,60 +229,69 @@ class CreateTaskSheet {
                     const Text('Attachments',
                         style: TextStyle(fontWeight: FontWeight.w600)),
                     const SizedBox(height: 8),
-                    if (attachedImages.isNotEmpty)
+                    if (attachedFiles.isNotEmpty) ...[
                       SizedBox(
-                        height: 80,
+                        height: _tileSize,
                         child: ListView.separated(
                           scrollDirection: Axis.horizontal,
-                          itemCount: attachedImages.length,
+                          itemCount: attachedFiles.length,
                           separatorBuilder: (_, __) => const SizedBox(width: 8),
-                          itemBuilder: (_, i) => Stack(
-                            children: [
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: Image.file(
-                                  File(attachedImages[i].path),
-                                  width: 80,
-                                  height: 80,
-                                  fit: BoxFit.cover,
-                                ),
-                              ),
-                              Positioned(
-                                top: -8,
-                                right: -8,
-                                child: SizedBox(
-                                  width: 36,
-                                  height: 36,
-                                  child: IconButton(
-                                    padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-                                    onPressed: () => setSheetState(() => attachedImages.removeAt(i)),
-                                    style: IconButton.styleFrom(
-                                      backgroundColor: Colors.black54,
-                                    ),
-                                    icon: const Icon(Icons.close, size: 16, color: Colors.white),
-                                  ),
-                                ),
-                              ),
-                            ],
+                          itemBuilder: (_, i) => _stagedTile(
+                            attachedFiles[i],
+                            () => setSheetState(() => attachedFiles.removeAt(i)),
                           ),
                         ),
                       ),
-                    if (attachedImages.isNotEmpty)
                       const SizedBox(height: 8),
-                    OutlinedButton.icon(
-                      onPressed: () async {
-                        HapticFeedback.lightImpact();
-                        final picker = ImagePicker();
-                        final picked = await picker.pickMultiImage(imageQuality: 80);
-                        if (picked.isNotEmpty) {
-                          setSheetState(() {
-                            attachedImages.addAll(picked.map((x) => File(x.path)));
-                          });
-                        }
-                      },
-                      icon: const Icon(Icons.attach_file),
-                      label: Text(attachedImages.isEmpty ? 'Add Photo' : 'Add More'),
+                    ],
+                    Row(
+                      children: [
+                        Expanded(
+                          child: SizedBox(
+                            height: 48,
+                            child: OutlinedButton.icon(
+                              onPressed: () async {
+                                HapticFeedback.lightImpact();
+                                final picked = await _pickImages();
+                                if (picked.isNotEmpty) {
+                                  setSheetState(() => attachedFiles.addAll(picked));
+                                }
+                              },
+                              icon: const Icon(Icons.image_outlined, size: 18),
+                              label: const Text('Photo'),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: SizedBox(
+                            height: 48,
+                            child: OutlinedButton.icon(
+                              onPressed: () async {
+                                HapticFeedback.lightImpact();
+                                final picked = await _pickPdfs();
+                                if (!ctx.mounted) return;
+                                if (picked.oversized.isNotEmpty) {
+                                  ScaffoldMessenger.of(ctx).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                          'Too large (max ${_maxPdfBytes ~/ (1024 * 1024)} MB): '
+                                          '${picked.oversized.join(', ')}'),
+                                      backgroundColor: AppColors.warning,
+                                    ),
+                                  );
+                                }
+                                if (picked.files.isNotEmpty) {
+                                  setSheetState(
+                                      () => attachedFiles.addAll(picked.files));
+                                }
+                              },
+                              icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+                              label: const Text('PDF'),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 20),
                     SizedBox(
@@ -285,10 +314,11 @@ class CreateTaskSheet {
                                 }
                                 setSheetState(() => submitting = true);
                                 List<String>? base64Attachments;
-                                if (attachedImages.isNotEmpty) {
+                                if (attachedFiles.isNotEmpty) {
                                   base64Attachments = [];
-                                  for (final img in attachedImages) {
-                                    final bytes = await File(img.path).readAsBytes();
+                                  for (final attachment in attachedFiles) {
+                                    final bytes =
+                                        await attachment.file.readAsBytes();
                                     base64Attachments.add(base64Encode(bytes));
                                   }
                                 }
@@ -336,5 +366,95 @@ class CreateTaskSheet {
       titleController.dispose();
       descController.dispose();
     });
+  }
+
+  static Future<List<_StagedAttachment>> _pickImages() async {
+    final picked = await ImagePicker().pickMultiImage(imageQuality: 80);
+    return picked
+        .map((x) => _StagedAttachment(
+              file: File(x.path),
+              name: x.name,
+              isPdf: false,
+            ))
+        .toList();
+  }
+
+  /// Pick PDFs, splitting off any that exceed the server's size limit so the
+  /// caller can tell the user which ones were dropped instead of failing the
+  /// whole upload later.
+  static Future<({List<_StagedAttachment> files, List<String> oversized})>
+      _pickPdfs() async {
+    final result = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['pdf'],
+      allowMultiple: true,
+      withData: false,
+    );
+    final files = <_StagedAttachment>[];
+    final oversized = <String>[];
+    for (final picked in result?.files ?? const <PlatformFile>[]) {
+      final path = picked.path;
+      if (path == null) continue;
+      final file = File(path);
+      if (await file.length() > _maxPdfBytes) {
+        oversized.add(picked.name);
+        continue;
+      }
+      files.add(_StagedAttachment(file: file, name: picked.name, isPdf: true));
+    }
+    return (files: files, oversized: oversized);
+  }
+
+  static Widget _stagedTile(_StagedAttachment attachment, VoidCallback onRemove) {
+    return Stack(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: attachment.isPdf
+              ? Container(
+                  width: _tileSize,
+                  height: _tileSize,
+                  padding: const EdgeInsets.all(4),
+                  color: AppColors.bgDark,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.picture_as_pdf,
+                          size: 28, color: AppColors.error),
+                      const SizedBox(height: 4),
+                      Text(
+                        attachment.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 9),
+                      ),
+                    ],
+                  ),
+                )
+              : Image.file(
+                  attachment.file,
+                  width: _tileSize,
+                  height: _tileSize,
+                  fit: BoxFit.cover,
+                ),
+        ),
+        Positioned(
+          top: -8,
+          right: -8,
+          child: SizedBox(
+            width: 36,
+            height: 36,
+            child: IconButton(
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+              onPressed: onRemove,
+              style: IconButton.styleFrom(backgroundColor: Colors.black54),
+              icon: const Icon(Icons.close, size: 16, color: Colors.white),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
