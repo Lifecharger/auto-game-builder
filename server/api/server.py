@@ -136,6 +136,7 @@ async def lifespan(app: FastAPI):
 
     app.state.db = DBManager(DB_PATH)
     _cleanup_stale_db_state(app.state.db)
+    _reset_orphaned_in_progress_tasks(app.state.db)
     _resync_app_engines(app.state.db)
     settings = get_settings()
     app.state.internet = InternetMonitor(
@@ -152,7 +153,26 @@ async def lifespan(app: FastAPI):
             auto_setup_mcp_presets()
         except Exception as e:
             logger.warning("MCP auto-setup failed: %s", e)
+
+    # Periodically prune archived event-log segments every active client has
+    # already consumed. Without this, replay_since walks every archive on each
+    # reconnect and the archives grow without bound. min_active_seq() returns 0
+    # when no client has been heard from recently, which prunes nothing (seqs
+    # start at 1) — so this only ever deletes fully-acknowledged segments.
+    _event_prune_stop = threading.Event()
+
+    def _prune_event_archives_loop():
+        while not _event_prune_stop.wait(3600):  # hourly
+            try:
+                removed = event_log.prune_archives(client_cursors.min_active_seq())
+                if removed:
+                    logger.info("event_log: pruned %d archived segment(s)", removed)
+            except Exception as e:
+                logger.debug("event_log prune failed: %s", e)
+
+    threading.Thread(target=_prune_event_archives_loop, daemon=True).start()
     yield
+    _event_prune_stop.set()
     app.state.deploy.shutdown()
     app.state.internet.stop()
     app.state.autofix.stop_processing()
@@ -167,15 +187,31 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 
 class ApiKeyMiddleware(BaseHTTPMiddleware):
-    """Validate X-API-Key header on all /api/* routes (except health & pair)."""
+    """Validate X-API-Key header on all /api/* routes (except health & pair).
 
-    # Routes that don't require auth (public endpoints)
-    OPEN_PATHS = {"/", "/docs", "/openapi.json", "/api/health", "/api/pair"}
+    Docs (/docs, /openapi.json, /redoc) are ALSO gated behind the key — they
+    are reachable over the public Cloudflare tunnel and would otherwise leak
+    the full route map to anyone with the URL. /api/pair stays open at the
+    middleware layer but enforces its own one-time pairing-code gate inside
+    the handler (see the `pair` endpoint), so the tunnel URL alone can't
+    harvest the API key.
+    """
+
+    # Routes that need no API key AND no pairing code.
+    OPEN_PATHS = {"/", "/api/health"}
+    # Pairing endpoint: open at the middleware, gated by a one-time code inside.
+    PAIR_PATHS = {"/api/pair"}
+    # API docs — must be gated (they expose the schema over the public tunnel).
+    DOCS_PATHS = {"/docs", "/openapi.json", "/redoc", "/docs/oauth2-redirect"}
 
     async def dispatch(self, request: Request, call_next):
         path = request.url.path.rstrip("/")
-        # Skip auth for non-API routes, health, pair, and OPTIONS (CORS preflight)
-        if request.method == "OPTIONS" or path in self.OPEN_PATHS or not path.startswith("/api"):
+        # OPTIONS (CORS preflight) and always-open routes need no auth.
+        if request.method == "OPTIONS" or path in self.OPEN_PATHS or path in self.PAIR_PATHS:
+            return await call_next(request)
+        # Everything that needs the key: all /api routes plus the docs paths.
+        # Any other non-API path (static, root variants) stays open.
+        if not (path.startswith("/api") or path in self.DOCS_PATHS):
             return await call_next(request)
 
         settings = get_settings()
@@ -363,6 +399,9 @@ def _reconcile_tasklist_mtimes():
                 else:
                     row_dt = row_updated
                 if file_mtime > row_dt:
+                    # Out-of-band edits are how Claude sessions complete
+                    # tasks — sweep their mirrored issues closed here.
+                    _close_linked_issues(a.id, _load_tasklist(a))
                     db().touch_app(a.id)
                     # Emit an op with fresh task_status so the op-log path
                     # delivers the change to SSE clients. _publish_app_changed
@@ -561,13 +600,58 @@ def events_ack(body: _AckBody):
     return {"ok": True}
 
 
+# ── Pairing code gate ─────────────────────────────────────────
+# The server is exposed over `cloudflared tunnel --url http://localhost:8000`,
+# so every tunneled request arrives from 127.0.0.1 — a localhost check is no
+# gate at all. Instead we mint a short-lived, single-use pairing code that is
+# printed to the server console; the pairing client must present it. The code
+# never travels over the tunnel unsolicited, so a URL alone can't harvest the
+# API key.
+_PAIRING_TTL_SECONDS = 600  # 10 minutes
+_pairing_lock = threading.Lock()
+_pairing_state = {"code": "", "expires": 0.0, "used": False}
+
+
+def _announce_pairing_code(code: str) -> None:
+    line = f"[AutoGameBuilder] Pairing code (valid {_PAIRING_TTL_SECONDS // 60} min): {code}"
+    print("=" * len(line))
+    print(line)
+    print("=" * len(line))
+    logger.info("Pairing code generated (valid %ds)", _PAIRING_TTL_SECONDS)
+
+
+def _current_pairing_code() -> str:
+    """Return the active pairing code, regenerating (and re-announcing) it if
+    it has expired or was already consumed. Must be called under _pairing_lock."""
+    now = time.time()
+    st = _pairing_state
+    if (not st["code"]) or st["used"] or now >= st["expires"]:
+        st["code"] = secrets.token_hex(3).upper()  # 6 hex chars, easy to type
+        st["expires"] = now + _PAIRING_TTL_SECONDS
+        st["used"] = False
+        _announce_pairing_code(st["code"])
+    return st["code"]
+
+
 @app.get("/api/pair")
-def pair(request: Request):
+def pair(request: Request, code: str = Query("")):
     """Return pairing data (API key + worker URL) for QR code display.
-    Only accessible from localhost — blocks remote access."""
-    client_host = request.client.host if request.client else ""
-    if client_host not in ("127.0.0.1", "::1", "localhost", ""):
-        raise HTTPException(403, "Pairing is only available from localhost")
+
+    Requires the one-time pairing code shown on the server console. Presenting
+    no/invalid code triggers generation of a fresh code (printed to console) so
+    the operator can read it and retry — the response never leaks the key."""
+    with _pairing_lock:
+        expected = _current_pairing_code()
+        provided = (code or "").strip().upper()
+        if not provided or not secrets.compare_digest(provided, expected):
+            raise HTTPException(
+                403,
+                "Pairing requires the one-time code shown on the server console. "
+                "A fresh code has just been printed there — pass it as ?code=XXXXXX.",
+            )
+        # Valid code — burn it so it can't be replayed.
+        _pairing_state["used"] = True
+
     import base64
     settings = get_settings()
     api_key = settings.get("api_key", "")
@@ -1291,6 +1375,100 @@ _ICON_CANDIDATES_DEFAULT: tuple[str, ...] = _ICON_CANDIDATES_COMMON
 _RENDERABLE_EXTS = (".png", ".jpg", ".jpeg")
 
 
+def _unity_icon_from_settings(project_path: str) -> str | None:
+    """The icon a Unity project actually ships, found through its GUID.
+
+    Unity stores launcher icons as texture GUIDs in ProjectSettings.asset:
+
+        m_BuildTargetPlatformIcons:
+        - m_BuildTarget: Android
+          m_Icons:
+          - m_Textures:
+            - {fileID: 2800000, guid: 6f3c1a..., type: 3}
+
+    The GUID maps to a file via the `.meta` beside it, so resolving it means
+    scanning Assets/ for the meta that declares that guid. That is the only way
+    to know what the app's icon IS - guessing filenames finds an icon only in
+    projects that happened to use the name being guessed.
+
+    Returns None when the project genuinely has no icon set, which is worth
+    knowing: it means the built app carries Unity's default logo.
+    """
+    settings = os.path.join(project_path, "ProjectSettings", "ProjectSettings.asset")
+    if not os.path.isfile(settings):
+        return None
+
+    try:
+        with open(settings, "r", encoding="utf-8", errors="replace") as f:
+            content = f.read()
+    except OSError:
+        return None
+
+    # Icons are grouped per slot under `m_Textures:`, biggest slot first, and a
+    # slot holds either one texture (legacy/round) or two (adaptive). Unity
+    # writes an adaptive pair as [background, foreground] - so within a slot the
+    # LAST entry is the artwork and the first is the plain colour behind it.
+    # Reading them in file order hands back the gradient.
+    single: list[str] = []      # legacy/round slots: one complete icon
+    layered: list[str] = []     # adaptive slots: artwork with no background
+    for block in re.finditer(r"m_Textures:\s*\n((?:\s*-\s*\{[^}]*\}\s*\n)+)", content):
+        layers = re.findall(r"guid:\s*([0-9a-f]{32})", block.group(1))
+        target = single if len(layers) == 1 else layered
+        for guid in reversed(layers):
+            if guid not in target:
+                target.append(guid)
+
+    # A complete icon beats an adaptive foreground, which on its own is a
+    # cut-out on transparency - fine for a launcher that composites it over the
+    # background layer, wrong for a list that simply draws it.
+    guids: list[str] = single + [g for g in layered if g not in single]
+
+    # Older projects (and other platforms) list icons outside those blocks.
+    for match in re.finditer(r"guid:\s*([0-9a-f]{32})", content):
+        if match.group(1) not in guids:
+            guids.append(match.group(1))
+
+    if not guids:
+        return None
+
+    assets = os.path.join(project_path, "Assets")
+    if not os.path.isdir(assets):
+        return None
+
+    # One walk, checking every .meta against the whole guid set: a project can
+    # hold tens of thousands of files and walking once per guid is what turns a
+    # sync into a stall.
+    wanted = set(guids)
+    found: dict[str, str] = {}
+    for root, dirs, files in os.walk(assets):
+        # Nothing under these is ever an icon, and they are enormous.
+        dirs[:] = [d for d in dirs if d not in ("Library", "Temp", "obj", "Logs")]
+        for name in files:
+            if not name.endswith(".meta"):
+                continue
+            asset = os.path.join(root, name[:-5])
+            if not asset.lower().endswith(_RENDERABLE_EXTS):
+                continue
+            try:
+                with open(os.path.join(root, name), "r", encoding="utf-8",
+                          errors="replace") as f:
+                    head = f.read(400)
+            except OSError:
+                continue
+            m = re.search(r"guid:\s*([0-9a-f]{32})", head)
+            if m and m.group(1) in wanted and os.path.isfile(asset):
+                found[m.group(1)] = asset
+        if len(found) == len(wanted):
+            break
+
+    # Return them in the order ProjectSettings listed them, so the largest
+    # configured icon wins rather than whichever the walk reached first.
+    for guid in guids:
+        if guid in found:
+            return found[guid]
+    return None
+
+
 def _resolve_app_icon(a) -> str | None:
     """Return absolute path to the app's icon file, or None if none exists.
 
@@ -1305,6 +1483,12 @@ def _resolve_app_icon(a) -> str | None:
         if os.path.isfile(p) and p.lower().endswith(_RENDERABLE_EXTS):
             return p
         return None
+    # Unity: ask the project what its icon IS, rather than guessing names.
+    if a.app_type == "unity":
+        found = _unity_icon_from_settings(a.project_path)
+        if found:
+            return found
+
     candidates = _ICON_CANDIDATES_BY_TYPE.get(a.app_type, _ICON_CANDIDATES_DEFAULT)
     for rel in candidates:
         p = os.path.join(a.project_path, rel)
@@ -1574,7 +1758,22 @@ def _repair_task_text(task: dict) -> dict:
     return task
 
 
-def _load_tasklist(a) -> list:
+class TasklistParseError(Exception):
+    """tasklist.json exists on disk but could not be parsed.
+
+    Distinct from an empty/absent file (a genuine "no tasks" state). Callers
+    that are about to WRITE the file must not treat this as an empty list —
+    doing so would overwrite an intact-but-momentarily-unreadable file with
+    just the new task and clobber the .bak too."""
+
+
+def _load_tasklist(a, strict: bool = False) -> list:
+    """Load and normalize tasklist.json.
+
+    Read-only callers use the default (strict=False): any parse failure yields
+    [] so a corrupt file never 500s a GET. Writers pass strict=True so a parse
+    failure raises TasklistParseError instead of masquerading as "no tasks",
+    letting the write path bail rather than persist an empty tasklist."""
     path = _tasklist_path(a)
     if os.path.isfile(path):
         try:
@@ -1606,8 +1805,14 @@ def _load_tasklist(a) -> list:
                         logger.warning("Restored tasklist.json from backup: %s", path)
                     except Exception as e:
                         logger.warning("Backup restore also failed for %s: %s", path, e)
+                        if strict:
+                            raise TasklistParseError(
+                                f"tasklist.json unreadable and backup restore failed: {path}")
                         return []
                 else:
+                    if strict:
+                        raise TasklistParseError(
+                            f"tasklist.json unreadable and no backup present: {path}")
                     return []
             tasks = data.get("tasks", data) if isinstance(data, dict) else data
             # Normalize "done" → "completed" (some AI agents use "done" instead)
@@ -1618,8 +1823,12 @@ def _load_tasklist(a) -> list:
                         t["status"] = "completed"
                     _repair_task_text(t)
             return tasks
-        except Exception:
-            pass
+        except TasklistParseError:
+            raise
+        except Exception as e:
+            if strict:
+                raise TasklistParseError(f"tasklist.json load failed for {path}: {e}")
+            return []
     return []
 
 
@@ -1710,7 +1919,15 @@ def _mutate_tasklist(a, mutate):
         result = None
         for attempt in range(3):
             before = _tasklist_mtime(path)
-            tasks = _load_tasklist(a)
+            try:
+                tasks = _load_tasklist(a, strict=True)
+            except TasklistParseError as e:
+                # The file exists but is unreadable right now (e.g. an external
+                # writer mid-truncate). Refuse to save — writing our copy would
+                # replace an intact file with just this mutation and clobber the
+                # .bak. Fail loudly so the caller retries.
+                logger.error("Refusing to write tasklist — load failed: %s", e)
+                raise HTTPException(503, "Tasklist temporarily unreadable — retry shortly")
             tasks, result = mutate(tasks)
             if _tasklist_mtime(path) != before and attempt < 2:
                 logger.warning("tasklist.json changed externally mid-write (%s) — re-applying mutation", path)
@@ -1720,7 +1937,102 @@ def _mutate_tasklist(a, mutate):
         return result
 
 
+def _reset_orphaned_in_progress_tasks(db_inst: DBManager):
+    """Reset tasks stuck in 'in_progress' from a previous crash back to 'pending'.
+
+    A task run sets its task to 'in_progress' before launch and only resets it
+    (to completed/failed) in a python block at the very END of the generated
+    bash script. The watchdog SIGKILLs that script when it overruns, so a killed
+    or interrupted run leaves the task wedged in_progress forever. Sweep every
+    app's tasklist on startup and free those tasks."""
+    try:
+        for a in db_inst.get_all_apps():
+            try:
+                if not os.path.isfile(_tasklist_path(a)):
+                    continue
+                # Cheap read first: _mutate_tasklist always rewrites, so only
+                # engage it for apps that actually have an orphaned task —
+                # otherwise startup would needlessly rewrite every tasklist.
+                current = _load_tasklist(a)
+                if not any(isinstance(t, dict) and t.get("status") == "in_progress" for t in current):
+                    continue
+
+                def _reset(tasks):
+                    changed = False
+                    for t in tasks:
+                        if isinstance(t, dict) and t.get("status") == "in_progress":
+                            t["status"] = "pending"
+                            note = "[reset: server restarted while task was running]"
+                            t["response"] = f"{(t.get('response') or '').strip()} {note}".strip()
+                            changed = True
+                    return tasks, changed
+
+                if _mutate_tasklist(a, _reset):
+                    print(f"[Startup] Reset orphaned in_progress task(s) for '{a.name}'")
+            except Exception as e:
+                logger.debug("orphan reset failed for %s: %s", getattr(a, "name", "?"), e)
+    except Exception as e:
+        print(f"[Startup] Orphaned task cleanup warning: {e}")
+
+
+def _reset_task_after_kill(app_id: int, task_id: int):
+    """Mark a specific task 'failed' after its run was SIGKILLed by the watchdog.
+
+    The generated script's own in_progress->failed fallback never runs when the
+    process tree is killed, so do it here instead of leaving the task wedged."""
+    try:
+        a = db().get_app(app_id)
+        if not a:
+            return
+
+        def _mark(tasks):
+            changed = False
+            for t in tasks:
+                if isinstance(t, dict) and t.get("id") == task_id and t.get("status") == "in_progress":
+                    t["status"] = "failed"
+                    note = "[killed: run exceeded its time limit]"
+                    t["response"] = f"{(t.get('response') or '').strip()} {note}".strip()
+                    changed = True
+            return tasks, changed
+
+        _mutate_tasklist(a, _mark)
+    except Exception as e:
+        logger.debug("reset task after kill failed (app=%s task=%s): %s", app_id, task_id, e)
+
+
 DONE_TASK_STATUSES = ("completed", "built", "divided", "archived")
+
+
+def _close_linked_issues(app_id: int, tasks: list):
+    """Close mirrored DB issues whose task has finished.
+
+    add_app_task mirrors every mobile task as an `issues` row; tasks created
+    before the issue_id link existed fall back to a title match. Without this
+    sweep the open-issue badge only ever grows."""
+    try:
+        open_issues = db().get_issues(app_id=app_id, status="open")
+        if not open_issues:
+            return
+        by_id = {i.id: i for i in open_issues}
+        by_title = {}
+        for i in open_issues:
+            by_title.setdefault((i.title or "").strip().lower(), []).append(i)
+        for t in tasks:
+            if not isinstance(t, dict) or t.get("status") not in DONE_TASK_STATUSES:
+                continue
+            result = f"Task #{t.get('id')} {t.get('status')}"
+            iid = t.get("issue_id")
+            if iid in by_id:
+                db().update_issue(iid, status="closed", fix_result=result)
+                del by_id[iid]
+                continue
+            key = (t.get("title") or "").strip().lower()
+            for i in by_title.get(key, []):
+                if i.id in by_id:
+                    db().update_issue(i.id, status="closed", fix_result=result)
+                    del by_id[i.id]
+    except Exception as e:
+        logger.debug("close linked issues failed for app %s: %s", app_id, e)
 
 
 def _unmet_dependencies(task: dict, tasks: list) -> list:
@@ -1911,6 +2223,15 @@ def add_app_task(app_id: int, body: TaskCreate):
     a = db().get_app(app_id)
     if not a:
         raise HTTPException(404, "App not found")
+    # Mirror as DB issue first so the task can carry the link; the linked
+    # issue is closed by _close_linked_issues when the task finishes.
+    issue_id = db().create_issue(
+        app_id=app_id, title=body.title, description=body.description,
+        category="idea" if body.task_type == "idea" else "bug",
+        priority=2 if body.priority == "urgent" else 3,
+        source="mobile",
+    )
+
     def _add(tasks):
         new_id = max((t.get("id", 0) for t in tasks), default=0) + 1
         task = {
@@ -1922,6 +2243,7 @@ def add_app_task(app_id: int, body: TaskCreate):
             "status": "pending",
             "source": "mobile",
             "response": "",
+            "issue_id": issue_id,
             "created_at": datetime.now().isoformat(),
         }
         if body.depends_on:
@@ -1951,15 +2273,12 @@ def add_app_task(app_id: int, body: TaskCreate):
 
         return tasks, new_id
 
-    new_id = _mutate_tasklist(a, _add)
-
-    # Also create as DB issue for tracking
-    db().create_issue(
-        app_id=app_id, title=body.title, description=body.description,
-        category="idea" if body.task_type == "idea" else "bug",
-        priority=2 if body.priority == "urgent" else 3,
-        source="mobile",
-    )
+    try:
+        new_id = _mutate_tasklist(a, _add)
+    except Exception:
+        db().delete_issue(issue_id)
+        raise
+    db().update_issue(issue_id, raw_data=json.dumps({"task_id": new_id}))
 
     return {"id": new_id, "ok": True}
 
@@ -1981,6 +2300,8 @@ def update_app_task(app_id: int, task_id: int, updates: dict):
         return tasks, True
 
     _mutate_tasklist(a, _update)
+    if updates.get("status") in DONE_TASK_STATUSES:
+        _close_linked_issues(app_id, _load_tasklist(a))
     return {"ok": True}
 
 
@@ -2549,9 +2870,20 @@ def send_directive(body: DirectiveCreate):
     if os.path.isfile(DIRECTIVES_FILE):
         try:
             with open(DIRECTIVES_FILE, "r", encoding="utf-8") as f:
-                directives = json.load(f)
-        except (json.JSONDecodeError, Exception):
-            directives = []
+                loaded = json.load(f)
+            if isinstance(loaded, list):
+                directives = loaded
+            else:
+                logger.warning("directives file is not a list — appending to a fresh list")
+        except Exception as e:
+            # Parse failure must NOT silently wipe the whole history. Preserve
+            # the unreadable file as a .bak so nothing is lost, then append to a
+            # fresh list rather than overwriting existing entries blindly.
+            logger.warning("directives read failed (%s) — backing up before append", e)
+            try:
+                shutil.copy2(DIRECTIVES_FILE, DIRECTIVES_FILE + ".bak")
+            except Exception:
+                pass
     directives.append({
         "message": body.message,
         "priority": body.priority,
@@ -2559,8 +2891,23 @@ def send_directive(body: DirectiveCreate):
         "created_at": datetime.now().isoformat(),
         "read": False,
     })
-    with open(DIRECTIVES_FILE, "w", encoding="utf-8") as f:
-        json.dump(directives, f, indent=2)
+    # Atomic write: temp file in the same dir, then os.replace, so a crash
+    # mid-write can never leave a truncated (and thus unparseable) file.
+    dir_path = os.path.dirname(DIRECTIVES_FILE) or "."
+    os.makedirs(dir_path, exist_ok=True)
+    tmp_path = None
+    try:
+        fd, tmp_path = tempfile.mkstemp(dir=dir_path, suffix=".tmp", prefix=".directives_")
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(directives, f, indent=2)
+        os.replace(tmp_path, DIRECTIVES_FILE)
+    except Exception:
+        if tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except Exception:
+                pass
+        raise
     return {"ok": True, "total_directives": len(directives)}
 
 @app.get("/api/deathpin/directives")
@@ -3151,8 +3498,14 @@ def _generate_task_script(a, config: dict, task: dict) -> str:
     gemini_bin = _get_tool_paths()["gemini_bin"]
     codex_bin = _get_tool_paths()["codex_bin"]
     task_id = task.get("id", 0)
-    task_title = task.get("title", "").replace("'", "'\\''")
-    task_desc = task.get("description", "").replace("'", "'\\''")
+    # NOTE: task_title/task_desc are attacker-influenced (mobile POST). They are
+    # NEVER interpolated into shell command positions. task_title is passed to
+    # the script via the TASK_TITLE env var (bash does not re-parse variable
+    # VALUES for command substitution). task_desc rides inside the prompt, which
+    # is written to a server-controlled file below and read by the script — so
+    # no shell metacharacter in either can ever execute.
+    task_title = task.get("title", "")
+    task_desc = task.get("description", "")
     task_type = task.get("type", "issue")
     is_idea_generation_task = (
         "idea" in f"{task.get('title', '')} {task.get('description', '')}".lower()
@@ -3227,6 +3580,16 @@ INSTRUCTIONS:
     mcp_config_path = _resolve_mcp_config(a, config, project_path_unix)
     ai_cmd = _build_ai_command(ai_agent, timeout, claude_bin, gemini_bin, codex_bin, project_path_unix, a, mcp_config_path)
 
+    # Write the prompt to a server-controlled file rather than embedding it in a
+    # heredoc. A task description containing a line equal to the heredoc
+    # delimiter (or shell metacharacters) can never break out of a file we wrote
+    # ourselves. The path contains only the slug + task id — no user data.
+    prompt_file_path = os.path.join(AUTOMATIONS_DIR, f"{a.slug}_task_{task_id}.prompt.txt")
+    os.makedirs(AUTOMATIONS_DIR, exist_ok=True)
+    with open(prompt_file_path, "w", newline="\n", encoding="utf-8") as pf:
+        pf.write(prompt)
+    prompt_file_unix = to_unix_path(prompt_file_path)
+
     return f'''#!/bin/bash
 # Task-specific run for {a.name}: Task #{task_id} ({ai_agent})
 set +e
@@ -3235,12 +3598,12 @@ LOG_DIR="{log_dir}"
 mkdir -p "$LOG_DIR"
 TIMESTAMP=$(date '+%Y%m%d_%H%M%S')
 LOG_FILE="$LOG_DIR/task_{task_id}_${{TIMESTAMP}}.log"
-PROMPT_FILE=$(mktemp /tmp/{a.slug}_task_XXXXXX.txt 2>/dev/null) || PROMPT_FILE="$LOG_DIR/.prompt_tmp.txt"
+# Prompt is pre-written server-side (no heredoc) so task text can't inject shell.
+PROMPT_FILE="{prompt_file_unix}"
 cd "$PROJECT_DIR"
-cat > "$PROMPT_FILE" << 'ENDPROMPT'
-{prompt}
-ENDPROMPT
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Task #{task_id} run started ({ai_agent}): {task_title}" >> "$LOG_DIR/completions.log"
+# Task title comes from the TASK_TITLE env var set by the launcher; expanding a
+# variable value never triggers command substitution, so this is injection-safe.
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Task #{task_id} run started ({ai_agent}): $TASK_TITLE" >> "$LOG_DIR/completions.log"
 {ai_cmd}
 EXIT_CODE=${{PIPESTATUS[0]}}
 # Kill orphaned MCP stdio servers (e.g. elevenlabs-mcp) left by claude
@@ -3637,11 +4000,16 @@ def run_specific_task(app_id: int, task_id: int):
             old_proc, _ = _running_task_processes.pop(task_key)
             _stop_tracked_proc(old_proc)
 
+        # Pass the (attacker-influenced) task title through the environment, not
+        # the script body — variable values are never re-parsed for command
+        # substitution, so no shell metacharacter in the title can execute.
+        task_env = _automation_subprocess_env()
+        task_env["TASK_TITLE"] = task.get("title", "")
         proc = subprocess.Popen(
             [bash_exe, "-l", "-c", f"cd {shlex.quote(to_unix_path(a.project_path))} && {shlex.quote(script_unix)}"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            env=_automation_subprocess_env(),
+            env=task_env,
             creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0,
         )
 
@@ -3660,6 +4028,9 @@ def run_specific_task(app_id: int, task_id: int):
             if p.poll() is None:
                 _kill_process_tree(p)
                 _kill_script_processes(sname)
+                # The script's own in_progress->failed fallback was SIGKILLed
+                # along with it, so free the task here.
+                _reset_task_after_kill(key[0], key[1])
         except Exception:
             pass
         finally:

@@ -1108,89 +1108,74 @@ class DeployEngine:
             tl_path = os.path.join(app.project_path, "tasklist.json")
             if not os.path.isfile(tl_path):
                 return
-            with open(tl_path, "rb") as f:
-                raw = f.read()
-            try:
-                text = raw.decode("utf-8")
-            except UnicodeDecodeError:
-                text = raw.decode("latin-1")
-            data = json.loads(text)
-            tasks = data.get("tasks", data) if isinstance(data, dict) else data
-            if not isinstance(tasks, list):
-                return
+            # Lazy import avoids a circular import (server.py imports this module).
+            from api.server import _mutate_tasklist
 
-            done_statuses = ("completed", "built", "divided", "archived")
-            active = [t for t in tasks if t.get("status") not in done_statuses]
-            done = [t for t in tasks if t.get("status") in done_statuses]
-            done.sort(key=lambda t: t.get("id", 0))
-            if len(done) <= keep:
-                return  # nothing to archive
+            archived_count = {"n": 0, "active": 0}
 
-            overflow = done[:-keep]
-            keep_done = done[-keep:]
+            def _mutate(tasks):
+                done_statuses = ("completed", "built", "divided", "archived")
+                active = [t for t in tasks if isinstance(t, dict) and t.get("status") not in done_statuses]
+                done = [t for t in tasks if isinstance(t, dict) and t.get("status") in done_statuses]
+                done.sort(key=lambda t: t.get("id", 0))
+                if len(done) <= keep:
+                    return tasks, False  # nothing to archive — leave untouched
 
-            archive_dir = os.path.join(app.project_path, "task_archives")
-            os.makedirs(archive_dir, exist_ok=True)
-            archive_file = os.path.join(
-                archive_dir,
-                f"archived_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-            )
-            with open(archive_file, "w", encoding="utf-8") as af:
-                json.dump(
-                    {"archived_tasks": overflow, "archived_at": datetime.now().isoformat()},
-                    af, indent=2, ensure_ascii=False,
+                overflow = done[:-keep]
+                keep_done = done[-keep:]
+
+                archive_dir = os.path.join(app.project_path, "task_archives")
+                os.makedirs(archive_dir, exist_ok=True)
+                archive_file = os.path.join(
+                    archive_dir,
+                    f"archived_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.json",
                 )
+                with open(archive_file, "w", encoding="utf-8") as af:
+                    json.dump(
+                        {"archived_tasks": overflow, "archived_at": datetime.now().isoformat()},
+                        af, indent=2, ensure_ascii=False,
+                    )
 
-            new_tasks = active + keep_done
-            new_tasks.sort(key=lambda t: t.get("id", 0))
-            payload = json.dumps(
-                {"tasks": new_tasks} if isinstance(data, dict) else new_tasks,
-                indent=2, ensure_ascii=False,
-            )
-            with open(tl_path, "w", encoding="utf-8") as f:
-                f.write(payload)
+                new_tasks = active + keep_done
+                new_tasks.sort(key=lambda t: t.get("id", 0))
+                archived_count["n"] = len(overflow)
+                archived_count["active"] = len(active)
+                return new_tasks, True
 
-            # Bump app.updated_at so /api/sync delta + the next /api/events
-            # reconcile pass pick up the new task counts. Mirrors what
-            # _save_tasklist does in server.py for in-band edits.
-            try:
-                self.db.touch_app(app.id)
-            except Exception as e:
-                logger.debug("touch_app after archive failed for %s: %s", app.id, e)
-
-            logger.info(
-                "[DeployEngine] Archived %d built tasks for %s (kept last %d active=%d)",
-                len(overflow), app.name, keep, len(active),
-            )
+            # The helper handles the per-path lock, atomic temp+replace write,
+            # .bak backup, and touch_app/broadcast — no manual file write here.
+            if _mutate_tasklist(app, _mutate):
+                logger.info(
+                    "[DeployEngine] Archived %d built tasks for %s (kept last %d active=%d)",
+                    archived_count["n"], app.name, keep, archived_count["active"],
+                )
         except Exception as e:
             logger.warning("[DeployEngine] Archive overflow failed for %s: %s", app.name, e)
 
     def _mark_tasks_built(self, app: App, version: str):
-        """After successful build, mark all 'completed' tasks as 'built' with the build version."""
+        """After successful build, mark all 'completed' tasks as 'built' with the build version.
+
+        Routes the write through the api.server tasklist helpers so it shares
+        their per-path lock, temp-file+os.replace atomic write, and .bak backup
+        instead of doing a bare read-modify-truncating-write that races external
+        writers and can corrupt the file."""
         try:
             tl_path = os.path.join(app.project_path, "tasklist.json")
             if not os.path.isfile(tl_path):
                 return
-            # Try UTF-8 first, fall back to latin-1 for files with mixed encoding
-            with open(tl_path, "rb") as f:
-                raw = f.read()
-            try:
-                text = raw.decode("utf-8")
-            except UnicodeDecodeError:
-                print(f"[DeployEngine] Tasklist {tl_path} has encoding issues, fixing with latin-1 fallback")
-                text = raw.decode("latin-1")
-            data = json.loads(text)
-            tasks = data.get("tasks", data) if isinstance(data, dict) else data
-            changed = False
-            for t in (tasks if isinstance(tasks, list) else []):
-                if t.get("status") in ("completed", "divided"):
-                    t["status"] = "built"
-                    t["built_version"] = version
-                    changed = True
-            if changed:
-                payload = json.dumps({"tasks": tasks} if isinstance(data, dict) else tasks, indent=2, ensure_ascii=False)
-                with open(tl_path, "w", encoding="utf-8") as f:
-                    f.write(payload)
+            # Lazy import avoids a circular import (server.py imports this module).
+            from api.server import _mutate_tasklist
+
+            def _mutate(tasks):
+                changed = False
+                for t in tasks:
+                    if isinstance(t, dict) and t.get("status") in ("completed", "divided"):
+                        t["status"] = "built"
+                        t["built_version"] = version
+                        changed = True
+                return tasks, changed
+
+            _mutate_tasklist(app, _mutate)
         except Exception as e:
             print(f"[DeployEngine] Failed to mark tasks as built for {app.name}: {e}")
 

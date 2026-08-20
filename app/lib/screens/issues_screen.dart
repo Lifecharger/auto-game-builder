@@ -24,8 +24,14 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
   bool _loading = false;
   String? _loadError;
   int? _selectedAppId;
-  int? _expandedIndex;
+  // Expanded task keyed by its stable task id (not the list index) so a
+  // reorder/filter/search can't move the expansion to a different task.
+  dynamic _expandedTaskId;
   Timer? _pollTimer;
+  // Guards against overlapping/stale _loadItems responses (poll can fire while
+  // a previous getAppTasks — up to ~17s with retry+timeout — is still running).
+  bool _loadInFlight = false;
+  int _loadSeq = 0;
   bool _appInForeground = true;
   static const _myTabIndex = 1;
   final _searchController = TextEditingController();
@@ -333,7 +339,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
     setState(() {
       _appCategory = category;
       _selectedAppId = requestedId;
-      _expandedIndex = null;
+      _expandedTaskId = null;
     });
     _loadItems();
   }
@@ -356,15 +362,26 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
 
   Future<void> _loadItems({bool silent = false}) async {
     if (_selectedAppId == null) return;
+    // Don't stack silent polls on top of an in-flight request (which can take
+    // ~17s with retry+timeout); user-triggered reloads still proceed and rely
+    // on the seq/appId guard below.
+    if (silent && _loadInFlight) return;
+    final appId = _selectedAppId!;
+    final seq = ++_loadSeq;
+    _loadInFlight = true;
     if (!silent) setState(() {
       _loading = true;
       _loadError = null;
     });
 
+    try {
     // getAppTasks already returns all tasks including ideas - no need for separate getIdeas call
-    final result = await ApiService.getAppTasks(_selectedAppId!);
+    final result = await ApiService.getAppTasks(appId);
 
-    if (mounted) {
+    // Ignore stale/overlapping responses: the app was switched or a newer
+    // request superseded this one while it was in flight.
+    if (!mounted || seq != _loadSeq || appId != _selectedAppId) return;
+    {
       setState(() {
         final items = <dynamic>[];
         if (result.ok) {
@@ -407,7 +424,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
 
         _allItems = items;
         _loading = false;
-        if (!silent) _expandedIndex = null;
+        if (!silent) _expandedTaskId = null;
 
         // Sync in_progress start times
         final activeIds = <dynamic>{};
@@ -431,6 +448,9 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
         return s == 'pending' || s == 'in_progress';
       }).length;
       context.read<AppState>().updatePendingCount(pendingCount);
+    }
+    } finally {
+      _loadInFlight = false;
     }
   }
 
@@ -1709,7 +1729,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
                     _selectedAppId = null;
                     _allItems = [];
                   }
-                  _expandedIndex = null;
+                  _expandedTaskId = null;
                   _searchResults = [];
                 });
                 if (_selectedAppId != null) _loadItems();
@@ -1752,7 +1772,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
               onChanged: (val) {
                 setState(() {
                   _selectedAppId = val;
-                  _expandedIndex = null;
+                  _expandedTaskId = null;
                   _searchResults = [];
                 });
                 _loadItems();
@@ -1780,7 +1800,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
             onStatusChanged: (s) {
               setState(() {
                 _statusFilter = s;
-                _expandedIndex = null;
+                _expandedTaskId = null;
               });
             },
             typeFilter: _typeFilter,
@@ -1788,7 +1808,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
             onTypeChanged: (t) {
               setState(() {
                 _typeFilter = t;
-                _expandedIndex = null;
+                _expandedTaskId = null;
               });
             },
           ),
@@ -1869,7 +1889,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
                                             _statusFilter = 'all';
                                             _typeFilter = 'all';
                                             _searchQuery = '';
-                                            _expandedIndex = null;
+                                            _expandedTaskId = null;
                                           });
                                         },
                                         icon: const Icon(Icons.filter_alt_off, size: 16),
@@ -1885,9 +1905,10 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
                                 itemCount: filtered.length,
                                 itemBuilder: (context, index) {
                                   final item = filtered[index];
-                                  final isExpanded = _expandedIndex == index;
                                   final status = item['status'] ?? 'pending';
                                   final itemId = item['id'];
+                                  final isExpanded =
+                                      itemId != null && _expandedTaskId == itemId;
                                   final inProgressSince = (status == 'in_progress' && itemId != null)
                                       ? _inProgressStartTimes[itemId]
                                       : null;
@@ -1898,7 +1919,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
                                     inProgressSince: inProgressSince,
                                     onTap: () {
                                       setState(() {
-                                        _expandedIndex = isExpanded ? null : index;
+                                        _expandedTaskId = isExpanded ? null : itemId;
                                       });
                                     },
                                     onFix: () => _fixNow(item),

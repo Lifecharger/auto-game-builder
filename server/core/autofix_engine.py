@@ -241,23 +241,41 @@ class AutoFixEngine:
             pass
 
     def _process_loop(self):
-        while self._running and self._queue:
-            if self._cancel_requested:
-                self._cancel_requested = False
-                continue
+        # A raise anywhere in here kills the daemon thread WITHOUT clearing
+        # _running, and create_issue only restarts processing when not
+        # is_running — so an unguarded exception wedges autofix permanently.
+        # Guard every iteration and always reset _running in finally.
+        try:
+            while self._running and self._queue:
+                if self._cancel_requested:
+                    self._cancel_requested = False
+                    continue
 
-            issue_id = self._queue.pop(0)
-            self._emit("queue_changed")
-            self._process_single(issue_id)
+                issue_id = self._queue.pop(0)
+                self._emit("queue_changed")
+                try:
+                    self._process_single(issue_id)
+                except Exception as e:
+                    # One bad session must not take down the worker thread.
+                    try:
+                        self.db.update_issue(issue_id, status="open")
+                    except Exception:
+                        pass
+                    self._current_session_id = None
+                    self._emit("session_failed", issue_id, f"worker_exception: {e}")
 
-            # Cooldown between sessions
-            interval = int(self.settings.get("autofix_interval", "600"))
-            for _ in range(interval):
-                if not self._running:
-                    break
-                time.sleep(1)
-
-        self._running = False
+                # Cooldown between sessions
+                interval = int(self.settings.get("autofix_interval", "600"))
+                for _ in range(interval):
+                    if not self._running:
+                        break
+                    time.sleep(1)
+        except Exception:
+            # Last-resort guard so the thread never dies with _running stuck True.
+            pass
+        finally:
+            self._running = False
+            self._current_session_id = None
 
     def _process_single(self, issue_id: int):
         issue = self.db.get_issue(issue_id)

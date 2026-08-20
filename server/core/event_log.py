@@ -53,11 +53,48 @@ class EventLog:
         DATA_DIR.mkdir(parents=True, exist_ok=True)
         self._recover()
 
+    def _max_seq_in_file(self, path: Path) -> int:
+        """Highest valid seq in one segment file (0 if none / unreadable)."""
+        highest = 0
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                for raw in f:
+                    raw = raw.rstrip("\n")
+                    if not raw:
+                        continue
+                    try:
+                        entry = json.loads(raw)
+                    except json.JSONDecodeError:
+                        continue
+                    seq = entry.get("seq")
+                    if isinstance(seq, int):
+                        highest = max(highest, seq)
+        except FileNotFoundError:
+            pass
+        except Exception as e:
+            logger.debug("event_log: could not scan %s: %s", path, e)
+        return highest
+
     def _recover(self) -> None:
-        """On startup, scan the active segment to pick up the latest seq
-        and count lines. Tolerates a half-written final line (drops it).
+        """On startup, seed _seq from the highest seq across ALL segments
+        (active + archived) and count lines in the active segment. Tolerates a
+        half-written final line (drops it).
+
+        Seeding from archives too is essential: _rotate_locked renames the
+        active segment away, so a restart AFTER a rotation but BEFORE the next
+        append finds no active file. Returning early there would reset _seq to 0
+        and the next append would reuse seqs already present in the archives —
+        clients would treat those as already-seen and silently stop updating.
         """
+        max_archived_seq = 0
+        for path in sorted(DATA_DIR.glob(ARCHIVE_GLOB)):
+            max_archived_seq = max(max_archived_seq, self._max_seq_in_file(path))
+
         if not ACTIVE_LOG_PATH.exists():
+            self._seq = max_archived_seq
+            self._line_count = 0
+            if max_archived_seq:
+                logger.info("event_log: recovered seq=%d from archives (no active segment)", self._seq)
             return
         lines_kept: list[str] = []
         last_seq = 0
@@ -84,12 +121,14 @@ class EventLog:
                 with open(ACTIVE_LOG_PATH, "w", encoding="utf-8") as f:
                     for line in lines_kept:
                         f.write(line + "\n")
-            self._seq = last_seq
+            self._seq = max(last_seq, max_archived_seq)
             self._line_count = len(lines_kept)
             logger.info("event_log: recovered seq=%d line_count=%d", self._seq, self._line_count)
         except Exception as e:
             logger.warning("event_log: recovery failed, starting clean: %s", e)
-            self._seq = 0
+            # Never regress below the archived high-water mark or we'd re-issue
+            # seqs clients have already consumed.
+            self._seq = max_archived_seq
             self._line_count = 0
 
     def append(self, op_type: str, payload: dict[str, Any] | None = None) -> int:

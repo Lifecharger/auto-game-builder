@@ -2,7 +2,44 @@
 
 import subprocess
 import os
+import threading
+import time
 from typing import Callable, Optional
+
+try:
+    import psutil
+except Exception:  # pragma: no cover - psutil is a hard dep of the server
+    psutil = None
+
+
+def _kill_process_tree(proc: Optional[subprocess.Popen]) -> None:
+    """Kill a process and every descendant (best-effort).
+
+    A hung `claude -p` frequently spawns child processes (MCP stdio servers,
+    shells); killing only the parent orphans them and they keep the pipe open.
+    Mirror the server's psutil-based tree kill so a watchdog timeout actually
+    frees everything."""
+    if proc is None:
+        return
+    if psutil is not None:
+        try:
+            parent = psutil.Process(proc.pid)
+            for child in parent.children(recursive=True):
+                try:
+                    child.kill()
+                except Exception:
+                    pass
+            parent.kill()
+            return
+        except psutil.NoSuchProcess:
+            return
+        except Exception:
+            pass
+    # Fallback if psutil is unavailable or failed.
+    try:
+        proc.kill()
+    except Exception:
+        pass
 
 
 class AITools:
@@ -100,23 +137,33 @@ class AITools:
                 process.stdin.write(stdin_text.encode("utf-8"))
                 process.stdin.close()
 
+            # Wall-clock watchdog: the read loop below blocks in
+            # stdout.read(1), so a process that hangs WITHOUT emitting output
+            # would never hit an inline timeout check and would block forever.
+            # A separate thread enforces the deadline and kills the whole
+            # process tree, which unblocks read(1) with EOF.
+            timed_out = threading.Event()
+            watchdog: Optional[threading.Thread] = None
+            if timeout:
+                def _watch():
+                    deadline = time.time() + timeout
+                    while True:
+                        if process.poll() is not None:
+                            return
+                        if time.time() >= deadline:
+                            timed_out.set()
+                            _kill_process_tree(process)
+                            return
+                        time.sleep(0.5)
+                watchdog = threading.Thread(target=_watch, daemon=True)
+                watchdog.start()
+
             # Read byte-by-byte to defeat buffering, accumulate lines
             current_line = b""
-            import time
-            start = time.time()
             while True:
-                if timeout and (time.time() - start) > timeout:
-                    process.kill()
-                    try:
-                        process.wait(timeout=10)
-                    except Exception:
-                        pass
-                    output_chunks.append(current_line.decode("utf-8", errors="replace"))
-                    return -1, "".join(output_chunks) + "\n[TIMEOUT]"
-
                 byte = process.stdout.read(1)
                 if not byte:
-                    # Process ended
+                    # Process ended (naturally or killed by the watchdog)
                     if current_line:
                         line = current_line.decode("utf-8", errors="replace")
                         output_chunks.append(line)
@@ -134,7 +181,19 @@ class AITools:
                 else:
                     current_line += byte
 
-            process.wait(timeout=30)
+            if watchdog:
+                watchdog.join(timeout=2)
+            if timed_out.is_set():
+                try:
+                    process.wait(timeout=10)
+                except Exception:
+                    _kill_process_tree(process)
+                return -1, "".join(output_chunks) + "\n[TIMEOUT]"
+
+            try:
+                process.wait(timeout=30)
+            except Exception:
+                _kill_process_tree(process)
             return process.returncode, "".join(output_chunks)
 
         except FileNotFoundError:

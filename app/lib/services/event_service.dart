@@ -35,6 +35,13 @@ class EventService {
   int _backoffSeconds = 1;
   int _pendingAckSeq = 0;
 
+  // Events are applied strictly one-at-a-time in arrival order. _applyEvent is
+  // async, so firing it per-frame would let a replay burst apply events
+  // concurrently and out of seq order. Instead frames enqueue here and a single
+  // drainer awaits each apply before starting the next.
+  final List<_PendingEvent> _queue = [];
+  bool _draining = false;
+
   void start() {
     _stopped = false;
     _connect();
@@ -49,6 +56,7 @@ class EventService {
     _client?.close();
     _client = null;
     _sub = null;
+    _queue.clear();
   }
 
   Future<void> _connect() async {
@@ -139,22 +147,46 @@ class EventService {
       final body = jsonDecode(dataLines.join('\n')) as Map<String, dynamic>;
       // Prefer the id: line, fall back to a seq field in the JSON body.
       final eventSeq = seq ?? (body['seq'] is int ? body['seq'] as int : null);
-      _dispatch(body, eventSeq);
+      _enqueue(body, eventSeq);
     } catch (e) {
       debugPrint('EventService: bad frame $e');
     }
   }
 
-  // ── Op dispatch ────────────────────────────────────────────
+  // ── Op dispatch (serialized) ───────────────────────────────
 
-  Future<void> _dispatch(Map<String, dynamic> event, int? seq) async {
+  void _enqueue(Map<String, dynamic> event, int? seq) {
+    _queue.add(_PendingEvent(event, seq));
+    _drain();
+  }
+
+  Future<void> _drain() async {
+    if (_draining) return;
+    _draining = true;
+    try {
+      while (_queue.isNotEmpty) {
+        if (_stopped) {
+          _queue.clear();
+          break;
+        }
+        final item = _queue.removeAt(0);
+        await _applyEvent(item.event, item.seq);
+      }
+    } finally {
+      _draining = false;
+    }
+  }
+
+  Future<void> _applyEvent(Map<String, dynamic> event, int? seq) async {
     final type = event['type'] as String?;
     if (type == null) return;
 
+    final cursor = CacheService.instance.getLastSeq();
     // Skip events the client has already consumed (e.g. covered by a
     // /api/sync that advanced last_seq while we were mid-replay).
-    if (seq != null && seq <= CacheService.instance.getLastSeq()) return;
+    if (seq != null && seq <= cursor) return;
 
+    bool applied = true;
     try {
       switch (type) {
         case 'app.updated':
@@ -182,10 +214,15 @@ class EventService {
       }
     } catch (e) {
       debugPrint('EventService: dispatch failed for $type: $e');
-      return;
+      applied = false;
     }
 
-    if (seq != null && seq > CacheService.instance.getLastSeq()) {
+    // Only advance the cursor when this event applied cleanly AND it is the
+    // immediate successor of the current cursor. This keeps the persisted
+    // cursor pointing at a CONTIGUOUS prefix of applied ops, so a thrown
+    // event's seq is never skipped — it (and everything after) replays on the
+    // next reconnect instead of being silently lost.
+    if (applied && seq != null && seq == cursor + 1) {
       await CacheService.instance.setLastSeq(seq);
       _scheduleAck(seq);
     }
@@ -256,6 +293,10 @@ class EventService {
     _sub = null;
     _client?.close();
     _client = null;
+    // Drop any events still queued from the dead connection — the fresh
+    // connection replays from the persisted cursor, so keeping them would only
+    // risk applying stale ordering.
+    _queue.clear();
     if (_stopped) return;
     _reconnectTimer?.cancel();
     final delay = Duration(seconds: _backoffSeconds);
@@ -284,4 +325,11 @@ class EventService {
     final b = bytes.map(hex).toList();
     return '${b[0]}${b[1]}${b[2]}${b[3]}-${b[4]}${b[5]}-${b[6]}${b[7]}-${b[8]}${b[9]}-${b[10]}${b[11]}${b[12]}${b[13]}${b[14]}${b[15]}';
   }
+}
+
+/// One SSE event awaiting serialized application.
+class _PendingEvent {
+  _PendingEvent(this.event, this.seq);
+  final Map<String, dynamic> event;
+  final int? seq;
 }

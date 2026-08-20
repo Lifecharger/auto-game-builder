@@ -255,14 +255,35 @@ class CacheService {
   }
 
   Future<void> clearAll() async {
+    final meta = Hive.box<String>(CacheBoxes.syncMeta);
+    // Preserve the per-install identity across a forced wipe. client_id names
+    // this device to the server; wiping it mints a fresh UUID that orphans the
+    // old cursor at last_seq:0, which pins the server's min_active_seq at 0 and
+    // blocks archive pruning forever. last_seq is the sync cursor — keeping it
+    // means a reconnect resumes from where we were instead of replaying the
+    // entire event log. (Mirrors the preservation in _migrateIfNeeded.)
+    final preservedClientId = meta.get('client_id');
+    final preservedLastSeq = meta.get('last_seq');
+    final preservedSchema = meta.get('schema_version');
+
     await Hive.box<String>(CacheBoxes.apps).clear();
     await Hive.box<String>(CacheBoxes.issues).clear();
     await Hive.box<String>(CacheBoxes.builds).clear();
     await Hive.box<String>(CacheBoxes.sessions).clear();
-    await Hive.box<String>(CacheBoxes.syncMeta).clear();
+    await meta.clear();
     await Hive.box<String>(CacheBoxes.appDocs).clear();
     await Hive.box<String>(CacheBoxes.tasks).clear();
     await Hive.box<Uint8List>(CacheBoxes.appIcons).clear();
+
+    if (preservedClientId != null && preservedClientId.isNotEmpty) {
+      await meta.put('client_id', preservedClientId);
+    }
+    if (preservedLastSeq != null && preservedLastSeq.isNotEmpty) {
+      await meta.put('last_seq', preservedLastSeq);
+    }
+    if (preservedSchema != null && preservedSchema.isNotEmpty) {
+      await meta.put('schema_version', preservedSchema);
+    }
   }
 
   // ── Per-app tasks (tasklist.json snapshot) ───────────
