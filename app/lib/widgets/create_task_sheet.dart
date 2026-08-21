@@ -46,6 +46,7 @@ class CreateTaskSheet {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: AppColors.bgCard,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
@@ -54,253 +55,327 @@ class CreateTaskSheet {
         return StatefulBuilder(
           builder: (ctx, setSheetState) {
             final mq = MediaQuery.of(ctx);
-            return SingleChildScrollView(
-              padding: EdgeInsets.only(
-                left: 20,
-                right: 20,
-                top: 20,
-                bottom: mq.viewInsets.bottom + mq.padding.bottom + 20,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                    const Text(
-                      'New Item',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: titleController,
-                      decoration: const InputDecoration(
-                        hintText: 'Title',
-                        prefixIcon: Icon(Icons.title),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: descController,
-                      maxLines: 4,
-                      decoration: const InputDecoration(
-                        hintText: 'Description...',
-                        alignLabelWithHint: true,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    const Text('Type',
-                        style: TextStyle(fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: ['issue', 'bug', 'fix', 'feature', 'idea'].map((type) {
-                        final selected = type == taskType;
-                        return ChoiceChip(
-                          label: Text(type[0].toUpperCase() + type.substring(1)),
-                          selected: selected,
-                          selectedColor: AppColors.taskTypeColor(type),
-                          onSelected: (sel) {
-                            if (sel) setSheetState(() => taskType = type);
-                          },
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 16),
-                    const Text('Priority',
-                        style: TextStyle(fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      children: ['normal', 'urgent'].map((p) {
-                        final selected = p == priority;
-                        return ChoiceChip(
-                          label: Text(p[0].toUpperCase() + p.substring(1)),
-                          selected: selected,
-                          selectedColor:
-                              p == 'urgent' ? AppColors.error : AppColors.info,
-                          avatar: Icon(
-                            p == 'urgent'
-                                ? Icons.priority_high
-                                : Icons.flag_outlined,
-                            size: 16,
-                            color: selected
-                                ? Colors.white
-                                : Colors.grey.shade400,
-                          ),
-                          onSelected: (sel) {
-                            if (sel) setSheetState(() => priority = p);
-                          },
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
+            // Read the system bar inset straight from the view so the footer
+            // clears the navigation bar even if an ancestor stripped padding.
+            final view = View.of(ctx);
+            final systemBottom = view.padding.bottom / view.devicePixelRatio;
+            final keyboardBottom = mq.viewInsets.bottom;
+            final footerBottom =
+                keyboardBottom > 0 ? keyboardBottom : systemBottom;
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Depends on',
-                            style: TextStyle(fontWeight: FontWeight.w600)),
-                        const SizedBox(width: 6),
-                        if (dependsOn.isNotEmpty)
-                          Text(dependsOn.map((id) => '#$id').join(', '),
-                              style: TextStyle(
-                                  fontSize: 12, color: Colors.grey.shade400)),
-                        const Spacer(),
-                        IconButton(
-                          icon: Icon(
-                            showDependsOn
-                                ? Icons.expand_less
-                                : Icons.expand_more,
-                            size: 20,
+                        const Text(
+                          'New Item',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
                           ),
-                          onPressed: () async {
-                            setSheetState(() => showDependsOn = !showDependsOn);
-                            if (showDependsOn && openTasks == null) {
-                              final result =
-                                  await ApiService.getAppTasks(appId);
-                              if (result.ok) {
-                                const doneStatuses = {
-                                  'completed', 'built', 'divided', 'archived'
-                                };
-                                setSheetState(() {
-                                  openTasks = result.data!
-                                      .whereType<Map<String, dynamic>>()
-                                      .where((t) =>
-                                          t['id'] != null &&
-                                          !doneStatuses.contains(
-                                              (t['status'] ?? '')
-                                                  .toString()
-                                                  .toLowerCase()))
-                                      .toList();
-                                });
-                              } else {
-                                setSheetState(() => openTasks = []);
-                              }
-                            }
-                          },
                         ),
-                      ],
-                    ),
-                    if (showDependsOn) ...[
-                      if (openTasks == null)
-                        const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 12),
-                          child: Center(
-                              child: SizedBox(
+                        const SizedBox(height: 16),
+                        TextField(
+                          controller: titleController,
+                          decoration: const InputDecoration(
+                            hintText: 'Title',
+                            prefixIcon: Icon(Icons.title),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: descController,
+                          maxLines: 4,
+                          decoration: const InputDecoration(
+                            hintText: 'Description...',
+                            alignLabelWithHint: true,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Type',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children:
+                              ['issue', 'bug', 'fix', 'feature', 'idea'].map((
+                                type,
+                              ) {
+                                final selected = type == taskType;
+                                return ChoiceChip(
+                                  label: Text(
+                                    type[0].toUpperCase() + type.substring(1),
+                                  ),
+                                  selected: selected,
+                                  selectedColor: AppColors.taskTypeColor(type),
+                                  onSelected: (sel) {
+                                    if (sel)
+                                      setSheetState(() => taskType = type);
+                                  },
+                                );
+                              }).toList(),
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Priority',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          children:
+                              ['normal', 'urgent'].map((p) {
+                                final selected = p == priority;
+                                return ChoiceChip(
+                                  label: Text(
+                                    p[0].toUpperCase() + p.substring(1),
+                                  ),
+                                  selected: selected,
+                                  selectedColor:
+                                      p == 'urgent'
+                                          ? AppColors.error
+                                          : AppColors.info,
+                                  avatar: Icon(
+                                    p == 'urgent'
+                                        ? Icons.priority_high
+                                        : Icons.flag_outlined,
+                                    size: 16,
+                                    color:
+                                        selected
+                                            ? Colors.white
+                                            : Colors.grey.shade400,
+                                  ),
+                                  onSelected: (sel) {
+                                    if (sel) setSheetState(() => priority = p);
+                                  },
+                                );
+                              }).toList(),
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            const Text(
+                              'Depends on',
+                              style: TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                            const SizedBox(width: 6),
+                            if (dependsOn.isNotEmpty)
+                              Text(
+                                dependsOn.map((id) => '#$id').join(', '),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey.shade400,
+                                ),
+                              ),
+                            const Spacer(),
+                            IconButton(
+                              icon: Icon(
+                                showDependsOn
+                                    ? Icons.expand_less
+                                    : Icons.expand_more,
+                                size: 20,
+                              ),
+                              onPressed: () async {
+                                setSheetState(
+                                  () => showDependsOn = !showDependsOn,
+                                );
+                                if (showDependsOn && openTasks == null) {
+                                  final result = await ApiService.getAppTasks(
+                                    appId,
+                                  );
+                                  if (result.ok) {
+                                    const doneStatuses = {
+                                      'completed',
+                                      'built',
+                                      'divided',
+                                      'archived',
+                                    };
+                                    setSheetState(() {
+                                      openTasks =
+                                          result.data!
+                                              .whereType<Map<String, dynamic>>()
+                                              .where(
+                                                (t) =>
+                                                    t['id'] != null &&
+                                                    !doneStatuses.contains(
+                                                      (t['status'] ?? '')
+                                                          .toString()
+                                                          .toLowerCase(),
+                                                    ),
+                                              )
+                                              .toList();
+                                    });
+                                  } else {
+                                    setSheetState(() => openTasks = []);
+                                  }
+                                }
+                              },
+                            ),
+                          ],
+                        ),
+                        if (showDependsOn) ...[
+                          if (openTasks == null)
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 12),
+                              child: Center(
+                                child: SizedBox(
                                   width: 20,
                                   height: 20,
                                   child: CircularProgressIndicator(
-                                      strokeWidth: 2))),
-                        )
-                      else if (openTasks!.isEmpty)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          child: Text('No open tasks to depend on',
-                              style: TextStyle(
-                                  fontSize: 12, color: Colors.grey.shade500)),
-                        )
-                      else
-                        Wrap(
-                          spacing: 6,
-                          runSpacing: 6,
-                          children: openTasks!.map((t) {
-                            final id = t['id'] as int;
-                            final selected = dependsOn.contains(id);
-                            final label = '#$id ${t['title'] ?? ''}';
-                            return FilterChip(
-                              label: Text(
-                                label.length > 34
-                                    ? '${label.substring(0, 32)}…'
-                                    : label,
-                                style: const TextStyle(fontSize: 11),
+                                    strokeWidth: 2,
+                                  ),
+                                ),
                               ),
-                              selected: selected,
-                              selectedColor:
-                                  AppColors.warning.withValues(alpha: 0.35),
-                              onSelected: (sel) => setSheetState(() =>
-                                  sel ? dependsOn.add(id) : dependsOn.remove(id)),
-                            );
-                          }).toList(),
-                        ),
-                      const SizedBox(height: 8),
-                    ],
-                    const SizedBox(height: 8),
-                    const Text('Attachments',
-                        style: TextStyle(fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 8),
-                    if (attachedFiles.isNotEmpty) ...[
-                      SizedBox(
-                        height: _tileSize,
-                        child: ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: attachedFiles.length,
-                          separatorBuilder: (_, __) => const SizedBox(width: 8),
-                          itemBuilder: (_, i) => _stagedTile(
-                            attachedFiles[i],
-                            () => setSheetState(() => attachedFiles.removeAt(i)),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                    ],
-                    Row(
-                      children: [
-                        Expanded(
-                          child: SizedBox(
-                            height: 48,
-                            child: OutlinedButton.icon(
-                              onPressed: () async {
-                                HapticFeedback.lightImpact();
-                                final picked = await _pickImages();
-                                if (picked.isNotEmpty) {
-                                  setSheetState(() => attachedFiles.addAll(picked));
-                                }
-                              },
-                              icon: const Icon(Icons.image_outlined, size: 18),
-                              label: const Text('Photo'),
+                            )
+                          else if (openTasks!.isEmpty)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              child: Text(
+                                'No open tasks to depend on',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey.shade500,
+                                ),
+                              ),
+                            )
+                          else
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children:
+                                  openTasks!.map((t) {
+                                    final id = t['id'] as int;
+                                    final selected = dependsOn.contains(id);
+                                    final label = '#$id ${t['title'] ?? ''}';
+                                    return FilterChip(
+                                      label: Text(
+                                        label.length > 34
+                                            ? '${label.substring(0, 32)}…'
+                                            : label,
+                                        style: const TextStyle(fontSize: 11),
+                                      ),
+                                      selected: selected,
+                                      selectedColor: AppColors.warning
+                                          .withValues(alpha: 0.35),
+                                      onSelected:
+                                          (sel) => setSheetState(
+                                            () =>
+                                                sel
+                                                    ? dependsOn.add(id)
+                                                    : dependsOn.remove(id),
+                                          ),
+                                    );
+                                  }).toList(),
                             ),
-                          ),
+                          const SizedBox(height: 8),
+                        ],
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Attachments',
+                          style: TextStyle(fontWeight: FontWeight.w600),
                         ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: SizedBox(
-                            height: 48,
-                            child: OutlinedButton.icon(
-                              onPressed: () async {
-                                HapticFeedback.lightImpact();
-                                final picked = await _pickPdfs();
-                                if (!ctx.mounted) return;
-                                if (picked.oversized.isNotEmpty) {
-                                  ScaffoldMessenger.of(ctx).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                          'Too large (max ${_maxPdfBytes ~/ (1024 * 1024)} MB): '
-                                          '${picked.oversized.join(', ')}'),
-                                      backgroundColor: AppColors.warning,
+                        const SizedBox(height: 8),
+                        if (attachedFiles.isNotEmpty) ...[
+                          SizedBox(
+                            height: _tileSize,
+                            child: ListView.separated(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: attachedFiles.length,
+                              separatorBuilder:
+                                  (_, __) => const SizedBox(width: 8),
+                              itemBuilder:
+                                  (_, i) => _stagedTile(
+                                    attachedFiles[i],
+                                    () => setSheetState(
+                                      () => attachedFiles.removeAt(i),
                                     ),
-                                  );
-                                }
-                                if (picked.files.isNotEmpty) {
-                                  setSheetState(
-                                      () => attachedFiles.addAll(picked.files));
-                                }
-                              },
-                              icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
-                              label: const Text('PDF'),
+                                  ),
                             ),
                           ),
+                          const SizedBox(height: 8),
+                        ],
+                        Row(
+                          children: [
+                            Expanded(
+                              child: SizedBox(
+                                height: 48,
+                                child: OutlinedButton.icon(
+                                  onPressed: () async {
+                                    HapticFeedback.lightImpact();
+                                    final picked = await _pickImages();
+                                    if (picked.isNotEmpty) {
+                                      setSheetState(
+                                        () => attachedFiles.addAll(picked),
+                                      );
+                                    }
+                                  },
+                                  icon: const Icon(
+                                    Icons.image_outlined,
+                                    size: 18,
+                                  ),
+                                  label: const Text('Photo'),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: SizedBox(
+                                height: 48,
+                                child: OutlinedButton.icon(
+                                  onPressed: () async {
+                                    HapticFeedback.lightImpact();
+                                    final picked = await _pickPdfs();
+                                    if (!ctx.mounted) return;
+                                    if (picked.oversized.isNotEmpty) {
+                                      ScaffoldMessenger.of(ctx).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            'Too large (max ${_maxPdfBytes ~/ (1024 * 1024)} MB): '
+                                            '${picked.oversized.join(', ')}',
+                                          ),
+                                          backgroundColor: AppColors.warning,
+                                        ),
+                                      );
+                                    }
+                                    if (picked.files.isNotEmpty) {
+                                      setSheetState(
+                                        () =>
+                                            attachedFiles.addAll(picked.files),
+                                      );
+                                    }
+                                  },
+                                  icon: const Icon(
+                                    Icons.picture_as_pdf_outlined,
+                                    size: 18,
+                                  ),
+                                  label: const Text('PDF'),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                    const SizedBox(height: 20),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 48,
-                      child: FilledButton.icon(
-                        onPressed: submitting
-                            ? null
-                            : () async {
+                  ),
+                ),
+                Padding(
+                  padding: EdgeInsets.fromLTRB(20, 12, 20, footerBottom + 12),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: FilledButton.icon(
+                      onPressed:
+                          submitting
+                              ? null
+                              : () async {
                                 HapticFeedback.lightImpact();
                                 final title = titleController.text.trim();
                                 if (title.isEmpty) {
@@ -335,30 +410,37 @@ class CreateTaskSheet {
                                 if (context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
-                                      content: Text(result.ok
-                                          ? 'Item created'
-                                          : result.error ?? 'Failed to create item'),
+                                      content: Text(
+                                        result.ok
+                                            ? 'Item created'
+                                            : result.error ??
+                                                'Failed to create item',
+                                      ),
                                       backgroundColor:
-                                          result.ok ? AppColors.success : AppColors.error,
+                                          result.ok
+                                              ? AppColors.success
+                                              : AppColors.error,
                                     ),
                                   );
                                   if (result.ok) onCreated();
                                 }
                               },
-                        icon: submitting
-                            ? const SizedBox(
+                      icon:
+                          submitting
+                              ? const SizedBox(
                                 width: 18,
                                 height: 18,
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               )
-                            : const Icon(Icons.send),
-                        label: Text(submitting ? 'Submitting...' : 'Submit'),
-                      ),
+                              : const Icon(Icons.send),
+                      label: Text(submitting ? 'Submitting...' : 'Submit'),
                     ),
-                  ],
+                  ),
                 ),
-              );
+              ],
+            );
           },
         );
       },
@@ -371,11 +453,10 @@ class CreateTaskSheet {
   static Future<List<_StagedAttachment>> _pickImages() async {
     final picked = await ImagePicker().pickMultiImage(imageQuality: 80);
     return picked
-        .map((x) => _StagedAttachment(
-              file: File(x.path),
-              name: x.name,
-              isPdf: false,
-            ))
+        .map(
+          (x) =>
+              _StagedAttachment(file: File(x.path), name: x.name, isPdf: false),
+        )
         .toList();
   }
 
@@ -383,7 +464,7 @@ class CreateTaskSheet {
   /// caller can tell the user which ones were dropped instead of failing the
   /// whole upload later.
   static Future<({List<_StagedAttachment> files, List<String> oversized})>
-      _pickPdfs() async {
+  _pickPdfs() async {
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: const ['pdf'],
@@ -405,39 +486,46 @@ class CreateTaskSheet {
     return (files: files, oversized: oversized);
   }
 
-  static Widget _stagedTile(_StagedAttachment attachment, VoidCallback onRemove) {
+  static Widget _stagedTile(
+    _StagedAttachment attachment,
+    VoidCallback onRemove,
+  ) {
     return Stack(
       children: [
         ClipRRect(
           borderRadius: BorderRadius.circular(8),
-          child: attachment.isPdf
-              ? Container(
-                  width: _tileSize,
-                  height: _tileSize,
-                  padding: const EdgeInsets.all(4),
-                  color: AppColors.bgDark,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.picture_as_pdf,
-                          size: 28, color: AppColors.error),
-                      const SizedBox(height: 4),
-                      Text(
-                        attachment.name,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 9),
-                      ),
-                    ],
+          child:
+              attachment.isPdf
+                  ? Container(
+                    width: _tileSize,
+                    height: _tileSize,
+                    padding: const EdgeInsets.all(4),
+                    color: AppColors.bgDark,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.picture_as_pdf,
+                          size: 28,
+                          color: AppColors.error,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          attachment.name,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 9),
+                        ),
+                      ],
+                    ),
+                  )
+                  : Image.file(
+                    attachment.file,
+                    width: _tileSize,
+                    height: _tileSize,
+                    fit: BoxFit.cover,
                   ),
-                )
-              : Image.file(
-                  attachment.file,
-                  width: _tileSize,
-                  height: _tileSize,
-                  fit: BoxFit.cover,
-                ),
         ),
         Positioned(
           top: -8,

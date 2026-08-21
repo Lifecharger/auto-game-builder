@@ -57,10 +57,10 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
 
   String _statusFilter = 'all';
   String _typeFilter = 'all';
-  /// Whether the collapsed "Done" block (completed/built) is expanded.
+  /// Whether the collapsed "Built" block (built tasks only) is expanded.
   /// Only applies to the unfiltered list view.
   bool _doneExpanded = false;
-  static const _doneStatuses = {'completed', 'built'};
+  static const _doneStatuses = {'built'};
   String _searchQuery = '';
 
   // Server-side search (single search across active + archived tasks;
@@ -513,7 +513,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
     }).toList();
   }
 
-  /// True when the list is grouped into actionable + collapsed done block.
+  /// True when the list is grouped into actionable + collapsed built block.
   /// A specific status filter or a search query shows a flat list instead.
   bool get _isGroupedView => _statusFilter == 'all' && _searchQuery.trim().isEmpty;
 
@@ -530,20 +530,20 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
           constraints: const BoxConstraints(minHeight: 48),
           padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
-            color: AppColors.taskStatusColor('completed').withValues(alpha: 0.08),
+            color: AppColors.taskStatusColor('built').withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
-              color: AppColors.taskStatusColor('completed').withValues(alpha: 0.35),
+              color: AppColors.taskStatusColor('built').withValues(alpha: 0.35),
             ),
           ),
           child: Row(
             children: [
-              Icon(Icons.check_circle_outline,
-                  size: 18, color: AppColors.taskStatusColor('completed')),
+              Icon(Icons.rocket_launch_outlined,
+                  size: 18, color: AppColors.taskStatusColor('built')),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Done ($count)',
+                  'Built ($count)',
                   style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                 ),
               ),
