@@ -41,5 +41,10 @@
   "security": {
     "api_key": "",
     "hmac_secret": ""
+  },
+  "reports": {
+    "reports_worker_url": "https://game-reports.lifecharger.workers.dev",
+    "reports_api_key": "",
+    "reports_poll_seconds": 60
   }
 }

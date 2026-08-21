@@ -182,10 +182,10 @@ abstract class AppLocalizations {
   /// **'Control'**
   String get control;
 
-  /// Chat & Logs tab label in the bottom navigation.
+  /// Reports & Logs tab label in the bottom navigation.
   ///
   /// In en, this message translates to:
-  /// **'Chat & Logs'**
+  /// **'Reports'**
   String get chatLogs;
 }
 

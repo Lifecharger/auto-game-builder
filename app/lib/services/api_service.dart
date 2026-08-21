@@ -726,6 +726,75 @@ class ApiService {
     }
   }
 
+  // ── Reports (in-game bug reports / suggestions) ──────────
+
+  static Future<ApiResult<List<dynamic>>> getReports({String? status}) async {
+    try {
+      final params = <String, String>{};
+      if (status != null && status.isNotEmpty) params['status'] = status;
+      final uri = Uri.parse('$_base/api/reports')
+          .replace(queryParameters: params.isNotEmpty ? params : null);
+      final response = await _getWithRetry(uri);
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        return ApiResult.success(decoded is List ? decoded : const []);
+      }
+      return ApiResult.failure(_httpError(response.statusCode));
+    } catch (e) {
+      return ApiResult.failure(_friendlyError(e));
+    }
+  }
+
+  static Future<ApiResult<bool>> updateReport(
+      String reportId, Map<String, dynamic> updates) async {
+    try {
+      final response = await http
+          .patch(Uri.parse('$_base/api/reports/$reportId'),
+              headers: _headers, body: jsonEncode(updates))
+          .timeout(const Duration(seconds: 10));
+      if (response.statusCode == 200) return const ApiResult.success(true);
+      return ApiResult.failure(_httpError(response.statusCode));
+    } catch (e) {
+      return ApiResult.failure(_friendlyError(e));
+    }
+  }
+
+  static Future<ApiResult<bool>> deleteReport(String reportId) async {
+    try {
+      final response = await http
+          .delete(Uri.parse('$_base/api/reports/$reportId'), headers: _headers)
+          .timeout(const Duration(seconds: 10));
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        return const ApiResult.success(true);
+      }
+      return ApiResult.failure(_httpError(response.statusCode));
+    } catch (e) {
+      return ApiResult.failure(_friendlyError(e));
+    }
+  }
+
+  /// Force an immediate pull from the game-reports worker. Returns how many new
+  /// reports landed.
+  static Future<ApiResult<int>> pullReportsNow() async {
+    try {
+      final response = await http
+          .post(Uri.parse('$_base/api/reports/pull'), headers: _headers)
+          .timeout(const Duration(seconds: 30));
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        final n = (decoded is Map && decoded['new'] is int) ? decoded['new'] as int : 0;
+        return ApiResult.success(n);
+      }
+      return ApiResult.failure(_detailOrHttpError(response));
+    } catch (e) {
+      return ApiResult.failure(_friendlyError(e));
+    }
+  }
+
+  /// Absolute URL for a report screenshot served by the API (needs authHeaders).
+  static String reportShotUrl(String reportId, int index) =>
+      '$_base/api/reports/$reportId/shot/$index';
+
   // Ideas
   static Future<ApiResult<List<dynamic>>> getIdeas({int? appId}) async {
     try {

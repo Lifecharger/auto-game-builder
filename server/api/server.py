@@ -14,6 +14,8 @@ import threading
 import tempfile
 import shutil
 import random
+import urllib.request
+import urllib.error
 from pathlib import Path
 import time
 import psutil
@@ -41,6 +43,9 @@ from config.path_utils import to_unix_path
 logger = logging.getLogger(__name__)
 
 DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "app_manager.db")
+# Where screenshots pulled from the game-reports worker are stored on disk. Kept
+# next to the DB; served to the mobile app only through the reports endpoints.
+REPORTS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "report_attachments")
 DEATHPIN_DIR = ""  # Legacy — disabled
 DIRECTIVES_FILE = os.path.join(DEATHPIN_DIR, "user_directives.json")
 
@@ -179,6 +184,24 @@ async def lifespan(app: FastAPI):
             _archive_sweep_all_apps()
 
     threading.Thread(target=_archive_tasks_loop, daemon=True).start()
+
+    # Pull in-game bug reports / suggestions from the game-reports Cloudflare
+    # Worker, store them locally, and erase them from the worker (transient
+    # inbox). Only runs if the reports worker is configured in settings.
+    os.makedirs(REPORTS_DIR, exist_ok=True)
+
+    def _poll_reports_loop():
+        cfg = _reports_config()
+        interval = cfg["poll_seconds"] if cfg else 60
+        while not _event_prune_stop.wait(interval):
+            try:
+                _pull_reports_once(app.state.db)
+            except Exception as e:
+                logger.debug("reports poll failed: %s", e)
+
+    if _reports_config():
+        threading.Thread(target=_poll_reports_loop, daemon=True).start()
+
     yield
     _event_prune_stop.set()
     app.state.deploy.shutdown()
@@ -266,6 +289,9 @@ class IssueUpdate(BaseModel):
     status: Optional[str] = None
     assigned_ai: Optional[str] = None
     fix_prompt: Optional[str] = None
+
+class ReportUpdate(BaseModel):
+    status: Optional[str] = None  # open | closed
 
 class AppUpdate(BaseModel):
     notes: Optional[str] = None
@@ -1621,6 +1647,194 @@ def _issue_dict(i) -> dict:
         "fix_result": _repair_mojibake(i.fix_result or ""),
         "created_at": i.created_at, "updated_at": i.updated_at,
     }
+
+
+# ── Reports (in-game bug reports / suggestions) ─────────────
+#
+# Games POST to the shared `game-reports` Cloudflare Worker; this server polls
+# it, stores each report + its screenshots locally, then DELETEs it from the
+# worker (transient inbox). Reports start "open" and are closed from the app.
+
+def _reports_config() -> Optional[dict]:
+    s = get_settings()
+    url = (s.get("reports_worker_url") or "").rstrip("/")
+    key = s.get("reports_api_key") or ""
+    if not url or not key:
+        return None
+    try:
+        interval = int(s.get("reports_poll_seconds", 60) or 60)
+    except (TypeError, ValueError):
+        interval = 60
+    return {"url": url, "key": key, "poll_seconds": max(15, interval)}
+
+
+def _reports_http(url: str, key: str, method: str = "GET", timeout: int = 30):
+    req = urllib.request.Request(url, headers={"X-API-Key": key}, method=method)
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return resp.status, resp.read(), dict(resp.headers)
+
+
+def _download_shot(base: str, key: str, report_id: str, idx: int, dest_dir: str) -> bool:
+    try:
+        status, data, headers = _reports_http(f"{base}/reports/{report_id}/shot/{idx}", key, timeout=30)
+    except Exception as e:
+        logger.debug("shot download failed %s/%s: %s", report_id, idx, e)
+        return False
+    if status != 200 or not data:
+        return False
+    ctype = (headers.get("Content-Type") or headers.get("content-type") or "image/jpeg").lower()
+    ext = {"image/png": "png", "image/webp": "webp"}.get(ctype, "jpg")
+    os.makedirs(dest_dir, exist_ok=True)
+    with open(os.path.join(dest_dir, f"{idx}.{ext}"), "wb") as f:
+        f.write(data)
+    return True
+
+
+def _delete_remote_report(base: str, key: str, report_id: str) -> bool:
+    try:
+        status, _, _ = _reports_http(f"{base}/reports/{report_id}", key, method="DELETE", timeout=20)
+        return status == 200
+    except Exception as e:
+        logger.debug("remote report delete failed %s: %s", report_id, e)
+        return False
+
+
+def _pull_reports_once(db_inst: DBManager):
+    cfg = _reports_config()
+    if not cfg:
+        return
+    base, key = cfg["url"], cfg["key"]
+    try:
+        status, body, _ = _reports_http(f"{base}/reports?limit=50", key, timeout=20)
+    except Exception as e:
+        logger.debug("reports list failed: %s", e)
+        return
+    if status != 200:
+        return
+    try:
+        payload = json.loads(body.decode("utf-8"))
+    except Exception:
+        return
+    reports = payload.get("reports") or []
+    if not reports:
+        return
+    # package -> app_id (include archived so a report is never orphaned by it)
+    pkg_map = {a.package_name: a.id for a in db_inst.get_all_apps(include_archived=True) if a.package_name}
+    for r in reports:
+        rid = r.get("id")
+        if not rid:
+            continue
+        if db_inst.report_exists(rid):
+            # Stored on a prior run; ensure it's gone from the worker so it
+            # stops being re-listed.
+            _delete_remote_report(base, key, rid)
+            continue
+        shot_count = int(r.get("shot_count") or 0)
+        saved = 0
+        if shot_count:
+            dest = os.path.join(REPORTS_DIR, rid)
+            for idx in range(shot_count):
+                if _download_shot(base, key, rid, idx, dest):
+                    saved += 1
+            if saved < shot_count:
+                # A screenshot didn't come down — leave the report on the worker
+                # and retry next cycle rather than storing a partial copy.
+                continue
+        db_inst.create_report(
+            id=rid,
+            app_id=pkg_map.get(r.get("package", "")),
+            package=r.get("package", "") or "",
+            category=r.get("category", "other") or "other",
+            message=r.get("message", "") or "",
+            app_version=r.get("app_version", "") or "",
+            platform=r.get("platform", "") or "",
+            install_id=r.get("install_id", "") or "",
+            shot_count=saved,
+            status="open",
+            received_at=str(r.get("received_at", "") or ""),
+        )
+        _delete_remote_report(base, key, rid)
+
+
+def _report_dict(r: dict) -> dict:
+    return {
+        "id": r.get("id"),
+        "app_id": r.get("app_id"),
+        "app_name": r.get("app_name") or "",
+        "package": r.get("package") or "",
+        "category": r.get("category") or "other",
+        "message": _repair_mojibake(r.get("message") or ""),
+        "app_version": r.get("app_version") or "",
+        "platform": r.get("platform") or "",
+        "install_id": r.get("install_id") or "",
+        "shot_count": r.get("shot_count") or 0,
+        "status": r.get("status") or "open",
+        "received_at": r.get("received_at") or "",
+        "pulled_at": r.get("pulled_at") or "",
+        "closed_at": r.get("closed_at") or "",
+    }
+
+
+@app.get("/api/reports")
+def list_reports(status: Optional[str] = None):
+    return [_report_dict(r) for r in db().get_reports(status=status)]
+
+
+@app.get("/api/reports/count")
+def reports_count():
+    return {"open": db().count_reports("open"), "total": db().count_reports(None)}
+
+
+@app.post("/api/reports/pull")
+def pull_reports_now():
+    """Force an immediate pull from the worker (the poll loop also runs on a timer)."""
+    if not _reports_config():
+        raise HTTPException(400, "Reports worker not configured")
+    before = db().count_reports(None)
+    _pull_reports_once(db())
+    after = db().count_reports(None)
+    return {"ok": True, "new": max(0, after - before)}
+
+
+@app.get("/api/reports/{report_id}/shot/{index}")
+def get_report_shot(report_id: str, index: int):
+    r = db().get_report(report_id)
+    if not r:
+        raise HTTPException(404, "Report not found")
+    shots_dir = os.path.join(REPORTS_DIR, report_id)
+    if not os.path.isdir(shots_dir):
+        raise HTTPException(404, "No screenshots")
+    match = None
+    for name in os.listdir(shots_dir):
+        if name.split(".", 1)[0] == str(index):
+            match = os.path.join(shots_dir, name)
+            break
+    if not match or not os.path.isfile(match):
+        raise HTTPException(404, "Screenshot not found")
+    return FileResponse(match, media_type=_attachment_media_type(match),
+                        filename=os.path.basename(match), content_disposition_type="inline")
+
+
+@app.patch("/api/reports/{report_id}")
+def update_report(report_id: str, body: ReportUpdate):
+    r = db().get_report(report_id)
+    if not r:
+        raise HTTPException(404, "Report not found")
+    updates = {k: v for k, v in body.model_dump().items() if v is not None}
+    if "status" in updates:
+        updates["closed_at"] = datetime.now().isoformat() if updates["status"] == "closed" else None
+    if updates:
+        db().update_report(report_id, **updates)
+    return {"ok": True}
+
+
+@app.delete("/api/reports/{report_id}")
+def delete_report(report_id: str):
+    shots_dir = os.path.join(REPORTS_DIR, report_id)
+    if os.path.isdir(shots_dir):
+        shutil.rmtree(shots_dir, ignore_errors=True)
+    db().delete_report(report_id)
+    return {"ok": True}
 
 
 # ── Builds ────────────────────────────────────────────────────

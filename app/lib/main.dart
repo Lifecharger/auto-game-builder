@@ -104,8 +104,8 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
   final _screens = const [
     DashboardScreen(),
     IssuesScreen(),
+    ChatLogsScreen(), // Reports & Logs
     ControlScreen(),
-    ChatLogsScreen(),
     SettingsScreen(),
   ];
 
@@ -322,12 +322,12 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
             label: l10n.issues,
           ),
           BottomNavigationBarItem(
-            icon: const Icon(Icons.tune),
-            label: l10n.control,
+            icon: const Icon(Icons.feedback_outlined),
+            label: l10n.chatLogs,
           ),
           BottomNavigationBarItem(
-            icon: const Icon(Icons.forum),
-            label: l10n.chatLogs,
+            icon: const Icon(Icons.tune),
+            label: l10n.control,
           ),
           BottomNavigationBarItem(
             icon: const Icon(Icons.settings),

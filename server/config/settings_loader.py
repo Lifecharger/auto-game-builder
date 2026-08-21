@@ -212,6 +212,11 @@ def save_settings(settings_dict: dict) -> None:
         "developer": {
             "developer_name": settings_dict.get("developer_name", ""),
         },
+        "reports": {
+            "reports_worker_url": settings_dict.get("reports_worker_url", ""),
+            "reports_api_key": settings_dict.get("reports_api_key", ""),
+            "reports_poll_seconds": settings_dict.get("reports_poll_seconds", 60),
+        },
     }
     os.makedirs(_CONFIG_DIR, exist_ok=True)
     with open(_SETTINGS_PATH, "w", encoding="utf-8") as f:

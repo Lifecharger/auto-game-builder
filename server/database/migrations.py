@@ -266,6 +266,30 @@ MIGRATIONS = [
     ALTER TABLE apps ADD COLUMN last_upload_track TEXT DEFAULT '';
     ALTER TABLE apps ADD COLUMN last_upload_at TEXT;
     """,
+    # Version 11: In-game bug reports / suggestions pulled from the game-reports
+    # Cloudflare Worker. `id` is the worker's uuid (TEXT), so INSERT OR IGNORE
+    # makes the pull idempotent. `app_id` is resolved from the package name and
+    # may be NULL when a report arrives from a package AGB doesn't know yet.
+    """
+    CREATE TABLE IF NOT EXISTS reports (
+        id TEXT PRIMARY KEY,
+        app_id INTEGER,
+        package TEXT NOT NULL DEFAULT '',
+        category TEXT NOT NULL DEFAULT 'other',
+        message TEXT NOT NULL DEFAULT '',
+        app_version TEXT DEFAULT '',
+        platform TEXT DEFAULT '',
+        install_id TEXT DEFAULT '',
+        shot_count INTEGER DEFAULT 0,
+        status TEXT DEFAULT 'open',
+        received_at TEXT DEFAULT '',
+        pulled_at TEXT NOT NULL DEFAULT (datetime('now')),
+        closed_at TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_reports_app_id ON reports(app_id);
+    CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
+    """,
 ]
 
 

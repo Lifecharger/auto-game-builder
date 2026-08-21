@@ -24,7 +24,7 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
   Timer? _pollTimer;
   bool _appInForeground = true;
   bool _resetting = false;
-  static const _myTabIndex = 2;
+  static const _myTabIndex = 3;
 
   // Filters (app category uses same SharedPreferences keys as issues screen)
   String _appCategory = 'in_progress';

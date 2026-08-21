@@ -56,8 +56,8 @@
   "@control": {
     "description": "Control tab label in the bottom navigation."
   },
-  "chatLogs": "Chat & Logs",
+  "chatLogs": "Reports",
   "@chatLogs": {
-    "description": "Chat & Logs tab label in the bottom navigation."
+    "description": "Reports & Logs tab label in the bottom navigation."
   }
 }

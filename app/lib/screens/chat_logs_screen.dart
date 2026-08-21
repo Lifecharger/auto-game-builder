@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import '../theme.dart';
-import 'chat_screen.dart';
+import 'reports_screen.dart';
 import 'logs_screen.dart';
 
+/// Bottom-nav destination hosting two tabs: in-game **Reports** (bug reports /
+/// suggestions pulled from the game-reports worker) and build **Logs**.
 class ChatLogsScreen extends StatelessWidget {
   const ChatLogsScreen({super.key});
 
@@ -21,7 +23,7 @@ class ChatLogsScreen extends StatelessWidget {
                 labelColor: AppColors.accent,
                 unselectedLabelColor: Colors.grey,
                 tabs: const [
-                  Tab(icon: Icon(Icons.chat_bubble_outline, size: 20), text: 'Chat'),
+                  Tab(icon: Icon(Icons.feedback_outlined, size: 20), text: 'Reports'),
                   Tab(icon: Icon(Icons.article_outlined, size: 20), text: 'Logs'),
                 ],
               ),
@@ -29,7 +31,7 @@ class ChatLogsScreen extends StatelessWidget {
             const Expanded(
               child: TabBarView(
                 children: [
-                  ChatScreen(),
+                  ReportsScreen(),
                   LogsScreen(),
                 ],
               ),

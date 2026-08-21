@@ -21,7 +21,7 @@ class _LogsScreenState extends State<LogsScreen> with WidgetsBindingObserver {
   int? _expandedIndex;
   Timer? _pollTimer;
   bool _appInForeground = true;
-  static const _myTabIndex = 4;
+  static const _myTabIndex = 2;
 
   @override
   void initState() {

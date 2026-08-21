@@ -51,5 +51,5 @@ class AppLocalizationsEn extends AppLocalizations {
   String get control => 'Control';
 
   @override
-  String get chatLogs => 'Chat & Logs';
+  String get chatLogs => 'Reports';
 }

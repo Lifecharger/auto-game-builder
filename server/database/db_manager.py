@@ -364,6 +364,68 @@ class DBManager:
             updated_at=row["updated_at"] or "",
         )
 
+    # ── Reports (in-game bug reports / suggestions) ──────────
+
+    def create_report(self, **kwargs):
+        """Insert a pulled report. Idempotent: INSERT OR IGNORE on the worker's
+        uuid primary key, so re-pulling the same report is a no-op."""
+        conn = self._get_conn()
+        cols = list(kwargs.keys())
+        _validate_columns(cols)
+        conn.execute(
+            f"INSERT OR IGNORE INTO reports ({','.join(cols)}) VALUES ({','.join('?' for _ in cols)})",
+            list(kwargs.values()),
+        )
+        conn.commit()
+
+    def report_exists(self, report_id: str) -> bool:
+        conn = self._get_conn()
+        return conn.execute("SELECT 1 FROM reports WHERE id=?", (report_id,)).fetchone() is not None
+
+    def get_reports(self, status: Optional[str] = None) -> list[dict]:
+        conn = self._get_conn()
+        query = (
+            "SELECT r.*, a.name AS app_name FROM reports r "
+            "LEFT JOIN apps a ON r.app_id = a.id WHERE 1=1"
+        )
+        params: list = []
+        if status and status != "all":
+            query += " AND r.status=?"
+            params.append(status)
+        query += " ORDER BY r.pulled_at DESC, r.rowid DESC"
+        return [dict(row) for row in conn.execute(query, params).fetchall()]
+
+    def get_report(self, report_id: str) -> Optional[dict]:
+        conn = self._get_conn()
+        row = conn.execute(
+            "SELECT r.*, a.name AS app_name FROM reports r "
+            "LEFT JOIN apps a ON r.app_id = a.id WHERE r.id=?",
+            (report_id,),
+        ).fetchone()
+        return dict(row) if row else None
+
+    def update_report(self, report_id: str, **kwargs):
+        conn = self._get_conn()
+        _validate_columns(list(kwargs.keys()))
+        sets = [f"{k}=?" for k in kwargs]
+        vals = list(kwargs.values())
+        vals.append(report_id)
+        conn.execute(f"UPDATE reports SET {','.join(sets)} WHERE id=?", vals)
+        conn.commit()
+
+    def delete_report(self, report_id: str):
+        conn = self._get_conn()
+        conn.execute("DELETE FROM reports WHERE id=?", (report_id,))
+        conn.commit()
+
+    def count_reports(self, status: Optional[str] = None) -> int:
+        conn = self._get_conn()
+        if status and status != "all":
+            row = conn.execute("SELECT COUNT(*) FROM reports WHERE status=?", (status,)).fetchone()
+        else:
+            row = conn.execute("SELECT COUNT(*) FROM reports").fetchone()
+        return row[0]
+
     # ── Autofix Sessions ─────────────────────────────────────
 
     def create_session(self, **kwargs) -> int:
