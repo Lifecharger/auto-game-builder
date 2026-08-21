@@ -1669,7 +1669,13 @@ def _reports_config() -> Optional[dict]:
 
 
 def _reports_http(url: str, key: str, method: str = "GET", timeout: int = 30):
-    req = urllib.request.Request(url, headers={"X-API-Key": key}, method=method)
+    # A real User-Agent is required: Cloudflare's bot protection 403s the default
+    # "Python-urllib/x.y" UA before the request ever reaches the worker.
+    req = urllib.request.Request(
+        url,
+        headers={"X-API-Key": key, "User-Agent": "AutoGameBuilder-Reports/1.0"},
+        method=method,
+    )
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         return resp.status, resp.read(), dict(resp.headers)
 
@@ -1740,6 +1746,11 @@ def _pull_reports_once(db_inst: DBManager):
                 # A screenshot didn't come down — leave the report on the worker
                 # and retry next cycle rather than storing a partial copy.
                 continue
+        meta = r.get("meta")
+        try:
+            meta_json = json.dumps(meta) if isinstance(meta, (dict, list)) else (meta if isinstance(meta, str) and meta else "{}")
+        except (TypeError, ValueError):
+            meta_json = "{}"
         db_inst.create_report(
             id=rid,
             app_id=pkg_map.get(r.get("package", "")),
@@ -1752,6 +1763,7 @@ def _pull_reports_once(db_inst: DBManager):
             shot_count=saved,
             status="open",
             received_at=str(r.get("received_at", "") or ""),
+            meta=meta_json,
         )
         _delete_remote_report(base, key, rid)
 
@@ -1772,7 +1784,20 @@ def _report_dict(r: dict) -> dict:
         "received_at": r.get("received_at") or "",
         "pulled_at": r.get("pulled_at") or "",
         "closed_at": r.get("closed_at") or "",
+        "meta": _parse_meta(r.get("meta")),
     }
+
+
+def _parse_meta(v) -> dict:
+    if isinstance(v, dict):
+        return v
+    if isinstance(v, str) and v:
+        try:
+            parsed = json.loads(v)
+            return parsed if isinstance(parsed, dict) else {}
+        except (TypeError, ValueError):
+            return {}
+    return {}
 
 
 @app.get("/api/reports")

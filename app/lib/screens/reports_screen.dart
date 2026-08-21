@@ -221,6 +221,28 @@ class _ReportCard extends StatelessWidget {
     }
   }
 
+  Widget _deviceInfo() {
+    final device = report.deviceLabel;
+    final os = report.osLabel;
+    if (device.isEmpty && os.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        children: [
+          const Icon(Icons.smartphone, size: 13, color: Colors.grey),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Text(
+              [if (device.isNotEmpty) device, if (os.isNotEmpty) os].join('  ·  '),
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: Colors.grey, fontSize: 11),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   String get _when {
     final ms = int.tryParse(report.receivedAt);
     if (ms == null || ms <= 0) return '';
@@ -280,6 +302,7 @@ class _ReportCard extends StatelessWidget {
                 ),
               ],
               const SizedBox(height: 8),
+              _deviceInfo(),
               Row(
                 children: [
                   Text(

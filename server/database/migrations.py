@@ -290,6 +290,11 @@ MIGRATIONS = [
     CREATE INDEX IF NOT EXISTS idx_reports_app_id ON reports(app_id);
     CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
     """,
+    # Version 12: device metadata (brand, model, os version, sdk, ...) as an
+    # opaque JSON blob on each report, mirrored from the worker's `meta` field.
+    """
+    ALTER TABLE reports ADD COLUMN meta TEXT NOT NULL DEFAULT '{}';
+    """,
 ]
 
 

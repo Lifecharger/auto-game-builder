@@ -181,3 +181,6 @@ settings.json
 
 # IDE (catch-all)
 *.iml
+
+# Report attachments (user-uploaded runtime data, like task_attachments/)
+server/report_attachments/

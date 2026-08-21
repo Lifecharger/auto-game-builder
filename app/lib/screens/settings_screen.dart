@@ -13,6 +13,7 @@ import '../services/billing_service.dart';
 import '../services/locale_service.dart';
 import '../services/theme_service.dart';
 import '../theme.dart';
+import 'report_screen.dart';
 import '../theme/palette.dart';
 import '../widgets/settings/server_config_section.dart';
 
@@ -502,6 +503,51 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       onChanged: (value) async {
                         await AppConfig.setShowAppIcons(value);
                         setState(() {});
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Feedback card
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.feedback_outlined, color: AppColors.accent),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Feedback',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.bug_report_outlined),
+                      title: const Text('Report a Bug / Suggestion'),
+                      subtitle: Text(
+                        'Tell us what to fix or add',
+                        style: TextStyle(
+                            fontSize: 12, color: Colors.grey.shade500),
+                      ),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const ReportScreen(),
+                          ),
+                        );
                       },
                     ),
                   ],
