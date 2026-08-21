@@ -494,6 +494,8 @@ class DeployEngine:
                         app.id,
                         "idle",
                         publish_status=publish_map.get(track, "internal_test"),
+                        last_upload_track=track,
+                        last_upload_at=datetime.now().isoformat(),
                     )
                     # Fire-and-forget: if the app has a GitHub remote configured,
                     # spawn a Claude agent in a daemon thread to commit and push.

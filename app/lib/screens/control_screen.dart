@@ -7,6 +7,7 @@ import '../models/automation_model.dart';
 import '../services/api_service.dart';
 import '../services/app_state.dart';
 import '../theme.dart';
+import '../widgets/sync_status_chip.dart';
 
 class ControlScreen extends StatefulWidget {
   const ControlScreen({super.key});
@@ -19,6 +20,7 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
   List<AutomationModel> _automations = [];
   bool _loading = false;
   String? _error;
+  DateTime? _lastSyncedAt;
   Timer? _pollTimer;
   bool _appInForeground = true;
   bool _resetting = false;
@@ -127,13 +129,14 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
         setState(() {
           _automations = automations;
           _error = null;
+          _lastSyncedAt = DateTime.now();
           _loading = false;
         });
       } else {
+        // Keep the last good list on screen; the failure shows as an inline
+        // banner (or a full error page only when there is nothing cached).
         setState(() {
-          if (_automations.isEmpty) {
-            _error = result.error ?? 'Failed to load automations';
-          }
+          _error = result.error ?? 'Failed to load automations';
           _loading = false;
         });
       }
@@ -725,7 +728,13 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Control'),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Control'),
+            SyncStatusChip(lastSyncedAt: _lastSyncedAt, failed: _error != null),
+          ],
+        ),
         actions: [
           IconButton(
             icon: _resetting
@@ -766,6 +775,12 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
                 )
               : Column(
                   children: [
+                    if (_error != null)
+                      SyncErrorBanner(
+                        message: _error!,
+                        onRetry: () => _loadAutomations(silent: true),
+                        onDismiss: () => setState(() => _error = null),
+                      ),
                     // App category segmented button
                     Padding(
                       padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),

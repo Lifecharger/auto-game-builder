@@ -11,6 +11,7 @@ import '../services/api_service.dart';
 import '../services/app_state.dart';
 import '../services/installed_apps_service.dart';
 import '../theme.dart';
+import '../widgets/sync_status_chip.dart';
 import '../widgets/cached_app_icon.dart';
 import '../widgets/dashboard/brainstorm_sheet.dart';
 import '../widgets/dashboard/create_app_sheet.dart';
@@ -26,7 +27,6 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingObserver {
   Map<String, String?> _installedVersions = {};
   Timer? _pollTimer;
-  Timer? _tickTimer;
   bool _appInForeground = true;
   static const _myTabIndex = 0;
   static const _completedAppsKey = 'completed_app_ids';
@@ -63,16 +63,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       });
     });
     _startPolling();
-    // Tick every 5s to update the "Xm ago" label
-    _tickTimer = Timer.periodic(const Duration(seconds: 5), (_) {
-      if (mounted && _lastSyncedAt != null) setState(() {});
-    });
   }
 
   @override
   void dispose() {
     _pollTimer?.cancel();
-    _tickTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -248,42 +243,15 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     }
   }
 
-  String _syncLabel() {
-    if (_syncFailed) return 'Sync failed';
-    if (_lastSyncedAt == null) return '';
-    final diff = DateTime.now().difference(_lastSyncedAt!);
-    if (diff.inSeconds < 10) return 'Just now';
-    if (diff.inSeconds < 60) return '${diff.inSeconds}s ago';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    return '${diff.inHours}h ago';
-  }
-
   @override
   Widget build(BuildContext context) {
-    final syncText = _syncLabel();
     return Scaffold(
       appBar: AppBar(
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text('Dashboard'),
-            Row(
-              children: [
-                Container(
-                  width: 6,
-                  height: 6,
-                  margin: const EdgeInsets.only(right: 5),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: _syncFailed ? Colors.red : (syncText.isNotEmpty ? AppColors.success : Colors.grey),
-                  ),
-                ),
-                Text(
-                  syncText.isNotEmpty ? 'Synced $syncText' : 'Connecting...',
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade400, fontWeight: FontWeight.normal),
-                ),
-              ],
-            ),
+            SyncStatusChip(lastSyncedAt: _lastSyncedAt, failed: _syncFailed),
           ],
         ),
         actions: [
@@ -446,6 +414,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                         onToggleCompleted: () => _toggleAppCompleted(app.id),
                         onTogglePostponed: () => _toggleAppPostponed(app.id),
                         onIconTap: () => context.read<AppState>().requestIssuesForApp(app.id),
+                        onAttentionTap: () => context.read<AppState>()
+                            .requestIssuesForApp(app.id, statusFilter: 'failed'),
                       )),
                       if (postponedApps.isNotEmpty)
                         Card(
@@ -490,6 +460,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                               onToggleCompleted: () => _toggleAppCompleted(app.id),
                               onTogglePostponed: () => _toggleAppPostponed(app.id),
                               onIconTap: () => context.read<AppState>().requestIssuesForApp(app.id),
+                        onAttentionTap: () => context.read<AppState>()
+                            .requestIssuesForApp(app.id, statusFilter: 'failed'),
                             )).toList(),
                           ),
                         ),
@@ -536,6 +508,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                               onToggleCompleted: () => _toggleAppCompleted(app.id),
                               onTogglePostponed: () => _toggleAppPostponed(app.id),
                               onIconTap: () => context.read<AppState>().requestIssuesForApp(app.id),
+                        onAttentionTap: () => context.read<AppState>()
+                            .requestIssuesForApp(app.id, statusFilter: 'failed'),
                             )).toList(),
                           ),
                         ),
@@ -615,6 +589,9 @@ class _AppCard extends StatelessWidget {
   final VoidCallback onToggleCompleted;
   final VoidCallback onTogglePostponed;
   final VoidCallback? onIconTap;
+  /// Fired when the red needs-attention chip is tapped (opens Issues
+  /// filtered to failed tasks for this app).
+  final VoidCallback? onAttentionTap;
 
   const _AppCard({
     required this.app,
@@ -625,6 +602,7 @@ class _AppCard extends StatelessWidget {
     required this.onToggleCompleted,
     required this.onTogglePostponed,
     this.onIconTap,
+    this.onAttentionTap,
   });
 
   bool get isCompleted => appStatus == _AppStatus.completed;
@@ -635,6 +613,12 @@ class _AppCard extends StatelessWidget {
     final pendingTasks = taskStatus['pending'] ?? 0;
     final inProgressTasks = taskStatus['in_progress'] ?? 0;
     final completedTasks = taskStatus['completed'] ?? 0;
+    final failedTasks = taskStatus['failed'] ?? 0;
+    final urgentTasks = taskStatus['urgent'] ?? 0;
+    final blockedTasks = taskStatus['blocked'] ?? 0;
+    final lastBuildFailed = app.lastBuildStatus.toLowerCase() == 'failed';
+    final needsAttention =
+        failedTasks > 0 || urgentTasks > 0 || blockedTasks > 0 || lastBuildFailed;
     final unshipped = pendingTasks + inProgressTasks;
     final totalUnbuilt = pendingTasks + inProgressTasks + completedTasks;
 
@@ -728,7 +712,7 @@ class _AppCard extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
           Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
           child: Row(
             children: [
               // App icon — tappable to navigate to issues
@@ -785,7 +769,7 @@ class _AppCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       maxLines: 1,
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 6),
                     Row(
                       children: [
                         Flexible(
@@ -812,12 +796,15 @@ class _AppCard extends StatelessWidget {
                         ),
                       ],
                     ),
+                    const SizedBox(height: 6),
+                    _UploadTrackChip(track: app.lastUploadTrack),
                   ],
                 ),
               ),
               // Status, issues, and tasks
+              const SizedBox(width: 8),
               ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 130),
+                constraints: const BoxConstraints(maxWidth: 140),
                 child: Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
@@ -826,8 +813,8 @@ class _AppCard extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Container(
-                        width: 10,
-                        height: 10,
+                        width: 12,
+                        height: 12,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: AppColors.statusColor(displayStatus),
@@ -839,7 +826,7 @@ class _AppCard extends StatelessWidget {
                           displayStatus,
                           style: TextStyle(
                             color: AppColors.statusColor(displayStatus),
-                            fontSize: 13,
+                            fontSize: 14,
                             fontWeight: FontWeight.w500,
                           ),
                           overflow: TextOverflow.ellipsis,
@@ -848,6 +835,19 @@ class _AppCard extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 6),
+                  // Needs-attention chip: failed / urgent / blocked tasks and
+                  // a failed last build, so "which app broke?" is visible
+                  // without opening every app.
+                  if (needsAttention) ...[
+                    const SizedBox(height: 4),
+                    _AttentionChip(
+                      failed: failedTasks,
+                      urgent: urgentTasks,
+                      blocked: blockedTasks,
+                      buildFailed: lastBuildFailed,
+                      onTap: onAttentionTap,
+                    ),
+                  ],
                   // Task count badge
                   if (totalUnbuilt > 0) ...[
                     const SizedBox(height: 4),
@@ -868,7 +868,7 @@ class _AppCard extends StatelessWidget {
                           color: unshipped > 0
                               ? AppColors.warning
                               : AppColors.success,
-                          fontSize: 11,
+                          fontSize: 12,
                           fontWeight: FontWeight.w500,
                         ),
                         overflow: TextOverflow.ellipsis,
@@ -1016,7 +1016,13 @@ class _TaskSummaryCard extends StatelessWidget {
                 _stat('Active', inProgress, AppColors.info),
                 _stat('Completed', completed, AppColors.success),
                 _stat('Built', built, const Color(0xFF9B59B6)),
-                if (failed > 0) _stat('Failed', failed, AppColors.error),
+                if (failed > 0)
+                  _stat(
+                    'Failed',
+                    failed,
+                    AppColors.error,
+                    onTap: () => _openFailedIssues(context),
+                  ),
               ],
             ),
           ],
@@ -1025,14 +1031,107 @@ class _TaskSummaryCard extends StatelessWidget {
     );
   }
 
-  Widget _stat(String label, int count, Color color) {
-    return Column(
+  /// Jump to the Issues tab filtered to failed tasks. The Issues tab is
+  /// scoped to one app, so open the first app that actually has failures.
+  void _openFailedIssues(BuildContext context) {
+    final target = apps.where((a) => (a.taskStatus['failed'] ?? 0) > 0).firstOrNull;
+    if (target == null) return;
+    HapticFeedback.lightImpact();
+    context.read<AppState>().requestIssuesForApp(target.id, statusFilter: 'failed');
+  }
+
+  Widget _stat(String label, int count, Color color, {VoidCallback? onTap}) {
+    final column = Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Text('$count',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color)),
         Text(label,
             style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
       ],
+    );
+    if (onTap == null) return column;
+    return Tooltip(
+      message: 'View failed tasks',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            child: column,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Red chip summarising why an app needs attention: failed/urgent/blocked
+/// task counts plus a failed last build. Tapping opens Issues filtered to
+/// failed tasks for the app.
+class _AttentionChip extends StatelessWidget {
+  final int failed;
+  final int urgent;
+  final int blocked;
+  final bool buildFailed;
+  final VoidCallback? onTap;
+
+  const _AttentionChip({
+    required this.failed,
+    required this.urgent,
+    required this.blocked,
+    required this.buildFailed,
+    this.onTap,
+  });
+
+  String get _label {
+    final parts = <String>[
+      if (failed > 0) '$failed failed',
+      if (urgent > 0) '$urgent urgent',
+      if (blocked > 0) '$blocked blocked',
+      if (buildFailed) 'build failed',
+    ];
+    return parts.join(' · ');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = (failed > 0 || buildFailed) ? AppColors.error : AppColors.warning;
+    final chip = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(buildFailed ? Icons.build_circle_outlined : Icons.error_outline,
+              size: 12, color: color),
+          const SizedBox(width: 4),
+          Flexible(
+            child: Text(
+              _label,
+              style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+    if (onTap == null) return chip;
+    return Tooltip(
+      message: 'View failed tasks',
+      child: InkWell(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          onTap!();
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: chip,
+      ),
     );
   }
 }
@@ -1075,6 +1174,58 @@ class _AppIconWidget extends StatelessWidget {
               color: dimmed ? Colors.grey : AppColors.accent,
               size: 26,
             ),
+    );
+  }
+}
+
+/// Shows which Google Play track the app was last uploaded to, or
+/// "not yet uploaded" when no successful upload has been recorded.
+class _UploadTrackChip extends StatelessWidget {
+  final String track;
+
+  const _UploadTrackChip({required this.track});
+
+  static const Set<String> _knownTracks = {'internal', 'alpha', 'beta', 'production'};
+
+  static Color _trackColor(String track) {
+    switch (track) {
+      case 'production':
+        return AppColors.success;
+      case 'alpha':
+      case 'beta':
+        return AppColors.warning;
+      default:
+        return AppColors.info;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final key = track.toLowerCase();
+    final uploaded = _knownTracks.contains(key);
+    final label = uploaded ? key : 'not yet uploaded';
+    final color = uploaded ? _trackColor(key) : Colors.grey.shade500;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: uploaded ? 0.15 : 0.08),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            uploaded ? Icons.cloud_done_outlined : Icons.cloud_off_outlined,
+            size: 12,
+            color: color,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w500),
+          ),
+        ],
+      ),
     );
   }
 }

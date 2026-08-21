@@ -326,6 +326,19 @@ class ApiService {
     }
   }
 
+  /// Directives previously sent via [sendDeathpinDirective], oldest first.
+  static Future<ApiResult<List<dynamic>>> getDeathpinDirectives() async {
+    try {
+      final response = await _getWithRetry(Uri.parse('$_base/api/deathpin/directives'));
+      if (response.statusCode == 200) {
+        return ApiResult.success(jsonDecode(response.body) as List<dynamic>);
+      }
+      return ApiResult.failure(_httpError(response.statusCode));
+    } catch (e) {
+      return ApiResult.failure(_friendlyError(e));
+    }
+  }
+
   static Future<ApiResult<bool>> sendDeathpinDirective(
       String directive, String priority) async {
     try {
@@ -968,6 +981,35 @@ class ApiService {
       }
       final errorData = jsonDecode(response.body);
       return ApiResult.failure(errorData['detail']?.toString() ?? _httpError(response.statusCode));
+    } catch (e) {
+      return ApiResult.failure(_friendlyError(e));
+    }
+  }
+
+  /// Build targets the server can produce for this app's engine:
+  /// `{app_type, targets: {key: label}}`.
+  static Future<ApiResult<Map<String, dynamic>>> getBuildTargets(int appId) async {
+    try {
+      final response = await _getWithRetry(Uri.parse('$_base/api/apps/$appId/build-targets'));
+      if (response.statusCode == 200) {
+        return ApiResult.success(jsonDecode(response.body));
+      }
+      return ApiResult.failure(_httpError(response.statusCode));
+    } catch (e) {
+      return ApiResult.failure(_friendlyError(e));
+    }
+  }
+
+  /// Re-read the app's engine from disk: `{app_type, previous, changed}`.
+  static Future<ApiResult<Map<String, dynamic>>> detectEngine(int appId) async {
+    try {
+      final response = await http
+          .post(Uri.parse('$_base/api/apps/$appId/detect-engine'), headers: _headers)
+          .timeout(const Duration(seconds: 15));
+      if (response.statusCode == 200) {
+        return ApiResult.success(jsonDecode(response.body));
+      }
+      return ApiResult.failure(_detailOrHttpError(response));
     } catch (e) {
       return ApiResult.failure(_friendlyError(e));
     }

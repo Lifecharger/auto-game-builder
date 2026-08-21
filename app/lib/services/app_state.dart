@@ -20,6 +20,7 @@ class AppState extends ChangeNotifier {
   int _pendingTaskCount = 0;
   int _consecutiveFailures = 0;
   int? _issuesRequestedAppId;
+  String? _issuesRequestedStatus;
   Future<void>? _appsInFlight;
   Future<void>? _issuesInFlight;
   EventService? _eventService;
@@ -32,6 +33,9 @@ class AppState extends ChangeNotifier {
   bool? get connected => _connected;
   int get pendingTaskCount => _pendingTaskCount;
   int? get issuesRequestedAppId => _issuesRequestedAppId;
+  /// Task status filter the Issues tab should apply when honouring the
+  /// request (null = leave the current filter alone).
+  String? get issuesRequestedStatus => _issuesRequestedStatus;
 
   /// Total cached builds across all apps — sourced from Hive, no network.
   /// Stays in sync automatically because SyncService writes the builds box
@@ -48,13 +52,15 @@ class AppState extends ChangeNotifier {
   /// The signed-in user's email, or null.
   String? get userEmail => AuthService.instance.userEmail;
 
-  void requestIssuesForApp(int appId) {
+  void requestIssuesForApp(int appId, {String? statusFilter}) {
     _issuesRequestedAppId = appId;
+    _issuesRequestedStatus = statusFilter;
     notifyListeners();
   }
 
   void clearIssuesRequest() {
     _issuesRequestedAppId = null;
+    _issuesRequestedStatus = null;
   }
 
   /// Bind the EventService so force-refresh can stop/restart it.

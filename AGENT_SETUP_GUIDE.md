@@ -497,7 +497,6 @@ curl http://localhost:8000/api/health
 | `POST` | `/api/apps/{id}/enhance` | AI-enhance GDD or CLAUDE.md |
 | `POST` | `/api/chat` | AI chat with specialist routing |
 | `GET/PUT` | `/api/apps/{id}/mcp` | Get/set per-app MCP servers |
-| `GET` | `/api/mcp/servers` | List configured MCP servers |
 | `POST` | `/api/mcp/presets/auto-setup` | Auto-configure preset MCPs |
 
 ## Rules For The Agent

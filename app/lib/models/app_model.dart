@@ -17,6 +17,10 @@ class AppModel {
   final String consoleUrl;
   final String iconPath;
   final Map<String, int> taskStatus;
+  /// Status of the most recent build ('' when the app has never been built).
+  final String lastBuildStatus;
+  /// Play track of the last successful upload ('' = never uploaded).
+  final String lastUploadTrack;
 
   AppModel({
     required this.id,
@@ -37,6 +41,8 @@ class AppModel {
     required this.consoleUrl,
     required this.iconPath,
     required this.taskStatus,
+    this.lastBuildStatus = '',
+    this.lastUploadTrack = '',
   });
 
   factory AppModel.fromJson(Map<String, dynamic> json) {
@@ -70,6 +76,8 @@ class AppModel {
       consoleUrl: json['console_url'] ?? '',
       iconPath: json['icon_path'] ?? '',
       taskStatus: parsedStatus,
+      lastBuildStatus: json['last_build_status'] ?? '',
+      lastUploadTrack: json['last_upload_track'] ?? '',
     );
   }
 }

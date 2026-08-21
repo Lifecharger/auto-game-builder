@@ -74,7 +74,7 @@ No circular dependencies. The app never holds authoritative state — always re-
 | Method | Path | Body / Params |
 |--------|------|---------------|
 | GET | `/api/apps` | `?include_archived=bool` |
-| GET | `/api/apps/{app_id}` | — |
+| GET | `/api/apps/{app_id}` | — (app dicts include `last_build_status`, `last_upload_track` (`internal`·`alpha`·`beta`·`production`, `''` = never uploaded), `last_upload_at` and `task_status{total,pending,in_progress,completed,built,divided,failed,urgent,blocked}`) |
 | POST | `/api/apps` | `{name, app_type, fix_strategy}` |
 | PATCH | `/api/apps/{app_id}` | `{notes, status, publish_status, fix_strategy, package_name, project_path, app_type, github_url, play_store_url, website_url, console_url}` |
 | POST | `/api/apps/{app_id}/detect-engine` | — → `{app_type, previous, changed}` (re-reads the engine from disk) |
@@ -95,9 +95,9 @@ No circular dependencies. The app never holds authoritative state — always re-
 | GET | `/api/apps/{app_id}/tasks/status` | — (task statistics) |
 | POST | `/api/apps/{app_id}/tasks` | `{app_id, title, description, task_type, priority, attachments}` — attachments = base64 list (PDF · PNG · JPEG · GIF · WEBP, max 10; 25 MB per PDF, 10 MB per image); 120 s timeout |
 | GET | `/api/apps/{app_id}/tasks/{task_id}/attachments/{index}` | — (serves the stored file with its own media type) |
-| PATCH | `/api/apps/{app_id}/tasks/{task_id}` | any field |
+| PATCH | `/api/apps/{app_id}/tasks/{task_id}` | any field — server stamps `updated_at`; `started_at` on entering `in_progress` (cleared on reset to `pending`); `completed_at` on a finished status. Clients compute elapsed/stuck time from `started_at`, never a local clock |
 | DELETE | `/api/apps/{app_id}/tasks/{task_id}` | — |
-| POST | `/api/apps/{app_id}/tasks/archive` | — (force-archive, keeps last 100) |
+| POST | `/api/apps/{app_id}/tasks/archive` | — (force-archive, keeps last 100; the server also sweeps every app every 6 h) |
 | POST | `/api/apps/{app_id}/tasks/{task_id}/run` | — (run AI on task) |
 
 ### Builds & Deploy
@@ -129,7 +129,6 @@ No circular dependencies. The app never holds authoritative state — always re-
 |--------|------|---------------|
 | GET | `/api/apps/{app_id}/mcp` | — |
 | PUT | `/api/apps/{app_id}/mcp` | `{mcp_servers: [names]}` |
-| GET | `/api/mcp/servers` | — |
 | POST | `/api/mcp/servers` | add server |
 | DELETE | `/api/mcp/servers/{name}` | — |
 | GET | `/api/mcp/presets` | — |
@@ -165,7 +164,6 @@ Available agents: `claude`, `gemini`, `codex`, `local`
 | Method | Path | Params |
 |--------|------|--------|
 | GET | `/api/logs` | `?app_id=int&limit=50` |
-| GET | `/api/apps/{app_id}/logs` | — |
 
 ### Asset Pipeline
 ```

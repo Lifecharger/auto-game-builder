@@ -261,6 +261,11 @@ MIGRATIONS = [
 
     CREATE INDEX IF NOT EXISTS idx_deleted_records_time ON deleted_records(deleted_at);
     """,
+    # Version 10: Remember the Play track of the last successful upload
+    """
+    ALTER TABLE apps ADD COLUMN last_upload_track TEXT DEFAULT '';
+    ALTER TABLE apps ADD COLUMN last_upload_at TEXT;
+    """,
 ]
 
 

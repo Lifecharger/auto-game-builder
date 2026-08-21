@@ -10,6 +10,7 @@ import '../services/app_state.dart';
 import '../theme.dart';
 import '../widgets/create_task_sheet.dart';
 import '../widgets/issues/issue_task_card.dart';
+import '../widgets/sync_status_chip.dart';
 import '../widgets/task_filters_widget.dart';
 
 class IssuesScreen extends StatefulWidget {
@@ -23,6 +24,9 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
   List<dynamic> _allItems = [];
   bool _loading = false;
   String? _loadError;
+  /// Moment the task list was last successfully fetched from the server
+  /// (for the "Synced Xm ago" chip). Null until the first good load.
+  DateTime? _lastSyncedAt;
   int? _selectedAppId;
   // Expanded task keyed by its stable task id (not the list index) so a
   // reorder/filter/search can't move the expansion to a different task.
@@ -37,13 +41,26 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
   final _searchController = TextEditingController();
   AppState? _appStateRef;
 
-  // Track when items entered in_progress (keyed by task id)
-  final Map<dynamic, DateTime> _inProgressStartTimes = {};
   /// Max time a task can stay in_progress before auto-reset (30 min).
+  /// Measured from the server-stamped `started_at`, never a phone-local clock.
   static const _stuckThreshold = Duration(minutes: 30);
+
+  /// Server-stamped moment a task entered in_progress, or null if the task is
+  /// not running or the server has not stamped it yet.
+  static DateTime? _inProgressSince(dynamic item) {
+    if (item is! Map) return null;
+    if ((item['status'] ?? '').toString() != 'in_progress') return null;
+    final raw = item['started_at'];
+    if (raw is! String || raw.isEmpty) return null;
+    return DateTime.tryParse(raw);
+  }
 
   String _statusFilter = 'all';
   String _typeFilter = 'all';
+  /// Whether the collapsed "Done" block (completed/built) is expanded.
+  /// Only applies to the unfiltered list view.
+  bool _doneExpanded = false;
+  static const _doneStatuses = {'completed', 'built'};
   String _searchQuery = '';
 
   // Server-side search (single search across active + archived tasks;
@@ -323,6 +340,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
     if (appState == null) return;
     final requestedId = appState.issuesRequestedAppId;
     if (requestedId == null) return;
+    final requestedStatus = appState.issuesRequestedStatus;
 
     appState.clearIssuesRequest();
 
@@ -340,6 +358,10 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
       _appCategory = category;
       _selectedAppId = requestedId;
       _expandedTaskId = null;
+      _doneExpanded = false;
+      if (requestedStatus != null) {
+        _statusFilter = requestedStatus;
+      }
     });
     _loadItems();
   }
@@ -382,17 +404,23 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
     // request superseded this one while it was in flight.
     if (!mounted || seq != _loadSeq || appId != _selectedAppId) return;
     {
+      if (!result.ok) {
+        // Keep the previously loaded list (and its scroll position) on
+        // screen; the failure is surfaced as an inline banner instead.
+        setState(() {
+          _loadError = result.error ?? 'Failed to load tasks';
+          _loading = false;
+        });
+        return;
+      }
       setState(() {
         final items = <dynamic>[];
-        if (result.ok) {
-          _loadError = null;
-          for (final t in result.data!) {
-            final type = (t['task_type'] ?? t['type'] ?? 'issue').toString();
-            t['_source'] = type == 'idea' ? 'idea' : 'task';
-            items.add(t);
-          }
-        } else {
-          _loadError = result.error ?? 'Failed to load tasks';
+        _loadError = null;
+        _lastSyncedAt = DateTime.now();
+        for (final t in result.data!) {
+          final type = (t['task_type'] ?? t['type'] ?? 'issue').toString();
+          t['_source'] = type == 'idea' ? 'idea' : 'task';
+          items.add(t);
         }
 
         // Normalize "done" → "completed" (some agents use "done" instead)
@@ -425,18 +453,6 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
         _allItems = items;
         _loading = false;
         if (!silent) _expandedTaskId = null;
-
-        // Sync in_progress start times
-        final activeIds = <dynamic>{};
-        for (final item in items) {
-          final id = item['id'];
-          final status = (item['status'] ?? '').toString();
-          if (status == 'in_progress' && id != null) {
-            activeIds.add(id);
-            _inProgressStartTimes.putIfAbsent(id, () => DateTime.now());
-          }
-        }
-        _inProgressStartTimes.removeWhere((id, _) => !activeIds.contains(id));
       });
 
       // Auto-reset stuck tasks (in_progress longer than threshold)
@@ -454,33 +470,29 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
     }
   }
 
-  /// Auto-reset tasks stuck in_progress beyond [_stuckThreshold].
+  /// Auto-reset tasks stuck in_progress beyond [_stuckThreshold], measured
+  /// from the server's `started_at` so a phone restart cannot reset the clock.
   void _autoResetStuckTasks() {
     final now = DateTime.now();
-    final stuckIds = <dynamic>[];
-    _inProgressStartTimes.forEach((id, startTime) {
-      if (now.difference(startTime) > _stuckThreshold) {
-        stuckIds.add(id);
-      }
-    });
-    if (stuckIds.isEmpty) return;
+    final stuck = _allItems.where((item) {
+      final since = _inProgressSince(item);
+      return item['id'] is int && since != null && now.difference(since) > _stuckThreshold;
+    }).toList();
+    if (stuck.isEmpty) return;
 
-    for (final id in stuckIds) {
-      final item = _allItems.where((i) => i['id'] == id).firstOrNull;
-      if (item == null) continue;
+    for (final item in stuck) {
       final appId = item['app_id'] as int? ?? _selectedAppId;
       if (appId == null) continue;
       // Fire-and-forget reset on server
-      ApiService.updateAppTask(appId, id as int, {'status': 'failed', 'response': 'Auto-failed: task stuck for over 30 minutes'});
+      ApiService.updateAppTask(appId, item['id'] as int, {'status': 'failed', 'response': 'Auto-failed: task stuck for over 30 minutes'});
       // Update locally immediately
       item['status'] = 'failed';
-      _inProgressStartTimes.remove(id);
     }
     if (mounted) {
       setState(() {});
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('${stuckIds.length} stuck task(s) auto-failed after 30min timeout'),
+          content: Text('${stuck.length} stuck task(s) auto-failed after 30min timeout'),
           backgroundColor: AppColors.warning,
         ),
       );
@@ -499,6 +511,111 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
       if (_typeFilter != 'all' && type != _typeFilter) return false;
       return true;
     }).toList();
+  }
+
+  /// True when the list is grouped into actionable + collapsed done block.
+  /// A specific status filter or a search query shows a flat list instead.
+  bool get _isGroupedView => _statusFilter == 'all' && _searchQuery.trim().isEmpty;
+
+  static bool _isDone(dynamic item) =>
+      _doneStatuses.contains((item['status'] ?? 'pending').toString().toLowerCase());
+
+  Widget _buildDoneHeader(int count) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, bottom: 4),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: () => setState(() => _doneExpanded = !_doneExpanded),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 48),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: AppColors.taskStatusColor('completed').withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: AppColors.taskStatusColor('completed').withValues(alpha: 0.35),
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.check_circle_outline,
+                  size: 18, color: AppColors.taskStatusColor('completed')),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Done ($count)',
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                ),
+              ),
+              Text(
+                _doneExpanded ? 'Hide' : 'Show',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+              ),
+              Icon(
+                _doneExpanded ? Icons.expand_less : Icons.expand_more,
+                size: 20,
+                color: Colors.grey.shade400,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildItemCard(dynamic item, int index) {
+    final itemId = item['id'];
+    final isExpanded = itemId != null && _expandedTaskId == itemId;
+    final inProgressSince = _inProgressSince(item);
+    return IssueTaskCard(
+      item: item,
+      index: index,
+      isExpanded: isExpanded,
+      inProgressSince: inProgressSince,
+      onTap: () {
+        setState(() {
+          _expandedTaskId = isExpanded ? null : itemId;
+        });
+      },
+      onFix: () => _fixNow(item),
+      onReset: () => _resetItem(item),
+      onCardDelete: () => _deleteItem(item),
+      onSwipeDelete: () => _deleteItemDirect(item),
+      onComplete: () => _completeItem(item),
+      onBlockerTap: _showBlockerDialog,
+    );
+  }
+
+  /// Grouped list: actionable items (in_progress/pending/failed/divided) are
+  /// always visible; completed/built sit under a single collapsible header.
+  Widget _buildGroupedList(List<dynamic> filtered) {
+    final actionable = <dynamic>[];
+    final done = <dynamic>[];
+    for (final item in filtered) {
+      (_isDone(item) ? done : actionable).add(item);
+    }
+    final showDoneItems = _doneExpanded && done.isNotEmpty;
+    final headerCount = done.isEmpty ? 0 : 1;
+    final itemCount =
+        actionable.length + headerCount + (showDoneItems ? done.length : 0);
+
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      itemCount: itemCount,
+      itemBuilder: (context, index) {
+        if (index < actionable.length) {
+          return _buildItemCard(actionable[index], index);
+        }
+        if (index == actionable.length) {
+          return _buildDoneHeader(done.length);
+        }
+        final doneIndex = index - actionable.length - 1;
+        if (doneIndex < 0 || doneIndex >= done.length) {
+          return const SizedBox.shrink();
+        }
+        return _buildItemCard(done[doneIndex], index);
+      },
+    );
   }
 
   /// Debounced server-side search across active + archived tasks.
@@ -640,7 +757,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
     // Immediately show in_progress in UI
     setState(() {
       item['status'] = 'in_progress';
-      _inProgressStartTimes[taskId] = DateTime.now();
+      item['started_at'] = DateTime.now().toIso8601String();
     });
     try {
       await ApiService.updateAppTask(appId, taskId, {'status': 'in_progress'});
@@ -677,7 +794,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
       if (mounted) {
         setState(() {
           item['status'] = 'pending';
-          _inProgressStartTimes.remove(taskId);
+          item.remove('started_at');
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -704,7 +821,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
       if (result.ok) {
         setState(() {
           item['status'] = 'pending';
-          _inProgressStartTimes.remove(taskId);
+          item.remove('started_at');
         });
       }
     }
@@ -861,7 +978,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
           setInProgress.add(taskId);
           setState(() {
             item['status'] = 'in_progress';
-            _inProgressStartTimes[taskId] = DateTime.now();
+            item['started_at'] = DateTime.now().toIso8601String();
           });
           final result = await ApiService.runTask(appId, taskId, aiAgent: aiAgent);
           if (result.ok) {
@@ -873,7 +990,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
             if (mounted) {
               setState(() {
                 item['status'] = 'pending';
-                _inProgressStartTimes.remove(taskId);
+                item.remove('started_at');
               });
             }
           }
@@ -1517,7 +1634,17 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Issues'),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Issues'),
+            if (_selectedAppId != null)
+              SyncStatusChip(
+                lastSyncedAt: _lastSyncedAt,
+                failed: _loadError != null,
+              ),
+          ],
+        ),
         actions: [
           IconButton(
             onPressed: _createTestTask,
@@ -1773,7 +1900,10 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
                 setState(() {
                   _selectedAppId = val;
                   _expandedTaskId = null;
+                  _doneExpanded = false;
                   _searchResults = [];
+                  _lastSyncedAt = null;
+                  _loadError = null;
                 });
                 _loadItems();
                 _scheduleServerSearch();
@@ -1813,6 +1943,12 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
             },
           ),
           if (_searchLoading) const LinearProgressIndicator(minHeight: 2),
+          if (_loadError != null && !_loading)
+            SyncErrorBanner(
+              message: _loadError!,
+              onRetry: () => _loadItems(silent: true),
+              onDismiss: () => setState(() => _loadError = null),
+            ),
           // Item list
           Expanded(
             child: _selectedAppId == null
@@ -1827,15 +1963,26 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
                     : RefreshIndicator(
                         color: AppColors.accent,
                         onRefresh: _loadItems,
-                        child: _loadError != null
+                        child: _loadError != null && _allItems.isEmpty
                             ? ListView(
                                 children: [
-                                  const SizedBox(height: 160),
+                                  const SizedBox(height: 120),
+                                  Icon(Icons.cloud_off, size: 64, color: Colors.grey.shade600),
+                                  const SizedBox(height: 16),
                                   Center(
                                     child: Text(
                                       _loadError!,
+                                      textAlign: TextAlign.center,
                                       style: const TextStyle(
                                           color: Colors.grey, fontSize: 16),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Center(
+                                    child: ElevatedButton.icon(
+                                      onPressed: _loadItems,
+                                      icon: const Icon(Icons.refresh),
+                                      label: const Text('Retry'),
                                     ),
                                   ),
                                 ],
@@ -1899,38 +2046,14 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
                                   ],
                                 ],
                               )
-                            : ListView.builder(
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 12),
-                                itemCount: filtered.length,
-                                itemBuilder: (context, index) {
-                                  final item = filtered[index];
-                                  final status = item['status'] ?? 'pending';
-                                  final itemId = item['id'];
-                                  final isExpanded =
-                                      itemId != null && _expandedTaskId == itemId;
-                                  final inProgressSince = (status == 'in_progress' && itemId != null)
-                                      ? _inProgressStartTimes[itemId]
-                                      : null;
-                                  return IssueTaskCard(
-                                    item: item,
-                                    index: index,
-                                    isExpanded: isExpanded,
-                                    inProgressSince: inProgressSince,
-                                    onTap: () {
-                                      setState(() {
-                                        _expandedTaskId = isExpanded ? null : itemId;
-                                      });
-                                    },
-                                    onFix: () => _fixNow(item),
-                                    onReset: () => _resetItem(item),
-                                    onCardDelete: () => _deleteItem(item),
-                                    onSwipeDelete: () => _deleteItemDirect(item),
-                                    onComplete: () => _completeItem(item),
-                                    onBlockerTap: _showBlockerDialog,
-                                  );
-                                },
-                              ),
+                            : _isGroupedView
+                                ? _buildGroupedList(filtered)
+                                : ListView.builder(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                                    itemCount: filtered.length,
+                                    itemBuilder: (context, index) =>
+                                        _buildItemCard(filtered[index], index),
+                                  ),
                       ),
           ),
         ],
@@ -1938,4 +2061,3 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
     );
   }
 }
-

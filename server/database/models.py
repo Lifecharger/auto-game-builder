@@ -35,6 +35,8 @@ class App:
     play_store_url: str = ""
     website_url: str = ""
     console_url: str = ""
+    last_upload_track: str = ""  # internal|alpha|beta|production — '' = never uploaded
+    last_upload_at: Optional[str] = None
     created_at: str = ""
     updated_at: str = ""
 

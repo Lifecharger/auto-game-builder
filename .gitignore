@@ -81,6 +81,7 @@ auto_build_logs/
 
 # Automation scripts (auto-generated per app)
 server/automations/*.sh
+server/automations/*.prompt.txt
 
 # Worker config with account details
 worker/wrangler.toml

@@ -250,7 +250,7 @@ To access your server from your phone over the internet:
 | **Automations** | `GET/POST/PATCH/DELETE /api/automations` | Continuous automation loops, start/stop/run-once |
 | **Studio** | `POST /api/studio/brainstorm`, `POST /api/apps/{id}/studio/{action}` | Game studio — brainstorm + 11 one-tap skill actions (`design-review`, `code-review`, `balance-check`, `consistency-check`, `tech-debt`, `asset-audit`, `content-audit`, `scope-check`, `perf-profile`, `art-bible`, `asset-spec`) |
 | **Chat** | `POST /api/chat` | Context-aware AI conversation |
-| **MCP** | `GET/POST/DELETE /api/mcp/servers` | MCP server management, presets, per-app config |
+| **MCP** | `POST/DELETE /api/mcp/servers` | MCP server management, presets, per-app config |
 | **GDD** | `GET/PUT /api/apps/{id}/gdd` | Game Design Document read/write |
 | **Enhance** | `POST /api/apps/{id}/enhance` | AI-powered document improvement |
 | **Logs** | `GET /api/logs` | Build and automation log viewer |

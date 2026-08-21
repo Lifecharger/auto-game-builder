@@ -251,6 +251,8 @@ class DBManager:
             play_store_url=row["play_store_url"] or "",
             website_url=row["website_url"] or "",
             console_url=row["console_url"] or "",
+            last_upload_track=row["last_upload_track"] or "",
+            last_upload_at=row["last_upload_at"],
             created_at=row["created_at"] or "",
             updated_at=row["updated_at"] or "",
         )

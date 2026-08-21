@@ -35,42 +35,23 @@ class _AppBuildCardState extends State<AppBuildCard> {
   bool _uploadAfterBuild = false;
   String _buildTrack = 'internal';
 
-  static const Map<String, List<Map<String, String>>> _buildTargets = {
-    'flutter': [
-      {'key': 'apk', 'label': 'APK', 'icon': 'phone_android'},
-      {'key': 'aab', 'label': 'AAB', 'icon': 'inventory_2'},
-      {'key': 'exe', 'label': 'Windows', 'icon': 'desktop_windows'},
-      {'key': 'web', 'label': 'Web', 'icon': 'web'},
-      {'key': 'ios', 'label': 'iOS', 'icon': 'phone_iphone'},
-    ],
-    'godot': [
-      {'key': 'apk', 'label': 'APK', 'icon': 'phone_android'},
-      {'key': 'aab', 'label': 'AAB', 'icon': 'inventory_2'},
-      {'key': 'windows', 'label': 'Windows', 'icon': 'desktop_windows'},
-      {'key': 'web', 'label': 'Web', 'icon': 'web'},
-      {'key': 'linux', 'label': 'Linux', 'icon': 'computer'},
-    ],
-    'unity': [
-      {'key': 'apk', 'label': 'APK', 'icon': 'phone_android'},
-      {'key': 'aab', 'label': 'AAB', 'icon': 'inventory_2'},
-      {'key': 'debug', 'label': 'Debug APK', 'icon': 'bug_report'},
-    ],
-    'phaser': [
-      {'key': 'apk', 'label': 'APK', 'icon': 'phone_android'},
-      {'key': 'aab', 'label': 'AAB', 'icon': 'inventory_2'},
-      {'key': 'debug', 'label': 'Debug APK', 'icon': 'bug_report'},
-      {'key': 'web', 'label': 'Web', 'icon': 'web'},
-    ],
-  };
+  /// Targets the server can build for this app, in server order
+  /// (`key` → `label`). Fetched from `GET /api/apps/{id}/build-targets` so the
+  /// chips always match what the deploy engine actually supports.
+  List<MapEntry<String, String>> _targets = const [];
+  bool _targetsLoading = true;
+  String? _targetsError;
 
+  /// Icon per build-target key; labels come from the server.
   static const Map<String, IconData> _targetIcons = {
-    'phone_android': Icons.phone_android,
-    'inventory_2': Icons.inventory_2,
-    'desktop_windows': Icons.desktop_windows,
+    'apk': Icons.phone_android,
+    'aab': Icons.inventory_2,
+    'exe': Icons.desktop_windows,
+    'windows': Icons.desktop_windows,
     'web': Icons.web,
-    'phone_iphone': Icons.phone_iphone,
-    'computer': Icons.computer,
-    'bug_report': Icons.bug_report,
+    'ios': Icons.phone_iphone,
+    'linux': Icons.computer,
+    'debug': Icons.bug_report,
   };
 
   @override
@@ -83,12 +64,15 @@ class _AppBuildCardState extends State<AppBuildCard> {
       _deploying = true;
       _pollDeployStatus();
     }
-    _loadBuildPrefs();
+    _loadTargetsAndPrefs();
   }
 
   @override
   void didUpdateWidget(AppBuildCard oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.appType != widget.appType) {
+      _loadTargetsAndPrefs();
+    }
     if (oldWidget.initialDeployStatus != widget.initialDeployStatus) {
       final phase = widget.initialDeployStatus?['phase'] ?? 'none';
       final isActive = phase != 'none' && phase != 'done' && phase != 'failed';
@@ -104,6 +88,32 @@ class _AppBuildCardState extends State<AppBuildCard> {
     }
   }
 
+  Future<void> _loadTargetsAndPrefs() async {
+    setState(() {
+      _targetsLoading = true;
+      _targetsError = null;
+    });
+    final result = await ApiService.getBuildTargets(widget.appId);
+    if (!mounted) return;
+    if (!result.ok) {
+      setState(() {
+        _targetsLoading = false;
+        _targetsError = result.error ?? 'Could not load build targets';
+      });
+      return;
+    }
+    final raw = result.data?['targets'];
+    final targets = <MapEntry<String, String>>[];
+    if (raw is Map) {
+      raw.forEach((k, v) => targets.add(MapEntry(k.toString(), v.toString())));
+    }
+    setState(() {
+      _targets = targets;
+      _targetsLoading = false;
+    });
+    await _loadBuildPrefs();
+  }
+
   Future<void> _loadBuildPrefs() async {
     final prefs = await SharedPreferences.getInstance();
     final target = prefs.getString('build_target_${widget.appId}');
@@ -112,12 +122,16 @@ class _AppBuildCardState extends State<AppBuildCard> {
     if (mounted) {
       // A saved target can belong to the app's previous engine (e.g. a Godot
       // project ported to Unity keeps 'windows'), which the server rejects as
-      // an invalid target. Fall back to the default when it no longer applies.
-      final available = _buildTargets[widget.appType.toLowerCase()] ?? const [];
+      // an invalid target. Fall back to the first server target when it no
+      // longer applies.
       final targetIsValid =
-          target != null && available.any((t) => t['key'] == target);
+          target != null && _targets.any((t) => t.key == target);
       setState(() {
-        if (targetIsValid) _buildTarget = target;
+        if (targetIsValid) {
+          _buildTarget = target;
+        } else if (_targets.isNotEmpty && !_targets.any((t) => t.key == _buildTarget)) {
+          _buildTarget = _targets.first.key;
+        }
         if (upload != null) _uploadAfterBuild = upload;
         if (track != null) _buildTrack = track;
       });
@@ -261,8 +275,6 @@ class _AppBuildCardState extends State<AppBuildCard> {
 
   @override
   Widget build(BuildContext context) {
-    final appType = widget.appType.toLowerCase();
-    final targets = _buildTargets[appType] ?? [];
     final phase = _deployStatus?['phase'] ?? 'none';
     final message = _deployStatus?['message'] ?? '';
     final isActive = _deploying && phase != 'none' && phase != 'done' && phase != 'failed';
@@ -286,13 +298,32 @@ class _AppBuildCardState extends State<AppBuildCard> {
             // Build target chips
             Text('Build Target', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade400)),
             const SizedBox(height: 8),
+            if (_targetsLoading)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
+              )
+            else if (_targetsError != null)
+              Row(
+                children: [
+                  Expanded(child: Text(_targetsError!, style: TextStyle(fontSize: 12, color: AppColors.error))),
+                  TextButton.icon(
+                    onPressed: _loadTargetsAndPrefs,
+                    icon: const Icon(Icons.refresh, size: 16),
+                    label: const Text('Retry'),
+                  ),
+                ],
+              )
+            else if (_targets.isEmpty)
+              Text('No build targets for ${widget.appType} projects.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500))
+            else
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: targets.map((t) {
-                final key = t['key']!;
-                final label = t['label']!;
-                final iconKey = t['icon']!;
+              children: _targets.map((t) {
+                final key = t.key;
+                final label = t.value;
                 final selected = _buildTarget == key;
                 final disabled = isActive && !selected;
                 return GestureDetector(
@@ -317,7 +348,7 @@ class _AppBuildCardState extends State<AppBuildCard> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(_targetIcons[iconKey] ?? Icons.build, size: 16,
+                        Icon(_targetIcons[key] ?? Icons.build, size: 16,
                             color: selected ? AppColors.accent : Colors.grey.shade400),
                         const SizedBox(width: 6),
                         Text(label, style: TextStyle(fontSize: 13,
@@ -407,7 +438,7 @@ class _AppBuildCardState extends State<AppBuildCard> {
               SizedBox(
                 width: double.infinity, height: 44,
                 child: FilledButton.icon(
-                  onPressed: () => _startBuild(),
+                  onPressed: _targetsLoading || _targets.isEmpty ? null : () => _startBuild(),
                   icon: const Icon(Icons.rocket_launch, size: 18),
                   label: Text(_uploadAfterBuild && _buildTarget == 'aab'
                       ? 'Build & Deploy' : 'Build'),

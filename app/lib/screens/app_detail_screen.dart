@@ -10,6 +10,7 @@ import '../services/cache_service.dart';
 import '../theme.dart';
 import '../widgets/app_build_card.dart';
 import '../widgets/app_detail/mcp_servers_section.dart';
+import '../widgets/sync_status_chip.dart';
 
 class AppDetailScreen extends StatefulWidget {
   final int appId;
@@ -25,6 +26,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
   List<BuildModel> _builds = [];
   bool _loading = true;
   String? _loadError;
+  DateTime? _lastSyncedAt;
   String _selectedStrategy = '';
   String? _gddContent;
   bool _gddLoading = true;
@@ -159,6 +161,13 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
     setState(() {
       final app = appResult.data ?? cachedApp;
       _app = app;
+      if (appResult.ok) {
+        _lastSyncedAt = DateTime.now();
+        _loadError = null;
+      } else {
+        // Cached app stays on screen; surface the refresh failure inline.
+        _loadError = appResult.error ?? 'Failed to refresh app';
+      }
       if (freshBuilds != null) {
         _builds = freshBuilds;
       }
@@ -289,7 +298,13 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
     final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       appBar: AppBar(
-        title: Text(_app?.name ?? 'App Detail'),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(_app?.name ?? 'App Detail'),
+            SyncStatusChip(lastSyncedAt: _lastSyncedAt, failed: _loadError != null),
+          ],
+        ),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showQuickIssueSheet(),
@@ -324,6 +339,15 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                   child: ListView(
                     padding: const EdgeInsets.all(16),
                     children: [
+                      if (_loadError != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: SyncErrorBanner(
+                            message: _loadError!,
+                            onRetry: _loadData,
+                            onDismiss: () => setState(() => _loadError = null),
+                          ),
+                        ),
                       _buildInfoCard(),
                       const SizedBox(height: 16),
                       if (_app!.appType.toLowerCase() == 'flutter' ||
@@ -383,10 +407,20 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                     Text('Python', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   ],
                 ),
-                FilledButton.tonalIcon(
-                  onPressed: () => _triggerServerAction('run'),
-                  icon: const Icon(Icons.play_arrow, size: 18),
-                  label: const Text('Run'),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: 'Directive history',
+                      onPressed: _showDirectiveHistory,
+                      icon: const Icon(Icons.history),
+                    ),
+                    FilledButton.tonalIcon(
+                      onPressed: () => _triggerServerAction('run'),
+                      icon: const Icon(Icons.play_arrow, size: 18),
+                      label: const Text('Run'),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -418,10 +452,20 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                     Text('Web Deploy', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   ],
                 ),
-                FilledButton.tonalIcon(
-                  onPressed: () => _triggerServerAction('deploy'),
-                  icon: const Icon(Icons.cloud_upload, size: 18),
-                  label: const Text('Deploy'),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: 'Directive history',
+                      onPressed: _showDirectiveHistory,
+                      icon: const Icon(Icons.history),
+                    ),
+                    FilledButton.tonalIcon(
+                      onPressed: () => _triggerServerAction('deploy'),
+                      icon: const Icon(Icons.cloud_upload, size: 18),
+                      label: const Text('Deploy'),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -433,6 +477,39 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  bool _detecting = false;
+
+  Future<void> _redetectEngine() async {
+    HapticFeedback.selectionClick();
+    setState(() => _detecting = true);
+    final result = await ApiService.detectEngine(widget.appId);
+    if (!mounted) return;
+    setState(() => _detecting = false);
+    final data = result.data;
+    final String message;
+    if (!result.ok || data == null) {
+      message = result.error ?? 'Engine detection failed';
+    } else if (data['changed'] == true) {
+      message = 'Engine changed: ${data['previous']} -> ${data['app_type']}';
+    } else {
+      message = 'Engine confirmed: ${data['app_type']}';
+    }
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(message),
+      backgroundColor: result.ok ? AppColors.success : AppColors.error,
+    ));
+    if (result.ok && data?['changed'] == true) _loadData();
+  }
+
+  Future<void> _showDirectiveHistory() async {
+    HapticFeedback.selectionClick();
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => const _DirectiveHistorySheet(),
     );
   }
 
@@ -488,7 +565,18 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
               children: [
                 _infoChip('Version', 'v${app.currentVersion}', AppColors.info),
                 const SizedBox(width: 8),
-                _infoChip('Type', app.appType, Colors.grey),
+                Tooltip(
+                  message: 'Tap to re-detect the engine from disk',
+                  child: InkWell(
+                    onTap: _detecting ? null : _redetectEngine,
+                    borderRadius: BorderRadius.circular(8),
+                    child: _infoChip(
+                      'Type',
+                      _detecting ? '...' : app.appType,
+                      Colors.grey,
+                    ),
+                  ),
+                ),
                 const SizedBox(width: 8),
                 _infoChip(
                   'Status',
@@ -1641,4 +1729,100 @@ class _LinkInfo {
   final String hint;
 
   _LinkInfo(this.icon, this.label, this.value, this.field, this.hint);
+}
+
+/// Read-back of the directives the app has sent to the server
+/// (`GET /api/deathpin/directives`), newest first.
+class _DirectiveHistorySheet extends StatefulWidget {
+  const _DirectiveHistorySheet();
+
+  @override
+  State<_DirectiveHistorySheet> createState() => _DirectiveHistorySheetState();
+}
+
+class _DirectiveHistorySheetState extends State<_DirectiveHistorySheet> {
+  static const int _maxShown = 50;
+  static const int _timestampLength = 19; // "YYYY-MM-DD HH:MM:SS"
+  late Future<ApiResult<List<dynamic>>> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = ApiService.getDeathpinDirectives();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: SizedBox(
+        height: MediaQuery.of(context).size.height * 0.6,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Text('Directive history', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            ),
+            Expanded(
+              child: FutureBuilder<ApiResult<List<dynamic>>>(
+                future: _future,
+                builder: (context, snap) {
+                  if (!snap.hasData) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  final result = snap.data!;
+                  if (!result.ok) {
+                    return Center(
+                      child: Text(result.error ?? 'Could not load directives',
+                          style: TextStyle(color: AppColors.error)),
+                    );
+                  }
+                  final items = (result.data ?? const [])
+                      .whereType<Map>()
+                      .toList()
+                      .reversed
+                      .take(_maxShown)
+                      .toList();
+                  if (items.isEmpty) {
+                    return Center(
+                      child: Text('No directives sent yet.',
+                          style: TextStyle(color: Colors.grey.shade500)),
+                    );
+                  }
+                  return ListView.separated(
+                    itemCount: items.length,
+                    separatorBuilder: (_, _) => Divider(height: 1, color: Colors.grey.shade800),
+                    itemBuilder: (context, i) {
+                      final d = items[i];
+                      final read = d['read'] == true;
+                      final target = (d['target_app'] ?? '').toString();
+                      var when = (d['created_at'] ?? '').toString().replaceFirst('T', ' ');
+                      if (when.length > _timestampLength) when = when.substring(0, _timestampLength);
+                      return ListTile(
+                        dense: true,
+                        leading: Icon(
+                          read ? Icons.done_all : Icons.schedule,
+                          size: 20,
+                          color: read ? AppColors.success : Colors.grey.shade500,
+                        ),
+                        title: Text((d['message'] ?? '').toString()),
+                        subtitle: Text(
+                          [
+                            if (when.isNotEmpty) when,
+                            (d['priority'] ?? 'normal').toString(),
+                            if (target.isNotEmpty) target,
+                          ].join(' / '),
+                          style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

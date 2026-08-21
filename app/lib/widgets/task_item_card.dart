@@ -33,6 +33,32 @@ class TaskItemCard extends StatelessWidget {
     this.onBlockerTap,
   });
 
+  /// Server timestamps rendered as relative ages, e.g. `created 3w ago · done 1h ago`.
+  /// Prefers `completed_at` for finished tasks, otherwise `updated_at`, and
+  /// omits the second part when it would just repeat the creation time.
+  String _timestampLine(String status) {
+    final created = _parseServerTime(item['created_at']);
+    final finished = _parseServerTime(item['completed_at']);
+    final updated = _parseServerTime(item['updated_at']);
+    final parts = <String>[];
+    if (created != null) parts.add('created ${formatRelativeAge(created)}');
+    final isFinished = _finishedStatuses.contains(status);
+    if (isFinished && finished != null) {
+      parts.add('${status == 'failed' ? 'failed' : 'done'} ${formatRelativeAge(finished)}');
+    } else if (updated != null && (created == null || updated.difference(created) >= _sameMomentTolerance)) {
+      parts.add('updated ${formatRelativeAge(updated)}');
+    }
+    return parts.join(' · ');
+  }
+
+  static const Set<String> _finishedStatuses = {'completed', 'built', 'divided', 'archived', 'failed'};
+  static const Duration _sameMomentTolerance = Duration(minutes: 1);
+
+  static DateTime? _parseServerTime(dynamic raw) {
+    if (raw is! String || raw.isEmpty) return null;
+    return DateTime.tryParse(raw);
+  }
+
   void _showCopyMenu(BuildContext context, String title, String description, String aiResponse) {
     final items = <PopupMenuEntry<String>>[
       const PopupMenuItem(value: 'title', child: Text('Copy Title')),
@@ -305,6 +331,7 @@ class TaskItemCard extends StatelessWidget {
             .toList() ??
         const <int>[];
     final isBlocked = item['blocked'] == true && blockedBy.isNotEmpty;
+    final timestampLine = _timestampLine(status.toString());
 
     final card = Card(
       margin: const EdgeInsets.only(bottom: 8),
@@ -484,6 +511,16 @@ class TaskItemCard extends StatelessWidget {
                               ),
                           ],
                         ),
+                        if (timestampLine.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(
+                              timestampLine,
+                              style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
                       ],
                     ),
                   ),
@@ -943,6 +980,18 @@ class _CodeCheckFinding {
   _CodeCheckFinding({required this.text, required this.severity});
 }
 
+/// Human-readable age of a past moment: `just now`, `5m ago`, `3h ago`,
+/// `12d ago`, `3w ago`, `4mo ago`.
+String formatRelativeAge(DateTime time) {
+  final diff = DateTime.now().difference(time);
+  if (diff < const Duration(minutes: 1)) return 'just now';
+  if (diff < const Duration(hours: 1)) return '${diff.inMinutes}m ago';
+  if (diff < const Duration(days: 1)) return '${diff.inHours}h ago';
+  if (diff < const Duration(days: 14)) return '${diff.inDays}d ago';
+  if (diff < const Duration(days: 60)) return '${diff.inDays ~/ 7}w ago';
+  return '${diff.inDays ~/ 30}mo ago';
+}
+
 class ElapsedTimer extends StatefulWidget {
   final DateTime since;
   const ElapsedTimer({super.key, required this.since});
@@ -970,7 +1019,10 @@ class _ElapsedTimerState extends State<ElapsedTimer> {
 
   @override
   Widget build(BuildContext context) {
-    final elapsed = DateTime.now().difference(widget.since);
+    // `since` is a server timestamp; a phone clock slightly behind the server
+    // would otherwise yield a negative duration.
+    var elapsed = DateTime.now().difference(widget.since);
+    if (elapsed.isNegative) elapsed = Duration.zero;
     final h = elapsed.inHours;
     final m = elapsed.inMinutes.remainder(60).toString().padLeft(2, '0');
     final s = elapsed.inSeconds.remainder(60).toString().padLeft(2, '0');

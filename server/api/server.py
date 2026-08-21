@@ -171,6 +171,14 @@ async def lifespan(app: FastAPI):
                 logger.debug("event_log prune failed: %s", e)
 
     threading.Thread(target=_prune_event_archives_loop, daemon=True).start()
+
+    # Periodically archive finished tasks for every app so tasklist.json stays
+    # bounded even for apps that never go through the deploy pipeline.
+    def _archive_tasks_loop():
+        while not _event_prune_stop.wait(ARCHIVE_SWEEP_INTERVAL_S):
+            _archive_sweep_all_apps()
+
+    threading.Thread(target=_archive_tasks_loop, daemon=True).start()
     yield
     _event_prune_stop.set()
     app.state.deploy.shutdown()
@@ -1263,7 +1271,10 @@ def _compute_task_status(a) -> dict:
     except Exception as e:
         logger.debug("task status load failed for app %s: %s", a.id, e)
         return {"total": 0, "completed": 0, "built": 0, "divided": 0,
-                "pending": 0, "in_progress": 0, "failed": 0}
+                "pending": 0, "in_progress": 0, "failed": 0,
+                "urgent": 0, "blocked": 0}
+    tasks = [t for t in tasks if isinstance(t, dict)]
+    open_statuses = ("pending", "in_progress", "partial")
     return {
         "total": len(tasks),
         "completed": sum(1 for t in tasks if t.get("status") == "completed"),
@@ -1272,7 +1283,23 @@ def _compute_task_status(a) -> dict:
         "pending": sum(1 for t in tasks if t.get("status") == "pending"),
         "in_progress": sum(1 for t in tasks if t.get("status") in ("in_progress", "partial")),
         "failed": sum(1 for t in tasks if t.get("status") == "failed"),
+        # Needs-attention signals surfaced on dashboard cards: open urgent
+        # tasks and pending tasks waiting on an unfinished dependency.
+        "urgent": sum(1 for t in tasks
+                      if t.get("status") in open_statuses and t.get("priority") == "urgent"),
+        "blocked": sum(1 for t in tasks
+                       if t.get("status") == "pending" and _unmet_dependencies(t, tasks)),
     }
+
+
+def _last_build_status(app_id: int) -> str:
+    """Status of the most recent build row for an app ('' when none)."""
+    try:
+        builds = db().get_builds(app_id=app_id, limit=1)
+    except Exception as e:
+        logger.debug("last build lookup failed for app %s: %s", app_id, e)
+        return ""
+    return builds[0].status if builds else ""
 
 
 def _app_dict(a, issue_counts: dict | None = None, include_task_status: bool = True) -> dict:
@@ -1297,8 +1324,11 @@ def _app_dict(a, issue_counts: dict | None = None, include_task_status: bool = T
         "automation_script_path": a.automation_script_path,
         "github_url": a.github_url, "play_store_url": a.play_store_url,
         "website_url": a.website_url, "console_url": a.console_url,
+        "last_upload_track": a.last_upload_track,
+        "last_upload_at": a.last_upload_at,
         "created_at": a.created_at, "updated_at": a.updated_at,
         "open_issues": open_issues,
+        "last_build_status": _last_build_status(a.id),
     }
     if include_task_status:
         result["task_status"] = _compute_task_status(a)
@@ -1684,7 +1714,11 @@ def retry_upload(app_id: int, body: DeployRequest):
         result = de._upload_to_play(a, aab_path, body.track)
         if result.get("ok"):
             de._update_status(a.id, phase="done", message=f"Upload succeeded to {body.track}")
-            db().update_app(a.id, status="idle")
+            db().update_app(
+                a.id, status="idle",
+                last_upload_track=body.track,
+                last_upload_at=datetime.now().isoformat(),
+            )
         else:
             de._update_status(a.id, phase="failed", message=f"Upload failed: {result.get('error', '?')}")
 
@@ -1962,6 +1996,8 @@ def _reset_orphaned_in_progress_tasks(db_inst: DBManager):
                     for t in tasks:
                         if isinstance(t, dict) and t.get("status") == "in_progress":
                             t["status"] = "pending"
+                            t.pop("started_at", None)
+                            t["updated_at"] = datetime.now().isoformat()
                             note = "[reset: server restarted while task was running]"
                             t["response"] = f"{(t.get('response') or '').strip()} {note}".strip()
                             changed = True
@@ -2001,6 +2037,61 @@ def _reset_task_after_kill(app_id: int, task_id: int):
 
 
 DONE_TASK_STATUSES = ("completed", "built", "divided", "archived")
+FINISHED_TASK_STATUSES = DONE_TASK_STATUSES + ("failed",)
+
+
+def _stamp_task_status_change(task: dict, previous_status: str) -> None:
+    """Record server-side timestamps for a task whose status may have changed.
+
+    Always bumps `updated_at`. Sets `started_at` when the task enters
+    in_progress (the mobile app derives its elapsed timer and stuck detection
+    from this, not from a phone-local clock) and `completed_at` when it reaches
+    a finished status. Safe to re-apply: `_mutate_tasklist` may call its
+    mutator more than once.
+    """
+    now = datetime.now().isoformat()
+    new_status = task.get("status", "")
+    task["updated_at"] = now
+    if new_status == "in_progress" and previous_status != "in_progress":
+        task["started_at"] = now
+    elif new_status != "in_progress" and new_status not in FINISHED_TASK_STATUSES:
+        # Back to pending (manual reset): drop the old run's clock so the next
+        # in_progress — even one set directly by an agent — gets a fresh stamp.
+        task.pop("started_at", None)
+    if new_status in FINISHED_TASK_STATUSES and previous_status not in FINISHED_TASK_STATUSES:
+        task["completed_at"] = now
+
+
+def _heal_missing_started_at(a, tasks: list) -> list:
+    """Stamp `started_at` on in_progress tasks that lack one.
+
+    AI agents flip status to in_progress by editing tasklist.json directly and
+    never write timestamps. The first time the server sees such a task it
+    persists `started_at = now`, so every client (and a client that restarts)
+    computes elapsed time from one shared clock instead of from its own first
+    poll. Returns the (possibly refreshed) task list.
+    """
+    needs_heal = {
+        t.get("id") for t in tasks
+        if isinstance(t, dict) and t.get("status") == "in_progress"
+        and not t.get("started_at") and t.get("id") is not None
+    }
+    if not needs_heal:
+        return tasks
+
+    def _heal(current):
+        now = datetime.now().isoformat()
+        for t in current:
+            if isinstance(t, dict) and t.get("id") in needs_heal                     and t.get("status") == "in_progress" and not t.get("started_at"):
+                t["started_at"] = now
+                t.setdefault("updated_at", now)
+        return current, current
+
+    try:
+        return _mutate_tasklist(a, _heal)
+    except HTTPException as e:
+        logger.warning("Could not stamp started_at for app %s tasks %s: %s", a.id, sorted(needs_heal), e.detail)
+        return tasks
 
 
 def _close_linked_issues(app_id: int, tasks: list):
@@ -2200,7 +2291,7 @@ def get_app_tasks(app_id: int, request: Request, status: Optional[str] = None):
         except (TypeError, ValueError):
             pass
 
-    all_tasks = _load_tasklist(a)
+    all_tasks = _heal_missing_started_at(a, _load_tasklist(a))
     tasks = all_tasks
     if status:
         tasks = [t for t in tasks if t.get("status") == status]
@@ -2294,9 +2385,11 @@ def update_app_task(app_id: int, task_id: int, updates: dict):
         if not task:
             raise HTTPException(404, f"Task {task_id} not found")
         allowed = {"status", "response", "completed_by", "priority", "title", "description", "depends_on"}
+        previous_status = task.get("status", "")
         for key, val in updates.items():
             if key in allowed:
                 task[key] = val
+        _stamp_task_status_change(task, previous_status)
         return tasks, True
 
     _mutate_tasklist(a, _update)
@@ -2345,20 +2438,22 @@ def app_tasks_status(app_id: int):
     }
 
 
-@app.post("/api/apps/{app_id}/tasks/archive")
-def archive_app_tasks(app_id: int):
-    """Force-archive completed/built tasks, keeping only active + last 100 done."""
-    a = db().get_app(app_id)
-    if not a:
-        raise HTTPException(404, "App not found")
+ARCHIVE_KEEP_DONE = 100          # finished tasks kept in tasklist.json
+ARCHIVE_SWEEP_INTERVAL_S = 6 * 3600  # periodic sweep across every app
+
+
+def _archive_done_tasks(a) -> dict:
+    """Move finished tasks beyond the newest ARCHIVE_KEEP_DONE into
+    task_archives/ so tasklist.json stays bounded. Returns the result dict
+    (never raises for a missing/empty tasklist — _mutate_tasklist handles it)."""
 
     def _archive(tasks):
         active = [t for t in tasks if t.get("status") not in DONE_TASK_STATUSES]
         done = [t for t in tasks if t.get("status") in DONE_TASK_STATUSES]
-        if len(done) <= 100:
+        if len(done) <= ARCHIVE_KEEP_DONE:
             return tasks, {"ok": True, "archived": 0, "remaining": len(tasks)}
-        overflow = done[:-100]
-        keep_done = done[-100:]
+        overflow = done[:-ARCHIVE_KEEP_DONE]
+        keep_done = done[-ARCHIVE_KEEP_DONE:]
         archive_dir = os.path.join(a.project_path, "task_archives")
         os.makedirs(archive_dir, exist_ok=True)
         archive_file = os.path.join(archive_dir, f"archived_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json")
@@ -2369,6 +2464,35 @@ def archive_app_tasks(app_id: int):
         return tasks, {"ok": True, "archived": len(overflow), "remaining": len(tasks)}
 
     return _mutate_tasklist(a, _archive)
+
+
+def _archive_sweep_all_apps():
+    """Periodic trigger for _archive_done_tasks: apps that never deploy would
+    otherwise grow tasklist.json without bound."""
+    for a in db().get_all_apps():
+        if not a.project_path or not os.path.isfile(os.path.join(a.project_path, "tasklist.json")):
+            continue
+        try:
+            # Cheap read first: _mutate_tasklist always rewrites the file, so
+            # only take the write path when there is actually overflow.
+            done_count = sum(1 for t in _load_tasklist(a) if t.get("status") in DONE_TASK_STATUSES)
+            if done_count <= ARCHIVE_KEEP_DONE:
+                continue
+            result = _archive_done_tasks(a) or {}
+            if result.get("archived"):
+                logger.info("app_id=%s: archived %d finished task(s), %d remain",
+                            a.id, result["archived"], result.get("remaining", 0))
+        except Exception as e:
+            logger.warning("app_id=%s: periodic task archive failed: %s", a.id, e)
+
+
+@app.post("/api/apps/{app_id}/tasks/archive")
+def archive_app_tasks(app_id: int):
+    """Force-archive completed/built tasks, keeping only active + last 100 done."""
+    a = db().get_app(app_id)
+    if not a:
+        raise HTTPException(404, "App not found")
+    return _archive_done_tasks(a)
 
 
 @app.get("/api/apps/{app_id}/tasks/search")
@@ -2524,11 +2648,6 @@ def _parse_log_line(line: str, app_name: str, app_id: int, agent: str) -> dict:
         "exit_code": exit_code,
         "status": "completed" if exit_code is not None else None,
     }
-
-
-@app.get("/api/apps/{app_id}/logs")
-def get_app_logs(app_id: int, limit: int = 50):
-    return get_all_logs(app_id=app_id, limit=limit)
 
 
 # ── Ideas (tasks with type=idea that have AI responses) ──────
@@ -3298,6 +3417,7 @@ ENDPROMPT
     # Fallback: reset any tasks stuck in "in_progress" after AI exit (atomic write)
     python3 -c "
 import json, os, sys, tempfile, shutil
+from datetime import datetime
 tl = os.path.join('$PROJECT_DIR', 'tasklist.json')
 if not os.path.isfile(tl) and tl[:1] == '/' and tl[2:3] == '/':
     tl = tl[1] + ':' + tl[2:]  # MSYS /c/... -> c:/... for native Windows python3
@@ -3320,6 +3440,7 @@ for t in (tasks if isinstance(tasks, list) else tasks.values()):
             if not t.get('response'):
                 t['response'] = 'Completed by {ai_agent} (no details provided).'
         t['completed_by'] = '{ai_agent}'
+        t['updated_at'] = t['completed_at'] = datetime.now().isoformat()
         changed = True
 if changed:
     shutil.copy2(tl, tl + '.bak')
@@ -3454,6 +3575,7 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S')] One-shot run completed (exit: $EXIT_CODE)" 
 # Fallback: reset any tasks stuck in "in_progress" after AI exit (atomic write)
 python3 -c "
 import json, os, sys, tempfile, shutil
+from datetime import datetime
 tl = os.path.join('$PROJECT_DIR', 'tasklist.json')
 if not os.path.isfile(tl) and tl[:1] == '/' and tl[2:3] == '/':
     tl = tl[1] + ':' + tl[2:]  # MSYS /c/... -> c:/... for native Windows python3
@@ -3476,6 +3598,7 @@ for t in (tasks if isinstance(tasks, list) else tasks.values()):
             if not t.get('response'):
                 t['response'] = 'Completed by {ai_agent} (no details provided).'
         t['completed_by'] = '{ai_agent}'
+        t['updated_at'] = t['completed_at'] = datetime.now().isoformat()
         changed = True
 if changed:
     shutil.copy2(tl, tl + '.bak')
@@ -3614,6 +3737,7 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S')] Task #{task_id} run completed (exit: $EXIT_
 # Fallback: if AI failed to update tasklist.json, mark task as failed (atomic write)
 python3 -c "
 import json, os, sys, tempfile, shutil
+from datetime import datetime
 tl = os.path.join('$PROJECT_DIR', 'tasklist.json')
 if not os.path.isfile(tl) and tl[:1] == '/' and tl[2:3] == '/':
     tl = tl[1] + ':' + tl[2:]  # MSYS /c/... -> c:/... for native Windows python3
@@ -3636,6 +3760,7 @@ for t in (tasks if isinstance(tasks, list) else tasks.values()):
             if not t.get('response'):
                 t['response'] = 'Completed by {ai_agent} (no details provided).'
         t['completed_by'] = '{ai_agent}'
+        t['updated_at'] = t['completed_at'] = datetime.now().isoformat()
         changed = True
         break
 if changed:
@@ -3979,7 +4104,9 @@ def run_specific_task(app_id: int, task_id: int):
             raise HTTPException(409, "Task {} is blocked by unfinished task(s): {}".format(
                 task_id, ", ".join(f"#{d}" for d in unmet)))
         # Set task status to in_progress immediately so mobile UI reflects it
+        previous_status = task.get("status", "")
         task["status"] = "in_progress"
+        _stamp_task_status_change(task, previous_status)
         return tasks, task
 
     task = _mutate_tasklist(a, _start)
@@ -4448,12 +4575,6 @@ def _build_mcp_config_file(server_names: list) -> dict:
 
         mcp_servers[name] = cfg
     return {"mcpServers": mcp_servers}
-
-
-@app.get("/api/mcp/servers")
-def list_mcp_servers():
-    servers = _load_mcp_servers()
-    return [{"name": name, **{k: v for k, v in config.items() if not k.startswith("_")}} for name, config in servers.items()]
 
 
 @app.get("/api/mcp/presets")
@@ -5111,19 +5232,6 @@ def get_studio_knowledge(key: str):
     if not content:
         raise HTTPException(404, f"Knowledge file '{key}' not found")
     return {"key": key, "content": content.strip()}
-
-
-@app.put("/api/studio/knowledge/{key}")
-def update_studio_knowledge(key: str, body: GddUpdate):
-    """Update a Game Studio knowledge file."""
-    if not _STUDIO_KEY_RE.match(key):
-        raise HTTPException(400, "Invalid key: must be alphanumeric, hyphens, or underscores only")
-    studio_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "config", "studio")
-    os.makedirs(studio_dir, exist_ok=True)
-    filepath = os.path.join(studio_dir, f"{key}.md")
-    with open(filepath, "w", encoding="utf-8") as f:
-        f.write(body.content)
-    return {"ok": True}
 
 
 if __name__ == "__main__":
