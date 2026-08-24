@@ -1,0 +1,17 @@
+name = "iap-verifier"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+
+# ---------------------------------------------------------------------------
+# Secrets — DO NOT put these in this file. Set them with `wrangler secret put`:
+#
+#   wrangler secret put PLAY_SERVICE_ACCOUNT_JSON
+#       -> paste the FULL Google Play service-account JSON key (as a string).
+#          Owner's key is at D:/keys/arcade-snake-488801-5ac9863bb0ab.json
+#
+#   wrangler secret put API_KEY
+#       -> a shared secret the client apps send in the `X-API-Key` header.
+#
+# There are intentionally no [vars] here — everything sensitive is a secret,
+# and the package allowlist lives in src/index.js (ALLOWED_PACKAGES).
+# ---------------------------------------------------------------------------

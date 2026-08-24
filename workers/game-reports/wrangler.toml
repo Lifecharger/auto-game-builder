@@ -1,0 +1,17 @@
+name = "game-reports"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+
+# Shared bug-report / suggestion inbox for the whole Lifecharger game portfolio.
+# /report is public but only accepts com.lifecharger.* packages (write-only,
+# 5 MB / 3 screenshots per submission). /reports* read+delete require the
+# API_KEY secret (`wrangler secret put API_KEY`) — only AGB holds it.
+
+[[d1_databases]]
+binding = "DB"
+database_name = "game-reports"
+database_id = "dc5375aa-5ee3-4447-8c71-9e2d46050095"
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "game-reports"

@@ -184,3 +184,8 @@ settings.json
 
 # Report attachments (user-uploaded runtime data, like task_attachments/)
 server/report_attachments/
+
+# Cloudflare workers (workers/): local wrangler state and deps — never commit
+workers/*/.wrangler/
+workers/*/node_modules/
+workers/*/.dev.vars

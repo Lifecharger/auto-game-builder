@@ -278,11 +278,18 @@ def animate(image_path: str, prompt: str, video_length: int = 6,
         # is ever created, and the run burns 240s per image waiting for a render
         # that cannot arrive. A warning here reads as success everywhere else.
         print("Switching to Video mode...")
+        video_toggle = page.locator(
+            '[role="radiogroup"][aria-label="Oluşturma modu"] '
+            '[role="radio"][aria-label="Video"]')
         try:
-            page.locator('[role="radiogroup"][aria-label="Oluşturma modu"] '
-                         '[role="radio"][aria-label="Video"]').click(timeout=5000)
-            time.sleep(0.5)
-            print("  Switched to Video mode")
+            # Already selected? Clicking an active radio can time out (seen
+            # 2026-08-24: aria-checked=true + click timeout killed a batch).
+            if video_toggle.get_attribute("aria-checked", timeout=5000) == "true":
+                print("  Already in Video mode")
+            else:
+                video_toggle.click(timeout=5000)
+                time.sleep(0.5)
+                print("  Switched to Video mode")
         except Exception as e:
             print(f"ERROR: Could not switch to Video mode ({e}). Refusing to "
                   f"generate in image mode.")

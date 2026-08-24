@@ -59,11 +59,18 @@ def _load_sso_cookies():
     ]
 
 
-def i2i(image_path: str, prompt: str, headless: bool = True) -> bool:
+def i2i(image_path: str, prompt: str, headless: bool = True,
+        output_dir: str | None = None, wait_seconds: int = 180) -> list[str]:
+    """Submit an i2i job and pull the rendered images straight off the page.
+
+    Returns the list of saved file paths (empty on failure). The old
+    favorites/auto-like retrieval died when Grok stopped auto-favoriting
+    (2026-08-24) — direct page-pull mirrors grok_animate.py's approach.
+    """
     image_path = os.path.abspath(image_path)
     if not os.path.isfile(image_path):
         print(f"ERROR: Image not found: {image_path}")
-        return False
+        return []
 
     print(f"Launching Chromium (headless={headless})...")
     with sync_playwright() as pw:
@@ -101,7 +108,10 @@ def i2i(image_path: str, prompt: str, headless: bool = True) -> bool:
         page.on("request", on_request)
 
         print(f"Navigating to {IMAGINE_URL}...")
-        page.goto(IMAGINE_URL, wait_until="networkidle", timeout=60000)
+        # "load" not "networkidle": the imagine page polls continuously, so
+        # networkidle can time out on a healthy page (crashed a batch 2026-08-24).
+        page.goto(IMAGINE_URL, wait_until="load", timeout=60000)
+        time.sleep(3)
 
         # Dismiss ALL cookie consent banners. Grok keeps inventing new ones —
         # this purges every variant we've seen plus a generic text-match fallback.
@@ -127,18 +137,30 @@ def i2i(image_path: str, prompt: str, headless: bool = True) -> bool:
         if "Oturum aç" in body_text and "Üye ol" in body_text and "Imagine" not in body_text[:100]:
             print("ERROR: Not logged in. Refresh sso cookies in grok_download_history.json")
             ctx.close()
-            return False
+            return []
 
-        # Step 1: Switch to GÖRSEL (Image) mode — opposite of grok_animate.py
+        # Step 1: Switch to GÖRSEL (Image) mode — opposite of grok_animate.py.
+        # aria-label selector, NOT has_text: the text filter silently failed
+        # (2026-08-24) which left the page in Video mode — every submit then
+        # burned an i2v render from the WEEKLY video quota. Mode must be
+        # VERIFIED before submitting; refusing is cheaper than a wrong render.
         print("Switching to Görsel (Image) mode...")
+        image_toggle = page.locator(
+            '[role="radiogroup"][aria-label="Oluşturma modu"] '
+            '[role="radio"][aria-label="Görsel"]')
         try:
-            page.locator(
-                '[role="radiogroup"][aria-label="Oluşturma modu"] [role="radio"]'
-            ).filter(has_text="Görsel").click(timeout=5000)
-            time.sleep(0.5)
-            print("  Switched to Image mode")
+            if image_toggle.get_attribute("aria-checked", timeout=5000) != "true":
+                image_toggle.click(timeout=5000)
+                time.sleep(0.8)
+            if image_toggle.get_attribute("aria-checked", timeout=5000) != "true":
+                raise RuntimeError("Görsel toggle did not become checked")
+            print("  Image mode confirmed")
         except Exception as e:
-            print(f"  WARNING: Could not click Görsel tab ({e}); may already be selected")
+            print(f"ERROR: Could not confirm Image mode ({e}). Refusing to "
+                  f"submit — a Video-mode submit burns weekly video quota.")
+            page.screenshot(path=str(Path.home() / "grok_i2i_debug.png"))
+            ctx.close()
+            return []
 
         # Step 2: Upload the base image
         print(f"Uploading {os.path.basename(image_path)}...")
@@ -159,7 +181,7 @@ def i2i(image_path: str, prompt: str, headless: bool = True) -> bool:
             print(f"  ERROR: Could not upload image: {e}")
             page.screenshot(path=str(Path.home() / "grok_i2i_debug.png"))
             ctx.close()
-            return False
+            return []
 
         # Step 3: Type prompt
         print(f"Typing prompt: {prompt!r}")
@@ -168,6 +190,11 @@ def i2i(image_path: str, prompt: str, headless: bool = True) -> bool:
         time.sleep(0.3)
         page.keyboard.type(prompt, delay=15)
         time.sleep(1)
+
+        # Baseline of image srcs already on the page (includes the uploaded
+        # reference preview) — anything new after submit is a render.
+        baseline_srcs = set(page.eval_on_selector_all(
+            "img", "els => els.map(e => e.src)"))
 
         # Step 4: Submit (multi-strategy — Ctrl+Enter is the reliable one)
         print("Submitting...")
@@ -194,30 +221,73 @@ def i2i(image_path: str, prompt: str, headless: bool = True) -> bool:
             }""")
             time.sleep(2)
 
-        # Wait for the success-chain endpoints
-        print("Waiting for generation request + auto-favorite...")
+        # Confirm the generation request actually fired.
+        print("Waiting for generation request...")
         deadline = time.time() + 30
-        target = {
-            "/rest/app-chat/conversations/new",
-            "/rest/media/post/like",
-        }
-        while time.time() < deadline and not target.issubset(seen_endpoints):
+        while (time.time() < deadline
+               and "/rest/app-chat/conversations/new" not in seen_endpoints):
             time.sleep(0.5)
-
-        for ep in ["/rest/app-chat/upload-file", "/rest/media/post/create",
-                   "/rest/app-chat/conversations/new", "/rest/media/post/like"]:
-            mark = "OK" if ep in seen_endpoints else "MISSING"
-            print(f"  [{mark}] {ep}")
-
         if "/rest/app-chat/conversations/new" not in seen_endpoints:
             print("\nERROR: Generation request never fired. Submit failed silently.")
             page.screenshot(path=str(Path.home() / "grok_i2i_debug.png"))
             ctx.close()
-            return False
+            return []
 
-        time.sleep(3)
+        # Pull renders straight off the page: new assets.grok.com <img> srcs.
+        # The uploaded reference echoes back under fresh URLs immediately after
+        # submit, while real renders take 30-60s+ — so never break before 75s,
+        # and let the caller filter echoes by content (MSE vs the input).
+        print(f"Waiting up to {wait_seconds}s for renders on the page...")
+        seen_srcs = {}
+        poll_start = time.time()
+        last_new = poll_start
+        poll_deadline = poll_start + wait_seconds
+        while time.time() < poll_deadline:
+            try:
+                srcs = page.eval_on_selector_all(
+                    "img", "els => els.map(e => e.src)")
+            except Exception:
+                srcs = []
+            for s in srcs:
+                if (s and s not in baseline_srcs
+                        and "assets.grok.com" in s and s not in seen_srcs):
+                    seen_srcs[s] = True
+                    last_new = time.time()
+                    print(f"  render {len(seen_srcs)} spotted")
+            now = time.time()
+            if seen_srcs and now - last_new > 20 and now - poll_start > 75:
+                break
+            time.sleep(3)
+
+        if not seen_srcs:
+            print("ERROR: No renders appeared on the page.")
+            page.screenshot(path=str(Path.home() / "grok_i2i_debug.png"))
+            ctx.close()
+            return []
+
+        import requests
+        with open(HISTORY_FILE, encoding="utf-8") as f:
+            cached = json.load(f).get("cached_cookies", {})
+        cookie_str = "; ".join(f"{k}={v}" for k, v in cached.items() if v)
+        save_dir = output_dir or os.getcwd()
+        os.makedirs(save_dir, exist_ok=True)
+        saved = []
+        for i, url in enumerate(seen_srcs):
+            try:
+                resp = requests.get(
+                    url, headers={"Cookie": cookie_str}, timeout=60)
+                resp.raise_for_status()
+                path = os.path.join(save_dir, f"i2i_{int(time.time())}_{i+1}.png")
+                with open(path, "wb") as f:
+                    f.write(resp.content)
+                saved.append(path)
+                print(f"  saved {os.path.basename(path)} "
+                      f"({len(resp.content)//1024} KB)")
+            except Exception as e:
+                print(f"  download failed: {e}")
+
         ctx.close()
-        return True
+        return saved
 
 
 def main():
@@ -236,25 +306,12 @@ def main():
                         help="How long to wait before running the downloader (default 45s for image)")
     args = parser.parse_args()
 
-    ok = i2i(args.image, args.description, headless=not args.show_browser)
-    if not ok:
+    saved = i2i(args.image, args.description, headless=not args.show_browser)
+    if not saved:
         sys.exit(1)
-
-    print("\nImage-to-image request submitted.")
-    if args.no_download:
-        print("Skipping auto-download (--no-download). Run grok_downloader.py to fetch.")
-        return
-
-    print(f"Waiting {args.wait_seconds}s for Grok to render the image...")
-    time.sleep(args.wait_seconds)
-    print("Running downloader...")
-    from grok_downloader import GrokDownloader
-    result = GrokDownloader().run(since_hours=0.5)
-    if result.get("ok"):
-        print(f"Downloaded {result.get('new_downloads', 0)} new items to {result.get('folder', '?')}")
-    else:
-        print(f"Downloader error: {result.get('error', '?')}")
-        sys.exit(1)
+    print(f"\n{len(saved)} image(s) saved:")
+    for p in saved:
+        print(f"  {p}")
 
 
 if __name__ == "__main__":

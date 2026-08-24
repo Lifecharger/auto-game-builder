@@ -620,7 +620,37 @@ class DeployEngine:
             new_name = f"1.0.{code}"
         with open(export_cfg, "w", encoding="utf-8") as f:
             f.write(content)
+        self._sync_godot_project_version(app.project_path, new_name)
         return f"{new_name}+{code}"
+
+    def _sync_godot_project_version(self, project_path: str, version_name: str) -> None:
+        """Mirror the export preset's version/name into project.godot.
+
+        In-game UI (settings screens, report payloads) reads
+        ProjectSettings "application/config/version" — if only the export
+        preset is bumped, the game displays a stale version forever.
+        """
+        project_file = os.path.join(project_path, "project.godot")
+        if not os.path.isfile(project_file):
+            return
+        with open(project_file, "r", encoding="utf-8") as f:
+            content = f.read()
+        if re.search(r'^config/version=".*"$', content, re.MULTILINE):
+            content = re.sub(
+                r'^config/version=".*"$',
+                f'config/version="{version_name}"',
+                content, count=1, flags=re.MULTILINE,
+            )
+        elif re.search(r"^\[application\]$", content, re.MULTILINE):
+            content = re.sub(
+                r"^\[application\]$",
+                f'[application]\n\nconfig/version="{version_name}"',
+                content, count=1, flags=re.MULTILINE,
+            )
+        else:
+            return
+        with open(project_file, "w", encoding="utf-8") as f:
+            f.write(content)
 
     def _bump_unity_version(self, app: App) -> Optional[str]:
         """Bump bundleVersion + AndroidBundleVersionCode in ProjectSettings.asset.

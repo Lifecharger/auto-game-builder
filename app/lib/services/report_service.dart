@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// One screenshot the user attached to a report.
@@ -28,7 +29,6 @@ class ReportService {
   static const String _endpoint =
       'https://game-reports.lifecharger.workers.dev/report';
   static const String _package = 'com.lifecharger.appmanager';
-  static const String _appVersion = '1.0.157';
   static const int maxShots = 3;
   static const int maxTotalBytes = 5 * 1024 * 1024; // 5 MB
 
@@ -55,6 +55,15 @@ class ReportService {
     if (Platform.isMacOS) return 'macos';
     if (Platform.isLinux) return 'linux';
     return 'other';
+  }
+
+  static Future<String> _appVersion() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      return '${info.version}+${info.buildNumber}';
+    } catch (_) {
+      return 'unknown';
+    }
   }
 
   /// Device brand / model / OS version — everything that helps reproduce a bug.
@@ -126,7 +135,7 @@ class ReportService {
       req.fields['package'] = _package;
       req.fields['category'] = category;
       req.fields['message'] = trimmed;
-      req.fields['app_version'] = _appVersion;
+      req.fields['app_version'] = await _appVersion();
       req.fields['platform'] = _platform;
       req.fields['install_id'] = await _installId();
       req.fields['meta'] = jsonEncode(await _deviceMeta());

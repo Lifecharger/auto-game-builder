@@ -1,0 +1,13 @@
+{
+  "name": "game-reports",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Shared bug-report / suggestion inbox worker for Lifecharger games (D1 + R2)",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

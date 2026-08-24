@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+
+# Wrangler local state / build cache
+.wrangler/
+
+# Local dev secrets (never commit)
+.dev.vars
+
+# Any service-account / credential key files that might land here by accident
+*.json.key
+*-key.json
+*service-account*.json
+arcade-snake-*.json
+
+# OS / editor cruft
+.DS_Store
+*.log
