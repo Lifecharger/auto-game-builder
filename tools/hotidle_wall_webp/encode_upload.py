@@ -44,8 +44,17 @@ OUT_DIR = Path(r"D:/Backup/hotjigsaw_r2_webp")
 # 241 frames over 10s). The original 12fps pass was superseded by the 24fps
 # re-encode; --fps still overrides for one-off experiments.
 FPS = 24
-WIDTH = 256
-QUALITY = 60
+# 320 covers the largest in-app frame (collection tiles reach ~308 physical px
+# on a 1440p phone); the storefront's biggest frame is ~364px, still close.
+WIDTH = 320
+# q60 was the original setting and it produced visible black blocks *inside*
+# smooth areas (skin), worst late in the loop: libwebp_anim codes frames against
+# the previous reconstruction, so per-frame error compounds over the 241-frame
+# clip. Measured on Generic/1511, mean abs error vs source grew 3.69 -> 10.03
+# from frame 0 to 238 at q60, with 2403 pixels >40 levels too dark. At q80 the
+# error stays flat (2.89 -> 3.60) and the dark-pixel count is 0. Do not lower
+# this back below ~80 — the artifact is a drift threshold, not a gentle slope.
+QUALITY = 80
 PARALLEL = max(2, (os.cpu_count() or 4) // 2)
 
 ACC = "25d974e94beddd70f6923d50e7222e68"

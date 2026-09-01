@@ -1,11 +1,19 @@
 """Push the Lumina Live store listing via the Play Developer API.
 
-One edit: en-US + tr-TR listing texts, app icon, feature graphic, phone
-screenshots, then commit. Rerunnable (each run replaces the listing).
+Listing texts are read from the markdown files the game repo owns
+(``store/listing/<play-locale>.md``) so the store copy has exactly one source
+of truth. One edit: contact details, en-US + tr-TR listing texts, app icon,
+feature graphic, phone screenshots, then commit. Rerunnable (each run replaces
+the listing).
+
+Graphics are uploaded to en-US only; Play falls back to the default language's
+graphics for every listing that has none of its own.
 
 Run: python "C:/Projects/Auto Game Builder/tools/playstore/luminalive_listing.py"
 """
 import os
+import re
+from pathlib import Path
 
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
@@ -15,52 +23,71 @@ from googleapiclient.http import MediaFileUpload
 SA_KEY = "D:/keys/arcade-snake-488801-5ac9863bb0ab.json"
 SCOPES = ["https://www.googleapis.com/auth/androidpublisher"]
 PACKAGE = "com.lifecharger.luminalive"
-STORE = r"C:\Projects\Lumina Live\store"
+STORE = Path(r"C:\Projects\Lumina Live\store")
+LISTING_DIR = STORE / "listing"
 
-EN_TITLE = "Lumina Live"
-EN_SHORT = "Neon idol stream clicker. Tap the beat, hype the room, go viral."
-EN_FULL = """You produce the night. Lumina is live, the room is dark, and every tap on the stage sends hearts flying.
+# Support address shown on the Play store page.
+CONTACT_EMAIL = "support@lifechargergames.com"
 
-TAP THE STAGE
-Hit the beat to earn hearts. Chain taps into combos, land SUPERCHAT crits, and watch the viewer counter climb while the chat pops off.
+# Play Console hard limits.
+TITLE_MAX = 30
+SHORT_MAX = 80
+FULL_MAX = 4000
 
-BUY THE ROOM
-Pulse gloves, in-ear mixes, LED heels, fog cannons, holo backups, pyro cues and a world drop make every tap heavier. Lurkers, chat mods, superfans, clip farms, merch tables, collab desks and a stadium simulcast keep the hearts flowing while you're away from the stage.
+# Play language codes; each one is `<code>.md` in LISTING_DIR.
+LOCALES = ("en-US", "tr-TR")
 
-THE CAST
-Four idols, four sounds. Lumina keeps combos lingering, Nox holds the lurkers, Saffron brightens every tap, and Vesper makes superchats hit harder. Unlock them and choose who goes live.
+# Sentience listing format: `# Title`, `# Short Description`, `# Full
+# Description`, each heading alone on its line, value = everything up to the
+# next heading.
+_HEADING_RE = re.compile(r"^# (Title|Short Description|Full Description)\s*$", re.M)
+_FIELDS = (("Title", "title", TITLE_MAX),
+           ("Short Description", "shortDescription", SHORT_MAX),
+           ("Full Description", "fullDescription", FULL_MAX))
 
-GO VIRAL
-Spend a run of hearts to bank fame. Upgrades reset, the cast stays, and every later tap and idle tick is multiplied. Chase the next clip that goes worldwide.
 
-STUDIO
-Sponsor breaks double your hearts for a minute, and time skips bank idle hours instantly.
+def parse_listing(path):
+    """Return {title, shortDescription, fullDescription} from a listing .md."""
+    parts = _HEADING_RE.split(path.read_text(encoding="utf-8"))
+    if parts[0].strip():
+        raise ValueError(f"{path.name}: text before the first '# ' heading")
 
-Neon lights, a synth beat, and a stage that shakes when you land a crit. Go live."""
+    sections = {}
+    for heading, body in zip(parts[1::2], parts[2::2]):
+        if heading in sections:
+            raise ValueError(f"{path.name}: duplicate '# {heading}' heading")
+        sections[heading] = body.strip()
 
-TR_TITLE = "Lumina Live"
-TR_SHORT = "Neon idol yayın clicker'ı. Ritme bas, salonu coştur, viral ol."
-TR_FULL = """Geceyi sen üretiyorsun. Lumina yayında, salon karanlık ve sahneye her dokunuş kalpleri havaya uçuruyor.
+    out = {}
+    for heading, field, limit in _FIELDS:
+        value = sections.get(heading, "")
+        if not value:
+            raise ValueError(f"{path.name}: missing or empty '# {heading}'")
+        if len(value) > limit:
+            raise ValueError(
+                f"{path.name}: {field} is {len(value)} chars, limit {limit}")
+        out[field] = value
+    return out
 
-SAHNEYE DOKUN
-Ritmi yakalayıp kalp kazan. Dokunuşları komboya zincirle, SUPERCHAT kritik vuruşlar yakala ve sohbet coşarken izleyici sayacının yükselişini izle.
 
-SALONU SATIN AL
-Nabız eldivenleri, kulak içi mix, LED topuklular, sis topları, holo yedekler, piro işaretleri ve dünya drop'u her dokunuşu ağırlaştırır. Lurker'lar, sohbet modları, süper hayranlar, klip çiftlikleri, ürün masaları, iş birliği masaları ve stadyum yayını sen sahneden uzaktayken bile kalpleri akıtır.
-
-KADRO
-Dört idol, dört ses. Lumina komboları uzatır, Nox lurker'ları tutar, Saffron her dokunuşu parlatır, Vesper superchat'leri daha sert vurdurur. Kilitlerini aç ve kimin yayına gireceğini seç.
-
-VİRAL OL
-Bir gecelik kalbi harcayıp şöhret biriktir. Geliştirmeler sıfırlanır, kadro kalır ve sonraki her dokunuş ve boş zaman kazancı katlanır. Dünyayı dolaşacak bir sonraki klibin peşine düş.
-
-STÜDYO
-Sponsor molaları kalplerini bir dakikalığına ikiye katlar, zaman atlamaları boşta geçen saatleri anında hesabına yazar.
-
-Neon ışıklar, synth bir ritim ve kritik vurduğunda sallanan bir sahne. Yayına gir."""
+def load_all():
+    """Parse every listing up front so a bad file never opens a Play edit."""
+    bodies = {}
+    for lang in LOCALES:
+        path = LISTING_DIR / f"{lang}.md"
+        if not path.is_file():
+            raise FileNotFoundError(f"missing listing file: {path}")
+        listing = parse_listing(path)
+        bodies[lang] = {"language": lang, **listing}
+        print(f"{lang}: {path.name} -> title {len(listing['title'])}, "
+              f"short {len(listing['shortDescription'])}, "
+              f"full {len(listing['fullDescription'])}")
+    return bodies
 
 
 def main() -> int:
+    bodies = load_all()
+
     creds = service_account.Credentials.from_service_account_file(SA_KEY, scopes=SCOPES)
     svc = build("androidpublisher", "v3", credentials=creds, cache_discovery=False)
     edits = svc.edits()
@@ -68,14 +95,17 @@ def main() -> int:
     edit_id = edits.insert(packageName=PACKAGE, body={}).execute()["id"]
     print("edit:", edit_id)
 
-    for lang, title, short, full in [
-        ("en-US", EN_TITLE, EN_SHORT, EN_FULL),
-        ("tr-TR", TR_TITLE, TR_SHORT, TR_FULL),
-    ]:
+    # Keep the rest of the contact block (website, phone, default language) and
+    # only replace the support address.
+    details = edits.details().get(packageName=PACKAGE, editId=edit_id).execute()
+    details["contactEmail"] = CONTACT_EMAIL
+    edits.details().update(
+        packageName=PACKAGE, editId=edit_id, body=details).execute()
+    print("contact email:", CONTACT_EMAIL)
+
+    for lang, body in bodies.items():
         edits.listings().update(
-            packageName=PACKAGE, editId=edit_id, language=lang,
-            body={"language": lang, "title": title,
-                  "shortDescription": short, "fullDescription": full},
+            packageName=PACKAGE, editId=edit_id, language=lang, body=body,
         ).execute()
         print(f"listing {lang}: ok")
 
@@ -95,12 +125,12 @@ def main() -> int:
         except HttpError:
             pass
 
-    clear("icon"); upload("icon", os.path.join(STORE, "icon_512.png"))
-    clear("featureGraphic"); upload("featureGraphic", os.path.join(STORE, "feature_graphic.png"))
+    clear("icon"); upload("icon", str(STORE / "icon_512.png"))
+    clear("featureGraphic"); upload("featureGraphic", str(STORE / "feature_graphic.png"))
     clear("phoneScreenshots")
-    shots_dir = os.path.join(STORE, "screenshots")
-    for s in sorted(f for f in os.listdir(shots_dir) if f.endswith(".png")):
-        upload("phoneScreenshots", os.path.join(shots_dir, s))
+    shots_dir = STORE / "screenshots"
+    for shot in sorted(p for p in shots_dir.iterdir() if p.suffix == ".png"):
+        upload("phoneScreenshots", str(shot))
 
     edits.commit(packageName=PACKAGE, editId=edit_id).execute()
     print("COMMITTED")
