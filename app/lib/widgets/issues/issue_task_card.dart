@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../theme.dart';
 import '../task_item_card.dart';
+import '../../l10n/app_localizations.dart';
 
 /// Swipeable wrapper around [TaskItemCard] used by the Issues list.
 ///
@@ -44,6 +45,7 @@ class IssueTaskCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final status = item['status'] ?? 'pending';
     final taskType =
         (item['task_type'] ?? item['type'] ?? 'issue').toString();
@@ -91,7 +93,7 @@ class IssueTaskCard extends StatelessWidget {
           children: [
             Icon(Icons.check_circle, color: AppColors.success),
             SizedBox(width: 8),
-            Text('Complete',
+            Text(l10n.complete,
                 style: TextStyle(
                     color: AppColors.success, fontWeight: FontWeight.bold)),
           ],
@@ -108,7 +110,7 @@ class IssueTaskCard extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Delete',
+            Text(l10n.delete,
                 style: TextStyle(
                     color: AppColors.error, fontWeight: FontWeight.bold)),
             SizedBox(width: 8),
@@ -122,21 +124,21 @@ class IssueTaskCard extends StatelessWidget {
             context: context,
             builder: (ctx) => AlertDialog(
               backgroundColor: AppColors.bgCard,
-              title: const Text('Mark Complete'),
+              title: Text(l10n.markComplete),
               content: Text(
-                'Mark "${item['title']}" as completed?',
+                l10n.markCompleteConfirm('${item['title']}'),
                 maxLines: 4,
                 overflow: TextOverflow.ellipsis,
               ),
               actions: [
                 TextButton(
                     onPressed: () => Navigator.pop(ctx, false),
-                    child: const Text('Cancel')),
+                    child: Text(l10n.cancel)),
                 FilledButton(
                   onPressed: () => Navigator.pop(ctx, true),
                   style: FilledButton.styleFrom(
                       backgroundColor: AppColors.success),
-                  child: const Text('Complete'),
+                  child: Text(l10n.complete),
                 ),
               ],
             ),
@@ -147,21 +149,21 @@ class IssueTaskCard extends StatelessWidget {
             context: context,
             builder: (ctx) => AlertDialog(
               backgroundColor: AppColors.bgCard,
-              title: const Text('Delete'),
+              title: Text(l10n.delete),
               content: Text(
-                'Delete "${item['title']}"?\nThis cannot be undone.',
+                l10n.deleteConfirmTitled('${item['title']}'),
                 maxLines: 4,
                 overflow: TextOverflow.ellipsis,
               ),
               actions: [
                 TextButton(
                     onPressed: () => Navigator.pop(ctx, false),
-                    child: const Text('Cancel')),
+                    child: Text(l10n.cancel)),
                 FilledButton(
                   onPressed: () => Navigator.pop(ctx, true),
                   style:
                       FilledButton.styleFrom(backgroundColor: AppColors.error),
-                  child: const Text('Delete'),
+                  child: Text(l10n.delete),
                 ),
               ],
             ),

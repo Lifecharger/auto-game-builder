@@ -7,6 +7,7 @@ import '../services/auth_service.dart';
 import '../services/drive_service.dart';
 import 'onboarding_screen.dart';
 import '../main.dart';
+import '../l10n/app_localizations.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -16,6 +17,8 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  AppLocalizations get l10n => AppLocalizations.of(context)!;
+
   bool _loading = false;
   String? _error;
 
@@ -49,7 +52,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (account == null) {
         setState(() {
           _loading = false;
-          _error = 'Sign-in was cancelled';
+          _error = l10n.signInCancelled;
         });
         return;
       }
@@ -76,7 +79,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (mounted) {
         setState(() {
           _loading = false;
-          _error = 'Sign-in failed: $e';
+          _error = l10n.signInFailed(e);
         });
       }
     }
@@ -113,8 +116,8 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 24),
 
                 // App name
-                const Text(
-                  'Auto Game Builder',
+                Text(
+                  l10n.appTitle,
                   style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
@@ -125,7 +128,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 // Subtitle
                 Text(
-                  'Manage your game projects from anywhere',
+                  l10n.loginTagline,
                   style: TextStyle(
                     fontSize: 15,
                     color: Colors.grey.shade400,
@@ -196,7 +199,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                     label: Text(
-                      _loading ? 'Signing in...' : 'Sign in with Google',
+                      _loading ? l10n.signingIn : l10n.signInWithGoogle,
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w500,
@@ -210,7 +213,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 TextButton(
                   onPressed: _loading ? null : _skipForNow,
                   child: Text(
-                    'Skip for now',
+                    l10n.skipForNow,
                     style: TextStyle(
                       color: Colors.grey.shade500,
                       fontSize: 14,
@@ -227,7 +230,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     mode: LaunchMode.externalApplication,
                   ),
                   icon: const Icon(Icons.code, size: 18),
-                  label: const Text('View on GitHub'),
+                  label: Text(l10n.viewOnGitHub),
                   style: TextButton.styleFrom(
                     foregroundColor: Colors.grey.shade500,
                   ),

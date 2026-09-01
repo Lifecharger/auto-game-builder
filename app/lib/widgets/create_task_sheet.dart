@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import '../services/api_service.dart';
 import '../theme.dart';
+import '../l10n/app_localizations.dart';
 
 /// A file staged for upload. The sheet has to remember whether a pick is a
 /// document or an image: PDFs cannot be shown as a thumbnail.
@@ -32,6 +33,7 @@ class CreateTaskSheet {
     required int appId,
     required VoidCallback onCreated,
   }) {
+    final l10n = AppLocalizations.of(context)!;
     final titleController = TextEditingController();
     final descController = TextEditingController();
     String taskType = 'issue';
@@ -72,8 +74,8 @@ class CreateTaskSheet {
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'New Item',
+                        Text(
+                          l10n.newItem,
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
@@ -82,8 +84,8 @@ class CreateTaskSheet {
                         const SizedBox(height: 16),
                         TextField(
                           controller: titleController,
-                          decoration: const InputDecoration(
-                            hintText: 'Title',
+                          decoration: InputDecoration(
+                            hintText: l10n.titleHint,
                             prefixIcon: Icon(Icons.title),
                           ),
                         ),
@@ -91,14 +93,14 @@ class CreateTaskSheet {
                         TextField(
                           controller: descController,
                           maxLines: 4,
-                          decoration: const InputDecoration(
-                            hintText: 'Description...',
+                          decoration: InputDecoration(
+                            hintText: l10n.descriptionHint,
                             alignLabelWithHint: true,
                           ),
                         ),
                         const SizedBox(height: 16),
-                        const Text(
-                          'Type',
+                        Text(
+                          l10n.type,
                           style: TextStyle(fontWeight: FontWeight.w600),
                         ),
                         const SizedBox(height: 8),
@@ -124,8 +126,8 @@ class CreateTaskSheet {
                               }).toList(),
                         ),
                         const SizedBox(height: 16),
-                        const Text(
-                          'Priority',
+                        Text(
+                          l10n.priority,
                           style: TextStyle(fontWeight: FontWeight.w600),
                         ),
                         const SizedBox(height: 8),
@@ -162,8 +164,8 @@ class CreateTaskSheet {
                         const SizedBox(height: 16),
                         Row(
                           children: [
-                            const Text(
-                              'Depends on',
+                            Text(
+                              l10n.dependsOn,
                               style: TextStyle(fontWeight: FontWeight.w600),
                             ),
                             const SizedBox(width: 6),
@@ -239,7 +241,7 @@ class CreateTaskSheet {
                             Padding(
                               padding: const EdgeInsets.symmetric(vertical: 8),
                               child: Text(
-                                'No open tasks to depend on',
+                                l10n.noOpenTasksToDependOn,
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: Colors.grey.shade500,
@@ -278,8 +280,8 @@ class CreateTaskSheet {
                           const SizedBox(height: 8),
                         ],
                         const SizedBox(height: 8),
-                        const Text(
-                          'Attachments',
+                        Text(
+                          l10n.attachments,
                           style: TextStyle(fontWeight: FontWeight.w600),
                         ),
                         const SizedBox(height: 8),
@@ -321,7 +323,7 @@ class CreateTaskSheet {
                                     Icons.image_outlined,
                                     size: 18,
                                   ),
-                                  label: const Text('Photo'),
+                                  label: Text(l10n.photo),
                                 ),
                               ),
                             ),
@@ -338,8 +340,9 @@ class CreateTaskSheet {
                                       ScaffoldMessenger.of(ctx).showSnackBar(
                                         SnackBar(
                                           content: Text(
-                                            'Too large (max ${_maxPdfBytes ~/ (1024 * 1024)} MB): '
-                                            '${picked.oversized.join(', ')}',
+                                            l10n.fileTooLarge(
+                                                _maxPdfBytes ~/ (1024 * 1024),
+                                                picked.oversized.join(', ')),
                                           ),
                                           backgroundColor: AppColors.warning,
                                         ),
@@ -381,7 +384,7 @@ class CreateTaskSheet {
                                 if (title.isEmpty) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
-                                      content: Text('Title is required'),
+                                      content: Text(l10n.titleIsRequired),
                                       backgroundColor: AppColors.warning,
                                     ),
                                   );
@@ -412,9 +415,9 @@ class CreateTaskSheet {
                                     SnackBar(
                                       content: Text(
                                         result.ok
-                                            ? 'Item created'
+                                            ? l10n.itemCreated
                                             : result.error ??
-                                                'Failed to create item',
+                                                l10n.failedToCreateItem,
                                       ),
                                       backgroundColor:
                                           result.ok
@@ -435,7 +438,7 @@ class CreateTaskSheet {
                                 ),
                               )
                               : const Icon(Icons.send),
-                      label: Text(submitting ? 'Submitting...' : 'Submit'),
+                      label: Text(submitting ? l10n.submitting : l10n.submit),
                     ),
                   ),
                 ),

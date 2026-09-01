@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../theme.dart';
+import '../../l10n/app_localizations.dart';
 
 /// Editor card for the desktop server's `settings.json` file.
 ///
@@ -27,6 +28,8 @@ class ServerConfigSection extends StatefulWidget {
 }
 
 class _ServerConfigSectionState extends State<ServerConfigSection> {
+  AppLocalizations get l10n => AppLocalizations.of(context)!;
+
   final Map<String, TextEditingController> _controllers = {};
   bool _editing = false;
 
@@ -66,7 +69,7 @@ class _ServerConfigSectionState extends State<ServerConfigSection> {
       setState(() => _editing = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Settings saved — restart server to apply'),
+          content: Text(l10n.settingsSavedRestart),
           backgroundColor: AppColors.success,
         ),
       );
@@ -74,23 +77,23 @@ class _ServerConfigSectionState extends State<ServerConfigSection> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to save: $e'),
+          content: Text(l10n.failedToSave(e)),
           backgroundColor: AppColors.error,
         ),
       );
     }
   }
 
-  static const Map<String, String> _sectionLabels = {
-    'paths': 'Paths',
-    'ai_agents': 'AI Agents',
-    'engines': 'Game Engines',
-    'system': 'System Tools',
-    'cloudflare': 'Cloudflare',
-    'developer': 'Developer',
-    'server': 'Server',
-    'services': 'Services',
-  };
+  Map<String, String> get _sectionLabels => {
+        'paths': l10n.sectionPaths,
+        'ai_agents': l10n.sectionAiAgents,
+        'engines': l10n.sectionGameEngines,
+        'system': l10n.sectionSystemTools,
+        'cloudflare': 'Cloudflare',
+        'developer': l10n.developer,
+        'server': l10n.server,
+        'services': l10n.sectionServices,
+      };
 
   static const Map<String, IconData> _fieldIcons = {
     'projects_root': Icons.folder,
@@ -163,13 +166,13 @@ class _ServerConfigSectionState extends State<ServerConfigSection> {
                 children: [
                   Icon(Icons.settings_applications, color: AppColors.warning),
                   SizedBox(width: 8),
-                  Text('Server Configuration',
+                  Text(l10n.serverConfiguration,
                       style: TextStyle(
                           fontSize: 16, fontWeight: FontWeight.bold)),
                 ],
               ),
               const SizedBox(height: 12),
-              Text('settings.json not found',
+              Text(l10n.settingsJsonNotFound,
                   style: TextStyle(color: Colors.grey.shade500)),
             ],
           ),
@@ -210,14 +213,14 @@ class _ServerConfigSectionState extends State<ServerConfigSection> {
               children: [
                 Icon(Icons.settings_applications, color: AppColors.warning),
                 SizedBox(width: 8),
-                Text('Server Configuration',
+                Text(l10n.serverConfiguration,
                     style: TextStyle(
                         fontSize: 16, fontWeight: FontWeight.bold)),
               ],
             ),
             const SizedBox(height: 4),
             Text(
-              'settings.json — restart server after changes',
+              l10n.settingsJsonRestartNote,
               style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
             ),
             ...sections,
@@ -229,7 +232,7 @@ class _ServerConfigSectionState extends State<ServerConfigSection> {
                     child: OutlinedButton.icon(
                       onPressed: () => setState(() => _editing = true),
                       icon: const Icon(Icons.edit, size: 18),
-                      label: const Text('Edit'),
+                      label: Text(l10n.edit),
                     ),
                   ),
                 if (_editing) ...[
@@ -240,7 +243,7 @@ class _ServerConfigSectionState extends State<ServerConfigSection> {
                         setState(() => _editing = false);
                       },
                       icon: const Icon(Icons.close, size: 18),
-                      label: const Text('Cancel'),
+                      label: Text(l10n.cancel),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -248,7 +251,7 @@ class _ServerConfigSectionState extends State<ServerConfigSection> {
                     child: FilledButton.icon(
                       onPressed: _save,
                       icon: const Icon(Icons.save, size: 18),
-                      label: const Text('Save'),
+                      label: Text(l10n.save),
                     ),
                   ),
                 ],
@@ -256,7 +259,7 @@ class _ServerConfigSectionState extends State<ServerConfigSection> {
                 IconButton(
                   onPressed: widget.onReload,
                   icon: const Icon(Icons.refresh, size: 20),
-                  tooltip: 'Reload',
+                  tooltip: l10n.reload,
                 ),
               ],
             ),

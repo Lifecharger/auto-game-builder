@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:open_filex/open_filex.dart';
 import '../services/api_service.dart';
 import '../theme.dart';
+import '../l10n/app_localizations.dart';
 
 const String _pdfMimeType = 'application/pdf';
 
@@ -36,17 +37,20 @@ class TaskItemCard extends StatelessWidget {
   /// Server timestamps rendered as relative ages, e.g. `created 3w ago · done 1h ago`.
   /// Prefers `completed_at` for finished tasks, otherwise `updated_at`, and
   /// omits the second part when it would just repeat the creation time.
-  String _timestampLine(String status) {
+  String _timestampLine(BuildContext context, String status) {
+    final l10n = AppLocalizations.of(context)!;
     final created = _parseServerTime(item['created_at']);
     final finished = _parseServerTime(item['completed_at']);
     final updated = _parseServerTime(item['updated_at']);
     final parts = <String>[];
-    if (created != null) parts.add('created ${formatRelativeAge(created)}');
+    if (created != null) parts.add(l10n.createdAgo(formatRelativeAge(context, created)));
     final isFinished = _finishedStatuses.contains(status);
     if (isFinished && finished != null) {
-      parts.add('${status == 'failed' ? 'failed' : 'done'} ${formatRelativeAge(finished)}');
+      parts.add(status == 'failed'
+          ? l10n.finishedFailedAgo(formatRelativeAge(context, finished))
+          : l10n.finishedDoneAgo(formatRelativeAge(context, finished)));
     } else if (updated != null && (created == null || updated.difference(created) >= _sameMomentTolerance)) {
-      parts.add('updated ${formatRelativeAge(updated)}');
+      parts.add(l10n.updatedAgo(formatRelativeAge(context, updated)));
     }
     return parts.join(' · ');
   }
@@ -60,14 +64,15 @@ class TaskItemCard extends StatelessWidget {
   }
 
   void _showCopyMenu(BuildContext context, String title, String description, String aiResponse) {
+    final l10n = AppLocalizations.of(context)!;
     final items = <PopupMenuEntry<String>>[
-      const PopupMenuItem(value: 'title', child: Text('Copy Title')),
+      PopupMenuItem(value: 'title', child: Text(l10n.copyTitle)),
     ];
     if (description.isNotEmpty) {
-      items.add(const PopupMenuItem(value: 'desc', child: Text('Copy Description')));
+      items.add(PopupMenuItem(value: 'desc', child: Text(l10n.copyDescription)));
     }
     if (aiResponse.isNotEmpty) {
-      items.add(const PopupMenuItem(value: 'response', child: Text('Copy AI Response')));
+      items.add(PopupMenuItem(value: 'response', child: Text(l10n.copyAiResponse)));
     }
 
     final RenderBox box = context.findRenderObject() as RenderBox;
@@ -95,7 +100,7 @@ class TaskItemCard extends StatelessWidget {
       Clipboard.setData(ClipboardData(text: text));
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Copied to clipboard'), duration: Duration(seconds: 1)),
+        SnackBar(content: Text(l10n.copiedToClipboard), duration: Duration(seconds: 1)),
       );
     });
   }
@@ -175,10 +180,11 @@ class TaskItemCard extends StatelessWidget {
   /// system viewer cannot send — so pull the bytes down first, then hand the
   /// cached file to whatever viewer the device has.
   Future<void> _openPdf(BuildContext context, String url, int index) async {
+    final l10n = AppLocalizations.of(context)!;
     HapticFeedback.lightImpact();
     final messenger = ScaffoldMessenger.of(context);
-    messenger.showSnackBar(const SnackBar(
-      content: Text('Opening PDF…'),
+    messenger.showSnackBar(SnackBar(
+      content: Text(l10n.openingPdf),
       duration: Duration(seconds: 1),
     ));
     final result = await ApiService.downloadAttachment(
@@ -187,7 +193,7 @@ class TaskItemCard extends StatelessWidget {
     );
     if (!result.ok) {
       messenger.showSnackBar(SnackBar(
-        content: Text(result.error ?? 'Could not download the PDF'),
+        content: Text(result.error ?? l10n.couldNotDownloadPdf),
         backgroundColor: AppColors.error,
       ));
       return;
@@ -195,14 +201,15 @@ class TaskItemCard extends StatelessWidget {
     final opened = await OpenFilex.open(result.data!, type: _pdfMimeType);
     if (opened.type != ResultType.done) {
       messenger.showSnackBar(SnackBar(
-        content: Text('Could not open the PDF: ${opened.message}'),
+        content: Text(l10n.couldNotOpenPdf(opened.message)),
         backgroundColor: AppColors.error,
       ));
     }
   }
 
   /// PDF stand-in tile — icon plus a tap hint, sized like an image thumbnail.
-  Widget _pdfTile({double size = 120}) {
+  Widget _pdfTile(BuildContext context, {double size = 120}) {
+    final l10n = AppLocalizations.of(context)!;
     return Container(
       width: size,
       height: size,
@@ -213,7 +220,7 @@ class TaskItemCard extends StatelessWidget {
         children: [
           Icon(Icons.picture_as_pdf, size: size * 0.35, color: AppColors.error),
           const SizedBox(height: 6),
-          Text('Open PDF',
+          Text(l10n.openPdf,
               style: TextStyle(fontSize: 11, color: Colors.grey.shade300)),
         ],
       ),
@@ -229,7 +236,7 @@ class TaskItemCard extends StatelessWidget {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(8),
         child: attachment.isPdf
-            ? _pdfTile()
+            ? _pdfTile(context)
             : _networkImage(attachment.url, height: 120),
       ),
     );
@@ -263,7 +270,7 @@ class TaskItemCard extends StatelessWidget {
                           },
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(12),
-                            child: _pdfTile(size: 160),
+                            child: _pdfTile(ctx, size: 160),
                           ),
                         ),
                       ),
@@ -286,6 +293,7 @@ class TaskItemCard extends StatelessWidget {
   }
 
   void _showBlockerMenu(BuildContext context, List<int> blockedBy) {
+    final l10n = AppLocalizations.of(context)!;
     if (onBlockerTap == null || blockedBy.isEmpty) return;
     if (blockedBy.length == 1) {
       onBlockerTap!(blockedBy.first);
@@ -300,7 +308,7 @@ class TaskItemCard extends StatelessWidget {
           children: blockedBy
               .map((id) => ListTile(
                     leading: const Icon(Icons.lock_outline, size: 20),
-                    title: Text('Blocked by #$id'),
+                    title: Text(l10n.blockedByTask(id)),
                     onTap: () {
                       Navigator.pop(ctx);
                       onBlockerTap!(id);
@@ -314,6 +322,7 @@ class TaskItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final taskId = item['id'];
     final title = item['title'] ?? '';
     final description = (item['description'] ?? '').toString().trim();
@@ -331,7 +340,7 @@ class TaskItemCard extends StatelessWidget {
             .toList() ??
         const <int>[];
     final isBlocked = item['blocked'] == true && blockedBy.isNotEmpty;
-    final timestampLine = _timestampLine(status.toString());
+    final timestampLine = _timestampLine(context, status.toString());
 
     final card = Card(
       margin: const EdgeInsets.only(bottom: 8),
@@ -420,7 +429,7 @@ class TaskItemCard extends StatelessWidget {
                                         size: 12, color: AppColors.error),
                                     SizedBox(width: 2),
                                     Text(
-                                      'urgent',
+                                      l10n.urgentLabel,
                                       style: TextStyle(
                                         fontSize: 11,
                                         color: AppColors.error,
@@ -449,7 +458,7 @@ class TaskItemCard extends StatelessWidget {
                                           size: 12, color: AppColors.warning),
                                       const SizedBox(width: 2),
                                       Text(
-                                        'blocked by ${blockedBy.map((id) => '#$id').join(', ')}',
+                                        l10n.blockedByList(blockedBy.map((id) => '#$id').join(', ')),
                                         style: TextStyle(
                                           fontSize: 11,
                                           color: AppColors.warning,
@@ -475,7 +484,7 @@ class TaskItemCard extends StatelessWidget {
                                         size: 12, color: Colors.grey.shade400),
                                     const SizedBox(width: 2),
                                     Text(
-                                      'archived',
+                                      l10n.archivedLabel,
                                       style: TextStyle(
                                         fontSize: 11,
                                         color: Colors.grey.shade400,
@@ -598,9 +607,9 @@ class TaskItemCard extends StatelessWidget {
                 if (aiResponse.isNotEmpty) ...[
                   const SizedBox(height: 10),
                   if (title.toLowerCase().startsWith('code check'))
-                    _buildCodeCheckResults(aiResponse)
+                    _buildCodeCheckResults(context, aiResponse)
                   else
-                    _buildPlainAiResponse(aiResponse),
+                    _buildPlainAiResponse(context, aiResponse),
                 ],
                 if (status != 'completed') ...[
                   const SizedBox(height: 12),
@@ -625,8 +634,8 @@ class TaskItemCard extends StatelessWidget {
                               ),
                               label: Text(
                                 status == 'in_progress' || status == 'failed'
-                                    ? 'Retry'
-                                    : 'Work on This',
+                                    ? l10n.retry
+                                    : l10n.workOnThis,
                               ),
                             ),
                           ),
@@ -638,7 +647,7 @@ class TaskItemCard extends StatelessWidget {
                           child: OutlinedButton.icon(
                             onPressed: onReset,
                             icon: const Icon(Icons.restart_alt, size: 18),
-                            label: const Text('Reset'),
+                            label: Text(l10n.reset),
                             style: OutlinedButton.styleFrom(
                               foregroundColor: AppColors.warning,
                               side: BorderSide(color: AppColors.warning.withValues(alpha: 0.5)),
@@ -672,7 +681,7 @@ class TaskItemCard extends StatelessWidget {
                       onPressed: () => _showAttachmentsViewer(context, attachments),
                       icon: const Icon(Icons.attach_file, size: 18),
                       label: Text(
-                        'Attachments (${attachments.length})',
+                        l10n.attachmentsCount(attachments.length),
                       ),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppColors.info,
@@ -696,7 +705,8 @@ class TaskItemCard extends StatelessWidget {
     return card;
   }
 
-  Widget _buildPlainAiResponse(String aiResponse) {
+  Widget _buildPlainAiResponse(BuildContext context, String aiResponse) {
+    final l10n = AppLocalizations.of(context)!;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
@@ -711,7 +721,7 @@ class TaskItemCard extends StatelessWidget {
           Row(children: [
             Icon(Icons.smart_toy, size: 14, color: AppColors.info),
             const SizedBox(width: 6),
-            Text('AI Response',
+            Text(l10n.aiResponse,
                 style: TextStyle(fontSize: 12, color: AppColors.info,
                     fontWeight: FontWeight.w600)),
           ]),
@@ -725,9 +735,10 @@ class TaskItemCard extends StatelessWidget {
     );
   }
 
-  Widget _buildCodeCheckResults(String response) {
-    final sections = _parseCodeCheckSections(response);
-    if (sections.isEmpty) return _buildPlainAiResponse(response);
+  Widget _buildCodeCheckResults(BuildContext context, String response) {
+    final l10n = AppLocalizations.of(context)!;
+    final sections = _parseCodeCheckSections(l10n, response);
+    if (sections.isEmpty) return _buildPlainAiResponse(context, response);
 
     int total = 0, criticalCount = 0, highCount = 0, mediumCount = 0;
     for (final s in sections) {
@@ -753,22 +764,22 @@ class TaskItemCard extends StatelessWidget {
           Row(children: [
             Icon(Icons.fact_check, size: 14, color: AppColors.info),
             const SizedBox(width: 6),
-            Text('Code Check Results',
+            Text(l10n.codeCheckResults,
                 style: TextStyle(fontSize: 12, color: AppColors.info,
                     fontWeight: FontWeight.w600)),
             const Spacer(),
-            Text('$total finding${total == 1 ? '' : 's'}',
+            Text(l10n.findingsCount(total),
                 style: TextStyle(fontSize: 11, color: Colors.grey.shade400)),
           ]),
           if (criticalCount > 0 || highCount > 0 || mediumCount > 0) ...[
             const SizedBox(height: 8),
             Wrap(spacing: 6, children: [
               if (criticalCount > 0)
-                _severityBadge('$criticalCount critical', const Color(0xFFE74C3C)),
+                _severityBadge(l10n.criticalCount(criticalCount), const Color(0xFFE74C3C)),
               if (highCount > 0)
-                _severityBadge('$highCount high', const Color(0xFFE67E22)),
+                _severityBadge(l10n.highCount(highCount), const Color(0xFFE67E22)),
               if (mediumCount > 0)
-                _severityBadge('$mediumCount medium', const Color(0xFFF39C12)),
+                _severityBadge(l10n.mediumCount(mediumCount), const Color(0xFFF39C12)),
             ]),
           ],
           const SizedBox(height: 12),
@@ -858,7 +869,8 @@ class TaskItemCard extends StatelessWidget {
     }
   }
 
-  static List<_CodeCheckSection> _parseCodeCheckSections(String response) {
+  static List<_CodeCheckSection> _parseCodeCheckSections(
+      AppLocalizations l10n, String response) {
     final lines = response.split('\n');
     final sections = <_CodeCheckSection>[];
     String? currentName;
@@ -886,7 +898,7 @@ class TaskItemCard extends StatelessWidget {
             color: currentColor, findings: List.from(currentFindings),
           ));
         }
-        final config = _matchCategory(headerText);
+        final config = _matchCategory(l10n, headerText);
         currentName = config.name;
         currentIcon = config.icon;
         currentColor = config.color;
@@ -932,28 +944,29 @@ class TaskItemCard extends StatelessWidget {
     return 'info';
   }
 
-  static ({String name, IconData icon, Color color}) _matchCategory(String header) {
+  static ({String name, IconData icon, Color color}) _matchCategory(
+      AppLocalizations l10n, String header) {
     final lower = header.toLowerCase();
     if (RegExp(r'bug|crash|fault').hasMatch(lower)) {
-      return (name: 'Bugs & Crashes', icon: Icons.bug_report, color: const Color(0xFFE74C3C));
+      return (name: l10n.catBugsCrashes, icon: Icons.bug_report, color: const Color(0xFFE74C3C));
     }
     if (RegExp(r'secur|vulnerab|injection|xss').hasMatch(lower)) {
-      return (name: 'Security', icon: Icons.security, color: const Color(0xFFE67E22));
+      return (name: l10n.categorySecurity, icon: Icons.security, color: const Color(0xFFE67E22));
     }
     if (RegExp(r'perform|speed|slow|optim|efficien').hasMatch(lower)) {
-      return (name: 'Performance', icon: Icons.speed, color: const Color(0xFFF39C12));
+      return (name: l10n.categoryPerformance, icon: Icons.speed, color: const Color(0xFFF39C12));
     }
     if (RegExp(r'style|format|naming|convention|lint|readab').hasMatch(lower)) {
-      return (name: 'Code Style', icon: Icons.brush, color: const Color(0xFF3498DB));
+      return (name: l10n.catCodeStyle, icon: Icons.brush, color: const Color(0xFF3498DB));
     }
     if (RegExp(r'dead.?code|unused|unreachable|deprecat').hasMatch(lower)) {
-      return (name: 'Dead Code', icon: Icons.delete_outline, color: const Color(0xFF95A5A6));
+      return (name: l10n.catDeadCode, icon: Icons.delete_outline, color: const Color(0xFF95A5A6));
     }
     if (RegExp(r'error.?handl|exception.?handl|try.?catch').hasMatch(lower)) {
-      return (name: 'Error Handling', icon: Icons.warning_amber, color: const Color(0xFFF1C40F));
+      return (name: l10n.catErrorHandling, icon: Icons.warning_amber, color: const Color(0xFFF1C40F));
     }
     if (RegExp(r'memory|leak|dispose').hasMatch(lower)) {
-      return (name: 'Memory', icon: Icons.memory, color: const Color(0xFFAB47BC));
+      return (name: l10n.catMemory, icon: Icons.memory, color: const Color(0xFFAB47BC));
     }
     return (name: header, icon: Icons.info_outline, color: const Color(0xFF95A5A6));
   }
@@ -982,14 +995,15 @@ class _CodeCheckFinding {
 
 /// Human-readable age of a past moment: `just now`, `5m ago`, `3h ago`,
 /// `12d ago`, `3w ago`, `4mo ago`.
-String formatRelativeAge(DateTime time) {
+String formatRelativeAge(BuildContext context, DateTime time) {
+  final l10n = AppLocalizations.of(context)!;
   final diff = DateTime.now().difference(time);
-  if (diff < const Duration(minutes: 1)) return 'just now';
-  if (diff < const Duration(hours: 1)) return '${diff.inMinutes}m ago';
-  if (diff < const Duration(days: 1)) return '${diff.inHours}h ago';
-  if (diff < const Duration(days: 14)) return '${diff.inDays}d ago';
-  if (diff < const Duration(days: 60)) return '${diff.inDays ~/ 7}w ago';
-  return '${diff.inDays ~/ 30}mo ago';
+  if (diff < const Duration(minutes: 1)) return l10n.timeJustNow;
+  if (diff < const Duration(hours: 1)) return l10n.timeMinutesAgo(diff.inMinutes);
+  if (diff < const Duration(days: 1)) return l10n.timeHoursAgo(diff.inHours);
+  if (diff < const Duration(days: 14)) return l10n.timeDaysAgo(diff.inDays);
+  if (diff < const Duration(days: 60)) return l10n.timeWeeksAgo(diff.inDays ~/ 7);
+  return l10n.timeMonthsAgo(diff.inDays ~/ 30);
 }
 
 class ElapsedTimer extends StatefulWidget {
@@ -1001,6 +1015,8 @@ class ElapsedTimer extends StatefulWidget {
 }
 
 class _ElapsedTimerState extends State<ElapsedTimer> {
+  AppLocalizations get l10n => AppLocalizations.of(context)!;
+
   Timer? _ticker;
 
   @override
@@ -1032,7 +1048,7 @@ class _ElapsedTimerState extends State<ElapsedTimer> {
         : elapsed.inMinutes >= 10
             ? AppColors.warning
             : Colors.orange.shade300;
-    final label = elapsed.inMinutes >= 20 ? '$text STUCK' : text;
+    final label = elapsed.inMinutes >= 20 ? l10n.stuckSuffix(text) : text;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [

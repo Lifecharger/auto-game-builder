@@ -7,7 +7,15 @@ class LocaleService extends ChangeNotifier {
 
   static const String _prefsKey = 'locale_code';
   static const String defaultCode = 'en';
-  static const List<String> supportedCodes = <String>['en', 'tr'];
+  static const List<String> supportedCodes = <String>[
+    'en',
+    'tr',
+    'es',
+    'pt',
+    'fr',
+    'de',
+    'ja',
+  ];
 
   Locale _currentLocale = const Locale(defaultCode);
   Locale get currentLocale => _currentLocale;

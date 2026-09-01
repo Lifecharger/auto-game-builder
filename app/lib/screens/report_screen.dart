@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../services/report_service.dart';
 import '../theme.dart';
+import '../l10n/app_localizations.dart';
 
 /// "Report a bug / suggestion" screen. Opened from Settings. Lets the user pick
 /// a category, write a message, attach up to 3 screenshots, and send it to the
@@ -32,11 +33,13 @@ class _PickedShot {
 }
 
 class _ReportScreenState extends State<ReportScreen> {
-  static const _categories = [
-    _Category('bug', 'Bug', Icons.bug_report_outlined),
-    _Category('suggestion', 'Suggestion', Icons.lightbulb_outline),
-    _Category('other', 'Other', Icons.chat_bubble_outline),
-  ];
+  AppLocalizations get l10n => AppLocalizations.of(context)!;
+
+  List<_Category> get _categories => [
+        _Category('bug', l10n.categoryBug, Icons.bug_report_outlined),
+        _Category('suggestion', l10n.categorySuggestion, Icons.lightbulb_outline),
+        _Category('other', l10n.categoryOther, Icons.chat_bubble_outline),
+      ];
 
   final _controller = TextEditingController();
   final _picker = ImagePicker();
@@ -75,10 +78,10 @@ class _ReportScreenState extends State<ReportScreen> {
       }
       if (mounted) setState(() {});
       if (_totalBytes > ReportService.maxTotalBytes && mounted) {
-        _snack('Screenshots are large — you may need to remove one.');
+        _snack(l10n.screenshotsTooLarge);
       }
     } catch (_) {
-      if (mounted) _snack('Could not open the picker.');
+      if (mounted) _snack(l10n.couldNotOpenPicker);
     }
   }
 
@@ -112,7 +115,7 @@ class _ReportScreenState extends State<ReportScreen> {
     if (error == null) {
       messenger.showSnackBar(
         SnackBar(
-          content: const Text('Thanks! Your report was sent.'),
+          content: Text(l10n.reportSentThanks),
           backgroundColor: AppColors.success,
         ),
       );
@@ -128,7 +131,7 @@ class _ReportScreenState extends State<ReportScreen> {
   Widget build(BuildContext context) {
     final bottomPadding = MediaQuery.of(context).padding.bottom;
     return Scaffold(
-      appBar: AppBar(title: const Text('Report a Bug / Suggestion')),
+      appBar: AppBar(title: Text(l10n.reportBugOrSuggestion)),
       body: ListView(
         padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomPadding),
         children: [
@@ -138,7 +141,7 @@ class _ReportScreenState extends State<ReportScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _label('What is this?'),
+                  _label(l10n.whatIsThis),
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 8,
@@ -153,20 +156,20 @@ class _ReportScreenState extends State<ReportScreen> {
                     }).toList(),
                   ),
                   const SizedBox(height: 16),
-                  _label('Tell us more'),
+                  _label(l10n.tellUsMore),
                   const SizedBox(height: 8),
                   TextField(
                     controller: _controller,
                     maxLines: 6,
                     maxLength: 4000,
                     onChanged: (_) => setState(() {}),
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       border: OutlineInputBorder(),
-                      hintText: 'What happened, or what would you like to see?',
+                      hintText: l10n.reportHint,
                     ),
                   ),
                   const SizedBox(height: 8),
-                  _label('Screenshots (optional)'),
+                  _label(l10n.screenshotsOptional),
                   const SizedBox(height: 8),
                   _shotsRow(),
                 ],
@@ -187,7 +190,7 @@ class _ReportScreenState extends State<ReportScreen> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.send),
-              label: Text(_sending ? 'Sending…' : 'Send report'),
+              label: Text(_sending ? l10n.sending : l10n.sendReport),
               style: FilledButton.styleFrom(backgroundColor: AppColors.accent),
             ),
           ),
@@ -255,11 +258,11 @@ class _ReportScreenState extends State<ReportScreen> {
                 onChanged: (v) => setState(() => _consent = v ?? false),
                 activeColor: AppColors.accent,
               ),
-              const Expanded(
+              Expanded(
                 child: Padding(
                   padding: EdgeInsets.only(top: 12, right: 8),
                   child: Text(
-                    'I agree to send this report with my device info (model, OS and app version) to the developer to help fix issues.',
+                    l10n.reportConsent,
                     style: TextStyle(fontSize: 12.5),
                   ),
                 ),

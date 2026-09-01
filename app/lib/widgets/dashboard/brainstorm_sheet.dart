@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
 import '../../theme.dart';
+import '../../utils/l10n_labels.dart';
+import '../../l10n/app_localizations.dart';
 
 /// Bottom sheet that creates a new project with a brainstorm task seeded
 /// from a concept/genre/engine selection.
@@ -26,6 +28,7 @@ class BrainstormSheet {
     BuildContext context, {
     required VoidCallback onCreated,
   }) {
+    final l10n = AppLocalizations.of(context)!;
     final conceptController = TextEditingController();
     final nameController = TextEditingController();
     String appType = 'godot';
@@ -60,22 +63,22 @@ class BrainstormSheet {
                         Icon(Icons.lightbulb,
                             color: Colors.amber.shade400, size: 24),
                         const SizedBox(width: 8),
-                        const Text('Brainstorm New Game',
+                        Text(l10n.brainstormNewGame,
                             style: TextStyle(
                                 fontSize: 20, fontWeight: FontWeight.bold)),
                       ],
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Creates a new project with a brainstorm task. When the task runs, AI generates a full GDD and initial tasks.',
+                      l10n.brainstormDesc,
                       style: TextStyle(
                           fontSize: 12, color: Colors.grey.shade400),
                     ),
                     const SizedBox(height: 16),
                     TextField(
                       controller: nameController,
-                      decoration: const InputDecoration(
-                        hintText: 'Project name (optional — AI can suggest)',
+                      decoration: InputDecoration(
+                        hintText: l10n.brainstormNameHint,
                         prefixIcon: Icon(Icons.label),
                       ),
                     ),
@@ -83,21 +86,21 @@ class BrainstormSheet {
                     TextField(
                       controller: conceptController,
                       maxLines: 2,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         hintText:
-                            'Concept seed (e.g. "ant colony idle game", "puzzle with gravity")',
+                            l10n.brainstormConceptHint,
                         prefixIcon: Icon(Icons.auto_awesome),
                       ),
                     ),
                     const SizedBox(height: 12),
-                    const Text('Genre',
+                    Text(l10n.genre,
                         style: TextStyle(fontWeight: FontWeight.w600)),
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 6,
                       runSpacing: 6,
                       children: _genres.map((g) {
-                        final label = g.isEmpty ? 'Any' : g;
+                        final label = genreLabel(l10n, g);
                         return ChoiceChip(
                           label: Text(label,
                               style: const TextStyle(fontSize: 12)),
@@ -110,7 +113,7 @@ class BrainstormSheet {
                       }).toList(),
                     ),
                     const SizedBox(height: 12),
-                    const Text('Engine',
+                    Text(l10n.engine,
                         style: TextStyle(fontWeight: FontWeight.w600)),
                     const SizedBox(height: 8),
                     Wrap(
@@ -147,7 +150,7 @@ class BrainstormSheet {
                                   ScaffoldMessenger.of(ctx).showSnackBar(
                                     SnackBar(
                                         content: Text(
-                                            'Enter a concept or project name'),
+                                            l10n.enterConceptOrName),
                                         backgroundColor:
                                             AppColors.warning),
                                   );
@@ -165,7 +168,7 @@ class BrainstormSheet {
                                 Navigator.pop(ctx);
                                 if (result.ok) {
                                   final msg = result.data?['message'] ??
-                                      'Project created with brainstorm task!';
+                                      l10n.brainstormCreated;
                                   ScaffoldMessenger.of(ctx).showSnackBar(
                                     SnackBar(
                                       content: Text(msg),
@@ -177,7 +180,7 @@ class BrainstormSheet {
                                   ScaffoldMessenger.of(ctx).showSnackBar(
                                     SnackBar(
                                       content: Text(result.error ??
-                                          'Failed to brainstorm'),
+                                          l10n.failedToBrainstorm),
                                       backgroundColor: AppColors.error,
                                     ),
                                   );
@@ -191,8 +194,8 @@ class BrainstormSheet {
                                     strokeWidth: 2))
                             : const Icon(Icons.lightbulb),
                         label: Text(submitting
-                            ? 'Creating...'
-                            : 'Brainstorm & Create'),
+                            ? l10n.creating
+                            : l10n.brainstormAndCreate),
                       ),
                     ),
                   ],

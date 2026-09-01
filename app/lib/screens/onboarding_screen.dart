@@ -10,6 +10,7 @@ import '../config.dart';
 import '../services/auth_service.dart';
 import '../services/drive_service.dart';
 import '../main.dart';
+import '../l10n/app_localizations.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -19,6 +20,8 @@ class OnboardingScreen extends StatefulWidget {
 }
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
+  AppLocalizations get l10n => AppLocalizations.of(context)!;
+
   final _pageController = PageController();
   final _urlController = TextEditingController();
   final _setupUrlController = TextEditingController();
@@ -146,7 +149,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     if (!_isValidUrl(url)) {
       setState(() {
         _connectionResult = false;
-        _connectionError = 'Enter a valid URL (e.g. http://192.168.1.100:8000)';
+        _connectionError = l10n.enterValidUrl;
       });
       return;
     }
@@ -177,7 +180,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         setState(() {
           _testing = false;
           _connectionResult = false;
-          _connectionError = 'Server returned status ${response.statusCode}';
+          _connectionError = l10n.serverReturnedStatus(response.statusCode);
         });
       }
     } on TimeoutException {
@@ -185,7 +188,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         setState(() {
           _testing = false;
           _connectionResult = false;
-          _connectionError = 'Connection timed out';
+          _connectionError = l10n.connectionTimedOut;
         });
       }
     } on SocketException catch (e) {
@@ -193,7 +196,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         setState(() {
           _testing = false;
           _connectionResult = false;
-          _connectionError = 'Cannot reach server: ${e.message}';
+          _connectionError = l10n.cannotReachServerWith(e.message);
         });
       }
     } catch (e) {
@@ -201,7 +204,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         setState(() {
           _testing = false;
           _connectionResult = false;
-          _connectionError = 'Error: $e';
+          _connectionError = l10n.errorWithMessage(e);
         });
       }
     }
@@ -311,7 +314,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     TextButton.icon(
                       onPressed: () => _goToPage(_currentPage - 1),
                       icon: const Icon(Icons.arrow_back, size: 18),
-                      label: const Text('Back'),
+                      label: Text(l10n.back),
                       style: TextButton.styleFrom(
                         foregroundColor: Colors.grey.shade400,
                       ),
@@ -321,7 +324,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     TextButton(
                       onPressed: _showSetupInstructions,
                       child: Text(
-                        'Need help setting up?',
+                        l10n.needHelpSettingUp,
                         style: TextStyle(color: Colors.grey.shade500),
                       ),
                     ),
@@ -361,9 +364,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             ),
           ),
           const SizedBox(height: 24),
-          const Center(
+          Center(
             child: Text(
-              'Connect to Your Server',
+              l10n.connectToYourServer,
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
@@ -374,7 +377,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           const SizedBox(height: 8),
           Center(
             child: Text(
-              'Enter the URL of your Auto Game Builder server',
+              l10n.enterServerUrlDesc,
               style: TextStyle(
                 fontSize: 14,
                 color: Colors.grey.shade400,
@@ -388,7 +391,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               children: [
                 const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
                 const SizedBox(width: 8),
-                Text('Detecting server...', style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
+                Text(l10n.detectingServer, style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
               ],
             ),
           ],
@@ -397,10 +400,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           // URL field
           TextField(
             controller: _urlController,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               hintText: 'http://192.168.1.100:8000',
               prefixIcon: Icon(Icons.link),
-              labelText: 'Server URL',
+              labelText: l10n.serverUrl,
             ),
             keyboardType: TextInputType.url,
             textInputAction: TextInputAction.done,
@@ -434,7 +437,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       ),
                     )
                   : const Icon(Icons.wifi_tethering, size: 20),
-              label: Text(_testing ? 'Testing...' : 'Test Connection'),
+              label: Text(_testing ? l10n.testing : l10n.testConnection),
             ),
           ),
           const SizedBox(height: 16),
@@ -467,9 +470,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             ),
           ),
           const SizedBox(height: 24),
-          const Center(
+          Center(
             child: Text(
-              'Connect to Your Server',
+              l10n.connectToYourServer,
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
@@ -480,7 +483,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           const SizedBox(height: 8),
           Center(
             child: Text(
-              'Enter your Worker URL to connect remotely',
+              l10n.enterWorkerUrlDesc,
               style: TextStyle(
                 fontSize: 14,
                 color: Colors.grey.shade400,
@@ -492,10 +495,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           // Worker URL field
           TextField(
             controller: _workerUrlController,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               hintText: 'https://auto-game-builder.you.workers.dev',
               prefixIcon: Icon(Icons.cloud),
-              labelText: 'Worker URL',
+              labelText: l10n.workerUrl,
             ),
             keyboardType: TextInputType.url,
             textInputAction: TextInputAction.done,
@@ -506,7 +509,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           Padding(
             padding: const EdgeInsets.only(left: 4),
             child: Text(
-              'Get this URL from the desktop app or your server admin',
+              l10n.workerUrlHelp,
               style: TextStyle(
                 fontSize: 12,
                 color: Colors.grey.shade500,
@@ -522,7 +525,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: Text(
-                  'OR',
+                  l10n.orSeparator,
                   style: TextStyle(
                     color: Colors.grey.shade600,
                     fontSize: 12,
@@ -537,10 +540,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           // Direct server URL field (for LAN usage)
           TextField(
             controller: _urlController,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               hintText: 'http://192.168.1.100:8000',
               prefixIcon: Icon(Icons.link),
-              labelText: 'Direct Server URL (LAN)',
+              labelText: l10n.directServerUrlLan,
             ),
             keyboardType: TextInputType.url,
             textInputAction: TextInputAction.done,
@@ -583,7 +586,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       ),
                     )
                   : const Icon(Icons.wifi_tethering, size: 20),
-              label: Text(_testing ? 'Testing...' : 'Test Connection'),
+              label: Text(_testing ? l10n.testing : l10n.testConnection),
             ),
           ),
           const SizedBox(height: 16),
@@ -627,9 +630,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             ),
           ),
           const SizedBox(height: 20),
-          const Center(
+          Center(
             child: Text(
-              'Setup Instructions',
+              l10n.setupInstructions,
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
@@ -640,7 +643,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           const SizedBox(height: 8),
           Center(
             child: Text(
-              'Set up the server on your PC first',
+              l10n.setupServerFirst,
               style: TextStyle(
                 fontSize: 14,
                 color: Colors.grey.shade400,
@@ -669,7 +672,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     Icon(Icons.code, size: 18, color: AppColors.info),
                     const SizedBox(width: 8),
                     Text(
-                      'View on GitHub',
+                      l10n.viewOnGitHub,
                       style: TextStyle(
                         fontSize: 14,
                         color: AppColors.info,
@@ -686,29 +689,29 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           ),
           const SizedBox(height: 20),
 
-          _buildStep(1, 'Install Python 3.10+ on your PC'),
-          _buildStep(2, 'Clone the repository:'),
+          _buildStep(1, l10n.setupStepInstallPython),
+          _buildStep(2, l10n.setupStepCloneRepo),
           _buildCodeBlock(
               'git clone https://github.com/Lifecharger/auto-game-builder.git'),
-          _buildStep(3, 'Install dependencies:'),
+          _buildStep(3, l10n.setupStepInstallDeps),
           _buildCodeBlock(
               'cd auto-game-builder\npip install -r server/requirements.txt'),
-          _buildStep(4, 'Run the setup wizard:'),
+          _buildStep(4, l10n.setupStepRunWizard),
           _buildCodeBlock('python setup_wizard.py'),
-          _buildStep(5, 'Start the server:'),
+          _buildStep(5, l10n.setupStepStartServer),
           _buildCodeBlock('python server/main.py'),
           _buildStep(6,
-              'Enter the URL shown in the terminal (e.g. http://192.168.1.100:8000):'),
+              l10n.setupStepEnterUrl),
 
           const SizedBox(height: 16),
 
           // URL field
           TextField(
             controller: _setupUrlController,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               hintText: 'http://192.168.1.100:8000',
               prefixIcon: Icon(Icons.link),
-              labelText: 'Server URL',
+              labelText: l10n.serverUrl,
             ),
             keyboardType: TextInputType.url,
             textInputAction: TextInputAction.done,
@@ -742,7 +745,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       ),
                     )
                   : const Icon(Icons.wifi_tethering, size: 20),
-              label: Text(_testing ? 'Testing...' : 'Test Connection'),
+              label: Text(_testing ? l10n.testing : l10n.testConnection),
             ),
           ),
           const SizedBox(height: 16),
@@ -786,8 +789,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             ),
           ),
           const SizedBox(height: 24),
-          const Text(
-            "You're All Set!",
+          Text(
+            l10n.youreAllSet,
             style: TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.bold,
@@ -796,7 +799,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           ),
           const SizedBox(height: 12),
           Text(
-            'Connected to $_connectedServerName',
+            l10n.connectedTo(_connectedServerName),
             style: TextStyle(
               fontSize: 14,
               color: Colors.grey.shade400,
@@ -823,8 +826,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       Icon(Icons.phone_android,
                           color: AppColors.info, size: 22),
                       const SizedBox(width: 8),
-                      const Text(
-                        'Connect your phone',
+                      Text(
+                        l10n.connectYourPhone,
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -838,7 +841,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   // Worker URL display
                   if (_detectedWorkerUrl.isNotEmpty) ...[
                     Text(
-                      'Worker URL',
+                      l10n.workerUrl,
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.grey.shade500,
@@ -875,7 +878,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                   ClipboardData(text: _detectedWorkerUrl));
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text('Worker URL copied'),
+                                  content: Text(l10n.workerUrlCopied),
                                   backgroundColor: AppColors.success,
                                   duration: Duration(seconds: 2),
                                 ),
@@ -883,7 +886,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             },
                             icon: const Icon(Icons.copy, size: 18),
                             color: Colors.grey.shade400,
-                            tooltip: 'Copy URL',
+                            tooltip: l10n.copyUrl,
                             constraints: const BoxConstraints(),
                             padding: const EdgeInsets.all(4),
                           ),
@@ -892,7 +895,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Enter this URL in the phone app to connect remotely',
+                      l10n.enterUrlInPhoneApp,
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.grey.shade500,
@@ -901,8 +904,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     const SizedBox(height: 16),
                   ] else ...[
                     Text(
-                      'No Worker URL detected in settings.json.\n'
-                      'Set up a Cloudflare Worker to enable remote access.',
+                      l10n.noWorkerUrlDetected,
                       style: TextStyle(
                         fontSize: 13,
                         color: Colors.grey.shade500,
@@ -916,8 +918,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   const SizedBox(height: 12),
 
                   // Play Store section
-                  const Text(
-                    'Scan to install on your phone',
+                  Text(
+                    l10n.scanToInstall,
                     style: TextStyle(
                       fontSize: 13,
                       color: Colors.white70,
@@ -976,8 +978,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 ),
                 elevation: 2,
               ),
-              child: const Text(
-                'Get Started',
+              child: Text(
+                l10n.getStarted,
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -999,7 +1001,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Could not open link'),
+            content: Text(l10n.couldNotOpenLink),
             backgroundColor: AppColors.error,
           ),
         );
@@ -1044,8 +1046,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               Expanded(
                 child: Text(
                   success
-                      ? 'Connection successful!'
-                      : error ?? 'Connection failed',
+                      ? l10n.connectionSuccessful
+                      : error ?? l10n.connectionFailed,
                   style: TextStyle(
                     color: success ? AppColors.success : AppColors.error,
                     fontWeight: FontWeight.w500,
@@ -1069,7 +1071,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   ),
                 ),
                 icon: const Icon(Icons.arrow_forward, size: 18),
-                label: const Text('Continue'),
+                label: Text(l10n.continueLabel),
               ),
             ),
           ],

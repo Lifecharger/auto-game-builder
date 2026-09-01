@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../theme.dart';
+import '../l10n/app_localizations.dart';
 
 /// Freshness indicator shared by every screen that paints cache-hydrated
 /// data: a coloured dot plus "Synced Xm ago" / "Sync failed" / "Connecting...".
@@ -20,14 +21,16 @@ class SyncStatusChip extends StatefulWidget {
   static const _justNowThreshold = Duration(seconds: 10);
 
   /// Human label for the time since [lastSyncedAt]; empty when never synced.
-  static String label(DateTime? lastSyncedAt, {bool failed = false}) {
-    if (failed) return 'Sync failed';
+  static String label(BuildContext context, DateTime? lastSyncedAt,
+      {bool failed = false}) {
+    final l10n = AppLocalizations.of(context)!;
+    if (failed) return l10n.syncFailed;
     if (lastSyncedAt == null) return '';
     final diff = DateTime.now().difference(lastSyncedAt);
-    if (diff < _justNowThreshold) return 'Just now';
-    if (diff.inSeconds < 60) return '${diff.inSeconds}s ago';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    return '${diff.inHours}h ago';
+    if (diff < _justNowThreshold) return l10n.justNow;
+    if (diff.inSeconds < 60) return l10n.timeSecondsAgo(diff.inSeconds);
+    if (diff.inMinutes < 60) return l10n.timeMinutesAgo(diff.inMinutes);
+    return l10n.timeHoursAgo(diff.inHours);
   }
 
   @override
@@ -35,6 +38,8 @@ class SyncStatusChip extends StatefulWidget {
 }
 
 class _SyncStatusChipState extends State<SyncStatusChip> {
+  AppLocalizations get l10n => AppLocalizations.of(context)!;
+
   Timer? _tick;
 
   @override
@@ -53,7 +58,7 @@ class _SyncStatusChipState extends State<SyncStatusChip> {
 
   @override
   Widget build(BuildContext context) {
-    final text = SyncStatusChip.label(widget.lastSyncedAt, failed: widget.failed);
+    final text = SyncStatusChip.label(context, widget.lastSyncedAt, failed: widget.failed);
     final Color dot;
     if (widget.failed) {
       dot = Colors.red;
@@ -72,7 +77,7 @@ class _SyncStatusChipState extends State<SyncStatusChip> {
           decoration: BoxDecoration(shape: BoxShape.circle, color: dot),
         ),
         Text(
-          text.isNotEmpty ? 'Synced $text' : 'Connecting...',
+          text.isNotEmpty ? l10n.syncedAgo(text) : l10n.connecting,
           style: TextStyle(
             fontSize: 11,
             color: Colors.grey.shade400,
@@ -101,6 +106,7 @@ class SyncErrorBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Material(
       color: AppColors.error.withValues(alpha: 0.15),
       child: Padding(
@@ -111,7 +117,7 @@ class SyncErrorBanner extends StatelessWidget {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                'Refresh failed — showing last synced data. $message',
+                l10n.refreshFailedShowingCached(message),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(fontSize: 12),
@@ -123,10 +129,10 @@ class SyncErrorBanner extends StatelessWidget {
                 minimumSize: const Size(48, 48),
                 padding: const EdgeInsets.symmetric(horizontal: 10),
               ),
-              child: const Text('Retry'),
+              child: Text(l10n.retry),
             ),
             IconButton(
-              tooltip: 'Dismiss',
+              tooltip: l10n.dismiss,
               onPressed: onDismiss,
               constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
               icon: const Icon(Icons.close, size: 18),

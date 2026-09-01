@@ -71,7 +71,7 @@ class AppManagerMobile extends StatelessWidget {
         ),
         builder: (context, _) {
           return MaterialApp(
-            title: 'Auto Game Builder',
+            onGenerateTitle: (ctx) => AppLocalizations.of(ctx)!.appTitle,
             debugShowCheckedModeBanner: false,
             theme: buildAppTheme(),
             locale: LocaleService.instance.currentLocale,
@@ -95,6 +95,8 @@ class MainShell extends StatefulWidget {
 }
 
 class _MainShellState extends State<MainShell> with SingleTickerProviderStateMixin {
+  AppLocalizations get l10n => AppLocalizations.of(context)!;
+
   int _currentIndex = 0;
   DateTime? _lastBackPress;
   late final AnimationController _fadeController;
@@ -166,17 +168,17 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
       barrierDismissible: true,
       builder: (ctx) => AlertDialog(
         icon: Icon(Icons.system_update, size: 40, color: AppColors.info),
-        title: const Text('Update Available'),
+        title: Text(l10n.updateAvailable),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'v${UpdateChecker.instance.latestVersion}',
+              l10n.versionWithNumber('${UpdateChecker.instance.latestVersion}'),
               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
             Text(
-              'A new version is available on GitHub.\nPull the latest code and rebuild to update.',
+              l10n.updateAvailableBody,
               style: TextStyle(color: Colors.grey.shade400, fontSize: 14),
               textAlign: TextAlign.center,
             ),
@@ -185,7 +187,7 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Later'),
+            child: Text(l10n.later),
           ),
           FilledButton.icon(
             onPressed: () async {
@@ -198,7 +200,7 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
               }
             },
             icon: const Icon(Icons.download, size: 18),
-            label: const Text('Pull Only'),
+            label: Text(l10n.pullOnly),
           ),
           FilledButton.icon(
             onPressed: () {
@@ -206,7 +208,7 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
               UpdateChecker.instance.launchUpdateAndExit();
             },
             icon: const Icon(Icons.build, size: 18),
-            label: const Text('Pull & Rebuild'),
+            label: Text(l10n.pullAndRebuild),
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.info,
             ),
@@ -244,8 +246,8 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
         _lastBackPress = now;
         HapticFeedback.heavyImpact();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Press back again to exit'),
+          SnackBar(
+            content: Text(l10n.pressBackAgainToExit),
             duration: Duration(seconds: 2),
           ),
         );
@@ -261,14 +263,14 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
             decoration: BoxDecoration(
               color: Colors.red.shade800,
             ),
-            child: const Center(
+            child: Center(
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(Icons.cloud_off, color: Colors.white, size: 14),
                   SizedBox(width: 6),
                   Text(
-                    'Server unreachable',
+                    l10n.serverUnreachable,
                     style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
                   ),
                 ],

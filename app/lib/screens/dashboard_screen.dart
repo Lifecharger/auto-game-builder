@@ -16,6 +16,8 @@ import '../widgets/cached_app_icon.dart';
 import '../widgets/dashboard/brainstorm_sheet.dart';
 import '../widgets/dashboard/create_app_sheet.dart';
 import 'app_detail_screen.dart';
+import '../l10n/app_localizations.dart';
+import '../utils/l10n_labels.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -25,6 +27,8 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingObserver {
+  AppLocalizations get l10n => AppLocalizations.of(context)!;
+
   Map<String, String?> _installedVersions = {};
   Timer? _pollTimer;
   bool _appInForeground = true;
@@ -164,14 +168,14 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       if (force) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(hasError
-              ? 'Force refresh failed: ${state.error}'
-              : 'Refreshed from server'),
+              ? l10n.forceRefreshFailed('${state.error}')
+              : l10n.refreshedFromServer),
           backgroundColor:
               hasError ? AppColors.error : AppColors.success,
           duration: Duration(seconds: hasError ? 4 : 2),
           action: hasError
               ? SnackBarAction(
-                  label: 'Retry',
+                  label: l10n.retry,
                   onPressed: () => _refresh(force: true),
                 )
               : null,
@@ -196,7 +200,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       if (resp.statusCode != 200) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Scan failed: server returned ${resp.statusCode}'),
+            content: Text(l10n.scanFailedStatus(resp.statusCode)),
             backgroundColor: AppColors.error,
           ),
         );
@@ -208,7 +212,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       final skipped = data['skipped'] ?? 0;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Scanned $found folders: $imported imported, $skipped skipped'),
+          content: Text(l10n.scanResult(found, imported, skipped)),
           backgroundColor: imported > 0 ? AppColors.success : AppColors.info,
         ),
       );
@@ -217,7 +221,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Scan error: $e'),
+            content: Text(l10n.scanError(e)),
             backgroundColor: AppColors.error,
           ),
         );
@@ -250,24 +254,24 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Dashboard'),
+            Text(l10n.dashboard),
             SyncStatusChip(lastSyncedAt: _lastSyncedAt, failed: _syncFailed),
           ],
         ),
         actions: [
           IconButton(
             icon: const Icon(Icons.radar),
-            tooltip: 'Scan for projects',
+            tooltip: l10n.scanForProjects,
             onPressed: _scanProjects,
           ),
           IconButton(
             icon: const Icon(Icons.cloud_sync),
-            tooltip: 'Force refresh from server (clears local cache)',
+            tooltip: l10n.forceRefreshTooltip,
             onPressed: _forceRefresh,
           ),
           IconButton(
             icon: const Icon(Icons.refresh),
-            tooltip: 'Refresh',
+            tooltip: l10n.refresh,
             onPressed: () {
               HapticFeedback.lightImpact();
               _refresh();
@@ -305,8 +309,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                 children: [
                   Icon(Icons.wifi_off, size: 64, color: Colors.red.shade400),
                   const SizedBox(height: 16),
-                  const Text(
-                    'Cannot reach server',
+                  Text(
+                    l10n.cannotReachServer,
                     style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 8),
@@ -322,7 +326,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                   ElevatedButton.icon(
                     onPressed: _refresh,
                     icon: const Icon(Icons.refresh),
-                    label: const Text('Retry'),
+                    label: Text(l10n.retry),
                   ),
                 ],
               ),
@@ -354,20 +358,20 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                           children: [
                             Icon(Icons.rocket_launch, size: 64, color: Colors.grey.shade600),
                             const SizedBox(height: 16),
-                            const Text(
-                              'No apps yet',
+                            Text(
+                              l10n.noAppsYet,
                               style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w600),
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              'Create your first app to get started',
+                              l10n.createFirstApp,
                               style: TextStyle(color: Colors.grey.shade400, fontSize: 14),
                             ),
                             const SizedBox(height: 24),
                             FilledButton.icon(
                               onPressed: () => _showCreateAppSheet(),
                               icon: const Icon(Icons.add),
-                              label: const Text('Create App'),
+                              label: Text(l10n.createApp),
                             ),
                           ],
                         ),
@@ -391,12 +395,12 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                                 Icon(Icons.check_circle_outline, size: 48, color: Colors.grey.shade600),
                                 const SizedBox(height: 12),
                                 Text(
-                                  'All apps are completed or postponed',
+                                  l10n.allAppsCompletedOrPostponed,
                                   style: TextStyle(color: Colors.grey.shade400, fontSize: 14),
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  'Expand the folders below or create a new app',
+                                  l10n.expandFoldersOrCreate,
                                   style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
                                 ),
                               ],
@@ -434,14 +438,14 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                               color: AppColors.warning,
                             ),
                             title: Text(
-                              'Postponed (${postponedApps.length})',
+                              l10n.postponedCount(postponedApps.length),
                               style: const TextStyle(
                                 fontWeight: FontWeight.w600,
                                 fontSize: 15,
                               ),
                             ),
                             subtitle: Text(
-                              'On hold',
+                              l10n.onHold,
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.grey.shade500,
@@ -482,14 +486,14 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                               color: AppColors.success,
                             ),
                             title: Text(
-                              'Completed (${completedApps.length})',
+                              l10n.completedCount(completedApps.length),
                               style: const TextStyle(
                                 fontWeight: FontWeight.w600,
                                 fontSize: 15,
                               ),
                             ),
                             subtitle: Text(
-                              'Maintenance only',
+                              l10n.maintenanceOnly,
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.grey.shade500,
@@ -610,6 +614,7 @@ class _AppCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final pendingTasks = taskStatus['pending'] ?? 0;
     final inProgressTasks = taskStatus['in_progress'] ?? 0;
     final completedTasks = taskStatus['completed'] ?? 0;
@@ -672,8 +677,8 @@ class _AppCard extends StatelessWidget {
                   if (appStatus != _AppStatus.active)
                     ListTile(
                       leading: Icon(Icons.replay, color: AppColors.info),
-                      title: const Text('Move back to Active'),
-                      subtitle: const Text('Resume active development'),
+                      title: Text(l10n.moveBackToActive),
+                      subtitle: Text(l10n.resumeActiveDevelopment),
                       onTap: () {
                         Navigator.pop(ctx);
                         if (isCompleted) {
@@ -686,8 +691,8 @@ class _AppCard extends StatelessWidget {
                   if (!isCompleted)
                     ListTile(
                       leading: Icon(Icons.check_circle_outline, color: AppColors.success),
-                      title: const Text('Mark as Completed'),
-                      subtitle: const Text('Move to completed folder'),
+                      title: Text(l10n.markAsCompleted),
+                      subtitle: Text(l10n.moveToCompletedFolder),
                       onTap: () {
                         Navigator.pop(ctx);
                         onToggleCompleted();
@@ -696,8 +701,8 @@ class _AppCard extends StatelessWidget {
                   if (!isPostponed)
                     ListTile(
                       leading: Icon(Icons.pause_circle_outline, color: AppColors.warning),
-                      title: const Text('Postpone'),
-                      subtitle: const Text('Put on hold for later'),
+                      title: Text(l10n.postpone),
+                      subtitle: Text(l10n.putOnHoldForLater),
                       onTap: () {
                         Navigator.pop(ctx);
                         onTogglePostponed();
@@ -724,7 +729,7 @@ class _AppCard extends StatelessWidget {
                       }
                     : null,
                 child: Tooltip(
-                  message: 'View issues',
+                  message: l10n.viewIssues,
                   child: Stack(
                     clipBehavior: Clip.none,
                     children: [
@@ -774,7 +779,7 @@ class _AppCard extends StatelessWidget {
                       children: [
                         Flexible(
                           child: Text(
-                            'v${app.currentVersion}',
+                            l10n.versionWithNumber(app.currentVersion),
                             style: TextStyle(
                               color: Colors.grey.shade400,
                               fontSize: 13,
@@ -784,7 +789,7 @@ class _AppCard extends StatelessWidget {
                         ),
                         if (hasPackageName) ...[
                           const SizedBox(width: 6),
-                          _installedBadge(),
+                          _installedBadge(context),
                         ],
                         const SizedBox(width: 6),
                         Text(
@@ -823,7 +828,7 @@ class _AppCard extends StatelessWidget {
                       const SizedBox(width: 6),
                       Flexible(
                         child: Text(
-                          displayStatus,
+                          appStatusLabel(l10n, displayStatus),
                           style: TextStyle(
                             color: AppColors.statusColor(displayStatus),
                             fontSize: 14,
@@ -896,7 +901,8 @@ class _AppCard extends StatelessWidget {
     );
   }
 
-  Widget _installedBadge() {
+  Widget _installedBadge(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     if (installedVersion == null) {
       // Not installed on this device - yellow
       return Container(
@@ -906,7 +912,7 @@ class _AppCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(4),
         ),
         child: Text(
-          'not installed',
+          l10n.notInstalled,
           style: TextStyle(fontSize: 10, color: AppColors.warning, fontWeight: FontWeight.w500),
         ),
       );
@@ -935,7 +941,7 @@ class _AppCard extends StatelessWidget {
           ),
           const SizedBox(width: 3),
           Text(
-            isUpToDate ? 'installed' : 'v$installedVersion',
+            isUpToDate ? l10n.installed : l10n.versionWithNumber('$installedVersion'),
             style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.w500),
           ),
         ],
@@ -952,6 +958,7 @@ class _TaskSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     int total = 0, pending = 0, inProgress = 0, completed = 0, built = 0, failed = 0;
     for (final app in apps) {
       final counts = app.taskStatus;
@@ -978,10 +985,10 @@ class _TaskSummaryCard extends StatelessWidget {
               children: [
                 Icon(Icons.analytics_outlined, size: 18, color: AppColors.accent),
                 const SizedBox(width: 8),
-                const Text('Task Overview',
+                Text(l10n.taskOverview,
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                 const Spacer(),
-                Text('$done / $total done',
+                Text(l10n.doneOfTotal(done, total),
                     style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
               ],
             ),
@@ -1012,13 +1019,14 @@ class _TaskSummaryCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _stat('Pending', pending, AppColors.warning),
-                _stat('Active', inProgress, AppColors.info),
-                _stat('Completed', completed, AppColors.success),
-                _stat('Built', built, const Color(0xFF9B59B6)),
+                _stat(context, l10n.statusPending, pending, AppColors.warning),
+                _stat(context, l10n.statusActive, inProgress, AppColors.info),
+                _stat(context, l10n.statusCompleted, completed, AppColors.success),
+                _stat(context, l10n.statusBuilt, built, const Color(0xFF9B59B6)),
                 if (failed > 0)
                   _stat(
-                    'Failed',
+                    context,
+                    l10n.failed,
                     failed,
                     AppColors.error,
                     onTap: () => _openFailedIssues(context),
@@ -1040,7 +1048,9 @@ class _TaskSummaryCard extends StatelessWidget {
     context.read<AppState>().requestIssuesForApp(target.id, statusFilter: 'failed');
   }
 
-  Widget _stat(String label, int count, Color color, {VoidCallback? onTap}) {
+  Widget _stat(BuildContext context, String label, int count, Color color,
+      {VoidCallback? onTap}) {
+    final l10n = AppLocalizations.of(context)!;
     final column = Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -1052,7 +1062,7 @@ class _TaskSummaryCard extends StatelessWidget {
     );
     if (onTap == null) return column;
     return Tooltip(
-      message: 'View failed tasks',
+      message: l10n.viewFailedTasks,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(8),
@@ -1086,18 +1096,20 @@ class _AttentionChip extends StatelessWidget {
     this.onTap,
   });
 
-  String get _label {
+  String _label(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final parts = <String>[
-      if (failed > 0) '$failed failed',
-      if (urgent > 0) '$urgent urgent',
-      if (blocked > 0) '$blocked blocked',
-      if (buildFailed) 'build failed',
+      if (failed > 0) l10n.failedCountLabel(failed),
+      if (urgent > 0) l10n.urgentCountLabel(urgent),
+      if (blocked > 0) l10n.blockedCountLabel(blocked),
+      if (buildFailed) l10n.buildFailedLabel,
     ];
     return parts.join(' · ');
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final color = (failed > 0 || buildFailed) ? AppColors.error : AppColors.warning;
     final chip = Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -1113,7 +1125,7 @@ class _AttentionChip extends StatelessWidget {
           const SizedBox(width: 4),
           Flexible(
             child: Text(
-              _label,
+              _label(context),
               style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600),
               overflow: TextOverflow.ellipsis,
             ),
@@ -1123,7 +1135,7 @@ class _AttentionChip extends StatelessWidget {
     );
     if (onTap == null) return chip;
     return Tooltip(
-      message: 'View failed tasks',
+      message: l10n.viewFailedTasks,
       child: InkWell(
         onTap: () {
           HapticFeedback.lightImpact();
@@ -1201,9 +1213,10 @@ class _UploadTrackChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final key = track.toLowerCase();
     final uploaded = _knownTracks.contains(key);
-    final label = uploaded ? key : 'not yet uploaded';
+    final label = uploaded ? key : l10n.notYetUploaded;
     final color = uploaded ? _trackColor(key) : Colors.grey.shade500;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),

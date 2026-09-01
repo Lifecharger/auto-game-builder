@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../services/api_service.dart';
 import '../services/app_state.dart';
 import '../theme.dart';
+import '../l10n/app_localizations.dart';
 
 class LogsScreen extends StatefulWidget {
   const LogsScreen({super.key});
@@ -14,6 +15,8 @@ class LogsScreen extends StatefulWidget {
 }
 
 class _LogsScreenState extends State<LogsScreen> with WidgetsBindingObserver {
+  AppLocalizations get l10n => AppLocalizations.of(context)!;
+
   List<dynamic> _logs = [];
   bool _loading = false;
   String? _error;
@@ -56,7 +59,7 @@ class _LogsScreenState extends State<LogsScreen> with WidgetsBindingObserver {
           _logs = result.data!;
           _error = null;
         } else if (_logs.isEmpty) {
-          _error = result.error ?? 'Failed to load logs';
+          _error = result.error ?? l10n.failedToLoadLogs;
         }
         _loading = false;
         if (!silent) _expandedIndex = null;
@@ -105,10 +108,10 @@ class _LogsScreenState extends State<LogsScreen> with WidgetsBindingObserver {
       final dt = DateTime.parse(ts);
       final now = DateTime.now();
       final diff = now.difference(dt);
-      if (diff.inMinutes < 1) return 'just now';
-      if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-      if (diff.inHours < 24) return '${diff.inHours}h ago';
-      return '${diff.inDays}d ago';
+      if (diff.inMinutes < 1) return l10n.timeJustNow;
+      if (diff.inMinutes < 60) return l10n.timeMinutesAgo(diff.inMinutes);
+      if (diff.inHours < 24) return l10n.timeHoursAgo(diff.inHours);
+      return l10n.timeDaysAgo(diff.inDays);
     } catch (e) {
       debugPrint('Failed to parse timestamp "$ts": $e');
       return ts;
@@ -121,7 +124,7 @@ class _LogsScreenState extends State<LogsScreen> with WidgetsBindingObserver {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Logs'),
+        title: Text(l10n.logs),
         actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _loadLogs)],
       ),
       body: Column(
@@ -130,12 +133,12 @@ class _LogsScreenState extends State<LogsScreen> with WidgetsBindingObserver {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: DropdownButtonFormField<int>(
               value: _selectedAppId,
-              decoration: const InputDecoration(
-                hintText: 'All apps', prefixIcon: Icon(Icons.filter_list),
+              decoration: InputDecoration(
+                hintText: l10n.allAppsHint, prefixIcon: Icon(Icons.filter_list),
                 contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
               dropdownColor: AppColors.bgCard,
               items: [
-                const DropdownMenuItem<int>(value: null, child: Text('All Apps')),
+                DropdownMenuItem<int>(value: null, child: Text(l10n.allApps)),
                 ...apps.map((app) => DropdownMenuItem(value: app.id, child: Text(app.name))),
               ],
               onChanged: (val) {
@@ -162,7 +165,7 @@ class _LogsScreenState extends State<LogsScreen> with WidgetsBindingObserver {
                             ElevatedButton.icon(
                               onPressed: _loadLogs,
                               icon: const Icon(Icons.refresh),
-                              label: const Text('Retry'),
+                              label: Text(l10n.retry),
                             ),
                           ],
                         ),
@@ -171,9 +174,9 @@ class _LogsScreenState extends State<LogsScreen> with WidgetsBindingObserver {
                     color: AppColors.accent,
                     onRefresh: _loadLogs,
                     child: _logs.isEmpty
-                        ? ListView(children: const [
+                        ? ListView(children: [
                             SizedBox(height: 200),
-                            Center(child: Text('No logs found',
+                            Center(child: Text(l10n.noLogsFound,
                               style: TextStyle(color: Colors.grey, fontSize: 16)))])
                         : ListView.builder(
                             padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -308,7 +311,7 @@ class _LogsScreenState extends State<LogsScreen> with WidgetsBindingObserver {
                                               child: Column(
                                                 crossAxisAlignment: CrossAxisAlignment.start,
                                                 children: [
-                                                  Text('Summary', style: TextStyle(fontSize: 11, color: AppColors.info, fontWeight: FontWeight.w600)),
+                                                  Text(l10n.summary, style: TextStyle(fontSize: 11, color: AppColors.info, fontWeight: FontWeight.w600)),
                                                   const SizedBox(height: 4),
                                                   SelectableText(summary, style: TextStyle(fontSize: 13, color: Colors.grey.shade200, height: 1.4)),
                                                 ],
@@ -327,7 +330,7 @@ class _LogsScreenState extends State<LogsScreen> with WidgetsBindingObserver {
                                               child: Column(
                                                 crossAxisAlignment: CrossAxisAlignment.start,
                                                 children: [
-                                                  Text('Details', style: TextStyle(fontSize: 11, color: Colors.grey.shade400, fontWeight: FontWeight.w600)),
+                                                  Text(l10n.details, style: TextStyle(fontSize: 11, color: Colors.grey.shade400, fontWeight: FontWeight.w600)),
                                                   const SizedBox(height: 4),
                                                   SelectableText(details, style: TextStyle(fontSize: 13, fontFamily: 'monospace', color: Colors.grey.shade200, height: 1.5)),
                                                 ],
@@ -346,7 +349,7 @@ class _LogsScreenState extends State<LogsScreen> with WidgetsBindingObserver {
                                               child: Column(
                                                 crossAxisAlignment: CrossAxisAlignment.start,
                                                 children: [
-                                                  Text('Output', style: TextStyle(fontSize: 11, color: Colors.grey.shade400, fontWeight: FontWeight.w600)),
+                                                  Text(l10n.output, style: TextStyle(fontSize: 11, color: Colors.grey.shade400, fontWeight: FontWeight.w600)),
                                                   const SizedBox(height: 4),
                                                   SelectableText(output, style: TextStyle(fontSize: 13, fontFamily: 'monospace', color: Colors.grey.shade200, height: 1.5)),
                                                 ],
@@ -361,14 +364,14 @@ class _LogsScreenState extends State<LogsScreen> with WidgetsBindingObserver {
                                               runSpacing: 4,
                                               children: [
                                                 if (source.isNotEmpty)
-                                                  Text('Agent: $source', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                                                  Text(l10n.agentLabelWith(source), style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
                                                 if (taskTitle.isNotEmpty)
-                                                  Text('Task: $taskTitle', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                                                  Text(l10n.taskLabelWith(taskTitle), style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
                                                 if (exitCode.isNotEmpty)
-                                                  Text('Exit: $exitCode', style: TextStyle(fontSize: 12,
+                                                  Text(l10n.exitLabelWith(exitCode), style: TextStyle(fontSize: 12,
                                                     color: exitCode == '0' ? AppColors.success : AppColors.error)),
                                                 if (duration.isNotEmpty)
-                                                  Text('Duration: ${duration}s', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                                                  Text(l10n.durationLabelWith(duration), style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
                                               ],
                                             ),
                                           ],

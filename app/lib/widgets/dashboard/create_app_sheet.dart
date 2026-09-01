@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
 import '../../theme.dart';
+import '../../l10n/app_localizations.dart';
 
 /// Bottom sheet that creates a new app by name + type + AI agent.
 ///
@@ -8,18 +9,18 @@ import '../../theme.dart';
 /// disposed when the sheet closes, and invokes [onCreated] only on a
 /// successful API response so the caller can refresh its list.
 class CreateAppSheet {
-  static String _appTypeHint(String type) {
+  static String _appTypeHint(AppLocalizations l10n, String type) {
     switch (type) {
       case 'flutter':
-        return 'Mobile/desktop app with Google Play deploy support';
+        return l10n.appTypeFlutterDesc;
       case 'godot':
-        return 'Game project with export targets (Windows, Android, Web)';
+        return l10n.appTypeGodotDesc;
       case 'python':
-        return 'Python project with script runner and pip management';
+        return l10n.appTypePythonDesc;
       case 'web':
-        return 'Web app with static hosting deploy support';
+        return l10n.appTypeWebDesc;
       case 'phaser':
-        return 'Phaser 3 + TypeScript game, wrapped as Android AAB via Capacitor';
+        return l10n.appTypePhaserDesc;
       default:
         return '';
     }
@@ -29,6 +30,7 @@ class CreateAppSheet {
     BuildContext context, {
     required VoidCallback onCreated,
   }) {
+    final l10n = AppLocalizations.of(context)!;
     final nameController = TextEditingController();
     String appType = 'flutter';
     String agent = 'claude';
@@ -57,19 +59,19 @@ class CreateAppSheet {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('New App',
+                    Text(l10n.newApp,
                         style: TextStyle(
                             fontSize: 20, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 16),
                     TextField(
                       controller: nameController,
-                      decoration: const InputDecoration(
-                        hintText: 'App Name (e.g. My Game)',
+                      decoration: InputDecoration(
+                        hintText: l10n.appNameHint,
                         prefixIcon: Icon(Icons.apps),
                       ),
                     ),
                     const SizedBox(height: 12),
-                    const Text('Type',
+                    Text(l10n.type,
                         style: TextStyle(fontWeight: FontWeight.w600)),
                     const SizedBox(height: 8),
                     Wrap(
@@ -94,12 +96,12 @@ class CreateAppSheet {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      _appTypeHint(appType),
+                      _appTypeHint(l10n, appType),
                       style: TextStyle(
                           fontSize: 12, color: Colors.grey.shade500),
                     ),
                     const SizedBox(height: 12),
-                    const Text('AI Agent',
+                    Text(l10n.aiAgent,
                         style: TextStyle(fontWeight: FontWeight.w600)),
                     const SizedBox(height: 8),
                     Wrap(
@@ -129,7 +131,7 @@ class CreateAppSheet {
                                 if (name.isEmpty) {
                                   ScaffoldMessenger.of(ctx).showSnackBar(
                                     SnackBar(
-                                        content: Text('Name is required'),
+                                        content: Text(l10n.nameIsRequired),
                                         backgroundColor: AppColors.warning),
                                   );
                                   return;
@@ -144,9 +146,9 @@ class CreateAppSheet {
                                 ScaffoldMessenger.of(ctx).showSnackBar(
                                   SnackBar(
                                     content: Text(result.ok
-                                        ? 'App created!'
+                                        ? l10n.appCreated
                                         : result.error ??
-                                            'Failed to create app'),
+                                            l10n.failedToCreateApp),
                                     backgroundColor: result.ok
                                         ? AppColors.success
                                         : AppColors.error,
@@ -162,7 +164,7 @@ class CreateAppSheet {
                                     strokeWidth: 2))
                             : const Icon(Icons.add),
                         label: Text(
-                            submitting ? 'Creating...' : 'Create App'),
+                            submitting ? l10n.creating : l10n.createApp),
                       ),
                     ),
                   ],

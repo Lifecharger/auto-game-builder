@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../config.dart';
 import '../services/api_service.dart';
 import '../theme.dart';
+import '../l10n/app_localizations.dart';
 
 class AppBuildCard extends StatefulWidget {
   final int appId;
@@ -27,6 +28,8 @@ class AppBuildCard extends StatefulWidget {
 }
 
 class _AppBuildCardState extends State<AppBuildCard> {
+  AppLocalizations get l10n => AppLocalizations.of(context)!;
+
   Map<String, dynamic>? _deployStatus;
   bool _deploying = false;
   int _deployPollGeneration = 0;
@@ -98,7 +101,7 @@ class _AppBuildCardState extends State<AppBuildCard> {
     if (!result.ok) {
       setState(() {
         _targetsLoading = false;
-        _targetsError = result.error ?? 'Could not load build targets';
+        _targetsError = result.error ?? l10n.couldNotLoadBuildTargets;
       });
       return;
     }
@@ -153,19 +156,19 @@ class _AppBuildCardState extends State<AppBuildCard> {
         builder: (ctx) => AlertDialog(
           backgroundColor: AppColors.bgCard,
           icon: Icon(Icons.warning_amber, size: 40, color: AppColors.error),
-          title: const Text('Deploy to Production?'),
-          content: const Text(
-            'This will build and publish to ALL users on Google Play.\n\nMake sure you have tested on internal/beta first.',
+          title: Text(l10n.deployToProductionTitle),
+          content: Text(
+            l10n.deployToProductionBody,
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel'),
+              child: Text(l10n.cancel),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(ctx, true),
               style: FilledButton.styleFrom(backgroundColor: AppColors.error),
-              child: const Text('Deploy to Production'),
+              child: Text(l10n.deployToProduction),
             ),
           ],
         ),
@@ -205,7 +208,7 @@ class _AppBuildCardState extends State<AppBuildCard> {
             _deploying = false;
             _deployStatus = {
               'phase': 'failed',
-              'message': 'Build polling timed out after 30 minutes - check server logs',
+              'message': l10n.buildPollingTimedOut,
             };
           });
         }
@@ -235,11 +238,11 @@ class _AppBuildCardState extends State<AppBuildCard> {
       setState(() {
         _deployStatus = {
           'phase': 'failed',
-          'message': 'Build cancelled',
+          'message': l10n.buildCancelled,
         };
       });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Build cancelled'),
+        content: Text(l10n.buildCancelled),
         backgroundColor: AppColors.success,
       ));
     }
@@ -257,7 +260,7 @@ class _AppBuildCardState extends State<AppBuildCard> {
       if (mounted) {
         final ok = response.statusCode == 200;
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(ok ? 'Re-upload started' : 'Failed to start re-upload'),
+          content: Text(ok ? l10n.reuploadStarted : l10n.failedToStartReupload),
           backgroundColor: ok ? AppColors.success : AppColors.error,
         ));
         if (ok) _pollDeployStatus();
@@ -266,7 +269,7 @@ class _AppBuildCardState extends State<AppBuildCard> {
       if (mounted) {
         setState(() => _deploying = false);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Error: $e'),
+          content: Text(l10n.errorWithMessage(e)),
           backgroundColor: AppColors.error,
         ));
       }
@@ -290,13 +293,13 @@ class _AppBuildCardState extends State<AppBuildCard> {
               children: [
                 Icon(Icons.build_circle, color: AppColors.accent),
                 const SizedBox(width: 8),
-                const Text('Build & Deploy', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                Text(l10n.buildAndDeploy, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ],
             ),
             const SizedBox(height: 14),
 
             // Build target chips
-            Text('Build Target', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade400)),
+            Text(l10n.buildTarget, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade400)),
             const SizedBox(height: 8),
             if (_targetsLoading)
               const Padding(
@@ -310,12 +313,12 @@ class _AppBuildCardState extends State<AppBuildCard> {
                   TextButton.icon(
                     onPressed: _loadTargetsAndPrefs,
                     icon: const Icon(Icons.refresh, size: 16),
-                    label: const Text('Retry'),
+                    label: Text(l10n.retry),
                   ),
                 ],
               )
             else if (_targets.isEmpty)
-              Text('No build targets for ${widget.appType} projects.',
+              Text(l10n.noBuildTargetsFor(widget.appType),
                   style: TextStyle(fontSize: 12, color: Colors.grey.shade500))
             else
             Wrap(
@@ -384,7 +387,7 @@ class _AppBuildCardState extends State<AppBuildCard> {
                       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
                     const SizedBox(width: 4),
-                    Text('Upload to Google Play',
+                    Text(l10n.uploadToGooglePlay,
                         style: TextStyle(fontSize: 13,
                             color: _buildTarget == 'aab' ? Colors.grey.shade200 : Colors.grey.shade600)),
                   ],
@@ -401,11 +404,11 @@ class _AppBuildCardState extends State<AppBuildCard> {
                 child: SizedBox(
                   width: double.infinity,
                   child: SegmentedButton<String>(
-                    segments: const [
-                      ButtonSegment(value: 'internal', label: Text('Internal')),
-                      ButtonSegment(value: 'alpha', label: Text('Alpha')),
-                      ButtonSegment(value: 'beta', label: Text('Beta')),
-                      ButtonSegment(value: 'production', label: Text('Prod')),
+                    segments: [
+                      ButtonSegment(value: 'internal', label: Text(l10n.trackInternal)),
+                      ButtonSegment(value: 'alpha', label: Text(l10n.trackAlpha)),
+                      ButtonSegment(value: 'beta', label: Text(l10n.trackBeta)),
+                      ButtonSegment(value: 'production', label: Text(l10n.trackProd)),
                     ],
                     selected: {_buildTrack},
                     onSelectionChanged: isActive ? null : (set) {
@@ -427,7 +430,7 @@ class _AppBuildCardState extends State<AppBuildCard> {
               if (_buildTrack == 'production')
                 Padding(
                   padding: const EdgeInsets.only(top: 6),
-                  child: Text('Warning: This publishes to all users!',
+                  child: Text(l10n.warningPublishesToAll,
                       style: TextStyle(color: AppColors.error, fontSize: 11)),
                 ),
             ],
@@ -441,7 +444,7 @@ class _AppBuildCardState extends State<AppBuildCard> {
                   onPressed: _targetsLoading || _targets.isEmpty ? null : () => _startBuild(),
                   icon: const Icon(Icons.rocket_launch, size: 18),
                   label: Text(_uploadAfterBuild && _buildTarget == 'aab'
-                      ? 'Build & Deploy' : 'Build'),
+                      ? l10n.buildAndDeploy : l10n.build),
                   style: FilledButton.styleFrom(
                     backgroundColor: _buildTrack == 'production' && _uploadAfterBuild && _buildTarget == 'aab'
                         ? AppColors.error : AppColors.accent,
@@ -468,7 +471,7 @@ class _AppBuildCardState extends State<AppBuildCard> {
                   TextButton.icon(
                     onPressed: _cancelBuild,
                     icon: const Icon(Icons.stop_circle_outlined, size: 16),
-                    label: const Text('Stop'),
+                    label: Text(l10n.stop),
                     style: TextButton.styleFrom(
                       foregroundColor: AppColors.error,
                       padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -506,7 +509,7 @@ class _AppBuildCardState extends State<AppBuildCard> {
                   FilledButton.tonalIcon(
                     onPressed: _deploying ? null : () => _retryUpload(),
                     icon: const Icon(Icons.refresh, size: 18),
-                    label: const Text('Retry Upload'),
+                    label: Text(l10n.retryUpload),
                     style: FilledButton.styleFrom(
                       backgroundColor: AppColors.warning.withValues(alpha: 0.2),
                     ),
@@ -519,16 +522,16 @@ class _AppBuildCardState extends State<AppBuildCard> {
                         builder: (ctx) => AlertDialog(
                           backgroundColor: AppColors.bgCard,
                           icon: Icon(Icons.replay, color: AppColors.warning),
-                          title: const Text('Rebuild?'),
-                          content: const Text('Start a new build from scratch?'),
+                          title: Text(l10n.rebuildTitle),
+                          content: Text(l10n.rebuildBody),
                           actions: [
                             TextButton(
                               onPressed: () => Navigator.pop(ctx, false),
-                              child: const Text('Cancel'),
+                              child: Text(l10n.cancel),
                             ),
                             FilledButton(
                               onPressed: () => Navigator.pop(ctx, true),
-                              child: const Text('Rebuild'),
+                              child: Text(l10n.rebuild),
                             ),
                           ],
                         ),
@@ -536,7 +539,7 @@ class _AppBuildCardState extends State<AppBuildCard> {
                       if (confirm == true) _startBuild();
                     },
                     icon: const Icon(Icons.replay, size: 18),
-                    label: const Text('Rebuild'),
+                    label: Text(l10n.rebuild),
                   ),
                 ],
               ),

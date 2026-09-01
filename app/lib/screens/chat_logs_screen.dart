@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme.dart';
 import 'reports_screen.dart';
 import 'logs_screen.dart';
+import '../l10n/app_localizations.dart';
 
 /// Bottom-nav destination hosting two tabs: in-game **Reports** (bug reports /
 /// suggestions pulled from the game-reports worker) and build **Logs**.
@@ -19,6 +20,8 @@ class ChatLogsScreen extends StatefulWidget {
 
 class _ChatLogsScreenState extends State<ChatLogsScreen>
     with SingleTickerProviderStateMixin {
+  AppLocalizations get l10n => AppLocalizations.of(context)!;
+
   late final TabController _tabController;
 
   @override
@@ -53,9 +56,9 @@ class _ChatLogsScreenState extends State<ChatLogsScreen>
               indicatorColor: AppColors.accent,
               labelColor: AppColors.accent,
               unselectedLabelColor: Colors.grey,
-              tabs: const [
-                Tab(icon: Icon(Icons.feedback_outlined, size: 20), text: 'Reports'),
-                Tab(icon: Icon(Icons.article_outlined, size: 20), text: 'Logs'),
+              tabs: [
+                Tab(icon: Icon(Icons.feedback_outlined, size: 20), text: l10n.chatLogs),
+                Tab(icon: Icon(Icons.article_outlined, size: 20), text: l10n.logs),
               ],
             ),
           ),

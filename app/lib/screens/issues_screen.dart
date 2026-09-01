@@ -12,6 +12,8 @@ import '../widgets/create_task_sheet.dart';
 import '../widgets/issues/issue_task_card.dart';
 import '../widgets/sync_status_chip.dart';
 import '../widgets/task_filters_widget.dart';
+import '../l10n/app_localizations.dart';
+import '../utils/l10n_labels.dart';
 
 class IssuesScreen extends StatefulWidget {
   const IssuesScreen({super.key});
@@ -21,6 +23,8 @@ class IssuesScreen extends StatefulWidget {
 }
 
 class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver {
+  AppLocalizations get l10n => AppLocalizations.of(context)!;
+
   List<dynamic> _allItems = [];
   bool _loading = false;
   String? _loadError;
@@ -132,49 +136,49 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
     // Generate suggestions based on patterns
     if (uiBugs >= 3) {
       suggestions.add({
-        'label': 'UX Polish',
+        'label': l10n.suggestUxPolish,
         'prompt': 'Many UI-related tasks were worked on recently. Suggest ideas for further UX improvements, better user flows, and visual polish to build on those fixes.',
       });
     }
 
     if (securityTasks >= 2) {
       suggestions.add({
-        'label': 'Security Hardening',
+        'label': l10n.suggestSecurityHardening,
         'prompt': 'There are security-related tasks in this app. Suggest additional security improvements like input validation, secure storage, API hardening, and data protection.',
       });
     }
 
     if (perfTasks >= 2) {
       suggestions.add({
-        'label': 'Performance Boost',
+        'label': l10n.suggestPerformanceBoost,
         'prompt': 'Performance-related work has been done on this app. Suggest further optimizations like lazy loading, caching strategies, reducing rebuilds, and memory efficiency.',
       });
     }
 
     if (failedCount >= 2) {
       suggestions.add({
-        'label': 'Fix Failures',
+        'label': l10n.suggestFixFailures,
         'prompt': 'Several tasks have failed status. Suggest ideas for improving reliability, adding error recovery, better error handling, and automated testing to prevent failures.',
       });
     }
 
     if (featureTasks >= 3) {
       suggestions.add({
-        'label': 'Feature Integration',
+        'label': l10n.suggestFeatureIntegration,
         'prompt': 'Multiple features have been added. Suggest ideas for better integration between existing features, reducing complexity, and improving feature discoverability.',
       });
     }
 
     if (totalCompleted >= 10 && pendingCount == 0) {
       suggestions.add({
-        'label': 'Next Milestone',
+        'label': l10n.suggestNextMilestone,
         'prompt': 'Many tasks are completed with nothing pending. Suggest ideas for the next development milestone, including new capabilities, polish, and user-requested features.',
       });
     }
 
     if (pendingCount >= 5) {
       suggestions.add({
-        'label': 'Task Prioritization',
+        'label': l10n.suggestTaskPrioritization,
         'prompt': 'There are many pending tasks. Suggest ideas for which areas to focus on first, potential quick wins, and how to group related tasks for efficient execution.',
       });
     }
@@ -187,38 +191,38 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
 
         if (gdd.contains('monetiz') || gdd.contains('revenue') || gdd.contains('business model')) {
           suggestions.add({
-            'label': 'Revenue Ideas',
+            'label': l10n.suggestRevenueIdeas,
             'prompt': 'Based on the app\'s design document mentioning monetization/revenue, suggest creative monetization strategies that align with the app\'s goals and user base.',
           });
         }
 
         if (gdd.contains('user') && (gdd.contains('engage') || gdd.contains('retention'))) {
           suggestions.add({
-            'label': 'User Engagement',
+            'label': l10n.suggestUserEngagement,
             'prompt': 'The app\'s design document focuses on user engagement. Suggest ideas for notifications, gamification, onboarding improvements, and retention strategies.',
           });
         }
 
         if (gdd.contains('api') || gdd.contains('backend') || gdd.contains('server')) {
           suggestions.add({
-            'label': 'API & Backend',
+            'label': l10n.suggestApiBackend,
             'prompt': 'The app relies on API/backend services. Suggest ideas for offline support, better error recovery, API caching, and reducing network dependency.',
           });
         }
 
         if (gdd.contains('test') || gdd.contains('quality')) {
           suggestions.add({
-            'label': 'Testing & QA',
+            'label': l10n.suggestTestingQa,
             'prompt': 'Suggest ideas for improving test coverage, adding integration tests, automated UI testing, and quality assurance workflows.',
           });
         }
 
         // If GDD exists but no specific pattern matched, add a generic GDD-aware prompt
         if (suggestions.where((s) =>
-            s['label'] == 'Revenue Ideas' || s['label'] == 'User Engagement' ||
-            s['label'] == 'API & Backend' || s['label'] == 'Testing & QA').isEmpty) {
+            s['label'] == l10n.suggestRevenueIdeas || s['label'] == l10n.suggestUserEngagement ||
+            s['label'] == l10n.suggestApiBackend || s['label'] == l10n.suggestTestingQa).isEmpty) {
           suggestions.add({
-            'label': 'GDD-Aligned',
+            'label': l10n.suggestGddAligned,
             'prompt': 'Based on this app\'s design document and goals, suggest ideas that align with the product vision and fill gaps in the current implementation.',
           });
         }
@@ -228,7 +232,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
     // If still empty, add at least one generic smart suggestion based on task count
     if (suggestions.isEmpty && items.isNotEmpty) {
       suggestions.add({
-        'label': 'Improve Codebase',
+        'label': l10n.suggestImproveCodebase,
         'prompt': 'Based on the app\'s current state and task history, suggest ideas for code quality improvements, refactoring opportunities, and developer experience enhancements.',
       });
     }
@@ -408,7 +412,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
         // Keep the previously loaded list (and its scroll position) on
         // screen; the failure is surfaced as an inline banner instead.
         setState(() {
-          _loadError = result.error ?? 'Failed to load tasks';
+          _loadError = result.error ?? l10n.failedToLoadTasks;
           _loading = false;
         });
         return;
@@ -492,7 +496,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
       setState(() {});
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('${stuck.length} stuck task(s) auto-failed after 30min timeout'),
+          content: Text(l10n.stuckTasksAutoFailed(stuck.length)),
           backgroundColor: AppColors.warning,
         ),
       );
@@ -543,12 +547,12 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Built ($count)',
+                  l10n.builtCount(count),
                   style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                 ),
               ),
               Text(
-                _doneExpanded ? 'Hide' : 'Show',
+                _doneExpanded ? l10n.hide : l10n.show,
                 style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
               ),
               Icon(
@@ -656,7 +660,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
     if (blocker == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Task #$blockerId is not in the current list (archived or deleted)'),
+          content: Text(l10n.blockerNotInList(blockerId)),
           backgroundColor: AppColors.warning,
         ),
       );
@@ -704,7 +708,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Close'),
+            child: Text(l10n.close),
           ),
         ],
       ),
@@ -739,16 +743,16 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.bgCard,
-        title: const Text('Work on This'),
-        content: Text('Run $agentLabel AI on:\n"$title"'),
+        title: Text(l10n.workOnThis),
+        content: Text(l10n.workOnThisConfirm(agentLabel, title)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
+            child: Text(l10n.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Do It'),
+            child: Text(l10n.doIt),
           ),
         ],
       ),
@@ -766,8 +770,8 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(result.ok
-                ? '$agentLabel AI triggered for "$title"'
-                : result.error ?? 'Failed to run task'),
+                ? l10n.agentTriggeredFor(agentLabel, title)
+                : result.error ?? l10n.failedToRunTask),
             backgroundColor: result.ok ? AppColors.success : AppColors.error,
           ),
         );
@@ -798,7 +802,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error: $e'),
+            content: Text(l10n.errorWithMessage(e)),
             backgroundColor: AppColors.error,
           ),
         );
@@ -814,7 +818,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(result.ok ? 'Task reset to pending' : result.error ?? 'Failed to reset'),
+          content: Text(result.ok ? l10n.taskResetToPending : result.error ?? l10n.failedToReset),
           backgroundColor: result.ok ? AppColors.success : AppColors.error,
         ),
       );
@@ -838,7 +842,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(result.ok ? 'Marked as completed' : result.error ?? 'Failed to update'),
+          content: Text(result.ok ? l10n.markedAsCompleted : result.error ?? l10n.failedToUpdate),
           backgroundColor: result.ok ? AppColors.success : AppColors.error,
         ),
       );
@@ -855,7 +859,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(result.ok ? 'Deleted' : result.error ?? 'Failed to delete'),
+            content: Text(result.ok ? l10n.deleted : result.error ?? l10n.failedToDelete),
             backgroundColor: result.ok ? AppColors.success : AppColors.error,
           ),
         );
@@ -869,7 +873,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(result.ok ? 'Deleted' : result.error ?? 'Failed to delete'),
+            content: Text(result.ok ? l10n.deleted : result.error ?? l10n.failedToDelete),
             backgroundColor: result.ok ? AppColors.success : AppColors.error,
           ),
         );
@@ -885,17 +889,17 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.bgCard,
-        title: const Text('Delete'),
-        content: Text('Delete "$title"?\nThis cannot be undone.'),
+        title: Text(l10n.delete),
+        content: Text(l10n.deleteConfirmTitled(title)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
+            child: Text(l10n.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: FilledButton.styleFrom(backgroundColor: AppColors.error),
-            child: const Text('Delete'),
+            child: Text(l10n.delete),
           ),
         ],
       ),
@@ -922,8 +926,8 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(blockedCount > 0
-                ? 'All pending items are blocked by dependencies'
-                : 'No pending items to work on'),
+                ? l10n.allPendingBlocked
+                : l10n.noPendingItems),
             backgroundColor: AppColors.warning,
           ),
         );
@@ -935,18 +939,17 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.bgCard,
-        title: const Text('Work on All Pending'),
-        content: Text(
-            'Run AI on all ${pendingItems.length} pending item(s)?\nThey will be processed sequentially.'
-            '${blockedCount > 0 ? '\n($blockedCount blocked item(s) will be skipped.)' : ''}'),
+        title: Text(l10n.workOnAllPending),
+        content: Text(l10n.workOnAllConfirm(pendingItems.length) +
+            (blockedCount > 0 ? l10n.workOnAllBlockedNote(blockedCount) : '')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
+            child: Text(l10n.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Work on All'),
+            child: Text(l10n.workOnAll),
           ),
         ],
       ),
@@ -965,7 +968,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Processing $processed of $total tasks...'),
+              content: Text(l10n.processingTasks(processed, total)),
               duration: const Duration(seconds: 30),
               backgroundColor: AppColors.info,
             ),
@@ -1012,7 +1015,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error during batch run: $e'),
+            content: Text(l10n.batchRunError(e)),
             backgroundColor: AppColors.error,
           ),
         );
@@ -1022,7 +1025,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Triggered $triggered of ${pendingItems.length} items'),
+          content: Text(l10n.triggeredOfItems(triggered, pendingItems.length)),
           backgroundColor: triggered > 0 ? AppColors.success : AppColors.error,
         ),
       );
@@ -1034,7 +1037,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
     if (_selectedAppId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Select an app first'),
+          content: Text(l10n.selectAnAppFirst),
           backgroundColor: AppColors.warning,
         ),
       );
@@ -1058,7 +1061,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
     if (result.ok) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Test task created'),
+          content: Text(l10n.testTaskCreated),
           backgroundColor: AppColors.success,
         ),
       );
@@ -1066,7 +1069,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(result.error ?? 'Failed to create test task'),
+          content: Text(result.error ?? l10n.failedToCreateTestTask),
           backgroundColor: AppColors.error,
         ),
       );
@@ -1077,7 +1080,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
     if (_selectedAppId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Select an app first'),
+          content: Text(l10n.selectAnAppFirst),
           backgroundColor: AppColors.warning,
         ),
       );
@@ -1153,7 +1156,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
                         children: [
                           Expanded(
                             child: Text(
-                              showHistory ? 'Prompt History' : 'Generate Ideas',
+                              showHistory ? l10n.promptHistory : l10n.generateIdeas,
                               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                             ),
                           ),
@@ -1164,7 +1167,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
                                 color: showFavoritesOnly ? Colors.amber : Colors.grey,
                                 size: 22,
                               ),
-                              tooltip: showFavoritesOnly ? 'Show all' : 'Favorites only',
+                              tooltip: showFavoritesOnly ? l10n.showAll : l10n.favoritesOnly,
                               onPressed: () => setDialogState(
                                 () => showFavoritesOnly = !showFavoritesOnly,
                               ),
@@ -1174,7 +1177,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
                               showHistory ? Icons.edit : Icons.history,
                               size: 22,
                             ),
-                            tooltip: showHistory ? 'New prompt' : 'Prompt history',
+                            tooltip: showHistory ? l10n.newPrompt : l10n.promptHistoryTooltip,
                             onPressed: () {
                               setDialogState(() => showHistory = !showHistory);
                               if (showHistory && !historyLoaded) {
@@ -1200,7 +1203,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
                                       Icon(Icons.auto_awesome, size: 14, color: Colors.amber.shade400),
                                       const SizedBox(width: 4),
                                       Text(
-                                        'Suggested for you',
+                                        l10n.suggestedForYou,
                                         style: TextStyle(
                                           fontSize: 11,
                                           fontWeight: FontWeight.w600,
@@ -1240,8 +1243,8 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
                                   const Divider(height: 1),
                                   const SizedBox(height: 8),
                                 ],
-                                const Text(
-                                  'Select categories or type your own prompt.',
+                                Text(
+                                  l10n.selectCategoriesOrPrompt,
                                   style: TextStyle(fontSize: 12, color: Colors.grey),
                                 ),
                                 const SizedBox(height: 8),
@@ -1251,7 +1254,8 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
                                   children: categoryChips.entries.map((e) {
                                     final isSelected = selectedCategories.contains(e.key);
                                     return FilterChip(
-                                      label: Text(e.key, style: const TextStyle(fontSize: 12)),
+                                      label: Text(ideaCategoryLabel(l10n, e.key),
+                                          style: const TextStyle(fontSize: 12)),
                                       selected: isSelected,
                                       selectedColor: AppColors.accent.withAlpha(180),
                                       backgroundColor: AppColors.bgCard,
@@ -1283,8 +1287,8 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
                                       });
                                     }
                                   },
-                                  decoration: const InputDecoration(
-                                    hintText: 'e.g. "Ideas for improving the UI"',
+                                  decoration: InputDecoration(
+                                    hintText: l10n.generateIdeasHint,
                                     border: OutlineInputBorder(),
                                   ),
                                 ),
@@ -1298,7 +1302,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
                           children: [
                             TextButton(
                               onPressed: () => Navigator.pop(ctx),
-                              child: const Text('Cancel', style: TextStyle(fontSize: 13)),
+                              child: Text(l10n.cancel, style: TextStyle(fontSize: 13)),
                             ),
                             const SizedBox(width: 8),
                             FilledButton(
@@ -1306,7 +1310,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
                                 'prompt': controller.text,
                                 'categories': selectedCategories.toList(),
                               }),
-                              child: const Text('Generate', style: TextStyle(fontSize: 13)),
+                              child: Text(l10n.generate, style: TextStyle(fontSize: 13)),
                             ),
                           ],
                         ),
@@ -1323,8 +1327,8 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
                             child: Center(
                               child: Text(
                                 showFavoritesOnly
-                                    ? 'No favorite prompts yet'
-                                    : 'No prompt history yet.\nGenerate ideas to build history.',
+                                    ? l10n.noFavoritePrompts
+                                    : l10n.noPromptHistory,
                                 textAlign: TextAlign.center,
                                 style: const TextStyle(color: Colors.grey, fontSize: 14),
                               ),
@@ -1447,7 +1451,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
                           children: [
                             TextButton(
                               onPressed: () => Navigator.pop(ctx),
-                              child: const Text('Close', style: TextStyle(fontSize: 13)),
+                              child: Text(l10n.close, style: TextStyle(fontSize: 13)),
                             ),
                           ],
                         ),
@@ -1484,7 +1488,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(apiResult.ok ? 'Idea generation requested' : apiResult.error ?? 'Failed to request ideas'),
+          content: Text(apiResult.ok ? l10n.ideaGenerationRequested : apiResult.error ?? l10n.failedToRequestIdeas),
           backgroundColor: apiResult.ok ? AppColors.success : AppColors.error,
         ),
       );
@@ -1496,7 +1500,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
     if (_selectedAppId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Select an app first'),
+          content: Text(l10n.selectAnAppFirst),
           backgroundColor: AppColors.warning,
         ),
       );
@@ -1519,35 +1523,36 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
         return StatefulBuilder(
           builder: (ctx, setDialogState) {
             return AlertDialog(
-              title: const Text('Code Check'),
+              title: Text(l10n.codeCheck),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'This will create a task for the AI agent to review your code and report findings as issues.',
+                  Text(
+                    l10n.codeCheckBody,
                     style: TextStyle(fontSize: 13, color: Colors.white70),
                   ),
                   const SizedBox(height: 12),
-                  const Text('Checks to run:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text(l10n.checksToRun, style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 4),
                   ...checks.entries.map((e) => CheckboxListTile(
                     dense: true,
                     visualDensity: VisualDensity.compact,
                     contentPadding: EdgeInsets.zero,
-                    title: Text(e.key, style: const TextStyle(fontSize: 14)),
+                    title: Text(codeCheckLabel(l10n, e.key),
+                        style: const TextStyle(fontSize: 14)),
                     value: e.value,
                     onChanged: (v) => setDialogState(() => checks[e.key] = v ?? false),
                   )),
                 ],
               ),
               actions: [
-                TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(l10n.cancel)),
                 FilledButton(
                   onPressed: checks.values.any((v) => v)
                       ? () => Navigator.pop(ctx, true)
                       : null,
-                  child: const Text('Run Check'),
+                  child: Text(l10n.runCheck),
                 ),
               ],
             );
@@ -1575,7 +1580,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(result.ok ? 'Code check requested' : result.error ?? 'Failed to request code check'),
+          content: Text(result.ok ? l10n.codeCheckRequested : result.error ?? l10n.failedToRequestCodeCheck),
           backgroundColor: result.ok ? AppColors.success : AppColors.error,
         ),
       );
@@ -1586,7 +1591,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
   Future<void> _designReview() async {
     if (_selectedAppId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Select an app first'), backgroundColor: AppColors.warning),
+        SnackBar(content: Text(l10n.selectAnAppFirst), backgroundColor: AppColors.warning),
       );
       return;
     }
@@ -1594,7 +1599,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(result.ok ? 'Design review task created' : result.error ?? 'Failed'),
+        content: Text(result.ok ? l10n.designReviewTaskCreated : result.error ?? l10n.failed),
         backgroundColor: result.ok ? AppColors.success : AppColors.error,
       ),
     );
@@ -1602,7 +1607,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
   }
 
   Future<void> _balanceCheck() async {
-    await _runStudioAction('balance-check', 'Balance check task created');
+    await _runStudioAction('balance-check', l10n.balanceCheckTaskCreated);
   }
 
   /// Generic handler for any /api/apps/{id}/studio/{action} call.
@@ -1611,7 +1616,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
   Future<void> _runStudioAction(String action, String successMessage) async {
     if (_selectedAppId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Select an app first'), backgroundColor: AppColors.warning),
+        SnackBar(content: Text(l10n.selectAnAppFirst), backgroundColor: AppColors.warning),
       );
       return;
     }
@@ -1619,7 +1624,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(result.ok ? successMessage : result.error ?? 'Failed'),
+        content: Text(result.ok ? successMessage : result.error ?? l10n.failed),
         backgroundColor: result.ok ? AppColors.success : AppColors.error,
       ),
     );
@@ -1637,7 +1642,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Issues'),
+            Text(l10n.issues),
             if (_selectedAppId != null)
               SyncStatusChip(
                 lastSyncedAt: _lastSyncedAt,
@@ -1649,16 +1654,16 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
           IconButton(
             onPressed: _createTestTask,
             icon: const Icon(Icons.phone_android),
-            tooltip: 'Test',
+            tooltip: l10n.test,
           ),
           IconButton(
             onPressed: _generateIdeas,
             icon: const Icon(Icons.auto_awesome),
-            tooltip: 'Generate Ideas',
+            tooltip: l10n.generateIdeas,
           ),
           PopupMenuButton<String>(
             icon: const Icon(Icons.science),
-            tooltip: 'Studio Reviews',
+            tooltip: l10n.studioReviews,
             onSelected: (value) {
               switch (value) {
                 case 'code-review':
@@ -1671,140 +1676,140 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
                   _balanceCheck();
                   break;
                 case 'consistency-check':
-                  _runStudioAction('consistency-check', 'Consistency check task created');
+                  _runStudioAction('consistency-check', l10n.consistencyCheckTaskCreated);
                   break;
                 case 'tech-debt':
-                  _runStudioAction('tech-debt', 'Tech debt scan task created');
+                  _runStudioAction('tech-debt', l10n.techDebtTaskCreated);
                   break;
                 case 'asset-audit':
-                  _runStudioAction('asset-audit', 'Asset audit task created');
+                  _runStudioAction('asset-audit', l10n.assetAuditTaskCreated);
                   break;
                 case 'content-audit':
-                  _runStudioAction('content-audit', 'Content audit task created');
+                  _runStudioAction('content-audit', l10n.contentAuditTaskCreated);
                   break;
                 case 'scope-check':
-                  _runStudioAction('scope-check', 'Scope check task created');
+                  _runStudioAction('scope-check', l10n.scopeCheckTaskCreated);
                   break;
                 case 'perf-profile':
-                  _runStudioAction('perf-profile', 'Performance profile task created');
+                  _runStudioAction('perf-profile', l10n.perfProfileTaskCreated);
                   break;
               }
             },
             itemBuilder: (_) => [
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'code-review',
                 child: ListTile(
                   dense: true,
                   leading: Icon(Icons.bug_report, size: 20),
-                  title: Text('Code Review', style: TextStyle(fontSize: 14)),
-                  subtitle: Text('Bugs, crashes, code quality', style: TextStyle(fontSize: 11)),
+                  title: Text(l10n.codeReview, style: TextStyle(fontSize: 14)),
+                  subtitle: Text(l10n.codeReviewSubtitle, style: TextStyle(fontSize: 11)),
                 ),
               ),
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'design-review',
                 child: ListTile(
                   dense: true,
                   leading: Icon(Icons.design_services, size: 20),
-                  title: Text('Design Review', style: TextStyle(fontSize: 14)),
-                  subtitle: Text('GDD, mechanics, UX audit', style: TextStyle(fontSize: 11)),
+                  title: Text(l10n.designReview, style: TextStyle(fontSize: 14)),
+                  subtitle: Text(l10n.designReviewSubtitle, style: TextStyle(fontSize: 11)),
                 ),
               ),
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'balance-check',
                 child: ListTile(
                   dense: true,
                   leading: Icon(Icons.balance, size: 20),
-                  title: Text('Balance Check', style: TextStyle(fontSize: 14)),
-                  subtitle: Text('Economy, progression, rewards', style: TextStyle(fontSize: 11)),
+                  title: Text(l10n.balanceCheck, style: TextStyle(fontSize: 14)),
+                  subtitle: Text(l10n.balanceCheckSubtitle, style: TextStyle(fontSize: 11)),
                 ),
               ),
               const PopupMenuDivider(),
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'consistency-check',
                 child: ListTile(
                   dense: true,
                   leading: Icon(Icons.rule, size: 20),
-                  title: Text('Consistency Check', style: TextStyle(fontSize: 14)),
-                  subtitle: Text('GDD ↔ code ↔ data drift', style: TextStyle(fontSize: 11)),
+                  title: Text(l10n.consistencyCheck, style: TextStyle(fontSize: 14)),
+                  subtitle: Text(l10n.consistencyCheckSubtitle, style: TextStyle(fontSize: 11)),
                 ),
               ),
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'tech-debt',
                 child: ListTile(
                   dense: true,
                   leading: Icon(Icons.cleaning_services, size: 20),
-                  title: Text('Tech Debt Scan', style: TextStyle(fontSize: 14)),
-                  subtitle: Text('God scripts, duplicates, TODOs', style: TextStyle(fontSize: 11)),
+                  title: Text(l10n.techDebtScan, style: TextStyle(fontSize: 14)),
+                  subtitle: Text(l10n.techDebtScanSubtitle, style: TextStyle(fontSize: 11)),
                 ),
               ),
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'asset-audit',
                 child: ListTile(
                   dense: true,
                   leading: Icon(Icons.fact_check, size: 20),
-                  title: Text('Asset Audit', style: TextStyle(fontSize: 14)),
-                  subtitle: Text('Broken refs, orphans, placeholders', style: TextStyle(fontSize: 11)),
+                  title: Text(l10n.assetAudit, style: TextStyle(fontSize: 14)),
+                  subtitle: Text(l10n.assetAuditSubtitle, style: TextStyle(fontSize: 11)),
                 ),
               ),
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'content-audit',
                 child: ListTile(
                   dense: true,
                   leading: Icon(Icons.playlist_add_check, size: 20),
-                  title: Text('Content Audit', style: TextStyle(fontSize: 14)),
-                  subtitle: Text('Levels, characters, items, text', style: TextStyle(fontSize: 11)),
+                  title: Text(l10n.contentAudit, style: TextStyle(fontSize: 14)),
+                  subtitle: Text(l10n.contentAuditSubtitle, style: TextStyle(fontSize: 11)),
                 ),
               ),
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'scope-check',
                 child: ListTile(
                   dense: true,
                   leading: Icon(Icons.filter_list, size: 20),
-                  title: Text('Scope Check', style: TextStyle(fontSize: 14)),
-                  subtitle: Text('Cut list + realism pass', style: TextStyle(fontSize: 11)),
+                  title: Text(l10n.scopeCheck, style: TextStyle(fontSize: 14)),
+                  subtitle: Text(l10n.scopeCheckSubtitle, style: TextStyle(fontSize: 11)),
                 ),
               ),
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'perf-profile',
                 child: ListTile(
                   dense: true,
                   leading: Icon(Icons.speed, size: 20),
-                  title: Text('Performance Profile', style: TextStyle(fontSize: 14)),
-                  subtitle: Text('Frame drops, memory, load time', style: TextStyle(fontSize: 11)),
+                  title: Text(l10n.performanceProfile, style: TextStyle(fontSize: 14)),
+                  subtitle: Text(l10n.performanceProfileSubtitle, style: TextStyle(fontSize: 11)),
                 ),
               ),
             ],
           ),
           PopupMenuButton<String>(
             icon: const Icon(Icons.palette),
-            tooltip: 'Art & Assets',
+            tooltip: l10n.artAndAssets,
             onSelected: (value) {
               switch (value) {
                 case 'art-bible':
-                  _runStudioAction('art-bible', 'Art bible task created');
+                  _runStudioAction('art-bible', l10n.artBibleTaskCreated);
                   break;
                 case 'asset-spec':
-                  _runStudioAction('asset-spec', 'Asset spec task created');
+                  _runStudioAction('asset-spec', l10n.assetSpecTaskCreated);
                   break;
               }
             },
             itemBuilder: (_) => [
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'art-bible',
                 child: ListTile(
                   dense: true,
                   leading: Icon(Icons.auto_stories, size: 20),
-                  title: Text('Art Bible', style: TextStyle(fontSize: 14)),
-                  subtitle: Text('Visual identity anchor doc', style: TextStyle(fontSize: 11)),
+                  title: Text(l10n.artBible, style: TextStyle(fontSize: 14)),
+                  subtitle: Text(l10n.artBibleCardSubtitle, style: TextStyle(fontSize: 11)),
                 ),
               ),
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'asset-spec',
                 child: ListTile(
                   dense: true,
                   leading: Icon(Icons.inventory_2, size: 20),
-                  title: Text('Asset Specs', style: TextStyle(fontSize: 14)),
-                  subtitle: Text('Per-asset prompts from bible', style: TextStyle(fontSize: 11)),
+                  title: Text(l10n.assetSpecs, style: TextStyle(fontSize: 14)),
+                  subtitle: Text(l10n.assetSpecsSubtitle, style: TextStyle(fontSize: 11)),
                 ),
               ),
             ],
@@ -1812,7 +1817,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
           IconButton(
             onPressed: _workOnAll,
             icon: const Icon(Icons.play_circle_outline),
-            tooltip: 'Work on All Pending',
+            tooltip: l10n.workOnAllPending,
           ),
         ],
       ),
@@ -1831,17 +1836,17 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
               segments: [
                 ButtonSegment(
                   value: 'in_progress',
-                  label: const Text('In Progress'),
+                  label: Text(l10n.statusInProgress),
                   icon: const Icon(Icons.code, size: 18),
                 ),
                 ButtonSegment(
                   value: 'postponed',
-                  label: const Text('Postponed'),
+                  label: Text(l10n.statusPostponed),
                   icon: const Icon(Icons.pause_circle_outline, size: 18),
                 ),
                 ButtonSegment(
                   value: 'completed',
-                  label: const Text('Completed'),
+                  label: Text(l10n.statusCompleted),
                   icon: const Icon(Icons.check_circle_outline, size: 18),
                 ),
               ],
@@ -1883,8 +1888,8 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
             child: DropdownButtonFormField<int>(
               key: ValueKey('app_dropdown_$_appCategory'),
               value: _selectedAppId,
-              decoration: const InputDecoration(
-                hintText: 'Select app',
+              decoration: InputDecoration(
+                hintText: l10n.selectApp,
                 prefixIcon: Icon(Icons.apps),
                 contentPadding:
                     EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -1952,9 +1957,9 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
           // Item list
           Expanded(
             child: _selectedAppId == null
-                ? const Center(
+                ? Center(
                     child: Text(
-                      'Select an app to view items',
+                      l10n.selectAppToViewItems,
                       style: TextStyle(color: Colors.grey, fontSize: 16),
                     ),
                   )
@@ -1982,7 +1987,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
                                     child: ElevatedButton.icon(
                                       onPressed: _loadItems,
                                       icon: const Icon(Icons.refresh),
-                                      label: const Text('Retry'),
+                                      label: Text(l10n.retry),
                                     ),
                                   ),
                                 ],
@@ -1991,9 +1996,9 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
                             ? ListView(
                                 children: [
                                   const SizedBox(height: 160),
-                                  const Center(
+                                  Center(
                                     child: Text(
-                                      'No items found',
+                                      l10n.noItemsFound,
                                       style: TextStyle(
                                           color: Colors.grey, fontSize: 16),
                                     ),
@@ -2008,19 +2013,19 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
                                         children: [
                                           if (_statusFilter != 'all')
                                             Chip(
-                                              label: Text('Status: ${TaskFiltersWidget.chipLabel(_statusFilter)}', style: const TextStyle(fontSize: 11)),
+                                              label: Text(l10n.statusFilterChip(TaskFiltersWidget.chipLabel(context, _statusFilter)), style: const TextStyle(fontSize: 11)),
                                               visualDensity: VisualDensity.compact,
                                               side: BorderSide(color: AppColors.taskStatusColor(_statusFilter)),
                                             ),
                                           if (_typeFilter != 'all')
                                             Chip(
-                                              label: Text('Type: ${TaskFiltersWidget.chipLabel(_typeFilter)}', style: const TextStyle(fontSize: 11)),
+                                              label: Text(l10n.typeFilterChip(TaskFiltersWidget.chipLabel(context, _typeFilter)), style: const TextStyle(fontSize: 11)),
                                               visualDensity: VisualDensity.compact,
                                               side: BorderSide(color: AppColors.taskTypeColor(_typeFilter)),
                                             ),
                                           if (_searchQuery.isNotEmpty)
                                             Chip(
-                                              label: Text('Search: "$_searchQuery"', style: const TextStyle(fontSize: 11)),
+                                              label: Text(l10n.searchFilterChip(_searchQuery), style: const TextStyle(fontSize: 11)),
                                               visualDensity: VisualDensity.compact,
                                               side: BorderSide(color: Colors.grey.shade600),
                                             ),
@@ -2040,7 +2045,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
                                           });
                                         },
                                         icon: const Icon(Icons.filter_alt_off, size: 16),
-                                        label: const Text('Clear filters'),
+                                        label: Text(l10n.clearFilters),
                                       ),
                                     ),
                                   ],

@@ -38,6 +38,7 @@ Entra cada día por monedas gratis, imágenes extra y desafíos especiales.
 • Sincronización con Google Drive
 • Suscripción VIP sin anuncios
 • Anuncios recompensados opcionales
+• No requiere internet para jugar (salvo para sincronizar)
 
 🔞 AUDIENCIA ADULTA
 Hot Slider está destinado a jugadores de 18 años o más. Las imágenes muestran arte estilo glamour y pin-up con buen gusto. No hay contenido explícito.
@@ -47,6 +48,8 @@ Hot Slider está destinado a jugadores de 18 años o más. Las imágenes muestra
 • Jugadores casuales que buscan relax
 • Coleccionistas que disfrutan desbloqueando recompensas
 • Adultos que aprecian el arte glamour con estilo
+
+Toca las fichas, deslízalas a su lugar y mira cómo cada imagen cobra vida. Cada movimiento te acerca al siguiente desbloqueo.
 
 Descarga Hot Slider ahora y empieza tu colección.
 
@@ -90,6 +93,7 @@ Logge dich täglich ein für kostenlose Münzen, Bonusbilder und spezielle Herau
 • Google Drive Cloud-Sync
 • VIP-Abo für werbefreies Spielen
 • Optionale belohnte Videos für Münzen
+• Kein Internet zum Spielen nötig (außer zum Synchronisieren)
 
 🔞 ERWACHSENE ZIELGRUPPE
 Hot Slider ist für Spieler ab 18 Jahren gedacht. Die Bilder zeigen geschmackvolle Glamour- und Pin-up-Kunst. Es gibt keine expliziten Inhalte.
@@ -99,6 +103,8 @@ Hot Slider ist für Spieler ab 18 Jahren gedacht. Die Bilder zeigen geschmackvol
 • Gelegenheitsspieler, die Entspannung suchen
 • Sammler, die gerne Belohnungen freischalten
 • Erwachsene, die stilvolle Glamour-Kunst schätzen
+
+Tippe auf Kacheln, schiebe sie an ihren Platz und sieh zu, wie jedes Bild zum Leben erwacht. Jeder Zug bringt dich näher an die nächste Freischaltung.
 
 Lade Hot Slider jetzt herunter und starte deine Sammlung.
 
@@ -142,6 +148,7 @@ Google Driveでログインして、ギャラリー・コイン・進行状況�
 • Google Driveクラウド同期
 • 広告なしのVIPサブスクリプション
 • オプションのリワード広告
+• プレイにインターネット接続不要（同期時を除く）
 
 🔞 成人向けコンテンツ
 Hot Sliderは18歳以上を対象としています。画像は品のあるグラマー/ピンナップスタイルのアートで、露骨な表現はありません。
@@ -151,6 +158,8 @@ Hot Sliderは18歳以上を対象としています。画像は品のあるグ�
 • リラックスできるカジュアルゲームを探している方
 • コレクション要素が好きな方
 • 上品なグラマーアートを楽しめる大人の方
+
+タイルをタップしてスライドさせ、絵が完成していく瞬間を楽しもう。一手ごとに次のアンロックへ近づきます。
 
 Hot Sliderをダウンロードして、あなたのコレクションを始めましょう。
 
@@ -194,6 +203,7 @@ Google Drive से साइन इन करके अपनी गैलर�
 • Google Drive क्लाउड सिंक
 • विज्ञापन-मुक्त खेल के लिए VIP
 • वैकल्पिक रिवार्ड वीडियो विज्ञापन
+• खेलने के लिए इंटरनेट ज़रूरी नहीं (सिंक को छोड़कर)
 
 🔞 वयस्क दर्शक
 Hot Slider 18 वर्ष या अधिक आयु के खिलाड़ियों के लिए है। तस्वीरों में शिष्ट ग्लैमर और पिन-अप शैली की कला है। कोई स्पष्ट सामग्री नहीं है।
@@ -203,6 +213,8 @@ Hot Slider 18 वर्ष या अधिक आयु के खिलाड�
 • रिलैक्सिंग कैज़ुअल गेम खोजने वालों के लिए
 • कलेक्शन पसंद करने वाले खिलाड़ियों के लिए
 • शिष्ट कला की सराहना करने वाले वयस्कों के लिए
+
+टाइलों पर टैप करें, उन्हें सही जगह खिसकाएँ और हर तस्वीर को जीवंत होते देखें। हर चाल आपको अगले अनलॉक के और करीब ले जाती है।
 
 Hot Slider अभी डाउनलोड करें और अपना संग्रह शुरू करें।
 
@@ -246,6 +258,7 @@ Google Drive দিয়ে সাইন ইন করুন এবং আপ�
 • Google Drive ক্লাউড সিঙ্ক
 • বিজ্ঞাপন-মুক্ত খেলার জন্য VIP
 • ঐচ্ছিক রিওয়ার্ড ভিডিও বিজ্ঞাপন
+• খেলতে ইন্টারনেট লাগে না (সিঙ্ক ছাড়া)
 
 🔞 প্রাপ্তবয়স্ক দর্শক
 Hot Slider 18 বছর বা তার বেশি বয়সী খেলোয়াড়দের জন্য। ছবিতে রুচিশীল গ্ল্যামার ও পিন-আপ শৈলীর শিল্প রয়েছে। কোনো অশ্লীল বিষয়বস্তু নেই।
@@ -255,6 +268,8 @@ Hot Slider 18 বছর বা তার বেশি বয়সী খেল�
 • আরামদায়ক ক্যাজুয়াল গেম খুঁজছেন এমন খেলোয়াড়দের জন্য
 • সংগ্রহ পছন্দ করা খেলোয়াড়দের জন্য
 • রুচিশীল শিল্প উপভোগ করা প্রাপ্তবয়স্কদের জন্য
+
+টাইলে ট্যাপ করুন, সেগুলিকে জায়গায় সরান এবং প্রতিটি ছবিকে জীবন্ত হয়ে উঠতে দেখুন। প্রতিটি চাল আপনাকে পরবর্তী আনলকের আরও কাছে নিয়ে যায়।
 
 Hot Slider এখনই ডাউনলোড করুন এবং আপনার সংগ্রহ শুরু করুন।
 
@@ -298,6 +313,7 @@ Connectez-vous chaque jour pour des pièces gratuites, des images bonus et des d
 • Synchronisation Google Drive
 • Abonnement VIP sans publicité
 • Publicités récompensées optionnelles
+• Aucune connexion internet requise pour jouer (sauf pour la synchronisation)
 
 🔞 PUBLIC ADULTE
 Hot Slider est destiné aux joueurs de 18 ans et plus. Les images présentent de l'art de style glamour et pin-up de bon goût. Aucun contenu explicite.
@@ -307,6 +323,8 @@ Hot Slider est destiné aux joueurs de 18 ans et plus. Les images présentent de
 • Joueurs occasionnels cherchant à se détendre
 • Collectionneurs appréciant les déblocages
 • Adultes qui apprécient l'art glamour élégant
+
+Touchez les tuiles, glissez-les à leur place et regardez chaque image prendre vie. Chaque coup vous rapproche du prochain déblocage.
 
 Téléchargez Hot Slider maintenant et commencez votre collection.
 
@@ -350,6 +368,7 @@ Entre todos os dias para moedas grátis, imagens bônus e desafios especiais.
 • Sincronização Google Drive
 • Assinatura VIP sem anúncios
 • Anúncios recompensados opcionais
+• Não precisa de internet para jogar (exceto para sincronizar)
 
 🔞 PÚBLICO ADULTO
 Hot Slider é destinado a jogadores de 18 anos ou mais. As imagens apresentam arte estilo glamour e pin-up de bom gosto. Não há conteúdo explícito.
@@ -359,6 +378,8 @@ Hot Slider é destinado a jogadores de 18 anos ou mais. As imagens apresentam ar
 • Jogadores casuais buscando relaxamento
 • Colecionadores que gostam de desbloquear recompensas
 • Adultos que apreciam arte glamour estilosa
+
+Toque nas peças, deslize-as até o lugar certo e veja cada imagem ganhar vida. Cada jogada te aproxima do próximo desbloqueio.
 
 Baixe Hot Slider agora e comece sua coleção.
 
@@ -402,6 +423,7 @@ Her gün giriş yap ücretsiz altın, bonus resim ve özel görevler için.
 • Google Drive bulut senkronizasyonu
 • Reklamsız oyun için VIP abonelik
 • İsteğe bağlı ödüllü video reklamlar
+• Oynamak için internet gerekmez (senkronizasyon hariç)
 
 🔞 YETİŞKİN İZLEYİCİ
 Hot Slider 18 yaş ve üstü oyuncular içindir. Resimlerde zevkli glamour ve pin-up tarzı sanat bulunur. Açık içerik yoktur.
@@ -411,6 +433,8 @@ Hot Slider 18 yaş ve üstü oyuncular içindir. Resimlerde zevkli glamour ve pi
 • Rahatlatıcı rahat oyun arayan oyuncular için
 • Koleksiyon biriktirmeyi sevenler için
 • Şık glamour sanatını takdir eden yetişkinler için
+
+Taşlara dokun, yerlerine kaydır ve her resmin canlanışını izle. Her hamle seni bir sonraki açılışa yaklaştırır.
 
 Hot Slider'ı şimdi indir ve koleksiyonuna başla.
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
 import '../../theme.dart';
+import '../../l10n/app_localizations.dart';
 
 /// Collapsible card on the App Detail screen that lists every MCP
 /// server preset and lets the user toggle which are enabled for the
@@ -33,6 +34,8 @@ class McpServersSection extends StatefulWidget {
 }
 
 class _McpServersSectionState extends State<McpServersSection> {
+  AppLocalizations get l10n => AppLocalizations.of(context)!;
+
   late Set<String> _enabled;
   List<dynamic> _presets = [];
   bool _loading = true;
@@ -99,7 +102,7 @@ class _McpServersSectionState extends State<McpServersSection> {
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(result.error ?? 'Failed to update MCP'),
+          content: Text(result.error ?? l10n.failedToUpdateMcp),
           backgroundColor: AppColors.error,
         ),
       );
@@ -125,8 +128,8 @@ class _McpServersSectionState extends State<McpServersSection> {
                 Expanded(
                   child: Text(
                     _loading
-                        ? 'MCP Servers'
-                        : 'MCP Servers ($activeCount active)',
+                        ? l10n.mcpServers
+                        : l10n.mcpServersActive(activeCount),
                     style: const TextStyle(
                         fontSize: 16, fontWeight: FontWeight.bold),
                   ),
@@ -145,7 +148,7 @@ class _McpServersSectionState extends State<McpServersSection> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Tool servers available for all AI runs on this app',
+                  Text(l10n.mcpServersDesc,
                       style: TextStyle(
                           fontSize: 11, color: Colors.grey.shade500)),
                   const SizedBox(height: 8),

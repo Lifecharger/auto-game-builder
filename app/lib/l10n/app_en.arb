@@ -1,63 +1,1138 @@
 {
   "@@locale": "en",
-  "appTitle": "Auto Game Builder",
-  "@appTitle": {
-    "description": "The application title displayed in the launcher and as a fallback."
-  },
-  "save": "Save",
-  "@save": {
-    "description": "Generic Save button label."
-  },
-  "cancel": "Cancel",
-  "@cancel": {
-    "description": "Generic Cancel button label."
-  },
-  "retry": "Retry",
-  "@retry": {
-    "description": "Retry button label, e.g. after a failed network call."
-  },
-  "edit": "Edit",
-  "@edit": {
-    "description": "Generic Edit button label."
+  "about": "About",
+  "aboutApp": "App",
+  "actionTriggered": "{action} triggered",
+  "@actionTriggered": {
+    "placeholders": {
+      "action": {}
+    }
   },
   "add": "Add",
   "@add": {
     "description": "Generic Add button label."
   },
-  "settings": "Settings",
-  "@settings": {
-    "description": "Settings tab / screen label."
+  "agentLabelWith": "Agent: {agent}",
+  "@agentLabelWith": {
+    "placeholders": {
+      "agent": {}
+    }
   },
+  "agentLocal": "Local",
+  "agentNone": "None",
+  "agentRunsOnServer": "Agent runs on the server with project-level access",
+  "agentTriggeredFor": "{agent} AI triggered for \"{title}\"",
+  "@agentTriggeredFor": {
+    "placeholders": {
+      "agent": {},
+      "title": {}
+    }
+  },
+  "aiAgent": "AI Agent",
+  "aiAgentUpdated": "AI agent updated",
+  "aiResponse": "AI Response",
+  "allApps": "All Apps",
+  "allAppsCompletedOrPostponed": "All apps are completed or postponed",
+  "allAppsHaveAutomations": "All apps already have automations",
+  "allAppsHint": "All apps",
+  "allPendingBlocked": "All pending items are blocked by dependencies",
+  "apiConnection": "API Connection",
+  "apiUrlSaved": "API URL saved",
+  "appCreated": "App created!",
+  "appDetail": "App Detail",
+  "appFallback": "App",
+  "appNameHint": "App Name (e.g. My Game)",
+  "appStatusBuilding": "building",
+  "appStatusDeploying": "deploying",
+  "appStatusError": "error",
+  "appStatusFixing": "fixing",
+  "appStatusIdle": "idle",
+  "appStatusPublished": "published",
+  "appStatusQueued": "queued",
+  "appStatusUploading": "uploading",
+  "appStatusWorking": "working",
+  "appTitle": "Auto Game Builder",
+  "@appTitle": {
+    "description": "The application title displayed in the launcher and as a fallback."
+  },
+  "appTypeFlutterDesc": "Mobile/desktop app with Google Play deploy support",
+  "appTypeGodotDesc": "Game project with export targets (Windows, Android, Web)",
+  "appTypePhaserDesc": "Phaser 3 + TypeScript game, wrapped as Android AAB via Capacitor",
+  "appTypePythonDesc": "Python project with script runner and pip management",
+  "appTypeWebDesc": "Web app with static hosting deploy support",
   "apps": "Apps",
   "@apps": {
     "description": "Apps tab label in the bottom navigation."
   },
-  "tasks": "Tasks",
-  "@tasks": {
-    "description": "Tasks tab / list label."
+  "archivedLabel": "archived",
+  "artAndAssets": "Art & Assets",
+  "artBible": "Art Bible",
+  "artBibleCardSubtitle": "Visual identity anchor doc",
+  "artBibleHint": "Identity statement, palette (hex), typography, prohibitions, technical specs...",
+  "artBibleSaved": "Art bible saved",
+  "artBibleShort": "Art bible",
+  "artBibleSubtitle": "Visual identity anchor — palette, typography, style prohibitions. Every asset task references this.",
+  "artBibleTaskCreated": "Art bible task created",
+  "artBibleTitle": "Art Bible - {app}",
+  "@artBibleTitle": {
+    "placeholders": {
+      "app": {}
+    }
   },
+  "askAQuestionHint": "Ask a question...",
+  "askAgent": "Ask Agent",
+  "askAnythingAboutYourApps": "Ask anything about your apps",
+  "assetAudit": "Asset Audit",
+  "assetAuditSubtitle": "Broken refs, orphans, placeholders",
+  "assetAuditTaskCreated": "Asset audit task created",
+  "assetSpecTaskCreated": "Asset spec task created",
+  "assetSpecs": "Asset Specs",
+  "assetSpecsSubtitle": "Per-asset prompts from bible",
+  "attachments": "Attachments",
+  "attachmentsCount": "Attachments ({count})",
+  "@attachmentsCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "automationCreated": "Automation created",
+  "automationStateStarted": "started",
+  "automationStateStopped": "stopped",
+  "automationToggled": "{app} {state}",
+  "@automationToggled": {
+    "placeholders": {
+      "app": {},
+      "state": {}
+    }
+  },
+  "automationUpdated": "Automation updated",
+  "back": "Back",
+  "backend": "Backend",
+  "balanceCheck": "Balance Check",
+  "balanceCheckSubtitle": "Economy, progression, rewards",
+  "balanceCheckTaskCreated": "Balance check task created",
+  "batchRunError": "Error during batch run: {error}",
+  "@batchRunError": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "blockedByList": "blocked by {ids}",
+  "@blockedByList": {
+    "placeholders": {
+      "ids": {}
+    }
+  },
+  "blockedByTask": "Blocked by #{id}",
+  "@blockedByTask": {
+    "placeholders": {
+      "id": {}
+    }
+  },
+  "blockedCountLabel": "{count} blocked",
+  "@blockedCountLabel": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "blockerNotInList": "Task #{id} is not in the current list (archived or deleted)",
+  "@blockerNotInList": {
+    "placeholders": {
+      "id": {}
+    }
+  },
+  "brainstormAndCreate": "Brainstorm & Create",
+  "brainstormConceptHint": "Concept seed (e.g. \"ant colony idle game\", \"puzzle with gravity\")",
+  "brainstormCreated": "Project created with brainstorm task!",
+  "brainstormDesc": "Creates a new project with a brainstorm task. When the task runs, AI generates a full GDD and initial tasks.",
+  "brainstormNameHint": "Project name (optional — AI can suggest)",
+  "brainstormNewGame": "Brainstorm New Game",
+  "build": "Build",
+  "buildAndDeploy": "Build & Deploy",
+  "buildCancelled": "Build cancelled",
+  "buildFailedLabel": "build failed",
+  "buildListTitle": "v{version} - {buildType}",
+  "@buildListTitle": {
+    "placeholders": {
+      "version": {},
+      "buildType": {}
+    }
+  },
+  "buildPollingTimedOut": "Build polling timed out after 30 minutes - check server logs",
+  "buildTarget": "Build Target",
   "builds": "Builds",
   "@builds": {
     "description": "Builds tab label in the bottom navigation."
   },
-  "logs": "Logs",
-  "@logs": {
-    "description": "Logs tab label in the bottom navigation."
+  "builtCount": "Built ({count})",
+  "@builtCount": {
+    "placeholders": {
+      "count": {}
+    }
   },
-  "dashboard": "Dashboard",
-  "@dashboard": {
-    "description": "Dashboard tab label in the bottom navigation."
+  "buyMeACoffee": "Buy me a coffee",
+  "buyMeACoffeeWithPrice": "Buy me a coffee  {price}",
+  "@buyMeACoffeeWithPrice": {
+    "placeholders": {
+      "price": {}
+    }
   },
-  "issues": "Issues",
-  "@issues": {
-    "description": "Issues tab label in the bottom navigation."
+  "cancel": "Cancel",
+  "@cancel": {
+    "description": "Generic Cancel button label."
   },
+  "cannotReachServer": "Cannot reach server",
+  "cannotReachServerWith": "Cannot reach server: {error}",
+  "@cannotReachServerWith": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "cannotSaveEmptyArtBible": "Cannot save empty art bible",
+  "cannotSaveEmptyClaudeMd": "Cannot save empty CLAUDE.md",
+  "cannotSaveEmptyDesignDoc": "Cannot save empty design document",
+  "catBugsCrashes": "Bugs & Crashes",
+  "catCodeStyle": "Code Style",
+  "catDeadCode": "Dead Code",
+  "catErrorHandling": "Error Handling",
+  "catMemory": "Memory",
+  "categoryAccessibility": "Accessibility",
+  "categoryBug": "Bug",
+  "categoryFeatures": "Features",
+  "categoryMonetization": "Monetization",
+  "categoryOther": "Other",
+  "categoryPerformance": "Performance",
+  "categorySecurity": "Security",
+  "categorySuggestion": "Suggestion",
+  "categoryUiUx": "UI/UX",
+  "charactersCount": "{count} characters",
+  "@charactersCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "chatHistory": "Chat History",
+  "chatLogs": "Reports",
+  "@chatLogs": {
+    "description": "Reports & Logs tab label in the bottom navigation."
+  },
+  "chatSessionSubtitle": "{count} messages • {date}",
+  "@chatSessionSubtitle": {
+    "placeholders": {
+      "count": {},
+      "date": {}
+    }
+  },
+  "checkBugsCrashes": "Bugs & crashes",
+  "checkCodeStyle": "Code style",
+  "checkDeadCode": "Dead code",
+  "checkErrorHandling": "Error handling",
+  "checkMemoryLeaks": "Memory leaks",
+  "checkPerformanceIssues": "Performance issues",
+  "checkSecurityVulnerabilities": "Security vulnerabilities",
+  "checksToRun": "Checks to run:",
+  "claudeMdHint": "Project conventions, build commands, rules...",
+  "claudeMdSaved": "CLAUDE.md saved",
+  "claudeMdSubtitle": "Project instructions for AI agents working on this app.",
+  "claudeMdTitle": "CLAUDE.md - {app}",
+  "@claudeMdTitle": {
+    "placeholders": {
+      "app": {}
+    }
+  },
+  "clear": "Clear",
+  "clearFilters": "Clear filters",
+  "clearMessages": "Clear Messages",
+  "clearMessagesConfirm": "Delete all {count} messages in this chat?",
+  "@clearMessagesConfirm": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "close": "Close",
+  "codeCheck": "Code Check",
+  "codeCheckBody": "This will create a task for the AI agent to review your code and report findings as issues.",
+  "codeCheckRequested": "Code check requested",
+  "codeCheckResults": "Code Check Results",
+  "codeReview": "Code Review",
+  "codeReviewSubtitle": "Bugs, crashes, code quality",
+  "complete": "Complete",
+  "completedCount": "Completed ({count})",
+  "@completedCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "connectToYourServer": "Connect to Your Server",
+  "connectYourPhone": "Connect your phone",
+  "connectedSuccessfully": "Connected successfully",
+  "connectedTo": "Connected to {server}",
+  "@connectedTo": {
+    "placeholders": {
+      "server": {}
+    }
+  },
+  "connecting": "Connecting...",
+  "connectionFailed": "Connection failed",
+  "connectionSuccessful": "Connection successful!",
+  "connectionTimedOut": "Connection timed out",
+  "consistencyCheck": "Consistency Check",
+  "consistencyCheckSubtitle": "GDD ↔ code ↔ data drift",
+  "consistencyCheckTaskCreated": "Consistency check task created",
+  "console": "Console",
+  "contentAudit": "Content Audit",
+  "contentAuditSubtitle": "Levels, characters, items, text",
+  "contentAuditTaskCreated": "Content audit task created",
+  "continueLabel": "Continue",
   "control": "Control",
   "@control": {
     "description": "Control tab label in the bottom navigation."
   },
-  "chatLogs": "Reports",
-  "@chatLogs": {
-    "description": "Reports & Logs tab label in the bottom navigation."
-  }
+  "copiedToClipboard": "Copied to clipboard",
+  "copiedToClipboardNamed": "{label} copied to clipboard",
+  "@copiedToClipboardNamed": {
+    "placeholders": {
+      "label": {}
+    }
+  },
+  "copy": "Copy",
+  "copyAiResponse": "Copy AI Response",
+  "copyDescription": "Copy Description",
+  "copyTitle": "Copy Title",
+  "copyUrl": "Copy URL",
+  "couldNotDownloadPdf": "Could not download the PDF",
+  "couldNotLoadBuildTargets": "Could not load build targets",
+  "couldNotLoadDirectives": "Could not load directives",
+  "couldNotOpenLink": "Could not open link",
+  "couldNotOpenPdf": "Could not open the PDF: {error}",
+  "@couldNotOpenPdf": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "couldNotOpenPicker": "Could not open the picker.",
+  "create": "Create",
+  "createApp": "Create App",
+  "createFirstApp": "Create your first app to get started",
+  "createIssue": "Create Issue",
+  "createdAgo": "created {time}",
+  "@createdAgo": {
+    "placeholders": {
+      "time": {}
+    }
+  },
+  "creating": "Creating...",
+  "criticalCount": "{count} critical",
+  "@criticalCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "customAutomationPromptHint": "Custom automation prompt...",
+  "customPrompt": "Custom prompt",
+  "dashboard": "Dashboard",
+  "@dashboard": {
+    "description": "Dashboard tab label in the bottom navigation."
+  },
+  "delete": "Delete",
+  "deleteAutomation": "Delete Automation",
+  "deleteAutomationConfirm": "Remove automation for {app}?",
+  "@deleteAutomationConfirm": {
+    "placeholders": {
+      "app": {}
+    }
+  },
+  "deleteChat": "Delete Chat",
+  "deleteChatConfirm": "Delete this conversation?",
+  "deleteConfirmTitled": "Delete \"{title}\"?\nThis cannot be undone.",
+  "@deleteConfirmTitled": {
+    "placeholders": {
+      "title": {}
+    }
+  },
+  "deleteFailed": "Delete failed",
+  "deleteReportBody": "This permanently removes the report and its screenshots.",
+  "deleteReportTitle": "Delete report?",
+  "deleted": "Deleted",
+  "dependsOn": "Depends on",
+  "deploy": "Deploy",
+  "deployToProduction": "Deploy to Production",
+  "deployToProductionBody": "This will build and publish to ALL users on Google Play.\n\nMake sure you have tested on internal/beta first.",
+  "deployToProductionTitle": "Deploy to Production?",
+  "descriptionHint": "Description...",
+  "designDoc": "Design Doc",
+  "designDocHint": "Describe your app vision, features, goals...",
+  "designDocSaved": "Design doc saved",
+  "designDocShort": "Design doc",
+  "designDocSubtitle": "The AI will use this as context for all work on this app.",
+  "designDocTitle": "Design Doc - {app}",
+  "@designDocTitle": {
+    "placeholders": {
+      "app": {}
+    }
+  },
+  "designDocument": "Design Document",
+  "designReview": "Design Review",
+  "designReviewSubtitle": "GDD, mechanics, UX audit",
+  "designReviewTaskCreated": "Design review task created",
+  "details": "Details",
+  "detectingServer": "Detecting server...",
+  "developer": "Developer",
+  "directServerUrlLan": "Direct Server URL (LAN)",
+  "directiveHistory": "Directive history",
+  "dismiss": "Dismiss",
+  "display": "Display",
+  "doIt": "Do It",
+  "done": "Done",
+  "doneOfTotal": "{done} / {total} done",
+  "@doneOfTotal": {
+    "placeholders": {
+      "done": {},
+      "total": {}
+    }
+  },
+  "durationLabelWith": "Duration: {seconds}s",
+  "@durationLabelWith": {
+    "placeholders": {
+      "seconds": {}
+    }
+  },
+  "edit": "Edit",
+  "@edit": {
+    "description": "Generic Edit button label."
+  },
+  "editNamed": "Edit {label}",
+  "@editNamed": {
+    "placeholders": {
+      "label": {}
+    }
+  },
+  "editTitleNamed": "Edit: {app}",
+  "@editTitleNamed": {
+    "placeholders": {
+      "app": {}
+    }
+  },
+  "editWorkerUrl": "Edit Worker URL",
+  "engine": "Engine",
+  "engineChanged": "Engine changed: {previous} -> {current}",
+  "@engineChanged": {
+    "placeholders": {
+      "previous": {},
+      "current": {}
+    }
+  },
+  "engineConfirmed": "Engine confirmed: {engine}",
+  "@engineConfirmed": {
+    "placeholders": {
+      "engine": {}
+    }
+  },
+  "engineDetectionFailed": "Engine detection failed",
+  "enhance": "Enhance",
+  "enhanceConfirmBody": "AI will rewrite the document. This cannot be undone.",
+  "enhanceConfirmTitle": "Enhance {label}?",
+  "@enhanceConfirmTitle": {
+    "placeholders": {
+      "label": {}
+    }
+  },
+  "enhanceError": "{label} enhance error: {error}",
+  "@enhanceError": {
+    "placeholders": {
+      "label": {},
+      "error": {}
+    }
+  },
+  "enhanceStarted": "{label} enhancement started on server...",
+  "@enhanceStarted": {
+    "placeholders": {
+      "label": {}
+    }
+  },
+  "enhanceSucceeded": "{label} enhanced successfully",
+  "@enhanceSucceeded": {
+    "placeholders": {
+      "label": {}
+    }
+  },
+  "enhancementFailed": "Enhancement failed",
+  "enterConceptOrName": "Enter a concept or project name",
+  "enterServerUrlDesc": "Enter the URL of your Auto Game Builder server",
+  "enterUrlInPhoneApp": "Enter this URL in the phone app to connect remotely",
+  "enterValidUrl": "Enter a valid URL (e.g. http://192.168.1.100:8000)",
+  "enterWorkerUrlDesc": "Enter your Worker URL to connect remotely",
+  "errorWithMessage": "Error: {error}",
+  "@errorWithMessage": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "everyMinutes": "Every {minutes}m",
+  "@everyMinutes": {
+    "placeholders": {
+      "minutes": {}
+    }
+  },
+  "exitLabelWith": "Exit: {code}",
+  "@exitLabelWith": {
+    "placeholders": {
+      "code": {}
+    }
+  },
+  "expandFoldersOrCreate": "Expand the folders below or create a new app",
+  "failed": "Failed",
+  "failedCountLabel": "{count} failed",
+  "@failedCountLabel": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "failedToBrainstorm": "Failed to brainstorm",
+  "failedToCreateApp": "Failed to create app",
+  "failedToCreateItem": "Failed to create item",
+  "failedToCreateTestTask": "Failed to create test task",
+  "failedToDelete": "Failed to delete",
+  "failedToLoadApp": "Failed to load app",
+  "failedToLoadAutomations": "Failed to load automations",
+  "failedToLoadLogs": "Failed to load logs",
+  "failedToLoadTasks": "Failed to load tasks",
+  "failedToLoadWithError": "Failed to load: {error}",
+  "@failedToLoadWithError": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "failedToRefreshApp": "Failed to refresh app",
+  "failedToRequestCodeCheck": "Failed to request code check",
+  "failedToRequestIdeas": "Failed to request ideas",
+  "failedToReset": "Failed to reset",
+  "failedToRunTask": "Failed to run task",
+  "failedToSave": "Failed to save: {error}",
+  "@failedToSave": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "failedToStartReupload": "Failed to start re-upload",
+  "failedToStartServer": "Failed to start server: {error}",
+  "@failedToStartServer": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "failedToStartWithError": "Failed to start: {error}",
+  "@failedToStartWithError": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "failedToTrigger": "Failed to trigger {action}",
+  "@failedToTrigger": {
+    "placeholders": {
+      "action": {}
+    }
+  },
+  "failedToTriggerRun": "Failed to trigger run",
+  "failedToUpdate": "Failed to update",
+  "failedToUpdateAiAgent": "Failed to update AI agent",
+  "failedToUpdateMcp": "Failed to update MCP",
+  "favoritesOnly": "Favorites only",
+  "feedback": "Feedback",
+  "fileTooLarge": "Too large (max {max} MB): {files}",
+  "@fileTooLarge": {
+    "placeholders": {
+      "max": {},
+      "files": {}
+    }
+  },
+  "filterAll": "All",
+  "filterClosed": "Closed",
+  "filterOpen": "Open",
+  "findingsCount": "{count, plural, =1{1 finding} other{{count} findings}}",
+  "@findingsCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "finishedDoneAgo": "done {time}",
+  "@finishedDoneAgo": {
+    "placeholders": {
+      "time": {}
+    }
+  },
+  "finishedFailedAgo": "failed {time}",
+  "@finishedFailedAgo": {
+    "placeholders": {
+      "time": {}
+    }
+  },
+  "forceRefreshFailed": "Force refresh failed: {error}",
+  "@forceRefreshFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "forceRefreshTooltip": "Force refresh from server (clears local cache)",
+  "fullAutoMode": "Full Auto Mode",
+  "fullAutoModeOn": "AI reads tasks, fixes, generates new ideas, repeats",
+  "generate": "Generate",
+  "generateIdeas": "Generate Ideas",
+  "generateIdeasHint": "e.g. \"Ideas for improving the UI\"",
+  "genre": "Genre",
+  "genreAction": "Action",
+  "genreAny": "Any",
+  "genreArcade": "Arcade",
+  "genreCardGame": "Card Game",
+  "genreIdleClicker": "Idle/Clicker",
+  "genrePuzzle": "Puzzle",
+  "genreRpg": "RPG",
+  "genreSimulation": "Simulation",
+  "genreStrategy": "Strategy",
+  "genreTowerDefense": "Tower Defense",
+  "getStarted": "Get Started",
+  "googleAccount": "Google Account",
+  "hide": "Hide",
+  "highCount": "{count} high",
+  "@highCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "ideaGenerationRequested": "Idea generation requested",
+  "installed": "installed",
+  "intervalMinLabel": "Interval (min): ",
+  "invalidQrData": "Invalid QR code data",
+  "issueCreated": "Issue created",
+  "issueTitleHint": "Issue title",
+  "issues": "Issues",
+  "@issues": {
+    "description": "Issues tab label in the bottom navigation."
+  },
+  "itemCreated": "Item created",
+  "justNow": "Just now",
+  "language": "Language",
+  "later": "Later",
+  "links": "Links",
+  "loginTagline": "Manage your game projects from anywhere",
+  "logs": "Logs",
+  "@logs": {
+    "description": "Logs tab label in the bottom navigation."
+  },
+  "maintenanceOnly": "Maintenance only",
+  "markAsCompleted": "Mark as Completed",
+  "markComplete": "Mark Complete",
+  "markCompleteConfirm": "Mark \"{title}\" as completed?",
+  "@markCompleteConfirm": {
+    "placeholders": {
+      "title": {}
+    }
+  },
+  "markedAsCompleted": "Marked as completed",
+  "maxMinutes": "Max {minutes}m",
+  "@maxMinutes": {
+    "placeholders": {
+      "minutes": {}
+    }
+  },
+  "maxSessionMinLabel": "Max session (min): ",
+  "mcpConfiguredPerApp": "MCP servers are configured per-app on the app detail page.",
+  "mcpServers": "MCP Servers",
+  "mcpServersActive": "MCP Servers ({count} active)",
+  "@mcpServersActive": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "mcpServersDesc": "Tool servers available for all AI runs on this app",
+  "mediumCount": "{count} medium",
+  "@mediumCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "moveBackToActive": "Move back to Active",
+  "moveToCompletedFolder": "Move to completed folder",
+  "nameIsRequired": "Name is required",
+  "needHelpSettingUp": "Need help setting up?",
+  "newApp": "New App",
+  "newAutomation": "New Automation",
+  "newChat": "New Chat",
+  "newItem": "New Item",
+  "newPrompt": "New prompt",
+  "newReportsCount": "{count} new report(s)",
+  "@newReportsCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "nextRunIn": "Next run in",
+  "noApiKeyFound": "No API key found — restart the server to generate one",
+  "noAppsMatch": "No apps match",
+  "noAppsYet": "No apps yet",
+  "noArtBibleYet": "No art bible yet. Tap Add to define the visual identity — palette, typography, prohibitions.",
+  "noAutomationsMatchFilters": "No automations match filters",
+  "noAutomationsYet": "No automations yet",
+  "noBuildTargetsFor": "No build targets for {type} projects.",
+  "@noBuildTargetsFor": {
+    "placeholders": {
+      "type": {}
+    }
+  },
+  "noBuildsYet": "No builds yet",
+  "noChatsYet": "No chats yet",
+  "noClaudeMdYet": "No CLAUDE.md yet. Tap Add to set project instructions for AI.",
+  "noDesignDocYet": "No design document yet. Tap Add to describe your app vision.",
+  "noDirectivesYet": "No directives sent yet.",
+  "noFavoritePrompts": "No favorite prompts yet",
+  "noItemsFound": "No items found",
+  "noLogsFound": "No logs found",
+  "noNewReports": "No new reports",
+  "noOpenReports": "No open reports",
+  "noOpenTasksToDependOn": "No open tasks to depend on",
+  "noPendingItems": "No pending items to work on",
+  "noPromptHistory": "No prompt history yet.\nGenerate ideas to build history.",
+  "noReportsHere": "No reports here",
+  "noWorkerUrlDetected": "No Worker URL detected in settings.json.\nSet up a Cloudflare Worker to enable remote access.",
+  "notAvailableShort": "N/A",
+  "notConfigured": "Not configured",
+  "notConnected": "Not connected",
+  "notInstalled": "not installed",
+  "notPaired": "Not paired",
+  "notSet": "(not set)",
+  "notYetUploaded": "not yet uploaded",
+  "onHold": "On hold",
+  "oneShotRunEndsIn": "One-shot run ends in",
+  "oneTimeRunTriggered": "{app} one-time run triggered",
+  "@oneTimeRunTriggered": {
+    "placeholders": {
+      "app": {}
+    }
+  },
+  "openCountLabel": "{count} open",
+  "@openCountLabel": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "openPdf": "Open PDF",
+  "openingPdf": "Opening PDF…",
+  "orSeparator": "OR",
+  "output": "Output",
+  "packageName": "Package Name",
+  "paired": "Paired",
+  "pairedSuccessfully": "Paired successfully!",
+  "perfProfileTaskCreated": "Performance profile task created",
+  "performanceProfile": "Performance Profile",
+  "performanceProfileSubtitle": "Frame drops, memory, load time",
+  "photo": "Photo",
+  "postpone": "Postpone",
+  "postponedCount": "Postponed ({count})",
+  "@postponedCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "pressBackAgainToExit": "Press back again to exit",
+  "previousChat": "Previous Chat",
+  "priority": "Priority",
+  "processingTasks": "Processing {done} of {total} tasks...",
+  "@processingTasks": {
+    "placeholders": {
+      "done": {},
+      "total": {}
+    }
+  },
+  "projectPath": "Project Path",
+  "promptHistory": "Prompt History",
+  "promptHistoryTooltip": "Prompt history",
+  "publish": "Publish",
+  "pullAndRebuild": "Pull & Rebuild",
+  "pullFailed": "Pull failed",
+  "pullNow": "Pull now",
+  "pullOnly": "Pull Only",
+  "purchaseFailed": "Purchase failed: {error}",
+  "@purchaseFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "putOnHoldForLater": "Put on hold for later",
+  "pythonSectionDesc": "Run scripts and manage the Python project via the server.",
+  "quickIssue": "Quick Issue",
+  "rePairWithQr": "Re-pair with QR Code",
+  "rebuild": "Rebuild",
+  "rebuildBody": "Start a new build from scratch?",
+  "rebuildTitle": "Rebuild?",
+  "recentBuilds": "Recent Builds",
+  "refresh": "Refresh",
+  "refreshFailedShowingCached": "Refresh failed — showing last synced data. {message}",
+  "@refreshFailedShowingCached": {
+    "placeholders": {
+      "message": {}
+    }
+  },
+  "refreshedFromServer": "Refreshed from server",
+  "reload": "Reload",
+  "reopen": "Reopen",
+  "reportBugOrSuggestion": "Report a Bug / Suggestion",
+  "reportBugSubtitle": "Tell us what to fix or add",
+  "reportConsent": "I agree to send this report with my device info (model, OS and app version) to the developer to help fix issues.",
+  "reportHint": "What happened, or what would you like to see?",
+  "reportSentThanks": "Thanks! Your report was sent.",
+  "reset": "Reset",
+  "resetServer": "Reset Server",
+  "resetServerBody": "This will restart the backend server.",
+  "resetServerRunningNote": "{count} running automation(s) will be stopped first to prevent auto-restart.",
+  "@resetServerRunningNote": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "resumeActiveDevelopment": "Resume active development",
+  "retry": "Retry",
+  "@retry": {
+    "description": "Retry button label, e.g. after a failed network call."
+  },
+  "retryUpload": "Retry Upload",
+  "reuploadStarted": "Re-upload started",
+  "run": "Run",
+  "runAgainBody": "A one-shot run is already in progress but the AI may have stopped early. Trigger another run?",
+  "runAgainTitle": "Run Again?",
+  "runAnyway": "Run Anyway",
+  "runCheck": "Run Check",
+  "runOnce": "Run Once",
+  "runOnceInProgress": "Run Once (in progress)",
+  "running": "Running",
+  "save": "Save",
+  "@save": {
+    "description": "Generic Save button label."
+  },
+  "saveChanges": "Save Changes",
+  "saveEmptyGddBody": "This will erase the current design document.",
+  "saveEmptyGddTitle": "Save empty GDD?",
+  "saving": "Saving...",
+  "scanError": "Scan error: {error}",
+  "@scanError": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "scanFailedStatus": "Scan failed: server returned {status}",
+  "@scanFailedStatus": {
+    "placeholders": {
+      "status": {}
+    }
+  },
+  "scanForProjects": "Scan for projects",
+  "scanPairingQrTitle": "Scan Pairing QR Code",
+  "scanQrToPair": "Scan QR Code to Pair",
+  "scanResult": "Scanned {found} folders: {imported} imported, {skipped} skipped",
+  "@scanResult": {
+    "placeholders": {
+      "found": {},
+      "imported": {},
+      "skipped": {}
+    }
+  },
+  "scanThisQr": "Scan this QR from your phone",
+  "scanToInstall": "Scan to install on your phone",
+  "scopeCheck": "Scope Check",
+  "scopeCheckSubtitle": "Cut list + realism pass",
+  "scopeCheckTaskCreated": "Scope check task created",
+  "screenshotsOptional": "Screenshots (optional)",
+  "screenshotsTooLarge": "Screenshots are large — you may need to remove one.",
+  "searchAppsHint": "Search apps...",
+  "searchFilterChip": "Search: \"{query}\"",
+  "@searchFilterChip": {
+    "placeholders": {
+      "query": {}
+    }
+  },
+  "searchHint": "Search...",
+  "sectionAiAgents": "AI Agents",
+  "sectionGameEngines": "Game Engines",
+  "sectionPaths": "Paths",
+  "sectionServices": "Services",
+  "sectionSystemTools": "System Tools",
+  "selectAnApp": "Select an app",
+  "selectAnAppFirst": "Select an app first",
+  "selectApp": "Select app",
+  "selectAppForContext": "Select an app for context, or ask general questions",
+  "selectAppToViewItems": "Select an app to view items",
+  "selectCategoriesOrPrompt": "Select categories or type your own prompt.",
+  "sendReport": "Send report",
+  "sending": "Sending…",
+  "server": "Server",
+  "serverConfiguration": "Server Configuration",
+  "serverConnection": "Server Connection",
+  "serverReturnedStatus": "Server returned status {status}",
+  "@serverReturnedStatus": {
+    "placeholders": {
+      "status": {}
+    }
+  },
+  "serverStarted": "Server started!",
+  "serverStartedHealthFailed": "Server started but health check failed",
+  "serverStopped": "Server stopped",
+  "serverUnreachable": "Server unreachable",
+  "serverUrl": "Server URL",
+  "sessionEndsIn": "Session ends in",
+  "sessionRefreshed": "Session refreshed — recent context preserved",
+  "settings": "Settings",
+  "@settings": {
+    "description": "Settings tab / screen label."
+  },
+  "settingsJsonNotFound": "settings.json not found",
+  "settingsJsonRestartNote": "settings.json — restart server after changes",
+  "settingsSavedRestart": "Settings saved — restart server to apply",
+  "setupInstructions": "Setup Instructions",
+  "setupServerFirst": "Set up the server on your PC first",
+  "setupStepCloneRepo": "Clone the repository:",
+  "setupStepEnterUrl": "Enter the URL shown in the terminal (e.g. http://192.168.1.100:8000):",
+  "setupStepInstallDeps": "Install dependencies:",
+  "setupStepInstallPython": "Install Python 3.10+ on your PC",
+  "setupStepRunWizard": "Run the setup wizard:",
+  "setupStepStartServer": "Start the server:",
+  "show": "Show",
+  "showAll": "Show all",
+  "showAppIcons": "Show app icons",
+  "showAppIconsDesc": "Display real app icons on the dashboard instead of generic type icons",
+  "showPairingQr": "Show Pairing QR Code",
+  "signInCancelled": "Sign-in was cancelled",
+  "signInFailed": "Sign-in failed: {error}",
+  "@signInFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "signInWithGoogle": "Sign in with Google",
+  "signOut": "Sign Out",
+  "signingIn": "Signing in...",
+  "skipForNow": "Skip for now",
+  "start": "Start",
+  "startBuildFromCardAbove": "Start a build from the card above",
+  "startServer": "Start Server",
+  "startServerNotFound": "start_server.py not found",
+  "status": "Status",
+  "statusActive": "Active",
+  "statusAll": "All",
+  "statusBuilt": "Built",
+  "statusBuiltLower": "Built",
+  "statusCompleted": "Completed",
+  "statusDivided": "Divided",
+  "statusDone": "Done",
+  "statusFailedLower": "Failed",
+  "statusFilterChip": "Status: {value}",
+  "@statusFilterChip": {
+    "placeholders": {
+      "value": {}
+    }
+  },
+  "statusInProgress": "In Progress",
+  "statusPending": "Pending",
+  "statusPendingLower": "Pending",
+  "statusPostponed": "Postponed",
+  "stop": "Stop",
+  "stopServer": "Stop Server",
+  "stoppedLabel": "Stopped",
+  "stuckSuffix": "{time} STUCK",
+  "@stuckSuffix": {
+    "placeholders": {
+      "time": {}
+    }
+  },
+  "stuckTasksAutoFailed": "{count} stuck task(s) auto-failed after 30min timeout",
+  "@stuckTasksAutoFailed": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "studioReviews": "Studio Reviews",
+  "submit": "Submit",
+  "submitting": "Submitting...",
+  "suggestApiBackend": "API & Backend",
+  "suggestFeatureIntegration": "Feature Integration",
+  "suggestFixFailures": "Fix Failures",
+  "suggestGddAligned": "GDD-Aligned",
+  "suggestImproveCodebase": "Improve Codebase",
+  "suggestNextMilestone": "Next Milestone",
+  "suggestPerformanceBoost": "Performance Boost",
+  "suggestRevenueIdeas": "Revenue Ideas",
+  "suggestSecurityHardening": "Security Hardening",
+  "suggestTaskPrioritization": "Task Prioritization",
+  "suggestTestingQa": "Testing & QA",
+  "suggestUserEngagement": "User Engagement",
+  "suggestUxPolish": "UX Polish",
+  "suggestedForYou": "Suggested for you",
+  "summary": "Summary",
+  "supportDevelopment": "Support Development",
+  "supportDevelopmentDesc": "Enjoying the app? Consider supporting development!",
+  "syncFailed": "Sync failed",
+  "syncedAgo": "Synced {time}",
+  "@syncedAgo": {
+    "placeholders": {
+      "time": {}
+    }
+  },
+  "tapPlusToCreateAutomation": "Tap + to create your first automation",
+  "tapPlusToStartConversation": "Tap + to start a conversation",
+  "tapToAddLongPressToEdit": "Tap to add, long-press to edit",
+  "tapToOpenLongPressToEdit": "Tap to open, long-press to edit",
+  "tapToRedetectEngine": "Tap to re-detect the engine from disk",
+  "taskLabelWith": "Task: {task}",
+  "@taskLabelWith": {
+    "placeholders": {
+      "task": {}
+    }
+  },
+  "taskOverview": "Task Overview",
+  "taskResetToPending": "Task reset to pending",
+  "tasks": "Tasks",
+  "@tasks": {
+    "description": "Tasks tab / list label."
+  },
+  "techDebtScan": "Tech Debt Scan",
+  "techDebtScanSubtitle": "God scripts, duplicates, TODOs",
+  "techDebtTaskCreated": "Tech debt scan task created",
+  "tellUsMore": "Tell us more",
+  "test": "Test",
+  "testConnection": "Test Connection",
+  "testTaskCreated": "Test task created",
+  "testing": "Testing...",
+  "theme": "Theme",
+  "thinking": "Thinking...",
+  "timeDaysAgo": "{days}d ago",
+  "@timeDaysAgo": {
+    "placeholders": {
+      "days": {}
+    }
+  },
+  "timeHoursAgo": "{hours}h ago",
+  "@timeHoursAgo": {
+    "placeholders": {
+      "hours": {}
+    }
+  },
+  "timeJustNow": "just now",
+  "timeMinutesAgo": "{minutes}m ago",
+  "@timeMinutesAgo": {
+    "placeholders": {
+      "minutes": {}
+    }
+  },
+  "timeMonthsAgo": "{months}mo ago",
+  "@timeMonthsAgo": {
+    "placeholders": {
+      "months": {}
+    }
+  },
+  "timeSecondsAgo": "{seconds}s ago",
+  "@timeSecondsAgo": {
+    "placeholders": {
+      "seconds": {}
+    }
+  },
+  "timeWeeksAgo": "{weeks}w ago",
+  "@timeWeeksAgo": {
+    "placeholders": {
+      "weeks": {}
+    }
+  },
+  "titleHint": "Title",
+  "titleIsRequired": "Title is required",
+  "trackAlpha": "Alpha",
+  "trackBeta": "Beta",
+  "trackInternal": "Internal",
+  "trackProd": "Prod",
+  "triggeredOfItems": "Triggered {done} of {total} items",
+  "@triggeredOfItems": {
+    "placeholders": {
+      "done": {},
+      "total": {}
+    }
+  },
+  "tryChangingFilters": "Try changing the category or status filter",
+  "type": "Type",
+  "typeBug": "Bug",
+  "typeFeature": "Feature",
+  "typeFilterChip": "Type: {value}",
+  "@typeFilterChip": {
+    "placeholders": {
+      "value": {}
+    }
+  },
+  "typeFix": "Fix",
+  "typeIdea": "Idea",
+  "typeIssue": "Issue",
+  "updateAvailable": "Update Available",
+  "updateAvailableBody": "A new version is available on GitHub.\nPull the latest code and rebuild to update.",
+  "updateFailed": "Update failed",
+  "updatedAgo": "updated {time}",
+  "@updatedAgo": {
+    "placeholders": {
+      "time": {}
+    }
+  },
+  "updatedNamed": "{label} updated",
+  "@updatedNamed": {
+    "placeholders": {
+      "label": {}
+    }
+  },
+  "uploadToGooglePlay": "Upload to Google Play",
+  "urgentCountLabel": "{count} urgent",
+  "@urgentCountLabel": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "urgentLabel": "urgent",
+  "userFallback": "User",
+  "version": "Version",
+  "versionWithNumber": "v{version}",
+  "@versionWithNumber": {
+    "placeholders": {
+      "version": {}
+    }
+  },
+  "viewFailedTasks": "View failed tasks",
+  "viewIssues": "View issues",
+  "viewOnGitHub": "View on GitHub",
+  "warningPublishesToAll": "Warning: This publishes to all users!",
+  "webDeploy": "Web Deploy",
+  "webDeploySectionDesc": "Build and deploy the web app via the server.",
+  "website": "Website",
+  "whatIsThis": "What is this?",
+  "workOnAll": "Work on All",
+  "workOnAllBlockedNote": "\n({count} blocked item(s) will be skipped.)",
+  "@workOnAllBlockedNote": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "workOnAllConfirm": "Run AI on all {count} pending item(s)?\nThey will be processed sequentially.",
+  "@workOnAllConfirm": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "workOnAllPending": "Work on All Pending",
+  "workOnThis": "Work on This",
+  "workOnThisConfirm": "Run {agent} AI on:\n\"{title}\"",
+  "@workOnThisConfirm": {
+    "placeholders": {
+      "agent": {},
+      "title": {}
+    }
+  },
+  "workerUrl": "Worker URL",
+  "workerUrlAutoDetected": "Auto-detected from settings.json (read-only)",
+  "workerUrlCopied": "Worker URL copied",
+  "workerUrlHelp": "Get this URL from the desktop app or your server admin",
+  "workerUrlSaved": "Worker URL saved",
+  "workerUrlSetHint": "Set cloudflare.worker_url in server/config/settings.json",
+  "youreAllSet": "You're All Set!"
 }

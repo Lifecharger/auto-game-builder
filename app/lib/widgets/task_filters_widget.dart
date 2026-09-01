@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme.dart';
+import '../l10n/app_localizations.dart';
 
 class TaskFiltersWidget extends StatelessWidget {
   final TextEditingController searchController;
@@ -27,16 +28,29 @@ class TaskFiltersWidget extends StatelessWidget {
     required this.onTypeChanged,
   });
 
-  static String chipLabel(String value) {
+  static String chipLabel(BuildContext context, String value) {
+    final l10n = AppLocalizations.of(context)!;
     switch (value) {
-      case 'all': return 'All';
-      case 'in_progress': return 'In Progress';
+      case 'all': return l10n.filterAll;
+      case 'in_progress': return l10n.statusInProgress;
+      case 'pending': return l10n.statusPendingLower;
+      case 'failed': return l10n.statusFailedLower;
+      case 'divided': return l10n.statusDivided;
+      case 'completed': return l10n.statusCompleted;
+      case 'built': return l10n.statusBuiltLower;
+      case 'done': return l10n.statusDone;
+      case 'issue': return l10n.typeIssue;
+      case 'bug': return l10n.typeBug;
+      case 'fix': return l10n.typeFix;
+      case 'feature': return l10n.typeFeature;
+      case 'idea': return l10n.typeIdea;
       default: return value[0].toUpperCase() + value.substring(1);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Column(
       children: [
         Padding(
@@ -44,7 +58,7 @@ class TaskFiltersWidget extends StatelessWidget {
           child: TextField(
             controller: searchController,
             decoration: InputDecoration(
-              hintText: 'Search...',
+              hintText: l10n.searchHint,
               prefixIcon: const Icon(Icons.search, size: 20),
               suffixIcon: searchQuery.isNotEmpty
                   ? IconButton(
@@ -69,7 +83,7 @@ class TaskFiltersWidget extends StatelessWidget {
               return Padding(
                 padding: const EdgeInsets.only(right: 6),
                 child: FilterChip(
-                  label: Text(chipLabel(s), style: TextStyle(fontSize: 12)),
+                  label: Text(chipLabel(context, s), style: TextStyle(fontSize: 12)),
                   selected: selected,
                   selectedColor: color.withValues(alpha: 0.3),
                   checkmarkColor: color,
@@ -92,7 +106,7 @@ class TaskFiltersWidget extends StatelessWidget {
               return Padding(
                 padding: const EdgeInsets.only(right: 6),
                 child: FilterChip(
-                  label: Text(chipLabel(t), style: TextStyle(fontSize: 12)),
+                  label: Text(chipLabel(context, t), style: TextStyle(fontSize: 12)),
                   selected: selected,
                   selectedColor: color.withValues(alpha: 0.3),
                   checkmarkColor: color,

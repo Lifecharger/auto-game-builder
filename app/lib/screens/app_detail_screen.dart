@@ -22,6 +22,8 @@ class AppDetailScreen extends StatefulWidget {
 }
 
 class _AppDetailScreenState extends State<AppDetailScreen> {
+  AppLocalizations get l10n => AppLocalizations.of(context)!;
+
   AppModel? _app;
   List<BuildModel> _builds = [];
   bool _loading = true;
@@ -49,13 +51,13 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
   bool _mcpLoading = true;
 
   static const List<String> _aiAgents = ['', 'claude', 'gemini', 'codex', 'local'];
-  static const Map<String, String> _aiLabels = {
-    '': 'None',
-    'claude': 'Claude',
-    'gemini': 'Gemini',
-    'codex': 'Codex',
-    'local': 'Local',
-  };
+  Map<String, String> get _aiLabels => {
+        '': l10n.agentNone,
+        'claude': 'Claude',
+        'gemini': 'Gemini',
+        'codex': 'Codex',
+        'local': l10n.agentLocal,
+      };
 
   @override
   void initState() {
@@ -136,7 +138,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
     // leave the previous render intact.
     if (!appResult.ok && cachedApp == null) {
       setState(() {
-        _loadError = appResult.error ?? 'Failed to load app';
+        _loadError = appResult.error ?? l10n.failedToLoadApp;
         _loading = false;
       });
       return;
@@ -166,7 +168,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
         _loadError = null;
       } else {
         // Cached app stays on screen; surface the refresh failure inline.
-        _loadError = appResult.error ?? 'Failed to refresh app';
+        _loadError = appResult.error ?? l10n.failedToRefreshApp;
       }
       if (freshBuilds != null) {
         _builds = freshBuilds;
@@ -214,14 +216,14 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
         setState(() => _selectedStrategy = strategy);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('AI agent updated'),
+            content: Text(l10n.aiAgentUpdated),
             backgroundColor: AppColors.success,
           ),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(result.error ?? 'Failed to update AI agent'),
+            content: Text(result.error ?? l10n.failedToUpdateAiAgent),
             backgroundColor: AppColors.error,
           ),
         );
@@ -255,11 +257,11 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Quick Issue', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                    Text(l10n.quickIssue, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 16),
-                    TextField(controller: titleController, textInputAction: TextInputAction.next, decoration: const InputDecoration(hintText: 'Issue title', prefixIcon: Icon(Icons.title))),
+                    TextField(controller: titleController, textInputAction: TextInputAction.next, decoration: InputDecoration(hintText: l10n.issueTitleHint, prefixIcon: Icon(Icons.title))),
                     const SizedBox(height: 12),
-                    TextField(controller: descController, maxLines: 3, textInputAction: TextInputAction.newline, decoration: const InputDecoration(hintText: 'Description...')),
+                    TextField(controller: descController, maxLines: 3, textInputAction: TextInputAction.newline, decoration: InputDecoration(hintText: l10n.descriptionHint)),
                     const SizedBox(height: 20),
                     SizedBox(
                       width: double.infinity, height: 48,
@@ -272,12 +274,12 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                           if (ctx.mounted) Navigator.pop(ctx);
                           if (mounted) {
                             if (result.ok) HapticFeedback.lightImpact();
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result.ok ? 'Issue created' : result.error ?? 'Failed'), backgroundColor: result.ok ? AppColors.success : AppColors.error));
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result.ok ? l10n.issueCreated : result.error ?? l10n.failed), backgroundColor: result.ok ? AppColors.success : AppColors.error));
                             if (result.ok) _loadData();
                           }
                         },
                         icon: submitting ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.send),
-                        label: Text(submitting ? 'Creating...' : 'Create Issue'),
+                        label: Text(submitting ? l10n.creating : l10n.createIssue),
                       ),
                     ),
                   ],
@@ -301,7 +303,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(_app?.name ?? 'App Detail'),
+            Text(_app?.name ?? l10n.appDetail),
             SyncStatusChip(lastSyncedAt: _lastSyncedAt, failed: _loadError != null),
           ],
         ),
@@ -320,7 +322,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                       Icon(Icons.cloud_off, size: 64, color: Colors.grey.shade600),
                       const SizedBox(height: 16),
                       Text(
-                        _loadError ?? 'Failed to load app',
+                        _loadError ?? l10n.failedToLoadApp,
                         style: TextStyle(color: Colors.grey.shade400, fontSize: 16),
                         textAlign: TextAlign.center,
                       ),
@@ -411,14 +413,14 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     IconButton(
-                      tooltip: 'Directive history',
+                      tooltip: l10n.directiveHistory,
                       onPressed: _showDirectiveHistory,
                       icon: const Icon(Icons.history),
                     ),
                     FilledButton.tonalIcon(
                       onPressed: () => _triggerServerAction('run'),
                       icon: const Icon(Icons.play_arrow, size: 18),
-                      label: const Text('Run'),
+                      label: Text(l10n.run),
                     ),
                   ],
                 ),
@@ -426,7 +428,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Run scripts and manage the Python project via the server.',
+              l10n.pythonSectionDesc,
               style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
             ),
           ],
@@ -449,21 +451,21 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                   children: [
                     Icon(Icons.web, color: AppColors.accent),
                     SizedBox(width: 8),
-                    Text('Web Deploy', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    Text(l10n.webDeploy, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   ],
                 ),
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     IconButton(
-                      tooltip: 'Directive history',
+                      tooltip: l10n.directiveHistory,
                       onPressed: _showDirectiveHistory,
                       icon: const Icon(Icons.history),
                     ),
                     FilledButton.tonalIcon(
                       onPressed: () => _triggerServerAction('deploy'),
                       icon: const Icon(Icons.cloud_upload, size: 18),
-                      label: const Text('Deploy'),
+                      label: Text(l10n.deploy),
                     ),
                   ],
                 ),
@@ -471,7 +473,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Build and deploy the web app via the server.',
+              l10n.webDeploySectionDesc,
               style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
             ),
           ],
@@ -491,11 +493,11 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
     final data = result.data;
     final String message;
     if (!result.ok || data == null) {
-      message = result.error ?? 'Engine detection failed';
+      message = result.error ?? l10n.engineDetectionFailed;
     } else if (data['changed'] == true) {
-      message = 'Engine changed: ${data['previous']} -> ${data['app_type']}';
+      message = l10n.engineChanged('${data['previous']}', '${data['app_type']}');
     } else {
-      message = 'Engine confirmed: ${data['app_type']}';
+      message = l10n.engineConfirmed('${data['app_type']}');
     }
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(message),
@@ -517,7 +519,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
     final result = await ApiService.sendDeathpinDirective(action, 'normal');
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(result.ok ? '${action[0].toUpperCase()}${action.substring(1)} triggered' : result.error ?? 'Failed to trigger $action'),
+        content: Text(result.ok ? l10n.actionTriggered('${action[0].toUpperCase()}${action.substring(1)}') : result.error ?? l10n.failedToTrigger(action)),
         backgroundColor: result.ok ? AppColors.success : AppColors.error,
       ));
     }
@@ -563,15 +565,15 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
             const SizedBox(height: 16),
             Row(
               children: [
-                _infoChip('Version', 'v${app.currentVersion}', AppColors.info),
+                _infoChip(l10n.version, l10n.versionWithNumber(app.currentVersion), AppColors.info),
                 const SizedBox(width: 8),
                 Tooltip(
-                  message: 'Tap to re-detect the engine from disk',
+                  message: l10n.tapToRedetectEngine,
                   child: InkWell(
                     onTap: _detecting ? null : _redetectEngine,
                     borderRadius: BorderRadius.circular(8),
                     child: _infoChip(
-                      'Type',
+                      l10n.type,
                       _detecting ? '...' : app.appType,
                       Colors.grey,
                     ),
@@ -579,7 +581,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                 ),
                 const SizedBox(width: 8),
                 _infoChip(
-                  'Status',
+                  l10n.status,
                   app.status,
                   AppColors.statusColor(app.status),
                 ),
@@ -590,8 +592,8 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
               children: [
                 if (app.appType.toLowerCase() == 'flutter') ...[
                   _infoChip(
-                    'Publish',
-                    app.publishStatus.isNotEmpty ? app.publishStatus : 'N/A',
+                    l10n.publish,
+                    app.publishStatus.isNotEmpty ? app.publishStatus : l10n.notAvailableShort,
                     app.publishStatus == 'published'
                         ? AppColors.success
                         : Colors.grey,
@@ -603,8 +605,8 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                   final openCount =
                       (counts['pending'] ?? 0) + (counts['in_progress'] ?? 0);
                   return _infoChip(
-                    'Issues',
-                    '$openCount open',
+                    l10n.issues,
+                    l10n.openCountLabel(openCount),
                     openCount > 0 ? AppColors.accent : AppColors.success,
                   );
                 }),
@@ -613,7 +615,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
             const Divider(height: 24),
             _editableField(
               icon: Icons.inventory_2_outlined,
-              label: 'Package Name',
+              label: l10n.packageName,
               value: app.packageName,
               field: 'package_name',
               hint: 'com.example.app',
@@ -621,7 +623,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
             const SizedBox(height: 8),
             _editableField(
               icon: Icons.folder_outlined,
-              label: 'Project Path',
+              label: l10n.projectPath,
               value: app.projectPath,
               field: 'project_path',
               hint: 'C:/MyProject',
@@ -647,8 +649,8 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
     final links = <_LinkInfo>[
       _LinkInfo(Icons.code, 'GitHub', app.githubUrl, 'github_url', 'https://github.com/user/repo'),
       _LinkInfo(Icons.store, 'Play Store', playStore, 'play_store_url', 'https://play.google.com/store/apps/details?id=...'),
-      _LinkInfo(Icons.admin_panel_settings, 'Console', console, 'console_url', 'https://play.google.com/console/...'),
-      _LinkInfo(Icons.language, 'Website', app.websiteUrl, 'website_url', 'https://example.com'),
+      _LinkInfo(Icons.admin_panel_settings, l10n.console, console, 'console_url', 'https://play.google.com/console/...'),
+      _LinkInfo(Icons.language, l10n.website, app.websiteUrl, 'website_url', 'https://example.com'),
     ];
 
     final hasAnyLink = links.any((l) => l.value.isNotEmpty);
@@ -660,7 +662,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
           children: [
             Icon(Icons.link, size: 16, color: Colors.grey.shade500),
             const SizedBox(width: 6),
-            Text('Links', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey.shade400)),
+            Text(l10n.links, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey.shade400)),
           ],
         ),
         const SizedBox(height: 10),
@@ -708,13 +710,13 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
         if (!hasAnyLink)
           Padding(
             padding: const EdgeInsets.only(top: 6),
-            child: Text('Tap to add, long-press to edit',
+            child: Text(l10n.tapToAddLongPressToEdit,
                 style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
           )
         else
           Padding(
             padding: const EdgeInsets.only(top: 6),
-            child: Text('Tap to open, long-press to edit',
+            child: Text(l10n.tapToOpenLongPressToEdit,
                 style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
           ),
       ],
@@ -731,14 +733,14 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
       final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (!launched && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not open link'), backgroundColor: AppColors.error),
+          SnackBar(content: Text(l10n.couldNotOpenLink), backgroundColor: AppColors.error),
         );
       }
     } catch (e) {
       debugPrint('Failed to launch URL: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not open link'), backgroundColor: AppColors.error),
+          SnackBar(content: Text(l10n.couldNotOpenLink), backgroundColor: AppColors.error),
         );
       }
     }
@@ -758,7 +760,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
         Clipboard.setData(ClipboardData(text: value));
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('$label copied to clipboard'),
+            content: Text(l10n.copiedToClipboardNamed(label)),
             duration: const Duration(seconds: 2),
             backgroundColor: AppColors.info,
           ),
@@ -776,7 +778,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
               Text('$label: ', style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
               Expanded(
                 child: Text(
-                  value.isNotEmpty ? value : '(not set)',
+                  value.isNotEmpty ? value : l10n.notSet,
                   style: TextStyle(
                     fontSize: 13,
                     color: value.isNotEmpty ? Colors.grey.shade200 : Colors.grey.shade600,
@@ -818,7 +820,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Edit $label', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text(l10n.editNamed(label), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 16),
                   TextField(
                     controller: controller,
@@ -841,13 +843,13 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                         if (mounted) {
                           if (result.ok) _loadData();
                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                            content: Text(result.ok ? '$label updated' : result.error ?? 'Failed to update'),
+                            content: Text(result.ok ? l10n.updatedNamed(label) : result.error ?? l10n.failedToUpdate),
                             backgroundColor: result.ok ? AppColors.success : AppColors.error,
                           ));
                         }
                       },
                       child: Text(saving
-                          ? 'Saving...'
+                          ? l10n.saving
                           : AppLocalizations.of(ctx)!.save),
                     ),
                   ),
@@ -899,8 +901,8 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
               children: [
                 Icon(Icons.smart_toy, color: AppColors.accent),
                 const SizedBox(width: 8),
-                const Text(
-                  'AI Agent',
+                Text(
+                  l10n.aiAgent,
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -1036,21 +1038,21 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                   ),
                 if (!hasError && hasContent && !_claudeMdEnhancing)
                   IconButton(
-                    tooltip: 'Enhance',
+                    tooltip: l10n.enhance,
                     visualDensity: VisualDensity.compact,
                     onPressed: () => _fireAndForgetEnhance(type: 'claude-md'),
                     icon: const Icon(Icons.auto_awesome, size: 20),
                   ),
                 if (!hasError)
                   IconButton(
-                    tooltip: hasContent ? 'Edit' : 'Add',
+                    tooltip: hasContent ? l10n.edit : l10n.add,
                     visualDensity: VisualDensity.compact,
                     onPressed: () => _showClaudeMdSheet(),
                     icon: Icon(hasContent ? Icons.edit : Icons.add, size: 20),
                   ),
                 if (hasError)
                   IconButton(
-                    tooltip: 'Retry',
+                    tooltip: l10n.retry,
                     visualDensity: VisualDensity.compact,
                     onPressed: _retryClaudeMd,
                     icon: const Icon(Icons.refresh, size: 20),
@@ -1062,7 +1064,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
               const Center(child: CircularProgressIndicator())
             else if (hasError)
               Text(
-                'Failed to load: $_claudeMdError',
+                l10n.failedToLoadWithError('$_claudeMdError'),
                 style: TextStyle(fontSize: 13, color: AppColors.error),
               )
             else if (hasContent)
@@ -1074,7 +1076,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
               )
             else
               Text(
-                'No CLAUDE.md yet. Tap Add to set project instructions for AI.',
+                l10n.noClaudeMdYet,
                 style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
               ),
           ],
@@ -1107,17 +1109,17 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('CLAUDE.md - ${_app?.name ?? 'App'}',
+                  Text(l10n.claudeMdTitle(_app?.name ?? l10n.appFallback),
                       style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 4),
-                  Text('Project instructions for AI agents working on this app.',
+                  Text(l10n.claudeMdSubtitle,
                       style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
                   const SizedBox(height: 12),
                   TextField(
                     controller: controller,
                     maxLines: 10,
-                    decoration: const InputDecoration(
-                      hintText: 'Project conventions, build commands, rules...',
+                    decoration: InputDecoration(
+                      hintText: l10n.claudeMdHint,
                       alignLabelWithHint: true,
                     ),
                   ),
@@ -1129,7 +1131,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                         final text = controller.text.trim();
                         if (text.isEmpty) {
                           ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-                            content: Text('Cannot save empty CLAUDE.md'),
+                            content: Text(l10n.cannotSaveEmptyClaudeMd),
                             backgroundColor: AppColors.error,
                           ));
                           return;
@@ -1144,7 +1146,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                         if (ctx.mounted) Navigator.pop(ctx);
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                            content: Text(result.ok ? 'CLAUDE.md saved' : result.error ?? 'Failed'),
+                            content: Text(result.ok ? l10n.claudeMdSaved : result.error ?? l10n.failed),
                             backgroundColor: result.ok ? AppColors.success : AppColors.error));
                           if (result.ok) {
                             setState(() => _claudeMdContent = controller.text);
@@ -1155,7 +1157,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                           ? const SizedBox(width: 18, height: 18,
                               child: CircularProgressIndicator(strokeWidth: 2))
                           : const Icon(Icons.save),
-                      label: Text(saving ? 'Saving...' : 'Save'),
+                      label: Text(saving ? l10n.saving : l10n.save),
                     ),
                   ),
                 ],
@@ -1180,9 +1182,9 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
               children: [
                 Icon(Icons.description_outlined, color: AppColors.info),
                 const SizedBox(width: 8),
-                const Expanded(
+                Expanded(
                   child: Text(
-                    'Design Document',
+                    l10n.designDocument,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -1201,21 +1203,21 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                   ),
                 if (!hasError && hasContent && !_gddEnhancing)
                   IconButton(
-                    tooltip: 'Enhance',
+                    tooltip: l10n.enhance,
                     visualDensity: VisualDensity.compact,
                     onPressed: () => _fireAndForgetEnhance(type: 'gdd'),
                     icon: const Icon(Icons.auto_awesome, size: 20),
                   ),
                 if (!hasError)
                   IconButton(
-                    tooltip: hasContent ? 'Edit' : 'Add',
+                    tooltip: hasContent ? l10n.edit : l10n.add,
                     visualDensity: VisualDensity.compact,
                     onPressed: () => _showGddSheet(),
                     icon: Icon(hasContent ? Icons.edit : Icons.add, size: 20),
                   ),
                 if (hasError)
                   IconButton(
-                    tooltip: 'Retry',
+                    tooltip: l10n.retry,
                     visualDensity: VisualDensity.compact,
                     onPressed: _retryGdd,
                     icon: const Icon(Icons.refresh, size: 20),
@@ -1227,7 +1229,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
               const Center(child: CircularProgressIndicator())
             else if (hasError)
               Text(
-                'Failed to load: $_gddError',
+                l10n.failedToLoadWithError('$_gddError'),
                 style: TextStyle(fontSize: 13, color: AppColors.error),
               )
             else if (hasContent)
@@ -1239,7 +1241,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
               )
             else
               Text(
-                'No design document yet. Tap Add to describe your app vision.',
+                l10n.noDesignDocYet,
                 style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
               ),
           ],
@@ -1272,17 +1274,17 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Design Doc - ${_app?.name ?? 'App'}',
+                  Text(l10n.designDocTitle(_app?.name ?? l10n.appFallback),
                       style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 4),
-                  Text('The AI will use this as context for all work on this app.',
+                  Text(l10n.designDocSubtitle,
                       style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
                   const SizedBox(height: 12),
                   TextField(
                     controller: gddController,
                     maxLines: 10,
-                    decoration: const InputDecoration(
-                      hintText: 'Describe your app vision, features, goals...',
+                    decoration: InputDecoration(
+                      hintText: l10n.designDocHint,
                       alignLabelWithHint: true,
                     ),
                   ),
@@ -1294,7 +1296,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                         final text = gddController.text.trim();
                         if (text.isEmpty) {
                           ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-                            content: Text('Cannot save empty design document'),
+                            content: Text(l10n.cannotSaveEmptyDesignDoc),
                             backgroundColor: AppColors.error,
                           ));
                           return;
@@ -1309,7 +1311,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                         if (ctx.mounted) Navigator.pop(ctx);
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                            content: Text(result.ok ? 'Design doc saved' : result.error ?? 'Failed'),
+                            content: Text(result.ok ? l10n.designDocSaved : result.error ?? l10n.failed),
                             backgroundColor: result.ok ? AppColors.success : AppColors.error));
                           if (result.ok) {
                             setState(() => _gddContent = gddController.text);
@@ -1320,7 +1322,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                           ? const SizedBox(width: 18, height: 18,
                               child: CircularProgressIndicator(strokeWidth: 2))
                           : const Icon(Icons.save),
-                      label: Text(saving ? 'Saving...' : 'Save'),
+                      label: Text(saving ? l10n.saving : l10n.save),
                     ),
                   ),
                 ],
@@ -1345,9 +1347,9 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
               children: [
                 Icon(Icons.auto_stories, color: AppColors.accent),
                 const SizedBox(width: 8),
-                const Expanded(
+                Expanded(
                   child: Text(
-                    'Art Bible',
+                    l10n.artBible,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -1366,21 +1368,21 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                   ),
                 if (!hasError && hasContent && !_artBibleEnhancing)
                   IconButton(
-                    tooltip: 'Enhance',
+                    tooltip: l10n.enhance,
                     visualDensity: VisualDensity.compact,
                     onPressed: () => _fireAndForgetEnhance(type: 'art-bible'),
                     icon: const Icon(Icons.auto_awesome, size: 20),
                   ),
                 if (!hasError)
                   IconButton(
-                    tooltip: hasContent ? 'Edit' : 'Add',
+                    tooltip: hasContent ? l10n.edit : l10n.add,
                     visualDensity: VisualDensity.compact,
                     onPressed: () => _showArtBibleSheet(),
                     icon: Icon(hasContent ? Icons.edit : Icons.add, size: 20),
                   ),
                 if (hasError)
                   IconButton(
-                    tooltip: 'Retry',
+                    tooltip: l10n.retry,
                     visualDensity: VisualDensity.compact,
                     onPressed: _retryArtBible,
                     icon: const Icon(Icons.refresh, size: 20),
@@ -1392,7 +1394,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
               const Center(child: CircularProgressIndicator())
             else if (hasError)
               Text(
-                'Failed to load: $_artBibleError',
+                l10n.failedToLoadWithError('$_artBibleError'),
                 style: TextStyle(fontSize: 13, color: AppColors.error),
               )
             else if (hasContent)
@@ -1404,7 +1406,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
               )
             else
               Text(
-                'No art bible yet. Tap Add to define the visual identity — palette, typography, prohibitions.',
+                l10n.noArtBibleYet,
                 style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
               ),
           ],
@@ -1437,17 +1439,17 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Art Bible - ${_app?.name ?? 'App'}',
+                  Text(l10n.artBibleTitle(_app?.name ?? l10n.appFallback),
                       style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 4),
-                  Text('Visual identity anchor — palette, typography, style prohibitions. Every asset task references this.',
+                  Text(l10n.artBibleSubtitle,
                       style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
                   const SizedBox(height: 12),
                   TextField(
                     controller: controller,
                     maxLines: 10,
-                    decoration: const InputDecoration(
-                      hintText: 'Identity statement, palette (hex), typography, prohibitions, technical specs...',
+                    decoration: InputDecoration(
+                      hintText: l10n.artBibleHint,
                       alignLabelWithHint: true,
                     ),
                   ),
@@ -1459,7 +1461,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                         final text = controller.text.trim();
                         if (text.isEmpty) {
                           ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-                            content: Text('Cannot save empty art bible'),
+                            content: Text(l10n.cannotSaveEmptyArtBible),
                             backgroundColor: AppColors.error,
                           ));
                           return;
@@ -1474,7 +1476,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                         if (ctx.mounted) Navigator.pop(ctx);
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                            content: Text(result.ok ? 'Art bible saved' : result.error ?? 'Failed'),
+                            content: Text(result.ok ? l10n.artBibleSaved : result.error ?? l10n.failed),
                             backgroundColor: result.ok ? AppColors.success : AppColors.error));
                           if (result.ok) {
                             setState(() => _artBibleContent = controller.text);
@@ -1485,7 +1487,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                           ? const SizedBox(width: 18, height: 18,
                               child: CircularProgressIndicator(strokeWidth: 2))
                           : const Icon(Icons.save),
-                      label: Text(saving ? 'Saving...' : 'Save'),
+                      label: Text(saving ? l10n.saving : l10n.save),
                     ),
                   ),
                 ],
@@ -1505,7 +1507,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
     switch (type) {
       case 'gdd':
         content = _gddContent;
-        label = 'Design doc';
+        label = l10n.designDocShort;
         break;
       case 'claude-md':
         content = _claudeMdContent;
@@ -1513,7 +1515,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
         break;
       case 'art-bible':
         content = _artBibleContent;
-        label = 'Art bible';
+        label = l10n.artBibleShort;
         break;
       default:
         return;
@@ -1525,13 +1527,13 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
       context: context,
       builder: (d) => AlertDialog(
         icon: const Icon(Icons.auto_awesome, color: Colors.amber),
-        title: Text('Enhance $label?'),
-        content: const Text('AI will rewrite the document. This cannot be undone.'),
+        title: Text(l10n.enhanceConfirmTitle(label)),
+        content: Text(l10n.enhanceConfirmBody),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(d, false),
               child: Text(AppLocalizations.of(d)!.cancel)),
-          FilledButton(onPressed: () => Navigator.pop(d, true), child: const Text('Enhance')),
+          FilledButton(onPressed: () => Navigator.pop(d, true), child: Text(l10n.enhance)),
         ],
       ),
     );
@@ -1546,7 +1548,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
     });
 
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text('$label enhancement started on server...'),
+      content: Text(l10n.enhanceStarted(label)),
       backgroundColor: AppColors.info,
     ));
 
@@ -1572,7 +1574,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
           _clearEnhancingFlag(type);
         });
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Failed to start: ${result.error}'),
+          content: Text(l10n.failedToStartWithError('${result.error}')),
           backgroundColor: AppColors.error,
         ));
         return;
@@ -1582,7 +1584,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
       if (!mounted) return;
       setState(() { _clearEnhancingFlag(type); });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('$label enhance error: $e'),
+        content: Text(l10n.enhanceError(label, e)),
         backgroundColor: AppColors.error,
       ));
     });
@@ -1642,11 +1644,11 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
           }
         });
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('$label enhanced successfully'),
+          content: Text(l10n.enhanceSucceeded(label)),
           backgroundColor: AppColors.success,
         ));
       } else {
-        final error = result.data?['error'] as String? ?? 'Enhancement failed';
+        final error = result.data?['error'] as String? ?? l10n.enhancementFailed;
         if (!mounted) return;
         setState(() { _clearEnhancingFlag(type); });
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -1661,8 +1663,8 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Recent Builds',
+        Text(
+          l10n.recentBuilds,
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
@@ -1676,12 +1678,12 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                     Icon(Icons.build_circle_outlined, size: 32, color: Colors.grey.shade600),
                     const SizedBox(height: 8),
                     Text(
-                      'No builds yet',
+                      l10n.noBuildsYet,
                       style: TextStyle(color: Colors.grey.shade500),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Start a build from the card above',
+                      l10n.startBuildFromCardAbove,
                       style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
                     ),
                   ],
@@ -1705,7 +1707,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                             ? AppColors.error
                             : AppColors.warning,
                   ),
-                  title: Text('v${build.version} - ${build.buildType}'),
+                  title: Text(l10n.buildListTitle(build.version, build.buildType)),
                   subtitle: Text(
                     build.startedAt,
                     style: TextStyle(
@@ -1741,6 +1743,8 @@ class _DirectiveHistorySheet extends StatefulWidget {
 }
 
 class _DirectiveHistorySheetState extends State<_DirectiveHistorySheet> {
+  AppLocalizations get l10n => AppLocalizations.of(context)!;
+
   static const int _maxShown = 50;
   static const int _timestampLength = 19; // "YYYY-MM-DD HH:MM:SS"
   late Future<ApiResult<List<dynamic>>> _future;
@@ -1759,9 +1763,9 @@ class _DirectiveHistorySheetState extends State<_DirectiveHistorySheet> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Padding(
+            Padding(
               padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: Text('Directive history', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              child: Text(l10n.directiveHistory, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             ),
             Expanded(
               child: FutureBuilder<ApiResult<List<dynamic>>>(
@@ -1773,7 +1777,7 @@ class _DirectiveHistorySheetState extends State<_DirectiveHistorySheet> {
                   final result = snap.data!;
                   if (!result.ok) {
                     return Center(
-                      child: Text(result.error ?? 'Could not load directives',
+                      child: Text(result.error ?? l10n.couldNotLoadDirectives,
                           style: TextStyle(color: AppColors.error)),
                     );
                   }
@@ -1785,7 +1789,7 @@ class _DirectiveHistorySheetState extends State<_DirectiveHistorySheet> {
                       .toList();
                   if (items.isEmpty) {
                     return Center(
-                      child: Text('No directives sent yet.',
+                      child: Text(l10n.noDirectivesYet,
                           style: TextStyle(color: Colors.grey.shade500)),
                     );
                   }

@@ -8,6 +8,7 @@ import '../services/api_service.dart';
 import '../services/app_state.dart';
 import '../theme.dart';
 import '../widgets/sync_status_chip.dart';
+import '../l10n/app_localizations.dart';
 
 class ControlScreen extends StatefulWidget {
   const ControlScreen({super.key});
@@ -17,6 +18,8 @@ class ControlScreen extends StatefulWidget {
 }
 
 class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserver {
+  AppLocalizations get l10n => AppLocalizations.of(context)!;
+
   List<AutomationModel> _automations = [];
   bool _loading = false;
   String? _error;
@@ -136,7 +139,7 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
         // Keep the last good list on screen; the failure shows as an inline
         // banner (or a full error page only when there is nothing cached).
         setState(() {
-          _error = result.error ?? 'Failed to load automations';
+          _error = result.error ?? l10n.failedToLoadAutomations;
           _loading = false;
         });
       }
@@ -152,8 +155,8 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(result.ok
-              ? '${auto.appName} ${auto.running ? "stopped" : "started"}'
-              : result.error ?? 'Failed'),
+              ? l10n.automationToggled(auto.appName, auto.running ? l10n.automationStateStopped : l10n.automationStateStarted)
+              : result.error ?? l10n.failed),
           backgroundColor: result.ok ? AppColors.success : AppColors.error,
         ),
       );
@@ -167,8 +170,8 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(result.ok
-              ? '${auto.appName} one-time run triggered'
-              : result.error ?? 'Failed to trigger run'),
+              ? l10n.oneTimeRunTriggered(auto.appName)
+              : result.error ?? l10n.failedToTriggerRun),
           backgroundColor: result.ok ? AppColors.success : AppColors.error,
         ),
       );
@@ -182,16 +185,16 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.bgCard,
-        title: const Text('Delete Automation'),
-        content: Text('Remove automation for ${auto.appName}?'),
+        title: Text(l10n.deleteAutomation),
+        content: Text(l10n.deleteAutomationConfirm(auto.appName)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
+            child: Text(l10n.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text('Delete', style: TextStyle(color: AppColors.error)),
+            child: Text(l10n.delete, style: TextStyle(color: AppColors.error)),
           ),
         ],
       ),
@@ -202,7 +205,7 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(result.ok ? 'Deleted' : result.error ?? 'Failed to delete'),
+          content: Text(result.ok ? l10n.deleted : result.error ?? l10n.failedToDelete),
           backgroundColor: result.ok ? AppColors.success : AppColors.error,
         ),
       );
@@ -217,16 +220,16 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.bgCard,
-        title: const Text('Reset Server'),
+        title: Text(l10n.resetServer),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('This will restart the backend server.'),
+            Text(l10n.resetServerBody),
             if (runningAutomations.isNotEmpty) ...[
               const SizedBox(height: 8),
               Text(
-                '${runningAutomations.length} running automation(s) will be stopped first to prevent auto-restart.',
+                l10n.resetServerRunningNote(runningAutomations.length),
                 style: TextStyle(color: AppColors.warning, fontSize: 13),
               ),
             ],
@@ -235,12 +238,12 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
+            child: Text(l10n.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: FilledButton.styleFrom(backgroundColor: AppColors.warning),
-            child: const Text('Reset'),
+            child: Text(l10n.reset),
           ),
         ],
       ),
@@ -315,10 +318,10 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Design Doc - $appName',
+                  Text(l10n.designDocTitle(appName),
                       style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 4),
-                  Text('The AI will use this as context for all work on this app.',
+                  Text(l10n.designDocSubtitle,
                       style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
                   const SizedBox(height: 12),
                   if (loading)
@@ -328,7 +331,7 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       child: Column(
                         children: [
-                          Text('Failed to load: $loadError',
+                          Text(l10n.failedToLoadWithError('$loadError'),
                               style: TextStyle(color: AppColors.error)),
                           const SizedBox(height: 8),
                           TextButton.icon(
@@ -340,7 +343,7 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
                               });
                             },
                             icon: const Icon(Icons.refresh, size: 18),
-                            label: const Text('Retry'),
+                            label: Text(l10n.retry),
                           ),
                         ],
                       ),
@@ -350,8 +353,8 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
                       controller: gddController,
                       maxLines: 10,
                       onChanged: (_) => setSheetState(() {}),
-                      decoration: const InputDecoration(
-                        hintText: 'Describe your app vision, features, goals...',
+                      decoration: InputDecoration(
+                        hintText: l10n.designDocHint,
                         alignLabelWithHint: true,
                       ),
                     ),
@@ -359,7 +362,7 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
                     Align(
                       alignment: Alignment.centerRight,
                       child: Text(
-                        '${gddController.text.length} characters',
+                        l10n.charactersCount(gddController.text.length),
                         style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
                       ),
                     ),
@@ -373,11 +376,11 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
                           final confirm = await showDialog<bool>(
                             context: ctx,
                             builder: (d) => AlertDialog(
-                              title: const Text('Save empty GDD?'),
-                              content: const Text('This will erase the current design document.'),
+                              title: Text(l10n.saveEmptyGddTitle),
+                              content: Text(l10n.saveEmptyGddBody),
                               actions: [
-                                TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Cancel')),
-                                FilledButton(onPressed: () => Navigator.pop(d, true), child: const Text('Save')),
+                                TextButton(onPressed: () => Navigator.pop(d, false), child: Text(l10n.cancel)),
+                                FilledButton(onPressed: () => Navigator.pop(d, true), child: Text(l10n.save)),
                               ],
                             ),
                           );
@@ -389,7 +392,7 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
                         if (ctx.mounted) Navigator.pop(ctx);
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                            content: Text(result.ok ? 'Design doc saved' : result.error ?? 'Failed'),
+                            content: Text(result.ok ? l10n.designDocSaved : result.error ?? l10n.failed),
                             backgroundColor: result.ok ? AppColors.success : AppColors.error));
                         }
                       },
@@ -397,7 +400,7 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
                           ? const SizedBox(width: 18, height: 18,
                               child: CircularProgressIndicator(strokeWidth: 2))
                           : const Icon(Icons.save),
-                      label: Text(saving ? 'Saving...' : 'Save'),
+                      label: Text(saving ? l10n.saving : l10n.save),
                     ),
                   ),
                 ],
@@ -451,14 +454,14 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('New Automation',
+                  Text(l10n.newAutomation,
                         style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 16),
                     // App selector with search
                     TextField(
                       controller: searchController,
                       decoration: InputDecoration(
-                        hintText: selectedAppName ?? 'Search apps...',
+                        hintText: selectedAppName ?? l10n.searchAppsHint,
                         prefixIcon: const Icon(Icons.search, size: 20),
                         suffixIcon: selectedAppId != null
                             ? IconButton(
@@ -490,7 +493,7 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
                             ? Padding(
                                 padding: const EdgeInsets.symmetric(vertical: 12),
                                 child: Text(
-                                  apps.isEmpty ? 'All apps already have automations' : 'No apps match',
+                                  apps.isEmpty ? l10n.allAppsHaveAutomations : l10n.noAppsMatch,
                                   style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
                                 ),
                               )
@@ -516,7 +519,7 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
                       ),
                     ],
                     const SizedBox(height: 12),
-                    const Text('AI Agent', style: TextStyle(fontWeight: FontWeight.w600)),
+                    Text(l10n.aiAgent, style: TextStyle(fontWeight: FontWeight.w600)),
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
@@ -534,7 +537,7 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
                     ),
                     const SizedBox(height: 12),
                     Row(children: [
-                      const Text('Interval (min): '),
+                      Text(l10n.intervalMinLabel),
                       Expanded(child: Slider(
                         value: intervalMinutes.toDouble(), min: 5, max: 60,
                         divisions: 11, label: '$intervalMinutes',
@@ -543,7 +546,7 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
                       Text('$intervalMinutes'),
                     ]),
                     Row(children: [
-                      const Text('Max session (min): '),
+                      Text(l10n.maxSessionMinLabel),
                       Expanded(child: Slider(
                         value: maxSessionMinutes.toDouble(), min: 5, max: 60,
                         divisions: 11, label: '$maxSessionMinutes',
@@ -554,10 +557,10 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
                     const SizedBox(height: 12),
                     // Full Auto toggle
                     SwitchListTile(
-                      title: const Text('Full Auto Mode'),
+                      title: Text(l10n.fullAutoMode),
                       subtitle: Text(fullAuto
-                          ? 'AI reads tasks, fixes, generates new ideas, repeats'
-                          : 'Custom prompt',
+                          ? l10n.fullAutoModeOn
+                          : l10n.customPrompt,
                           style: TextStyle(fontSize: 11, color: Colors.grey.shade400)),
                       value: fullAuto,
                       thumbColor: WidgetStateProperty.resolveWith((states) =>
@@ -568,8 +571,8 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
                     if (!fullAuto) ...[
                       TextField(
                         controller: promptController, maxLines: 3,
-                        decoration: const InputDecoration(
-                          hintText: 'Custom automation prompt...', alignLabelWithHint: true),
+                        decoration: InputDecoration(
+                          hintText: l10n.customAutomationPromptHint, alignLabelWithHint: true),
                       ),
                     ],
                     // MCP servers are set per-app on the app detail page
@@ -580,7 +583,7 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
                         onPressed: submitting ? null : () async {
                           if (selectedAppId == null) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Select an app'),
+                              SnackBar(content: Text(l10n.selectAnApp),
                                 backgroundColor: AppColors.warning));
                             return;
                           }
@@ -594,7 +597,7 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
                           if (ctx.mounted) Navigator.pop(ctx);
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                              content: Text(result.ok ? 'Automation created' : result.error ?? 'Failed'),
+                              content: Text(result.ok ? l10n.automationCreated : result.error ?? l10n.failed),
                               backgroundColor: result.ok ? AppColors.success : AppColors.error));
                             if (result.ok) _loadAutomations();
                           }
@@ -603,7 +606,7 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
                             ? const SizedBox(width: 18, height: 18,
                                 child: CircularProgressIndicator(strokeWidth: 2))
                             : const Icon(Icons.add),
-                        label: Text(submitting ? 'Creating...' : 'Create'),
+                        label: Text(submitting ? l10n.creating : l10n.create),
                       ),
                     ),
                   ],
@@ -644,11 +647,11 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Edit: ${auto.appName}',
+                  Text(l10n.editTitleNamed(auto.appName),
                       maxLines: 1, overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 16),
-                  const Text('AI Agent', style: TextStyle(fontWeight: FontWeight.w600)),
+                  Text(l10n.aiAgent, style: TextStyle(fontWeight: FontWeight.w600)),
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 8,
@@ -666,7 +669,7 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
                   ),
                   const SizedBox(height: 12),
                   Row(children: [
-                    const Text('Interval (min): '),
+                    Text(l10n.intervalMinLabel),
                     Expanded(child: Slider(
                       value: intervalMinutes.toDouble(), min: 5, max: 60,
                       divisions: 11, label: '$intervalMinutes',
@@ -675,7 +678,7 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
                     Text('$intervalMinutes'),
                   ]),
                   Row(children: [
-                    const Text('Max session (min): '),
+                    Text(l10n.maxSessionMinLabel),
                     Expanded(child: Slider(
                       value: maxSessionMinutes.toDouble(), min: 5, max: 60,
                       divisions: 11, label: '$maxSessionMinutes',
@@ -684,7 +687,7 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
                     Text('$maxSessionMinutes'),
                   ]),
                   const SizedBox(height: 8),
-                  Text('MCP servers are configured per-app on the app detail page.',
+                  Text(l10n.mcpConfiguredPerApp,
                       style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
                   const SizedBox(height: 20),
                   SizedBox(
@@ -701,7 +704,7 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
                         if (ctx.mounted) Navigator.pop(ctx);
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                            content: Text(result.ok ? 'Automation updated' : result.error ?? 'Failed'),
+                            content: Text(result.ok ? l10n.automationUpdated : result.error ?? l10n.failed),
                             backgroundColor: result.ok ? AppColors.success : AppColors.error));
                           if (result.ok) _loadAutomations();
                         }
@@ -710,7 +713,7 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
                           ? const SizedBox(width: 18, height: 18,
                               child: CircularProgressIndicator(strokeWidth: 2))
                           : const Icon(Icons.save),
-                      label: Text(submitting ? 'Saving...' : 'Save Changes'),
+                      label: Text(submitting ? l10n.saving : l10n.saveChanges),
                     ),
                   ),
                 ],
@@ -731,7 +734,7 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Control'),
+            Text(l10n.control),
             SyncStatusChip(lastSyncedAt: _lastSyncedAt, failed: _error != null),
           ],
         ),
@@ -740,7 +743,7 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
             icon: _resetting
                 ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
                 : const Icon(Icons.restart_alt),
-            tooltip: 'Reset Server',
+            tooltip: l10n.resetServer,
             onPressed: _resetting ? null : _resetServer,
           ),
           IconButton(icon: const Icon(Icons.refresh), onPressed: _loadAutomations),
@@ -766,7 +769,7 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
                           ElevatedButton.icon(
                             onPressed: _loadAutomations,
                             icon: const Icon(Icons.refresh),
-                            label: const Text('Retry'),
+                            label: Text(l10n.retry),
                           ),
                         ],
                       ),
@@ -785,20 +788,20 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
                     Padding(
                       padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
                       child: SegmentedButton<String>(
-                        segments: const [
+                        segments: [
                           ButtonSegment(
                             value: 'in_progress',
-                            label: Text('In Progress'),
+                            label: Text(l10n.statusInProgress),
                             icon: Icon(Icons.code, size: 18),
                           ),
                           ButtonSegment(
                             value: 'postponed',
-                            label: Text('Postponed'),
+                            label: Text(l10n.statusPostponed),
                             icon: Icon(Icons.pause_circle_outline, size: 18),
                           ),
                           ButtonSegment(
                             value: 'completed',
-                            label: Text('Completed'),
+                            label: Text(l10n.statusCompleted),
                             icon: Icon(Icons.check_circle_outline, size: 18),
                           ),
                         ],
@@ -873,15 +876,15 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
                                       const SizedBox(height: 12),
                                       Text(
                                         _automations.isEmpty
-                                            ? 'No automations yet'
-                                            : 'No automations match filters',
+                                            ? l10n.noAutomationsYet
+                                            : l10n.noAutomationsMatchFilters,
                                         style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
                                       ),
                                       const SizedBox(height: 6),
                                       Text(
                                         _automations.isEmpty
-                                            ? 'Tap + to create your first automation'
-                                            : 'Try changing the category or status filter',
+                                            ? l10n.tapPlusToCreateAutomation
+                                            : l10n.tryChangingFilters,
                                         style: TextStyle(color: Colors.grey.shade400, fontSize: 14),
                                       ),
                                     ],
@@ -935,6 +938,8 @@ class _AutomationCard extends StatefulWidget {
 }
 
 class _AutomationCardState extends State<_AutomationCard> {
+  AppLocalizations get l10n => AppLocalizations.of(context)!;
+
   Timer? _tickTimer;
   DateTime? _cycleStart;
   bool _oneShotActive = false;
@@ -1086,12 +1091,12 @@ class _AutomationCardState extends State<_AutomationCard> {
 
       if (pos < sessionDur) {
         remaining = sessionDur - pos;
-        phaseLabel = 'Session ends in';
+        phaseLabel = l10n.sessionEndsIn;
         isSleepPhase = false;
         phaseProgress = pos.inSeconds / sessionDur.inSeconds;
       } else {
         remaining = totalCycle - pos;
-        phaseLabel = 'Next run in';
+        phaseLabel = l10n.nextRunIn;
         isSleepPhase = true;
         phaseProgress = (pos - sessionDur).inSeconds / sleepDur.inSeconds;
       }
@@ -1129,12 +1134,12 @@ class _AutomationCardState extends State<_AutomationCard> {
             Row(children: [
               Icon(Icons.timer, size: 14, color: Colors.grey.shade400),
               const SizedBox(width: 4),
-              Text('Every ${auto.intervalMinutes}m',
+              Text(l10n.everyMinutes(auto.intervalMinutes),
                 style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
               const SizedBox(width: 16),
               Icon(Icons.hourglass_bottom, size: 14, color: Colors.grey.shade400),
               const SizedBox(width: 4),
-              Text('Max ${auto.maxSessionMinutes}m',
+              Text(l10n.maxMinutes(auto.maxSessionMinutes),
                 style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
             ]),
             if (auto.mcpServers.isNotEmpty) ...[
@@ -1233,7 +1238,7 @@ class _AutomationCardState extends State<_AutomationCard> {
                           Icon(Icons.bolt, size: 16, color: AppColors.warning),
                           const SizedBox(width: 6),
                           Text(
-                            'One-shot run ends in',
+                            l10n.oneShotRunEndsIn,
                             style: TextStyle(
                               fontSize: 12,
                               color: AppColors.warning,
@@ -1281,7 +1286,7 @@ class _AutomationCardState extends State<_AutomationCard> {
                   backgroundColor: auto.running ? AppColors.error : AppColors.success,
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8)),
                 icon: Icon(auto.running ? Icons.stop : Icons.play_arrow, size: 18),
-                label: Text(auto.running ? 'Stop' : 'Start',
+                label: Text(auto.running ? l10n.stop : l10n.start,
                   style: const TextStyle(fontSize: 13)),
               ),
               const SizedBox(width: 4),
@@ -1297,20 +1302,20 @@ class _AutomationCardState extends State<_AutomationCard> {
                       context: context,
                       builder: (ctx) => AlertDialog(
                         backgroundColor: AppColors.bgCard,
-                        title: const Text('Run Again?'),
-                        content: const Text(
-                          'A one-shot run is already in progress but the AI may have stopped early. Trigger another run?',
+                        title: Text(l10n.runAgainTitle),
+                        content: Text(
+                          l10n.runAgainBody,
                         ),
                         actions: [
                           TextButton(
                             onPressed: () => Navigator.pop(ctx, false),
-                            child: const Text('Cancel'),
+                            child: Text(l10n.cancel),
                           ),
                           FilledButton(
                             onPressed: () => Navigator.pop(ctx, true),
                             style: FilledButton.styleFrom(
                               backgroundColor: AppColors.warning),
-                            child: const Text('Run Anyway'),
+                            child: Text(l10n.runAnyway),
                           ),
                         ],
                       ),
@@ -1335,16 +1340,16 @@ class _AutomationCardState extends State<_AutomationCard> {
                 },
                 icon: Icon(Icons.bolt,
                   color: _oneShotActive ? AppColors.warning.withValues(alpha: 0.5) : AppColors.warning),
-                iconSize: 20, tooltip: _oneShotActive ? 'Run Once (in progress)' : 'Run Once'),
+                iconSize: 20, tooltip: _oneShotActive ? l10n.runOnceInProgress : l10n.runOnce),
               IconButton(onPressed: () { HapticFeedback.lightImpact(); widget.onEdit(); },
                 icon: Icon(Icons.edit_outlined, color: AppColors.accent),
-                iconSize: 20, tooltip: 'Edit'),
+                iconSize: 20, tooltip: l10n.edit),
               IconButton(onPressed: widget.onGdd,
                 icon: Icon(Icons.description_outlined, color: AppColors.info),
-                iconSize: 20, tooltip: 'Design Doc'),
+                iconSize: 20, tooltip: l10n.designDoc),
               IconButton(onPressed: () { HapticFeedback.mediumImpact(); widget.onDelete(); },
                 icon: Icon(Icons.delete_outline, color: AppColors.error),
-                iconSize: 20, tooltip: 'Delete'),
+                iconSize: 20, tooltip: l10n.delete),
             ]),
           ],
         ),

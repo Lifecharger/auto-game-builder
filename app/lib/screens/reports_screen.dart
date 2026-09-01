@@ -7,6 +7,7 @@ import '../models/report_model.dart';
 import '../services/api_service.dart';
 import '../services/app_state.dart';
 import '../theme.dart';
+import '../l10n/app_localizations.dart';
 
 /// In-game bug reports / suggestions. Lives in the Reports & Logs tab. Reports
 /// are pulled by the server from the game-reports worker; here they can be read,
@@ -19,6 +20,8 @@ class ReportsScreen extends StatefulWidget {
 }
 
 class _ReportsScreenState extends State<ReportsScreen> {
+  AppLocalizations get l10n => AppLocalizations.of(context)!;
+
   static const _myTabIndex = 2;
 
   String _filter = 'open'; // open | closed | all
@@ -68,11 +71,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
     if (!mounted) return;
     if (result.ok) {
       messenger.showSnackBar(SnackBar(
-        content: Text(result.data! > 0 ? '${result.data} new report(s)' : 'No new reports'),
+        content: Text(result.data! > 0 ? l10n.newReportsCount(result.data!) : l10n.noNewReports),
       ));
       await _load(silent: true);
     } else {
-      messenger.showSnackBar(SnackBar(content: Text(result.error ?? 'Pull failed')));
+      messenger.showSnackBar(SnackBar(content: Text(result.error ?? l10n.pullFailed)));
     }
   }
 
@@ -83,7 +86,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
     if (result.ok) {
       await _load(silent: true);
     } else {
-      messenger.showSnackBar(SnackBar(content: Text(result.error ?? 'Update failed')));
+      messenger.showSnackBar(SnackBar(content: Text(result.error ?? l10n.updateFailed)));
     }
   }
 
@@ -91,14 +94,14 @@ class _ReportsScreenState extends State<ReportsScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete report?'),
-        content: const Text('This permanently removes the report and its screenshots.'),
+        title: Text(l10n.deleteReportTitle),
+        content: Text(l10n.deleteReportBody),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(l10n.cancel)),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: AppColors.error),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Delete'),
+            child: Text(l10n.delete),
           ),
         ],
       ),
@@ -110,7 +113,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
     if (result.ok) {
       await _load(silent: true);
     } else {
-      messenger.showSnackBar(SnackBar(content: Text(result.error ?? 'Delete failed')));
+      messenger.showSnackBar(SnackBar(content: Text(result.error ?? l10n.deleteFailed)));
     }
   }
 
@@ -133,10 +136,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
           Expanded(
             child: SegmentedButton<String>(
               style: const ButtonStyle(visualDensity: VisualDensity.compact),
-              segments: const [
-                ButtonSegment(value: 'open', label: Text('Open')),
-                ButtonSegment(value: 'closed', label: Text('Closed')),
-                ButtonSegment(value: 'all', label: Text('All')),
+              segments: [
+                ButtonSegment(value: 'open', label: Text(l10n.filterOpen)),
+                ButtonSegment(value: 'closed', label: Text(l10n.filterClosed)),
+                ButtonSegment(value: 'all', label: Text(l10n.filterAll)),
               ],
               selected: {_filter},
               onSelectionChanged: (s) {
@@ -146,7 +149,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
             ),
           ),
           IconButton(
-            tooltip: 'Pull now',
+            tooltip: l10n.pullNow,
             icon: const Icon(Icons.cloud_download_outlined),
             onPressed: _pullNow,
           ),
@@ -162,7 +165,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
     }
     if (_reports.isEmpty) {
       return _centered(Icons.inbox_outlined,
-          _filter == 'open' ? 'No open reports' : 'No reports here');
+          _filter == 'open' ? l10n.noOpenReports : l10n.noReportsHere);
     }
     return RefreshIndicator(
       onRefresh: () => _load(),
@@ -189,7 +192,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
           Text(text, style: const TextStyle(color: Colors.grey)),
           if (action != null) ...[
             const SizedBox(height: 12),
-            TextButton(onPressed: action, child: const Text('Retry')),
+            TextButton(onPressed: action, child: Text(l10n.retry)),
           ],
         ],
       ),
@@ -210,14 +213,14 @@ class _ReportCard extends StatelessWidget {
     required this.onDelete,
   });
 
-  ({IconData icon, Color color, String label}) get _cat {
+  ({IconData icon, Color color, String label}) _catOf(AppLocalizations l10n) {
     switch (report.category) {
       case 'bug':
-        return (icon: Icons.bug_report, color: AppColors.error, label: 'Bug');
+        return (icon: Icons.bug_report, color: AppColors.error, label: l10n.categoryBug);
       case 'suggestion':
-        return (icon: Icons.lightbulb_outline, color: AppColors.warning, label: 'Suggestion');
+        return (icon: Icons.lightbulb_outline, color: AppColors.warning, label: l10n.categorySuggestion);
       default:
-        return (icon: Icons.chat_bubble_outline, color: AppColors.info, label: 'Other');
+        return (icon: Icons.chat_bubble_outline, color: AppColors.info, label: l10n.categoryOther);
     }
   }
 
@@ -243,21 +246,22 @@ class _ReportCard extends StatelessWidget {
     );
   }
 
-  String get _when {
+  String _whenOf(AppLocalizations l10n) {
     final ms = int.tryParse(report.receivedAt);
     if (ms == null || ms <= 0) return '';
     final dt = DateTime.fromMillisecondsSinceEpoch(ms).toLocal();
     final d = DateTime.now().difference(dt);
-    if (d.inMinutes < 1) return 'just now';
-    if (d.inHours < 1) return '${d.inMinutes}m ago';
-    if (d.inDays < 1) return '${d.inHours}h ago';
-    if (d.inDays < 7) return '${d.inDays}d ago';
+    if (d.inMinutes < 1) return l10n.timeJustNow;
+    if (d.inHours < 1) return l10n.timeMinutesAgo(d.inMinutes);
+    if (d.inDays < 1) return l10n.timeHoursAgo(d.inHours);
+    if (d.inDays < 7) return l10n.timeDaysAgo(d.inDays);
     return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
   }
 
   @override
   Widget build(BuildContext context) {
-    final cat = _cat;
+    final l10n = AppLocalizations.of(context)!;
+    final cat = _catOf(l10n);
     final closed = !report.isOpen;
     return Opacity(
       opacity: closed ? 0.6 : 1.0,
@@ -283,8 +287,9 @@ class _ReportCard extends StatelessWidget {
                       style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
                   ),
-                  if (_when.isNotEmpty)
-                    Text(_when, style: const TextStyle(color: Colors.grey, fontSize: 11)),
+                  if (_whenOf(l10n).isNotEmpty)
+                    Text(_whenOf(l10n),
+                        style: const TextStyle(color: Colors.grey, fontSize: 11)),
                 ],
               ),
               const SizedBox(height: 8),
@@ -308,7 +313,7 @@ class _ReportCard extends StatelessWidget {
                   Text(
                     [
                       if (report.platform.isNotEmpty) report.platform,
-                      if (report.appVersion.isNotEmpty) 'v${report.appVersion}',
+                      if (report.appVersion.isNotEmpty) l10n.versionWithNumber(report.appVersion),
                     ].join(' · '),
                     style: const TextStyle(color: Colors.grey, fontSize: 11),
                   ),
@@ -317,16 +322,16 @@ class _ReportCard extends StatelessWidget {
                     TextButton.icon(
                       onPressed: onReopen,
                       icon: const Icon(Icons.refresh, size: 16),
-                      label: const Text('Reopen'),
+                      label: Text(l10n.reopen),
                     )
                   else
                     TextButton.icon(
                       onPressed: onClose,
                       icon: const Icon(Icons.check_circle_outline, size: 16),
-                      label: const Text('Close'),
+                      label: Text(l10n.close),
                     ),
                   IconButton(
-                    tooltip: 'Delete',
+                    tooltip: l10n.delete,
                     icon: const Icon(Icons.delete_outline, size: 18, color: Colors.grey),
                     onPressed: onDelete,
                   ),

@@ -16,6 +16,7 @@ import '../theme.dart';
 import 'report_screen.dart';
 import '../theme/palette.dart';
 import '../widgets/settings/server_config_section.dart';
+import '../l10n/app_localizations.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -25,6 +26,8 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  AppLocalizations get l10n => AppLocalizations.of(context)!;
+
   final _urlController = TextEditingController();
   final _workerUrlController = TextEditingController();
   bool _testing = false;
@@ -141,7 +144,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       setState(() => _connectionResult = null);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('API URL saved'),
+          content: Text(l10n.apiUrlSaved),
           backgroundColor: AppColors.success,
         ),
       );
@@ -155,7 +158,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (!launched && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Could not open link'),
+            content: Text(l10n.couldNotOpenLink),
             backgroundColor: AppColors.error,
           ),
         );
@@ -165,7 +168,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Could not open link'),
+            content: Text(l10n.couldNotOpenLink),
             backgroundColor: AppColors.error,
           ),
         );
@@ -187,7 +190,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(result ? 'Connected successfully' : 'Connection failed'),
+          content: Text(result ? l10n.connectedSuccessfully : l10n.connectionFailed),
           backgroundColor: result ? AppColors.success : AppColors.error,
         ),
       );
@@ -199,7 +202,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final bottomPadding = MediaQuery.of(context).padding.bottom;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Settings'),
+        title: Text(l10n.settings),
       ),
       body: RefreshIndicator(
         color: AppColors.accent,
@@ -223,7 +226,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         Icon(Icons.account_circle, color: AppColors.info),
                         SizedBox(width: 8),
                         Text(
-                          'Google Account',
+                          l10n.googleAccount,
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -250,7 +253,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  _auth.userName ?? 'User',
+                                  _auth.userName ?? l10n.userFallback,
                                   style: const TextStyle(
                                     fontWeight: FontWeight.w600,
                                     fontSize: 15,
@@ -278,7 +281,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             if (mounted) setState(() {});
                           },
                           icon: const Icon(Icons.logout),
-                          label: const Text('Sign Out'),
+                          label: Text(l10n.signOut),
                         ),
                       ),
                     ] else ...[
@@ -292,7 +295,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               if (mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
-                                    content: Text('Sign-in failed: $e'),
+                                    content: Text(l10n.signInFailed(e)),
                                     backgroundColor: AppColors.error,
                                   ),
                                 );
@@ -301,7 +304,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             if (mounted) setState(() {});
                           },
                           icon: const Icon(Icons.login),
-                          label: const Text('Sign in with Google'),
+                          label: Text(l10n.signInWithGoogle),
                         ),
                       ),
                     ],
@@ -323,7 +326,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         Icon(Icons.cloud, color: AppColors.info),
                         SizedBox(width: 8),
                         Text(
-                          'API Connection',
+                          l10n.apiConnection,
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -364,7 +367,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                         strokeWidth: 2),
                                   )
                                 : const Icon(Icons.wifi_find),
-                            label: const Text('Test'),
+                            label: Text(l10n.test),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -372,7 +375,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           child: FilledButton.icon(
                             onPressed: _saveUrl,
                             icon: const Icon(Icons.save),
-                            label: const Text('Save'),
+                            label: Text(l10n.save),
                           ),
                         ),
                       ],
@@ -413,7 +416,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           Icon(Icons.favorite, color: AppColors.accent),
                           SizedBox(width: 8),
                           Text(
-                            'Support Development',
+                            l10n.supportDevelopment,
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
@@ -423,7 +426,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'Enjoying the app? Consider supporting development!',
+                        l10n.supportDevelopmentDesc,
                         style: TextStyle(
                           color: Colors.grey.shade400,
                           fontSize: 13,
@@ -442,7 +445,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                     if (mounted) {
                                       ScaffoldMessenger.of(context).showSnackBar(
                                         SnackBar(
-                                          content: Text('Purchase failed: $e'),
+                                          content: Text(l10n.purchaseFailed(e)),
                                           backgroundColor: AppColors.error,
                                         ),
                                       );
@@ -455,8 +458,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           icon: const Icon(Icons.coffee),
                           label: Text(
                             (_billingReady && _billing.isAvailable)
-                                ? 'Buy me a coffee  ${_billing.donatePrice ?? ''}'
-                                : 'Buy me a coffee',
+                                ? l10n.buyMeACoffeeWithPrice(_billing.donatePrice ?? '')
+                                : l10n.buyMeACoffee,
                           ),
                           style: FilledButton.styleFrom(
                             backgroundColor: AppColors.warning,
@@ -482,7 +485,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         Icon(Icons.palette, color: AppColors.accent),
                         SizedBox(width: 8),
                         Text(
-                          'Display',
+                          l10n.display,
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -493,9 +496,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     const SizedBox(height: 4),
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('Show app icons'),
+                      title: Text(l10n.showAppIcons),
                       subtitle: Text(
-                        'Display real app icons on the dashboard instead of generic type icons',
+                        l10n.showAppIconsDesc,
                         style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
                       ),
                       value: AppConfig.showAppIcons,
@@ -522,8 +525,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       children: [
                         Icon(Icons.feedback_outlined, color: AppColors.accent),
                         const SizedBox(width: 8),
-                        const Text(
-                          'Feedback',
+                        Text(
+                          l10n.feedback,
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -535,9 +538,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: const Icon(Icons.bug_report_outlined),
-                      title: const Text('Report a Bug / Suggestion'),
+                      title: Text(l10n.reportBugOrSuggestion),
                       subtitle: Text(
-                        'Tell us what to fix or add',
+                        l10n.reportBugSubtitle,
                         style: TextStyle(
                             fontSize: 12, color: Colors.grey.shade500),
                       ),
@@ -568,7 +571,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         Icon(Icons.info_outline, color: AppColors.accent),
                         SizedBox(width: 8),
                         Text(
-                          'About',
+                          l10n.about,
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -577,10 +580,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ],
                     ),
                     const SizedBox(height: 12),
-                    _aboutItem('App', 'AppManager Mobile'),
-                    _aboutItem('Version', _version.isEmpty ? '...' : _version),
-                    _aboutItem('Backend', 'FastAPI'),
-                    _aboutItem('Developer', 'LifeCharger'),
+                    _aboutItem(l10n.aboutApp, 'AppManager Mobile'),
+                    _aboutItem(l10n.version, _version.isEmpty ? '...' : _version),
+                    _aboutItem(l10n.backend, 'FastAPI'),
+                    _aboutItem(l10n.developer, 'LifeCharger'),
                   ],
                 ),
               ),
@@ -599,7 +602,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Server stopped'),
+            content: Text(l10n.serverStopped),
             backgroundColor: AppColors.warning,
           ),
         );
@@ -628,7 +631,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('start_server.py not found'),
+            content: Text(l10n.startServerNotFound),
             backgroundColor: AppColors.error,
           ),
         );
@@ -651,7 +654,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         setState(() => _serverRunning = ok);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(ok ? 'Server started!' : 'Server started but health check failed'),
+            content: Text(ok ? l10n.serverStarted : l10n.serverStartedHealthFailed),
             backgroundColor: ok ? AppColors.success : AppColors.warning,
           ),
         );
@@ -660,7 +663,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to start server: $e'),
+            content: Text(l10n.failedToStartServer(e)),
             backgroundColor: AppColors.error,
           ),
         );
@@ -682,8 +685,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   color: _serverRunning ? AppColors.success : Colors.grey,
                 ),
                 const SizedBox(width: 8),
-                const Text(
-                  'Server',
+                Text(
+                  l10n.server,
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
                 const Spacer(),
@@ -696,7 +699,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    _serverRunning ? 'Running' : 'Stopped',
+                    _serverRunning ? l10n.running : l10n.stoppedLabel,
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -712,7 +715,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: ElevatedButton.icon(
                 onPressed: _toggleServer,
                 icon: Icon(_serverRunning ? Icons.stop : Icons.play_arrow),
-                label: Text(_serverRunning ? 'Stop Server' : 'Start Server'),
+                label: Text(_serverRunning ? l10n.stopServer : l10n.startServer),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _serverRunning ? AppColors.error : AppColors.success,
                   foregroundColor: Colors.white,
@@ -742,7 +745,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   Icon(Icons.cloud_sync, color: AppColors.info),
                   SizedBox(width: 8),
                   Text(
-                    'Server Connection',
+                    l10n.serverConnection,
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -752,7 +755,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               const SizedBox(height: 12),
               Text(
-                'Worker URL',
+                l10n.workerUrl,
                 style: TextStyle(
                   fontSize: 12,
                   color: Colors.grey.shade500,
@@ -773,7 +776,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   children: [
                     Expanded(
                       child: Text(
-                        hasWorkerUrl ? workerUrl : 'Not configured',
+                        hasWorkerUrl ? workerUrl : l10n.notConfigured,
                         style: TextStyle(
                           fontFamily: hasWorkerUrl ? 'monospace' : null,
                           fontSize: 13,
@@ -789,7 +792,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           Clipboard.setData(ClipboardData(text: workerUrl));
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text('Worker URL copied'),
+                              content: Text(l10n.workerUrlCopied),
                               backgroundColor: AppColors.success,
                               duration: Duration(seconds: 2),
                             ),
@@ -797,7 +800,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         },
                         icon: const Icon(Icons.copy, size: 18),
                         color: Colors.grey.shade400,
-                        tooltip: 'Copy',
+                        tooltip: l10n.copy,
                         constraints: const BoxConstraints(),
                         padding: const EdgeInsets.all(4),
                       ),
@@ -807,8 +810,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               const SizedBox(height: 8),
               Text(
                 hasWorkerUrl
-                    ? 'Auto-detected from settings.json (read-only)'
-                    : 'Set cloudflare.worker_url in server/config/settings.json',
+                    ? l10n.workerUrlAutoDetected
+                    : l10n.workerUrlSetHint,
                 style: TextStyle(
                   fontSize: 11,
                   color: Colors.grey.shade600,
@@ -821,7 +824,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: FilledButton.icon(
                   onPressed: _showPairingQr,
                   icon: const Icon(Icons.qr_code, size: 20),
-                  label: const Text('Show Pairing QR Code'),
+                  label: Text(l10n.showPairingQr),
                   style: FilledButton.styleFrom(
                     backgroundColor: AppColors.accent,
                   ),
@@ -829,7 +832,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               const SizedBox(height: 12),
               Text(
-                'Server URL',
+                l10n.serverUrl,
                 style: TextStyle(
                   fontSize: 12,
                   color: Colors.grey.shade500,
@@ -849,7 +852,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: Text(
                   AppConfig.baseUrl.isNotEmpty
                       ? AppConfig.baseUrl
-                      : 'Not connected',
+                      : l10n.notConnected,
                   style: TextStyle(
                     fontFamily: AppConfig.baseUrl.isNotEmpty ? 'monospace' : null,
                     fontSize: 13,
@@ -876,9 +879,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 Icon(Icons.cloud_sync, color: AppColors.info),
                 const SizedBox(width: 8),
-                const Expanded(
+                Expanded(
                   child: Text(
-                    'Server Connection',
+                    l10n.serverConnection,
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -904,7 +907,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        AppConfig.isPaired ? 'Paired' : 'Not paired',
+                        AppConfig.isPaired ? l10n.paired : l10n.notPaired,
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
@@ -923,7 +926,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: FilledButton.icon(
                 onPressed: _scanQrToPair,
                 icon: const Icon(Icons.qr_code_scanner, size: 20),
-                label: Text(AppConfig.isPaired ? 'Re-pair with QR Code' : 'Scan QR Code to Pair'),
+                label: Text(AppConfig.isPaired ? l10n.rePairWithQr : l10n.scanQrToPair),
                 style: FilledButton.styleFrom(
                   backgroundColor: AppConfig.isPaired ? Colors.grey.shade700 : AppColors.accent,
                 ),
@@ -933,7 +936,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             if (!_editingWorkerUrl && hasWorkerUrl) ...[
               // Show current worker URL with Edit button
               Text(
-                'Worker URL',
+                l10n.workerUrl,
                 style: TextStyle(
                   fontSize: 12,
                   color: Colors.grey.shade500,
@@ -968,23 +971,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     setState(() => _editingWorkerUrl = true);
                   },
                   icon: const Icon(Icons.edit, size: 18),
-                  label: const Text('Edit Worker URL'),
+                  label: Text(l10n.editWorkerUrl),
                 ),
               ),
             ] else ...[
               // Edit mode or no URL set
               TextField(
                 controller: _workerUrlController,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   hintText: 'https://auto-game-builder.you.workers.dev',
                   prefixIcon: Icon(Icons.cloud),
-                  labelText: 'Worker URL',
+                  labelText: l10n.workerUrl,
                 ),
                 keyboardType: TextInputType.url,
               ),
               const SizedBox(height: 8),
               Text(
-                'Get this URL from the desktop app or your server admin',
+                l10n.workerUrlHelp,
                 style: TextStyle(
                   fontSize: 11,
                   color: Colors.grey.shade600,
@@ -999,7 +1002,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         onPressed: () {
                           setState(() => _editingWorkerUrl = false);
                         },
-                        child: const Text('Cancel'),
+                        child: Text(l10n.cancel),
                       ),
                     ),
                   if (_editingWorkerUrl) const SizedBox(width: 12),
@@ -1007,7 +1010,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     child: FilledButton.icon(
                       onPressed: _saveWorkerUrl,
                       icon: const Icon(Icons.save, size: 18),
-                      label: const Text('Save'),
+                      label: Text(l10n.save),
                     ),
                   ),
                 ],
@@ -1015,7 +1018,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ],
             const SizedBox(height: 12),
             Text(
-              'Server URL',
+              l10n.serverUrl,
               style: TextStyle(
                 fontSize: 12,
                 color: Colors.grey.shade500,
@@ -1035,7 +1038,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: Text(
                 AppConfig.baseUrl.isNotEmpty
                     ? AppConfig.baseUrl
-                    : 'Not connected',
+                    : l10n.notConnected,
                 style: TextStyle(
                   fontFamily: AppConfig.baseUrl.isNotEmpty ? 'monospace' : null,
                   fontSize: 13,
@@ -1063,7 +1066,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (apiKey.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('No API key found — restart the server to generate one'),
+          content: Text(l10n.noApiKeyFound),
           backgroundColor: AppColors.error,
         ),
       );
@@ -1077,7 +1080,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Scan this QR from your phone'),
+        title: Text(l10n.scanThisQr),
         content: SizedBox(
           width: 280,
           height: 280,
@@ -1093,7 +1096,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Done'),
+            child: Text(l10n.done),
           ),
         ],
       ),
@@ -1115,14 +1118,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
       setState(() => _editingWorkerUrl = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Paired successfully!'),
+          content: Text(l10n.pairedSuccessfully),
           backgroundColor: AppColors.success,
         ),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Invalid QR code data'),
+          content: Text(l10n.invalidQrData),
           backgroundColor: AppColors.error,
         ),
       );
@@ -1137,7 +1140,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       setState(() => _editingWorkerUrl = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Worker URL saved'),
+          content: Text(l10n.workerUrlSaved),
           backgroundColor: AppColors.success,
         ),
       );
@@ -1162,6 +1165,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 class _ThemePickerSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -1172,8 +1176,8 @@ class _ThemePickerSection extends StatelessWidget {
               children: [
                 Icon(Icons.palette, color: AppColors.accent),
                 const SizedBox(width: 8),
-                const Text(
-                  'Theme',
+                Text(
+                  l10n.theme,
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ],
@@ -1304,10 +1308,16 @@ class _LanguagePickerSection extends StatelessWidget {
   static const _options = <_LangOption>[
     _LangOption('en', 'English'),
     _LangOption('tr', 'Türkçe'),
+    _LangOption('es', 'Español'),
+    _LangOption('pt', 'Português'),
+    _LangOption('fr', 'Français'),
+    _LangOption('de', 'Deutsch'),
+    _LangOption('ja', '日本語'),
   ];
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -1318,8 +1328,8 @@ class _LanguagePickerSection extends StatelessWidget {
               children: [
                 Icon(Icons.language, color: AppColors.info),
                 const SizedBox(width: 8),
-                const Text(
-                  'Language',
+                Text(
+                  l10n.language,
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ],
@@ -1375,12 +1385,14 @@ class _QrScanScreen extends StatefulWidget {
 }
 
 class _QrScanScreenState extends State<_QrScanScreen> {
+  AppLocalizations get l10n => AppLocalizations.of(context)!;
+
   bool _scanned = false;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Scan Pairing QR Code')),
+      appBar: AppBar(title: Text(l10n.scanPairingQrTitle)),
       body: MobileScanner(
         onDetect: (capture) {
           if (_scanned) return;

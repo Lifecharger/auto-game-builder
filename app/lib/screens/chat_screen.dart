@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
 import '../services/app_state.dart';
 import '../theme.dart';
+import '../l10n/app_localizations.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -17,6 +18,8 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
+  AppLocalizations get l10n => AppLocalizations.of(context)!;
+
   static const _sessionsKey = 'chat_sessions';
   static const _activeKey = 'chat_active_session';
   static const _legacyKey = 'chat_history';
@@ -59,7 +62,7 @@ class _ChatScreenState extends State<ChatScreen> {
         if (list.isNotEmpty) {
           final s = _ChatSession(
             id: '${DateTime.now().millisecondsSinceEpoch}',
-            title: 'Previous Chat',
+            title: l10n.previousChat,
             createdAt: DateTime.now(),
             messages: list
                 .map((e) => _ChatMessage.fromJson(e as Map<String, dynamic>))
@@ -123,7 +126,7 @@ class _ChatScreenState extends State<ChatScreen> {
   void _newChat() {
     final s = _ChatSession(
       id: '${DateTime.now().millisecondsSinceEpoch}',
-      title: 'New Chat',
+      title: l10n.newChat,
       createdAt: DateTime.now(),
     );
     setState(() {
@@ -144,12 +147,12 @@ class _ChatScreenState extends State<ChatScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete Chat'),
-        content: const Text('Delete this conversation?'),
+        title: Text(l10n.deleteChat),
+        content: Text(l10n.deleteChatConfirm),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel')),
+              child: Text(l10n.cancel)),
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
@@ -162,7 +165,7 @@ class _ChatScreenState extends State<ChatScreen> {
               });
               _save();
             },
-            child: Text('Delete',
+            child: Text(l10n.delete,
                 style: TextStyle(color: AppColors.error)),
           ),
         ],
@@ -192,7 +195,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
     setState(() {
       session.messages.add(_ChatMessage(text: question, isUser: true));
-      if (session.title == 'New Chat') {
+      if (session.title == l10n.newChat) {
         session.title = question.length > 30
             ? '${question.substring(0, 30)}...'
             : question;
@@ -217,7 +220,7 @@ class _ChatScreenState extends State<ChatScreen> {
           .toList();
       setState(() {
         session.messages.add(_ChatMessage(
-          text: 'Session refreshed \u2014 recent context preserved',
+          text: l10n.sessionRefreshed,
           isUser: false,
           isSystem: true,
         ));
@@ -308,13 +311,14 @@ class _ChatScreenState extends State<ChatScreen> {
     super.dispose();
   }
 
-  String _formatDate(DateTime dt) {
+  String _formatDate(BuildContext context, DateTime dt) {
+    final l10n = AppLocalizations.of(context)!;
     final now = DateTime.now();
     final diff = now.difference(dt);
-    if (diff.inMinutes < 1) return 'just now';
-    if (diff.inHours < 1) return '${diff.inMinutes}m ago';
-    if (diff.inDays < 1) return '${diff.inHours}h ago';
-    if (diff.inDays < 7) return '${diff.inDays}d ago';
+    if (diff.inMinutes < 1) return l10n.timeJustNow;
+    if (diff.inHours < 1) return l10n.timeMinutesAgo(diff.inMinutes);
+    if (diff.inDays < 1) return l10n.timeHoursAgo(diff.inHours);
+    if (diff.inDays < 7) return l10n.timeDaysAgo(diff.inDays);
     return '${dt.month}/${dt.day}';
   }
 
@@ -328,41 +332,41 @@ class _ChatScreenState extends State<ChatScreen> {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.menu),
-          tooltip: 'Chat History',
+          tooltip: l10n.chatHistory,
           onPressed: () => _scaffoldKey.currentState?.openDrawer(),
         ),
         title: Text(
-          _active?.title ?? 'Ask Agent',
+          _active?.title ?? l10n.askAgent,
           overflow: TextOverflow.ellipsis,
         ),
         actions: [
           IconButton(
             icon: const Icon(Icons.add_comment_outlined),
-            tooltip: 'New Chat',
+            tooltip: l10n.newChat,
             onPressed: _newChat,
           ),
           if (_messages.isNotEmpty)
             IconButton(
               icon: const Icon(Icons.delete_sweep),
-              tooltip: 'Clear Messages',
+              tooltip: l10n.clearMessages,
               onPressed: () {
                 showDialog(
                   context: context,
                   builder: (ctx) => AlertDialog(
-                    title: const Text('Clear Messages'),
+                    title: Text(l10n.clearMessages),
                     content:
-                        Text('Delete all ${_messages.length} messages in this chat?'),
+                        Text(l10n.clearMessagesConfirm(_messages.length)),
                     actions: [
                       TextButton(
                           onPressed: () => Navigator.pop(ctx),
-                          child: const Text('Cancel')),
+                          child: Text(l10n.cancel)),
                       TextButton(
                         onPressed: () {
                           Navigator.pop(ctx);
                           setState(() => _active?.messages.clear());
                           _save();
                         },
-                        child: Text('Clear',
+                        child: Text(l10n.clear,
                             style: TextStyle(color: AppColors.error)),
                       ),
                     ],
@@ -382,13 +386,13 @@ class _ChatScreenState extends State<ChatScreen> {
                 padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
                 child: Row(
                   children: [
-                    const Text('Chat History',
+                    Text(l10n.chatHistory,
                         style: TextStyle(
                             fontSize: 18, fontWeight: FontWeight.bold)),
                     const Spacer(),
                     IconButton(
                       icon: const Icon(Icons.add, size: 22),
-                      tooltip: 'New Chat',
+                      tooltip: l10n.newChat,
                       onPressed: () {
                         Navigator.pop(context);
                         _newChat();
@@ -406,10 +410,10 @@ class _ChatScreenState extends State<ChatScreen> {
                           children: [
                             Icon(Icons.chat_bubble_outline, size: 40, color: Colors.grey.shade600),
                             const SizedBox(height: 12),
-                            const Text('No chats yet',
+                            Text(l10n.noChatsYet,
                                 style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
                             const SizedBox(height: 6),
-                            Text('Tap + to start a conversation',
+                            Text(l10n.tapPlusToStartConversation,
                                 style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
                             const SizedBox(height: 16),
                             FilledButton.icon(
@@ -418,7 +422,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                 _newChat();
                               },
                               icon: const Icon(Icons.add, size: 18),
-                              label: const Text('New Chat'),
+                              label: Text(l10n.newChat),
                             ),
                           ],
                         ),
@@ -452,7 +456,7 @@ class _ChatScreenState extends State<ChatScreen> {
                               ),
                             ),
                             subtitle: Text(
-                              '${s.messages.length} messages \u2022 ${_formatDate(s.createdAt)}',
+                              l10n.chatSessionSubtitle(s.messages.length, _formatDate(context, s.createdAt)),
                               style: TextStyle(
                                   fontSize: 11,
                                   color: Colors.grey.shade600),
@@ -503,8 +507,8 @@ class _ChatScreenState extends State<ChatScreen> {
                   width: 120,
                   child: DropdownButtonFormField<int>(
                     value: _selectedAppId,
-                    decoration: const InputDecoration(
-                      hintText: 'All apps',
+                    decoration: InputDecoration(
+                      hintText: l10n.allAppsHint,
                       contentPadding:
                           EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       isDense: true,
@@ -513,8 +517,8 @@ class _ChatScreenState extends State<ChatScreen> {
                     dropdownColor: AppColors.bgCard,
                     style: const TextStyle(fontSize: 12),
                     items: [
-                      const DropdownMenuItem<int>(
-                          value: null, child: Text('All Apps')),
+                      DropdownMenuItem<int>(
+                          value: null, child: Text(l10n.allApps)),
                       ...apps.map((app) => DropdownMenuItem(
                             value: app.id,
                             child: Text(app.name,
@@ -542,7 +546,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       const SizedBox(height: 12),
                       Center(
                         child: Text(
-                          'Ask anything about your apps',
+                          l10n.askAnythingAboutYourApps,
                           style: TextStyle(
                               color: Colors.grey.shade500, fontSize: 15),
                         ),
@@ -550,7 +554,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       const SizedBox(height: 4),
                       Center(
                         child: Text(
-                          'Select an app for context, or ask general questions',
+                          l10n.selectAppForContext,
                           style: TextStyle(
                               color: Colors.grey.shade600, fontSize: 12),
                         ),
@@ -558,7 +562,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       const SizedBox(height: 12),
                       Center(
                         child: Text(
-                          'Agent runs on the server with project-level access',
+                          l10n.agentRunsOnServer,
                           style: TextStyle(
                               color: Colors.grey.shade700, fontSize: 11),
                         ),
@@ -571,7 +575,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     itemCount: _messages.length + (_sending ? 1 : 0),
                     itemBuilder: (context, index) {
                       if (index == _messages.length && _sending) {
-                        return const Padding(
+                        return Padding(
                           padding: EdgeInsets.symmetric(vertical: 12),
                           child: Row(
                             children: [
@@ -582,7 +586,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                     strokeWidth: 2),
                               ),
                               SizedBox(width: 10),
-                              Text('Thinking...',
+                              Text(l10n.thinking,
                                   style: TextStyle(color: Colors.grey)),
                             ],
                           ),
@@ -620,7 +624,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     textInputAction: TextInputAction.send,
                     onSubmitted: (_) => _send(),
                     decoration: InputDecoration(
-                      hintText: 'Ask a question...',
+                      hintText: l10n.askAQuestionHint,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(20),
                       ),
@@ -707,6 +711,7 @@ class _MessageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     if (message.isSystem) {
       return Center(
         child: Container(
@@ -789,7 +794,7 @@ class _MessageBubble extends StatelessWidget {
                                 Icon(Icons.refresh, size: 16, color: AppColors.error),
                                 const SizedBox(width: 4),
                                 Text(
-                                  'Retry',
+                                  l10n.retry,
                                   style: TextStyle(
                                     fontSize: 13,
                                     color: AppColors.error,
@@ -850,6 +855,7 @@ class _CodeBlockBuilder extends MarkdownElementBuilder {
     TextStyle? preferredStyle,
     TextStyle? parentStyle,
   ) {
+    final l10n = AppLocalizations.of(context)!;
     // Only handle fenced code blocks (pre > code), not inline code
     if (element.tag != 'code') return const SizedBox.shrink();
     final parent = element.attributes['class'];
@@ -903,8 +909,8 @@ class _CodeBlockBuilder extends MarkdownElementBuilder {
                 onTap: () {
                   Clipboard.setData(ClipboardData(text: code));
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Copied to clipboard'),
+                    SnackBar(
+                      content: Text(l10n.copiedToClipboard),
                       duration: Duration(seconds: 1),
                     ),
                   );
