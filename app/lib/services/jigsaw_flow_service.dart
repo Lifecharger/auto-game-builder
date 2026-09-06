@@ -8,8 +8,8 @@ import 'generate_service.dart';
 
 /// Jigsaw dort akisli yayin hattinin istemcisi.
 ///
-/// Telefonda `D:\Asset Generation Pipeline`, wrangler ve EXIF etiketleyici
-/// yok; hepsi sunucuda calisir. Bu servis AGB'nin `/api/jigsaw/flow/*`
+/// Telefonda varlik havuzu klasorleri, wrangler ve EXIF etiketleyici yok;
+/// hepsi sunucuda calisir. Bu servis AGB'nin `/api/jigsaw/flow/*`
 /// uclarini sarar. Uzun isler (etiketleme, webp, push) sunucuda arka planda
 /// calisir ve `op()` ile izlenir.
 class FlowItem {
@@ -49,12 +49,19 @@ class FlowItem {
 
 class FlowCollection {
   final String name;
-  final int count;
+  final int count;      // bu akistaki varlik sayisi
+  final int total;      // staging + pushed toplami
+  final bool full;      // 10'a ulasti (Generic haric) - kabul icin sunulmaz
   final int next;
-  const FlowCollection(this.name, this.count, this.next);
+  const FlowCollection(this.name, this.count, this.total, this.full, this.next);
 
-  factory FlowCollection.fromJson(Map<String, dynamic> j) =>
-      FlowCollection('${j['name']}', (j['count'] ?? 0) as int, (j['next'] ?? 1) as int);
+  factory FlowCollection.fromJson(Map<String, dynamic> j) => FlowCollection(
+        '${j['name']}',
+        (j['count'] ?? 0) as int,
+        (j['total'] ?? j['count'] ?? 0) as int,
+        j['full'] == true,
+        (j['next'] ?? 1) as int,
+      );
 }
 
 /// Sunucudaki arka plan isleminin anlik hali.

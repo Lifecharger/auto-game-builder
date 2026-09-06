@@ -27,15 +27,40 @@ import urllib.request
 import uuid
 from datetime import datetime
 
-COMFY = "http://127.0.0.1:8188"
-COMFY_WS = "ws://127.0.0.1:8188/ws"
-COMFY_ROOT = r"C:\ComfyUI"
-COMFY_SCRIPTS = os.path.join(COMFY_ROOT, "scripts")
-COMFY_IN = os.path.join(COMFY_ROOT, "input")
-COMFY_OUT = os.path.join(COMFY_ROOT, "output")
-WFDIR = os.path.join(COMFY_ROOT, "user", "default", "workflows")
-
 _HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # server/
+_SETTINGS = os.path.join(_HERE, "config", "settings.json")
+
+
+def _yol(anahtar: str, env: str, varsayilan: str = "") -> str:
+    """Makineye ozel bir yolu cozer: ortam degiskeni -> settings.json -> varsayilan.
+
+    Depo herkese acik oldugu icin bu yollar KODA GOMULMEZ; kullanicinin kendi
+    settings.json'inda durur (o dosya gitignore'dadir). Anahtar "a.b" seklinde
+    ic ice okunur.
+    """
+    v = os.environ.get(env, "").strip()
+    if v:
+        return v
+    try:
+        with open(_SETTINGS, encoding="utf-8") as fh:
+            d = json.load(fh) or {}
+        for par in anahtar.split("."):
+            d = (d or {}).get(par)
+        if isinstance(d, str) and d.strip():
+            return d.strip()
+    except Exception:
+        pass
+    return varsayilan
+
+
+COMFY = _yol("comfyui.url", "COMFYUI_URL", "http://127.0.0.1:8188").rstrip("/")
+COMFY_WS = COMFY.replace("http://", "ws://").replace("https://", "wss://") + "/ws"
+COMFY_ROOT = _yol("comfyui.root", "COMFYUI_ROOT")
+COMFY_SCRIPTS = os.path.join(COMFY_ROOT, "scripts") if COMFY_ROOT else ""
+COMFY_IN = os.path.join(COMFY_ROOT, "input") if COMFY_ROOT else ""
+COMFY_OUT = os.path.join(COMFY_ROOT, "output") if COMFY_ROOT else ""
+WFDIR = os.path.join(COMFY_ROOT, "user", "default", "workflows") if COMFY_ROOT else ""
+
 OUT_DIR = os.path.join(_HERE, "data", "generated")
 THUMB_DIR = os.path.join(OUT_DIR, "_thumbs")
 STORE = os.path.join(OUT_DIR, "_jobs.json")
@@ -43,8 +68,8 @@ STORE = os.path.join(OUT_DIR, "_jobs.json")
 MANIFEST = os.path.join(_HERE, "config", "generate_tasks.json")
 
 # Hot Jigsaw varlik havuzu - jigsaw kipinin ciktilari buraya numaralanarak duser
-JIGSAW_ROOT = r"D:\Asset Generation Pipeline\Hot Jigsaw"
-JIGSAW_PUSHED = r"D:\Asset Generation Pipeline\Hot Jigsaw - Pushed"
+JIGSAW_ROOT = _yol("jigsaw.pool_root", "JIGSAW_POOL_ROOT")
+JIGSAW_PUSHED = _yol("jigsaw.pushed_root", "JIGSAW_PUSHED_ROOT")
 JIGSAW_STILL = (720, 1280)      # <n>.jpg
 JIGSAW_WEBP = (320, 568)        # <n>.webp (hareketli onizleme)
 

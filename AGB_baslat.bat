@@ -30,9 +30,13 @@ echo.
 set /p secim=Secim:
 if "%secim%"=="1" start "" "http://127.0.0.1:8080"
 if "%secim%"=="2" start "" "http://127.0.0.1:8188"
+rem API anahtari batch degiskenine alinmaz - PowerShell okur ve ayni adimda
+rem kullanir, boylece anahtar hicbir yerde ekrana ya da loga dusmez.
 if "%secim%"=="3" (
-  for /f "tokens=2 delims=:, " %%k in ('findstr /c:"\"api_key\"" "%~dp0server\config\settings.json"') do set ANAHTAR=%%~k
-  curl.exe -s -H "X-API-Key: %ANAHTAR%" http://127.0.0.1:8000/api/services/side
+  powershell -NoProfile -Command ^
+    "$s = Get-Content -Raw '%~dp0server\config\settings.json' | ConvertFrom-Json;" ^
+    "try { Invoke-RestMethod -Uri 'http://127.0.0.1:8000/api/services/side' -Headers @{'X-API-Key'=$s.security.api_key} | ConvertTo-Json -Depth 5 }" ^
+    "catch { 'Durum alinamadi: ' + $_.Exception.Message }"
   echo.
   pause
 )

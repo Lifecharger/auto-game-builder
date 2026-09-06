@@ -46,5 +46,36 @@
     "reports_worker_url": "https://game-reports.lifecharger.workers.dev",
     "reports_api_key": "",
     "reports_poll_seconds": 60
+  },
+  "side_services": {
+    "_comment": "AGB acilirken yaninda kalkan yerel servisler. Yollar makineye ozeldir; bos birakilirsa o servis baslatilmaz.",
+    "enabled": true,
+    "comfyui": {
+      "enabled": true,
+      "python": "C:/ComfyUI/.venv/Scripts/python.exe",
+      "script": "main.py",
+      "cwd": "C:/ComfyUI",
+      "url": "http://127.0.0.1:8188",
+      "wait": 180
+    },
+    "lan_site": {
+      "enabled": true,
+      "python": "",
+      "script": "C:/ComfyUI/scripts/lan_server.py",
+      "cwd": "C:/ComfyUI/scripts",
+      "url": "http://127.0.0.1:8080",
+      "wait": 20
+    }
+  },
+  "jigsaw": {
+    "_comment": "Jigsaw dropdown secenek dosyasi. JIGSAW_OPTIONS_FILE ortam degiskeni oncelikli; bos birakilirsa depodaki ornek kullanilir.",
+    "options_file": "C:/ComfyUI/scripts/jigsaw_secenekler.json",
+    "pool_root": "D:/Asset Generation Pipeline/Hot Jigsaw",
+    "pushed_root": "D:/Asset Generation Pipeline/Hot Jigsaw - Pushed"
+  },
+  "comfyui": {
+    "_comment": "ComfyUI kurulum koku ve adresi. COMFYUI_ROOT / COMFYUI_URL ortam degiskenleri onceliklidir.",
+    "root": "C:/ComfyUI",
+    "url": "http://127.0.0.1:8188"
   }
 }

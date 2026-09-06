@@ -195,3 +195,11 @@ tools/release_checklist/
 
 # Ad-hoc source backup snapshots (*.bak-<label>) — local only, never commit
 *.bak-*
+
+# --- Jigsaw yayin hatti / yan servisler (7 Eylul 2026) ---
+# Uretim onbellegi ve makineye ozel ciktilar
+server/data/generated/_flow_thumbs/
+server/config/jigsaw_options.json
+# Yerinde alinan yedekler (ornek: settings.json.bak-yanservis, *.bak-v2)
+*.bak-*
+*.bak

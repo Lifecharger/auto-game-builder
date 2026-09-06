@@ -8,7 +8,8 @@ import 'package:flutter/services.dart' show rootBundle;
 /// Masaustundeki Uretim Studyosu ile ayni mantik: her derecenin kendi detay
 /// alanlari, secenek listeleri ve Pozitif 2 sablonu vardir. Listeler koda
 /// gomulu degil, `assets/jigsaw_secenekler.json` dosyasindan okunur - o dosya
-/// masaustundeki `C:\ComfyUI\scripts\jigsaw_secenekler.json` kopyasidir.
+/// masaustu studyosunun secenek dosyasinin kopyasidir (yolu sunucunun
+/// settings.json'inda `jigsaw.options_file` altinda tutulur).
 class JigsawField {
   final String key;
   final String label;

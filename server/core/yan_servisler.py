@@ -12,10 +12,12 @@ Ayarlar `settings.json` -> `side_services`:
 
     "side_services": {
       "enabled": true,
-      "comfyui": {"enabled": true, "python": "...", "script": "main.py",
-                  "cwd": "C:/ComfyUI", "url": "http://127.0.0.1:8188"},
-      "lan_site": {"enabled": true, "python": "...", "script": "...lan_server.py",
-                   "port": 8080, "url": "http://127.0.0.1:8080"}
+      "comfyui": {"enabled": true, "python": "<ComfyUI>/.venv/Scripts/python.exe",
+                  "script": "main.py", "cwd": "<ComfyUI>",
+                  "url": "http://127.0.0.1:8188"},
+      "lan_site": {"enabled": true, "python": "",
+                   "script": "<scripts>/lan_server.py", "cwd": "<scripts>",
+                   "url": "http://127.0.0.1:8080"}
     }
 
 Anahtar yoksa asagidaki varsayilanlar kullanilir.
@@ -34,21 +36,24 @@ import urllib.request
 _HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SETTINGS = os.path.join(_HERE, "config", "settings.json")
 
+# Varsayilanlarda MAKINEYE OZEL YOL YOK - depo herkese acik. Yollar
+# settings.json -> side_services altinda tutulur (o dosya gitignore'da).
+# Yol verilmemisse servis baslatilmaz, sebebi konsola yazilir.
 VARSAYILAN = {
     "enabled": True,
     "comfyui": {
         "enabled": True,
-        "python": r"C:\ComfyUI\.venv\Scripts\python.exe",
-        "script": "main.py",
-        "cwd": r"C:\ComfyUI",
+        "python": "",                     # bos = AGB'nin kendi python'u
+        "script": "",                     # orn: <ComfyUI>/main.py
+        "cwd": "",
         "url": "http://127.0.0.1:8188",
         "wait": 180,
     },
     "lan_site": {
         "enabled": True,
-        "python": "",                     # bos = AGB'nin kendi python'u
-        "script": r"C:\ComfyUI\scripts\lan_server.py",
-        "cwd": r"C:\ComfyUI\scripts",
+        "python": "",
+        "script": "",                     # orn: <scripts>/lan_server.py
+        "cwd": "",
         "url": "http://127.0.0.1:8080",
         "wait": 20,
     },
@@ -98,6 +103,9 @@ def _baslat(ad: str, cfg: dict) -> dict:
     script = cfg.get("script") or ""
     cwd = cfg.get("cwd") or os.path.dirname(script) or None
 
+    if not script:
+        return {"service": ad, "state": "yapilandirilmamis",
+                "error": "settings.json -> side_services.%s.script bos" % ad}
     if not os.path.isfile(py):
         return {"service": ad, "state": "hata", "error": "python bulunamadi: %s" % py}
     hedef = script if os.path.isabs(script) else os.path.join(cwd or "", script)

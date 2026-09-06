@@ -34,7 +34,7 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
 
   late final TabController _tabs;
   String _rating = 'hot';
-  String _collection = '';                 // '' = hepsi
+  String _collection = 'Generic';          // varsayilan koleksiyon; '' = hepsi
 
   final Map<String, List<FlowItem>> _items = {};
   final Map<String, int> _totals = {};
@@ -58,7 +58,7 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
         if (!_tabs.indexIsChanging) {
           setState(() {
             _sel.clear();
-            _collection = '';
+            _collection = 'Generic';
           });
           _load();
         }
@@ -236,7 +236,20 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
   }
 
   Future<String?> _pickCollection() async {
-    final liste = _colls['staging'] ?? const [];
+    // 10'a ulasmis tematik koleksiyon secenek olarak sunulmaz - o koleksiyon
+    // tamamlanmistir. Generic sinirsiz.
+    final hepsi = [
+      ...(_colls['staging'] ?? const <FlowCollection>[]),
+      ...(_colls['pushed'] ?? const <FlowCollection>[]),
+    ];
+    final gorulen = <String, FlowCollection>{};
+    for (final c in hepsi) {
+      final v = gorulen[c.name];
+      if (v == null || c.total > v.total) gorulen[c.name] = c;
+    }
+    final liste = gorulen.values.where((c) => !c.full).toList()
+      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    final dolu = gorulen.values.where((c) => c.full).length;
     final ctrl = TextEditingController(
         text: liste.any((c) => c.name == 'Generic') ? 'Generic' : '');
     return showDialog<String>(
@@ -248,10 +261,14 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
           children: [
             TextField(
               controller: ctrl,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Koleksiyon',
-                helperText: 'listeden sec ya da yeni bir ad yaz',
-                border: OutlineInputBorder(),
+                helperText: dolu == 0
+                    ? 'listeden sec ya da YENI bir ad yaz'
+                    : 'listeden sec ya da YENI bir ad yaz  -  '
+                        '$dolu dolu koleksiyon gizlendi',
+                helperMaxLines: 2,
+                border: const OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 10),
@@ -263,7 +280,7 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
                     .map((k) => ListTile(
                           dense: true,
                           title: Text(k.name),
-                          subtitle: Text('${k.count} varlik - siradaki ${k.next}'),
+                          subtitle: Text('${k.total} varlik - siradaki ${k.next}'),
                           onTap: () => ctrl.text = k.name,
                         ))
                     .toList(),
@@ -274,6 +291,12 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(c), child: const Text('Vazgec')),
+          TextButton(
+              onPressed: () => Navigator.pop(c, 'Generic'),
+              child: const Text('Generic')),
+          TextButton(
+              onPressed: () => ctrl.clear(),
+              child: const Text('Yeni')),
           FilledButton(
               onPressed: () => Navigator.pop(c, ctrl.text.trim()),
               child: const Text('Kabul et')),
@@ -341,7 +364,7 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
                   setState(() {
                     _rating = v.first;
                     _sel.clear();
-                    _collection = '';
+                    _collection = 'Generic';
                   });
                   _load();
                 },

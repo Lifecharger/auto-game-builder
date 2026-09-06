@@ -34,11 +34,32 @@ from . import comfy_gen as G
 # r2manager kokleri: tools/r2manager/config.py tek kaynak.
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 R2M_DIR = os.path.join(_ROOT, "tools", "r2manager")
-OPTS_FILE = r"C:\ComfyUI\scripts\jigsaw_secenekler.json"
 THUMB_DIR = os.path.join(G.OUT_DIR, "_flow_thumbs")
+
+# Dropdown secenek dosyasi MAKINEYE OZELDIR - depo herkese acik oldugu icin
+# yolu koda gommuyoruz. Sirasiyla: ortam degiskeni, settings.json
+# (gitignore'da), sonra depo icindeki ornek dosya.
+_SETTINGS = os.path.join(_ROOT, "server", "config", "settings.json")
+
+
+def _opts_file() -> str:
+    yol = os.environ.get("JIGSAW_OPTIONS_FILE", "").strip()
+    if yol:
+        return yol
+    try:
+        with open(_SETTINGS, encoding="utf-8") as fh:
+            yol = ((json.load(fh) or {}).get("jigsaw") or {}).get("options_file") or ""
+    except Exception:
+        yol = ""
+    return yol.strip() or os.path.join(_ROOT, "server", "config", "jigsaw_options.example.json")
 
 RATINGS = [("hot", "Hot Jigsaw"), ("kid", "Kid Jigsaw")]
 STAGES = ("incoming", "staging", "pushed")
+
+# Tematik koleksiyonlar 10 varlikta dolar (kovadaki 56 koleksiyonun hepsi tam
+# 10). Dolu koleksiyon kabul secenegi olarak sunulmaz; Generic sinirsizdir.
+COLL_LIMIT = 10
+DEFAULT_COLL = "Generic"
 
 # <stem> ya da <koleksiyon>/<stem> - baska hicbir sey kabul edilmez.
 # Yol kacisini (.., surucu harfi, ters bolu) bastan eler.
@@ -90,12 +111,13 @@ def paths(rating: str) -> dict:
 
 def profiles() -> dict:
     """Dropdown profilleri (hot/kid). Masaustuyle TEK dosya paylasilir."""
+    yol = _opts_file()
     try:
-        with open(OPTS_FILE, encoding="utf-8") as fh:
-            return {"profiles": json.load(fh), "source": OPTS_FILE, "error": ""}
+        with open(yol, encoding="utf-8") as fh:
+            return {"profiles": json.load(fh), "source": yol, "error": ""}
     except Exception as e:
         # Sessizce bos donmuyoruz: istemci bunu kullaniciya gosterir.
-        return {"profiles": {}, "source": OPTS_FILE, "error": str(e)}
+        return {"profiles": {}, "source": yol, "error": str(e)}
 
 
 # ------------------------------------------------------------------ listeleme
@@ -177,8 +199,34 @@ def _sort_key(oge: dict):
     return (0, int(s), "") if s.isdigit() else (1, 0, oge["stem"].lower())
 
 
+def coll_total(rating: str, coll: str) -> int:
+    """Bir koleksiyondaki varlik sayisi - staging VE pushed birlikte.
+
+    Tematik koleksiyonun yarisi kovaya gitmis olabilir; dolu mu degil mi
+    karari iki kokun toplamina bakar.
+    """
+    p = paths(rating)
+    nums = set()
+    for kok in (p["staging"], p["pushed"]):
+        d = os.path.join(kok, coll)
+        try:
+            with os.scandir(d) as it:
+                for e in it:
+                    k, u = os.path.splitext(e.name)
+                    k = k.split("-")[0]
+                    if u.lower() in (".jpg", ".jpeg") and k.isdigit():
+                        nums.add(int(k))
+        except OSError:
+            continue
+    return len(nums)
+
+
 def collections(rating: str) -> dict:
-    """Her akisin koleksiyonlari + varlik sayilari."""
+    """Her akisin koleksiyonlari + varlik sayilari.
+
+    `total` iki kokun toplami, `full` ise "10'a ulasti, yeni varlik alma"
+    demektir (Generic haric). Istemci kabul listesinde dolulari gizler.
+    """
     p = paths(rating)
     out = {}
     for stage in ("staging", "pushed"):
@@ -188,9 +236,18 @@ def collections(rating: str) -> dict:
                 adlar = sorted([e.name for e in it if e.is_dir()], key=str.lower)
         except OSError:
             pass
-        out[stage] = [{"name": n,
-                       "count": len(_folder_items(os.path.join(p[stage], n), n, False)),
-                       "next": next_number(rating, n)} for n in adlar]
+        satirlar = []
+        for n in adlar:
+            toplam = coll_total(rating, n)
+            satirlar.append({
+                "name": n,
+                "count": len(_folder_items(os.path.join(p[stage], n), n, False)),
+                "total": toplam,
+                "full": (toplam >= COLL_LIMIT and n.lower() != DEFAULT_COLL.lower()),
+                "next": next_number(rating, n)})
+        out[stage] = satirlar
+    out["limit"] = COLL_LIMIT
+    out["default"] = DEFAULT_COLL
     return out
 
 
@@ -212,7 +269,8 @@ def list_items(rating: str, stage: str, collection: str = "",
         items = []
         for c in adlar:
             items += _folder_items(os.path.join(root, c), c, False)
-    items.sort(key=_sort_key)
+    # Push edilmislerde en yeni varlik ustte olsun - aranan hep sonuncular.
+    items.sort(key=_sort_key, reverse=(stage == "pushed"))
     total = len(items)
     offset = max(0, offset)
     limit = max(1, min(1000, limit))
