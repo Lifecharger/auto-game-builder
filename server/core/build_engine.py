@@ -1,5 +1,6 @@
 """Build engine for Flutter, Godot, Phaser and Unity apps."""
 
+import logging
 import shlex
 import subprocess
 import threading
@@ -8,6 +9,8 @@ import os
 import re
 from datetime import datetime
 from typing import Callable, Optional
+
+logger = logging.getLogger(__name__)
 from database.db_manager import DBManager
 from database.models import App
 from core import unity_project
@@ -204,14 +207,22 @@ class BuildEngine:
         unity = self.settings.get("unity_path", "") or "Unity"
         method = unity_project.resolve_build_method(app.project_path, build_type)
         pp = shlex.quote(app.project_path)
-        lock = os.path.join(app.project_path, unity_project.LOCKFILE_REL)
-        guard = (
-            f'if [ -f {shlex.quote(lock)} ]; then '
-            f'echo "Refusing to build: the Unity editor has this project open '
-            f'(Temp/UnityLockfile). Close it and retry."; exit 1; fi'
-        )
+
+        # The lock file's presence alone is not proof the editor is open: a Unity
+        # that dies (crash, license failure, killed batch job) leaves it behind,
+        # and refusing on that blocked every later build until someone deleted it
+        # by hand. Ask whether a process actually holds it.
+        state = unity_project.lock_state(app.project_path)
+        if state == "held":
+            raise RuntimeError(
+                "Refusing to build: the Unity editor has this project open "
+                "(Temp/UnityLockfile). Close it and retry."
+            )
+        if state == "stale" and unity_project.clear_stale_lock(app.project_path):
+            logger.info("Unity: removed stale lock file in %s", app.project_path)
+
         return (
-            f'{guard} && cd {pp} && '
+            f'cd {pp} && '
             f'{shlex.quote(unity)} -batchmode -quit -nographics '
             f'-projectPath {pp} '
             f'-executeMethod {method} '

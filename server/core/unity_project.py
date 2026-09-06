@@ -89,3 +89,40 @@ def editor_lock_holder(project_path: str) -> str | None:
     """
     lock = os.path.join(project_path, LOCKFILE_REL)
     return lock if os.path.isfile(lock) else None
+
+
+def lock_state(project_path: str) -> str:
+    """Is the project actually open? -> "none" | "held" | "stale".
+
+    The file's mere presence is NOT proof: a Unity that dies (crash, license
+    failure, killed batch job) leaves the lock behind, and treating that as
+    "editor is open" blocks every later build until someone deletes it by
+    hand. A live editor holds the file with an exclusive share mode, so trying
+    to open it read-write tells us the truth.
+    """
+    lock = os.path.join(project_path, LOCKFILE_REL)
+    if not os.path.isfile(lock):
+        return "none"
+    try:
+        with open(lock, "r+b"):
+            return "stale"
+    except PermissionError:
+        return "held"
+    except OSError:
+        # Erisim disinda bir sebep (silinmis, yol hatasi): acik saymayalim,
+        # asil kilit kontrolunu Unity'nin kendisi zaten yapiyor.
+        return "stale"
+
+
+def clear_stale_lock(project_path: str) -> bool:
+    """Removes a lock file no process holds. Returns True if one was removed.
+
+    Never touches a lock a live editor holds - that one is a real signal.
+    """
+    if lock_state(project_path) != "stale":
+        return False
+    try:
+        os.remove(os.path.join(project_path, LOCKFILE_REL))
+        return True
+    except OSError:
+        return False

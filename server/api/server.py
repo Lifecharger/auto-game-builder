@@ -152,6 +152,15 @@ async def lifespan(app: FastAPI):
     app.state.autofix = AutoFixEngine(app.state.db, app.state.internet, settings)
     app.state.autofix.load_queued_issues()
     app.state.deploy = DeployEngine(app.state.db, settings)
+
+    # ComfyUI ve LAN sitesi AGB ile birlikte kalksin. Ayri thread'de: ComfyUI'nin
+    # acilmasi dakikalar surebilir, sunucu bunu beklemesin. Ayakta olanlara
+    # dokunulmaz, kapanista da oldurulmezler (settings.json -> side_services).
+    if yan_servisler is not None:
+        try:
+            yan_servisler.start_all()
+        except Exception as e:
+            logger.warning("yan servisler baslatilamadi: %s", e)
     # Auto-setup MCP presets if not yet populated
     if not _load_mcp_servers():
         try:
@@ -369,6 +378,18 @@ try:
 except Exception as _e:  # ComfyUI kurulu degilse sunucu yine acilsin
     comfy_gen = None
     print(f"[AutoGameBuilder] comfy_gen yuklenemedi: {_e}")
+
+try:  # Jigsaw dort akisli yayin hatti (r2manager boru hattinin sunucu tarafi)
+    from core import jigsaw_flow
+except Exception as _e:
+    jigsaw_flow = None
+    print(f"[AutoGameBuilder] jigsaw_flow yuklenemedi: {_e}")
+
+try:  # AGB ile birlikte kalkan yerel servisler (ComfyUI + LAN sitesi)
+    from core import yan_servisler
+except Exception as _e:
+    yan_servisler = None
+    print(f"[AutoGameBuilder] yan_servisler yuklenemedi: {_e}")
 
 
 @app.get("/api/health")
@@ -5490,6 +5511,7 @@ if __name__ == "__main__":
 class GenerateRequest(BaseModel):
     task: str
     prompt: str
+    prompt2: str = ""          # ikinci pozitif prompt (jigsaw kipinde guzellik sablonu)
     negative: str = ""
     width: int = 0
     height: int = 0
@@ -5499,6 +5521,52 @@ class GenerateRequest(BaseModel):
     image_path: str | None = None
     source_job: str | None = None
     client: str | None = None
+    mode: str = "free"         # free | jigsaw
+    category: str = ""         # eski istemcilerden gelebilir, artik yonlendirmede kullanilmaz
+    extras: list[str] = []     # secili prompt ekleri (kadraj, aci, poz, isik)
+
+
+class JobMetaRequest(BaseModel):
+    favorite: bool | None = None
+    note: str | None = None
+
+
+class MoveRequest(BaseModel):
+    delta: int = -1            # -1 yukari, +1 asagi
+
+
+class JigsawExportRequest(BaseModel):
+    image_job: str
+    video_job: str | None = None
+    collection: str = ""
+    category: str = ""        # eski istemciler bu adi gonderiyor
+    number: int | None = None
+
+
+class JigsawRejectRequest(BaseModel):
+    image_job: str
+
+
+class FlowStageRequest(BaseModel):
+    """1 -> 2: uretim islerini _Incoming'e tasi ve etiketle."""
+    jobs: list[str]
+    rating: str = "hot"
+    agent: str = "Gemini"
+
+
+class FlowItemsRequest(BaseModel):
+    """Bir akistaki varliklar uzerinde toplu islem."""
+    rating: str = "hot"
+    stage: str = "incoming"
+    ids: list[str] = []
+    collection: str = ""
+    duration: int = 5
+    turbo: bool = True
+
+
+class BulkDeleteRequest(BaseModel):
+    ids: list[str]
+    keep_files: bool = False
 
 
 def _gen_ready():
@@ -5508,10 +5576,11 @@ def _gen_ready():
 
 
 @app.get("/api/generate/tasks")
-def generate_tasks():
-    """Telefonun gosterecegi gorev listesi + ComfyUI durumu."""
+def generate_tasks(mode: str = ""):
+    """Istemcinin gosterecegi gorev listesi + kipler + prompt ekleri."""
     g = _gen_ready()
-    return {"comfy_up": g.comfy_up(), "tasks": g.tasks()}
+    return {"comfy_up": g.comfy_up(), "tasks": g.tasks(mode),
+            "modes": g.modes(), "extras": g.extras()}
 
 
 @app.get("/api/generate/workflows")
@@ -5520,23 +5589,227 @@ def generate_workflows():
     return {"workflows": _gen_ready().available_workflows()}
 
 
+@app.get("/api/generate/queue")
+def generate_queue():
+    """Kuyrugun anlik hali: calisan is + bekleyenler, sirasiyla."""
+    g = _gen_ready()
+    st = g.queue_state()
+    st["comfy_up"] = g.comfy_up()
+    return st
+
+
+@app.post("/api/generate/queue/clear")
+def generate_queue_clear():
+    return {"cancelled": _gen_ready().clear_queue()}
+
+
 @app.get("/api/generate")
-def generate_list(limit: int = 30, client: str | None = None):
-    return {"jobs": _gen_ready().list_jobs(limit, client)}
+def generate_list(limit: int = 30, client: str | None = None,
+                  mode: str | None = None, favorites: bool = False):
+    return {"jobs": _gen_ready().list_jobs(limit, client, mode, favorites)}
 
 
 @app.post("/api/generate")
 def generate_submit(body: GenerateRequest):
     g = _gen_ready()
     try:
-        return g.submit(body.task, body.prompt, negative=body.negative,
+        return g.submit(body.task, body.prompt, prompt2=body.prompt2,
+                        negative=body.negative,
                         width=body.width, height=body.height, duration=body.duration,
                         seed=body.seed, turbo=body.turbo, image_path=body.image_path,
-                        source_job=body.source_job, client=body.client)
+                        source_job=body.source_job, client=body.client,
+                        mode=body.mode, category=body.category, extras=body.extras)
     except ValueError as e:
         raise HTTPException(400, str(e))
     except RuntimeError as e:
         raise HTTPException(503, str(e))
+
+
+@app.post("/api/generate/delete")
+def generate_delete_many(body: BulkDeleteRequest):
+    """Toplu silme - galerideki coklu secim bunu kullanir."""
+    g = _gen_ready()
+    done = [i for i in body.ids if g.delete_job(i, remove_file=not body.keep_files)]
+    return {"deleted": done, "count": len(done)}
+
+
+# --------------------------------------------------------------- jigsaw kipi
+# r2manager'in Incoming -> Accept / Reject akisinin sunucu tarafi.
+@app.get("/api/jigsaw/collections")
+def jigsaw_collections():
+    """Hot Jigsaw havuzundaki koleksiyonlar + siradaki numaralari."""
+    c = _gen_ready().jigsaw_collections()
+    return {"collections": c, "categories": c}   # 'categories' eski istemciler icin
+
+
+@app.get("/api/jigsaw/categories")
+def jigsaw_categories_legacy():
+    return jigsaw_collections()
+
+
+@app.get("/api/jigsaw/pending")
+def jigsaw_pending():
+    """Kabul bekleyen gorsel+video ciftleri."""
+    return {"pending": _gen_ready().jigsaw_pending()}
+
+
+@app.post("/api/jigsaw/accept")
+def jigsaw_accept(body: JigsawExportRequest):
+    """Cifti havuza <n>.jpg / <n>.mp4 / <n>.webp olarak yazar."""
+    try:
+        return _gen_ready().jigsaw_accept(body.image_job, body.video_job,
+                                          body.collection or body.category,
+                                          body.number)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/jigsaw/reject")
+def jigsaw_reject(body: JigsawRejectRequest):
+    """Cifti tumuyle siler (gorsel + ona bagli videolar)."""
+    return _gen_ready().jigsaw_reject(body.image_job)
+
+
+@app.post("/api/jigsaw/export")
+def jigsaw_export_legacy(body: JigsawExportRequest):
+    return jigsaw_accept(body)
+
+
+# ------------------------------------------------- jigsaw dort akisli hat
+# Masaustundeki Uretim Studyosu'nun yaptigi isin sunucu tarafi; telefon da
+# ayni akisi kullanabilsin diye. Uzun isler (etiketleme, webp, push) arka
+# planda calisir, istemci /op ile ilerlemeyi izler.
+def _flow():
+    if jigsaw_flow is None:
+        raise HTTPException(503, "Jigsaw akis modulu yuklenemedi")
+    return jigsaw_flow
+
+
+def _flow_call(fn, *a, **kw):
+    try:
+        return fn(*a, **kw)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except KeyError as e:
+        raise HTTPException(400, "eksik ayar: %s" % e)
+
+
+@app.get("/api/services/side")
+def side_services_status():
+    """ComfyUI ve LAN sitesinin anlik durumu."""
+    if yan_servisler is None:
+        raise HTTPException(503, "Yan servis modulu yuklenemedi")
+    return yan_servisler.status()
+
+
+@app.post("/api/services/side/start")
+def side_services_start():
+    """Kapali olanlari elle baslatir (acilistaki isin aynisi)."""
+    if yan_servisler is None:
+        raise HTTPException(503, "Yan servis modulu yuklenemedi")
+    yan_servisler.start_all()
+    return {"started": True}
+
+
+@app.get("/api/jigsaw/profiles")
+def jigsaw_profiles():
+    """Dropdown profilleri (hot/kid) - masaustuyle TEK dosya paylasilir."""
+    return _flow().profiles()
+
+
+@app.get("/api/jigsaw/flow/ratings")
+def jigsaw_flow_ratings():
+    f = _flow()
+    return {"ratings": f.ratings(),
+            "paths": {r["id"]: _flow_call(f.paths, r["id"]) for r in f.ratings()}}
+
+
+@app.get("/api/jigsaw/flow/collections")
+def jigsaw_flow_collections(rating: str = "hot"):
+    return _flow_call(_flow().collections, rating)
+
+
+@app.get("/api/jigsaw/flow/list")
+def jigsaw_flow_list(rating: str = "hot", stage: str = "incoming",
+                     collection: str = "", limit: int = 200, offset: int = 0):
+    """Bir akisin varliklari - sayfali."""
+    return _flow_call(_flow().list_items, rating, stage, collection, limit, offset)
+
+
+@app.get("/api/jigsaw/flow/thumb")
+def jigsaw_flow_thumb(rating: str, stage: str, id: str, size: int = 360):
+    t = _flow_call(_flow().thumb, rating, stage, id, max(64, min(1024, size)))
+    if not t:
+        raise HTTPException(404, "Onizleme yok")
+    return FileResponse(t, media_type="image/jpeg",
+                        headers={"Cache-Control": "public, max-age=604800"})
+
+
+@app.get("/api/jigsaw/flow/file")
+def jigsaw_flow_file(rating: str, stage: str, id: str, kind: str = "image"):
+    p = _flow_call(_flow().item_path, rating, stage, id, kind)
+    if not p:
+        raise HTTPException(404, "Dosya yok")
+    tip = GENERATED_MEDIA_TYPES.get(os.path.splitext(p)[1].lower(),
+                                    "application/octet-stream")
+    return FileResponse(p, media_type=tip, filename=os.path.basename(p))
+
+
+@app.post("/api/jigsaw/flow/stage")
+def jigsaw_flow_stage(body: FlowStageRequest):
+    """1 -> 2. Gorselleri _Incoming'e yazar ve EXIF etiketini isler."""
+    if not body.jobs:
+        raise HTTPException(400, "is secilmedi")
+    return {"op": _flow_call(_flow().stage_jobs, body.jobs, body.rating, body.agent)}
+
+
+@app.post("/api/jigsaw/flow/video")
+def jigsaw_flow_video(body: FlowItemsRequest):
+    """2. akis: secili gorseller icin video isi acar."""
+    return _flow_call(_flow().make_videos, body.rating, body.ids,
+                      body.duration, body.turbo)
+
+
+@app.post("/api/jigsaw/flow/accept")
+def jigsaw_flow_accept(body: FlowItemsRequest):
+    """2 -> 3. Koleksiyona <n>.jpg / .mp4 / .webp olarak tasir."""
+    if not body.ids:
+        raise HTTPException(400, "varlik secilmedi")
+    return {"op": _flow_call(_flow().accept, body.rating, body.ids, body.collection)}
+
+
+@app.post("/api/jigsaw/flow/push")
+def jigsaw_flow_push(body: FlowItemsRequest):
+    """3 -> 4. R2'ye yukler ve Pushed'a tasir. GERI ALINAMAZ."""
+    if not body.ids:
+        raise HTTPException(400, "varlik secilmedi")
+    return {"op": _flow_call(_flow().push, body.rating, body.ids)}
+
+
+@app.post("/api/jigsaw/flow/webp")
+def jigsaw_flow_webp(body: FlowItemsRequest):
+    """3. akista videosu olup webp'i olmayanlar icin webp uretir."""
+    return {"op": _flow_call(_flow().webp_missing, body.rating, body.collection)}
+
+
+@app.post("/api/jigsaw/flow/delete")
+def jigsaw_flow_delete(body: FlowItemsRequest):
+    if not body.ids:
+        raise HTTPException(400, "varlik secilmedi")
+    return _flow_call(_flow().remove, body.rating, body.stage, body.ids)
+
+
+@app.get("/api/jigsaw/flow/ops")
+def jigsaw_flow_ops():
+    return {"ops": _flow().ops(), "videos": _flow().pending_videos()}
+
+
+@app.get("/api/jigsaw/flow/op/{op_id}")
+def jigsaw_flow_op(op_id: str):
+    o = _flow().op_status(op_id)
+    if not o:
+        raise HTTPException(404, "Islem bulunamadi")
+    return o
 
 
 @app.get("/api/generate/{job_id}")
@@ -5547,10 +5820,61 @@ def generate_status(job_id: str):
     return j
 
 
+@app.delete("/api/generate/{job_id}")
+def generate_delete(job_id: str, keep_file: bool = False):
+    if not _gen_ready().delete_job(job_id, remove_file=not keep_file):
+        raise HTTPException(404, "Is bulunamadi")
+    return {"deleted": job_id}
+
+
+@app.post("/api/generate/{job_id}/cancel")
+def generate_cancel(job_id: str):
+    if not _gen_ready().cancel_job(job_id):
+        raise HTTPException(400, "Is iptal edilebilir durumda degil")
+    return {"cancelled": job_id}
+
+
+@app.post("/api/generate/{job_id}/move")
+def generate_move(job_id: str, body: MoveRequest):
+    if not _gen_ready().move_job(job_id, body.delta):
+        raise HTTPException(400, "Is kuyrukta degil veya zaten ucta")
+    return _gen_ready().queue_state()
+
+
+@app.post("/api/generate/{job_id}/meta")
+def generate_meta(job_id: str, body: JobMetaRequest):
+    j = _gen_ready().set_meta(job_id, favorite=body.favorite, note=body.note)
+    if not j:
+        raise HTTPException(404, "Is bulunamadi")
+    return j
+
+
+@app.get("/api/generate/{job_id}/thumb")
+def generate_thumb(job_id: str, size: int = 360):
+    """Galeri icin kucuk JPEG onizleme (video islerde ilk kare)."""
+    t = _gen_ready().thumb(job_id, max(64, min(1024, size)))
+    if not t:
+        raise HTTPException(404, "Onizleme yok")
+    return FileResponse(t, media_type="image/jpeg",
+                        headers={"Cache-Control": "public, max-age=604800"})
+
+
+# Uretim ciktilarinin tipleri. Gorev eklerinin beyaz listesi (ATTACHMENT_MEDIA_TYPES)
+# video icermez - o liste kullanicidan gelen dosyalar icin bir guvenlik kontrolu;
+# buradaki dosyalari ise ComfyUI uretti, kapsami ayri tutuyoruz.
+GENERATED_MEDIA_TYPES = {
+    ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+    ".webp": "image/webp", ".gif": "image/gif",
+    ".mp4": "video/mp4", ".webm": "video/webm", ".mov": "video/quicktime",
+    ".mp3": "audio/mpeg", ".wav": "audio/wav", ".flac": "audio/flac",
+}
+
+
 @app.get("/api/generate/{job_id}/file")
 def generate_file(job_id: str):
     f = _gen_ready().job_file(job_id)
     if not f:
         raise HTTPException(404, "Cikti hazir degil")
-    return FileResponse(f, media_type=_attachment_media_type(f),
+    ext = os.path.splitext(f)[1].lower()
+    return FileResponse(f, media_type=GENERATED_MEDIA_TYPES.get(ext, "application/octet-stream"),
                         filename=os.path.basename(f), content_disposition_type="inline")

@@ -801,6 +801,7 @@ class DeployEngine:
         start = time.time()
         output_lines = []
         hung = False
+        export_error = None
         process = None
         flutter_cwd = app.project_path
 
@@ -865,6 +866,18 @@ class DeployEngine:
                     # Check if process exited on its own
                     if process.poll() is not None:
                         break
+
+                    # Godot leaves the editor running after a failed export, so
+                    # without this the loop waits out the whole ceiling and the
+                    # build is reported as "[HUNG]" instead of the real reason —
+                    # a config error costs 15 minutes and tells you nothing.
+                    if not is_unity:
+                        export_error = self._godot_export_error(log_file_path)
+                        if export_error:
+                            self._update_status(app.id, phase="export_failed",
+                                                message=export_error[:200])
+                            self._kill_build_tree(process)
+                            break
 
                     # Check if build output file exists and has stabilized
                     if os.path.isfile(output_path):
@@ -971,7 +984,9 @@ class DeployEngine:
                 build_id,
                 status="success" if success else "failed",
                 output_path=output_path if success else "",
-                log_output="\n".join(output_lines[-200:]) + ("\n[HUNG] Build killed after timeout" if hung else ""),
+                log_output="\n".join(output_lines[-200:])
+                + (f"\n[EXPORT FAILED] {export_error}" if not is_unity and export_error else "")
+                + ("\n[HUNG] Build killed after timeout" if hung else ""),
                 duration_seconds=duration,
                 completed_at=datetime.now().isoformat(),
             )
@@ -999,6 +1014,33 @@ class DeployEngine:
                     pass
 
         return build_id
+
+    @staticmethod
+    def _godot_export_error(log_path: str) -> str | None:
+        """Godot log'unda export'in dustugunu bildiren satiri arar.
+
+        Godot basarisiz bir export'tan sonra editoru kapatmiyor; bu isaretler
+        gorulduyse beklemeye devam etmenin anlami yok. Bulunursa insan
+        okuyabilir tek satirlik sebep doner, yoksa None.
+        """
+        try:
+            with open(log_path, "r", encoding="utf-8", errors="replace") as f:
+                text = f.read()
+        except OSError:
+            return None
+        lines = text.splitlines()
+        for i, line in enumerate(lines):
+            if "Cannot export project with preset" not in line and                not ("Project export for preset" in line and "failed" in line):
+                continue
+            # sebep genelde bir sonraki satirda (ornegin eksik derleme sablonu)
+            detail = ""
+            for nxt in lines[i + 1:i + 4]:
+                nxt = nxt.strip()
+                if nxt and not nxt.startswith("at:"):
+                    detail = nxt
+                    break
+            return (line.strip() + (" - " + detail if detail else ""))[:400]
+        return None
 
     def _kill_build_tree(self, process: subprocess.Popen):
         """Kill a build process and all its children (Gradle daemons etc)."""

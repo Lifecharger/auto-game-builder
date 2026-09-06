@@ -21,6 +21,8 @@ import 'screens/settings_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/asset_generate_screen.dart';
 import 'screens/asset_gallery_screen.dart';
+import 'screens/asset_queue_screen.dart';
+import 'screens/asset_flow_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -120,7 +122,9 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
 
   static const _assetScreens = [
     AssetGenerateScreen(),
+    AssetQueueScreen(),
     AssetGalleryScreen(),
+    AssetFlowScreen(),
     SettingsScreen(),
   ];
 
@@ -336,8 +340,16 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
                   label: 'Uretim',
                 ),
                 BottomNavigationBarItem(
+                  icon: Icon(Icons.playlist_play),
+                  label: 'Sira',
+                ),
+                BottomNavigationBarItem(
                   icon: Icon(Icons.photo_library),
                   label: 'Uretilenler',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.conveyor_belt),
+                  label: 'Hat',
                 ),
                 BottomNavigationBarItem(
                   icon: Icon(Icons.settings),

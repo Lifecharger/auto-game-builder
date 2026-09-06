@@ -1,0 +1,307 @@
+{
+  "_aciklama": "KOPYA - kaynak: C:\\ComfyUI\\scripts\\jigsaw_secenekler.json (Uretim Studyosu). Masaustunde listeyi degistirdiysen bu dosyayi da guncelle ve uygulamayi yeniden derle, yoksa telefon eski listeyle uretir. Iki profil: 'hot' (Hot Jigsaw) ve 'kid' (Kid Jigsaw); her profilde 'alanlar' dropdown sirasi, 'secenekler' listeler, 'sablon'/'negatif' Pozitif 2 ve Negatif varsayilani (hot'ta bos = AGB'nin kip sablonu).",
+  "hot": {
+    "alanlar": [
+      [
+        "pose",
+        "Poz"
+      ],
+      [
+        "hair",
+        "Sac"
+      ],
+      [
+        "eyes",
+        "Goz"
+      ],
+      [
+        "race",
+        "Irk"
+      ],
+      [
+        "location",
+        "Mekan"
+      ],
+      [
+        "weather",
+        "Hava"
+      ],
+      [
+        "fantasy",
+        "Fantazi"
+      ]
+    ],
+    "sablon": "",
+    "negatif": "",
+    "secenekler": {
+      "pose": [
+        "full body shot",
+        "upper body shot",
+        "close-up portrait",
+        "cowboy shot",
+        "from below, low angle",
+        "from above, high angle",
+        "from behind, looking back over shoulder",
+        "sitting on a chair, legs crossed",
+        "kneeling on one knee",
+        "leaning against a wall",
+        "walking toward the camera",
+        "hands on hips, confident stance",
+        "arms crossed",
+        "stretching, arms raised",
+        "lying on her side",
+        "dynamic action pose, mid-motion"
+      ],
+      "hair": [
+        "black hair",
+        "jet black hair",
+        "dark brown hair",
+        "brown hair",
+        "light brown hair",
+        "chestnut hair",
+        "auburn hair",
+        "red hair",
+        "ginger hair",
+        "strawberry blonde hair",
+        "dirty blonde hair",
+        "blonde hair",
+        "golden blonde hair",
+        "platinum blonde hair",
+        "silver hair",
+        "white hair",
+        "pastel pink hair",
+        "hot pink hair",
+        "lavender hair",
+        "purple hair",
+        "deep blue hair",
+        "electric blue hair",
+        "turquoise hair",
+        "mint green hair",
+        "emerald green hair",
+        "orange hair",
+        "crimson red hair",
+        "two tone black and pink hair"
+      ],
+      "eyes": [
+        "black eyes",
+        "dark brown eyes",
+        "brown eyes",
+        "light brown eyes",
+        "hazel eyes",
+        "amber eyes",
+        "green eyes",
+        "emerald green eyes",
+        "blue eyes",
+        "light blue eyes",
+        "deep blue eyes",
+        "grey eyes"
+      ],
+      "race": [
+        "caucasian",
+        "east asian",
+        "korean",
+        "japanese",
+        "chinese",
+        "southeast asian",
+        "south asian, indian",
+        "black, african",
+        "latina, hispanic",
+        "middle eastern, arab",
+        "mediterranean",
+        "slavic, eastern european",
+        "scandinavian, nordic",
+        "mixed race"
+      ],
+      "location": [
+        "busy city street at night, neon lights",
+        "modern city rooftop at sunset",
+        "quiet park with autumn trees",
+        "dense misty forest",
+        "sandy beach at golden hour",
+        "snowy mountain slope",
+        "desert dunes under harsh sun",
+        "luxury hotel lobby",
+        "cozy cafe interior",
+        "modern apartment living room",
+        "industrial warehouse, dramatic light",
+        "subway station platform",
+        "old european cobblestone alley",
+        "flower field in full bloom",
+        "rainy street with reflections",
+        "library with tall bookshelves",
+        "nightclub with colored lights",
+        "abandoned ruins overgrown with vines",
+        "seaside pier at dusk",
+        "japanese temple garden"
+      ],
+      "weather": [
+        "clear blue sky",
+        "bright sunny day",
+        "warm golden hour light",
+        "soft overcast light",
+        "heavy grey clouds",
+        "light drizzle",
+        "pouring rain",
+        "thunderstorm with lightning",
+        "thick fog",
+        "morning mist",
+        "gentle snowfall",
+        "heavy blizzard",
+        "strong wind",
+        "hazy summer heat",
+        "sunset glow",
+        "clear starry night",
+        "moonlit night",
+        "after the rain, wet ground and reflections"
+      ],
+      "fantasy": [
+        "elf with pointed ears",
+        "dark elf, dusky skin",
+        "elven queen in ornate armor",
+        "fairy with translucent wings",
+        "sorceress casting arcane light",
+        "battle mage in enchanted robes",
+        "vampire noble, pale skin",
+        "succubus with small horns",
+        "angel with white feathered wings",
+        "demoness with dark horns and tail",
+        "valkyrie in winged helm",
+        "warrior princess in plate armor",
+        "assassin in dark leather hood",
+        "druid crowned with leaves",
+        "necromancer in tattered black robes",
+        "cyberpunk mercenary with neon implants",
+        "steampunk aviator with goggles",
+        "pirate captain in a long coat",
+        "samurai in lacquered armor",
+        "witch with a wide brimmed hat",
+        "mermaid with iridescent scales",
+        "ice queen crowned in frost",
+        "goddess in flowing golden silk",
+        "orc warrior, green skin"
+      ]
+    }
+  },
+  "kid": {
+    "alanlar": [
+      [
+        "subject",
+        "Konu"
+      ],
+      [
+        "style",
+        "Stil"
+      ],
+      [
+        "location",
+        "Mekan"
+      ],
+      [
+        "mood",
+        "Hava"
+      ],
+      [
+        "palette",
+        "Renk"
+      ]
+    ],
+    "sablon": "a cheerful children's jigsaw puzzle illustration of {}, bright saturated colors, clean bold shapes, soft rounded forms, friendly and wholesome, simple uncluttered background, even lighting, high detail, vertical 9:16 composition",
+    "negatif": "scary, horror, gore, blood, weapon, violence, dark, gloomy, creepy, realistic photo, photorealistic, text, watermark, logo, signature, blurry, low quality, deformed, extra limbs, cluttered",
+    "secenekler": {
+      "subject": [
+        "a fluffy orange kitten",
+        "a playful golden puppy",
+        "a baby elephant",
+        "a red panda",
+        "a family of penguins",
+        "a friendly brown bear",
+        "a curious fox cub",
+        "a spotted giraffe",
+        "a smiling dolphin",
+        "a sea turtle",
+        "a koala hugging a branch",
+        "a rabbit with long ears",
+        "a hedgehog",
+        "a squirrel holding an acorn",
+        "a parrot with rainbow feathers",
+        "a green triceratops",
+        "a long-necked brontosaurus",
+        "a cheerful little robot",
+        "a hot air balloon",
+        "a red steam train",
+        "a yellow school bus",
+        "a sailing boat",
+        "a rocket ship",
+        "a wooden treehouse",
+        "a lighthouse by the sea",
+        "a windmill",
+        "a basket of fruit",
+        "a stack of pancakes",
+        "a birthday cake",
+        "a bowl of ice cream",
+        "a friendly dragon",
+        "a unicorn with a pastel mane",
+        "a tiny garden fairy",
+        "a snowman with a scarf",
+        "a scarecrow in a field",
+        "a castle with tall towers"
+      ],
+      "style": [
+        "storybook illustration",
+        "flat vector illustration",
+        "soft watercolor painting",
+        "colored pencil drawing",
+        "cut paper collage",
+        "claymation style",
+        "cute chibi cartoon",
+        "3d cartoon render",
+        "gouache painting",
+        "crayon drawing",
+        "pixel art",
+        "stained glass style"
+      ],
+      "location": [
+        "in a sunny meadow",
+        "in a green forest clearing",
+        "on a sandy beach",
+        "in a snowy landscape",
+        "in a flower garden",
+        "on a farm",
+        "by a calm lake",
+        "on a mountain top",
+        "in an orchard",
+        "in a cozy bedroom",
+        "in a busy kitchen",
+        "in a playground",
+        "under the starry sky",
+        "in outer space",
+        "underwater coral reef",
+        "in an autumn park",
+        "on a rainbow bridge",
+        "in a candy land"
+      ],
+      "mood": [
+        "sunny and bright",
+        "warm golden afternoon",
+        "soft morning light",
+        "gentle rain",
+        "light snowfall",
+        "starry night",
+        "rainbow after rain",
+        "cozy and calm",
+        "festive and joyful",
+        "dreamy pastel haze"
+      ],
+      "palette": [
+        "bright primary colors",
+        "soft pastel palette",
+        "warm autumn colors",
+        "cool blue and green tones",
+        "rainbow colors",
+        "earthy natural tones",
+        "candy pink and mint",
+        "sunny yellow and orange"
+      ]
+    }
+  }
+}
