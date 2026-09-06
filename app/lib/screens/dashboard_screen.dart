@@ -18,6 +18,7 @@ import '../widgets/dashboard/create_app_sheet.dart';
 import 'app_detail_screen.dart';
 import '../l10n/app_localizations.dart';
 import '../utils/l10n_labels.dart';
+import '../services/mode_service.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -259,6 +260,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           ],
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.auto_awesome),
+            tooltip: 'Asset Mod',
+            onPressed: () => ModeService.set(true),
+          ),
           IconButton(
             icon: const Icon(Icons.radar),
             tooltip: l10n.scanForProjects,

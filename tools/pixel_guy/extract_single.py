@@ -33,9 +33,7 @@ def _add_cuda_dll_dirs() -> None:
     home = os.path.expanduser("~")
     candidate_roots = [
         os.path.join(home, "AppData", "Roaming", "Python", "Python314", "site-packages", "nvidia"),
-        os.path.join(home, "AppData", "Roaming", "Python", "Python312", "site-packages", "nvidia"),
         os.path.join(home, "AppData", "Local", "Programs", "Python", "Python314", "Lib", "site-packages", "nvidia"),
-        os.path.join(home, "AppData", "Local", "Programs", "Python", "Python312", "Lib", "site-packages", "nvidia"),
     ]
     suffixes = [
         ("cudnn", "bin"),

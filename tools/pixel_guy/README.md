@@ -43,7 +43,7 @@ python extract_all.py --chars-dir ./my_chars --downloads-dir /path/to/videos
 python extract_single.py --input video.mp4 --output ./out
 
 # Use a specific Python interpreter (one with CUDA onnxruntime):
-export PIXEL_GUY_PYTHON="/c/Python312/python.exe"
+export PIXEL_GUY_PYTHON="/c/Python314/python.exe"
 python extract_single.py --input video.mp4 --output ./out
 ```
 

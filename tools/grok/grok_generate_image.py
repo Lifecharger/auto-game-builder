@@ -26,7 +26,7 @@ HISTORY_FILE = os.path.join(_SCRIPT_DIR, "grok_download_history.json")
 # them up directly. Kept out of ~/Downloads on purpose — that folder is used for
 # other things and must stay free of pipeline clutter.
 DOWNLOADS_DIR = os.environ.get("GROK_OUTPUT_DIR") or os.path.join(
-    os.path.expanduser("~"), "Desktop", "Asset Generation Pipeline", "_Incoming"
+    "D:\\", "Asset Generation Pipeline", "_Incoming"
 )
 
 

@@ -31,7 +31,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from grok_animate import GrokLimitReached, animate  # noqa: E402
 
-PIPELINE_ROOT = Path.home() / "Desktop" / "Asset Generation Pipeline"
+PIPELINE_ROOT = Path(r"D:\Asset Generation Pipeline")
 INCOMING = PIPELINE_ROOT / "_Incoming"
 RESCUE_LEDGER = PIPELINE_ROOT / "rescue_ledger.json"
 STATUS_FILE = INCOMING / "RESCUE_STATUS.md"

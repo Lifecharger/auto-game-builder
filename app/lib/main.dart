@@ -9,6 +9,7 @@ import 'services/auth_service.dart';
 import 'services/cache_service.dart';
 import 'services/event_service.dart';
 import 'services/locale_service.dart';
+import 'services/mode_service.dart';
 import 'services/theme_service.dart';
 import 'services/update_checker.dart';
 import 'theme.dart';
@@ -18,6 +19,8 @@ import 'screens/control_screen.dart';
 import 'screens/chat_logs_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/login_screen.dart';
+import 'screens/asset_generate_screen.dart';
+import 'screens/asset_gallery_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -103,13 +106,40 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
   late Animation<double> _fadeAnimation;
   AppState? _appStateRef;
 
-  final _screens = const [
+  /// Uygulama modu. Code Mod = proje yonetimi, Asset Mod = yerel uretim.
+  /// Settings her iki modda da son sekme olarak sabit kalir.
+  bool _assetMode = false;
+
+  static const _codeScreens = [
     DashboardScreen(),
     IssuesScreen(),
     ChatLogsScreen(), // Reports & Logs
     ControlScreen(),
     SettingsScreen(),
   ];
+
+  static const _assetScreens = [
+    AssetGenerateScreen(),
+    AssetGalleryScreen(),
+    SettingsScreen(),
+  ];
+
+  List<Widget> get _screens => _assetMode ? _assetScreens : _codeScreens;
+
+  /// ModeService degisince modu uygular. Sekme indeksi sifirlanir,
+  /// yoksa yeni moddaki daha kisa listede tasar.
+  void _onModeChanged() {
+    HapticFeedback.mediumImpact();
+    _fadeController.reverse().then((_) {
+      if (!mounted) return;
+      setState(() {
+        _assetMode = ModeService.isAsset;
+        _currentIndex = 0;
+      });
+      context.read<AppState>().setActiveTab(0);
+      _fadeController.forward();
+    });
+  }
 
   @override
   void initState() {
@@ -122,6 +152,7 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
       CurvedAnimation(parent: _fadeController, curve: Curves.easeInOut),
     );
     _fadeController.value = 1.0;
+    ModeService.assetMode.addListener(_onModeChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _appStateRef = context.read<AppState>();
       _appStateRef!.addListener(_onAppStateChanged);
@@ -132,6 +163,7 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
 
   @override
   void dispose() {
+    ModeService.assetMode.removeListener(_onModeChanged);
     _appStateRef?.removeListener(_onAppStateChanged);
     _fadeController.dispose();
     super.dispose();
@@ -236,6 +268,11 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
           _switchTab(0);
           return;
         }
+        // Asset Mod'un ilk sekmesindeysek once Code Mod'a don
+        if (_assetMode) {
+          ModeService.set(false);
+          return;
+        }
         // On Dashboard: require double-tap back to exit
         final now = DateTime.now();
         if (_lastBackPress != null &&
@@ -292,50 +329,65 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
         currentIndex: _currentIndex,
         onTap: _switchTab,
         type: BottomNavigationBarType.fixed,
-        items: [
-          BottomNavigationBarItem(
-            icon: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                const Icon(Icons.dashboard),
-                if (connected != null)
-                  Positioned(
-                    right: -4,
-                    top: -4,
-                    child: Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: connected ? AppColors.success : AppColors.error,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
+        items: _assetMode
+            ? const [
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.auto_awesome),
+                  label: 'Uretim',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.photo_library),
+                  label: 'Uretilenler',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.settings),
+                  label: 'Ayarlar',
+                ),
+              ]
+            : [
+                BottomNavigationBarItem(
+                  icon: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      const Icon(Icons.dashboard),
+                      if (connected != null)
+                        Positioned(
+                          right: -4,
+                          top: -4,
+                          child: Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: connected ? AppColors.success : AppColors.error,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
+                  label: l10n.dashboard,
+                ),
+                BottomNavigationBarItem(
+                  icon: Badge(
+                    isLabelVisible: pendingCount > 0,
+                    label: Text('$pendingCount', style: const TextStyle(fontSize: 10)),
+                    child: const Icon(Icons.bug_report),
+                  ),
+                  label: l10n.issues,
+                ),
+                BottomNavigationBarItem(
+                  icon: const Icon(Icons.feedback_outlined),
+                  label: l10n.chatLogs,
+                ),
+                BottomNavigationBarItem(
+                  icon: const Icon(Icons.tune),
+                  label: l10n.control,
+                ),
+                BottomNavigationBarItem(
+                  icon: const Icon(Icons.settings),
+                  label: l10n.settings,
+                ),
               ],
-            ),
-            label: l10n.dashboard,
-          ),
-          BottomNavigationBarItem(
-            icon: Badge(
-              isLabelVisible: pendingCount > 0,
-              label: Text('$pendingCount', style: const TextStyle(fontSize: 10)),
-              child: const Icon(Icons.bug_report),
-            ),
-            label: l10n.issues,
-          ),
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.feedback_outlined),
-            label: l10n.chatLogs,
-          ),
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.tune),
-            label: l10n.control,
-          ),
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.settings),
-            label: l10n.settings,
-          ),
-        ],
       ),
     ),
     );

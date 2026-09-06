@@ -50,7 +50,7 @@ IMAGINE_URL = "https://grok.com/imagine"
 
 # Rendered videos land in the r2manager Incoming folder, same as generated images.
 OUTPUT_DIR = os.environ.get("GROK_OUTPUT_DIR") or os.path.join(
-    os.path.expanduser("~"), "Desktop", "Asset Generation Pipeline", "_Incoming"
+    "D:\\", "Asset Generation Pipeline", "_Incoming"
 )
 
 

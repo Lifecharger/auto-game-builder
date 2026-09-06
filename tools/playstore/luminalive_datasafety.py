@@ -12,7 +12,7 @@ import requests
 SA_KEY = "D:/keys/arcade-snake-488801-5ac9863bb0ab.json"
 SCOPES = ["https://www.googleapis.com/auth/androidpublisher"]
 PACKAGE = "com.lifecharger.luminalive"
-CSV = r"C:\Users\caca_\Desktop\store_assets\data_safety_luminalive.csv"
+CSV = r"C:\Projects\Lumina Live\store\data_safety_luminalive.csv"
 
 
 def main() -> int:

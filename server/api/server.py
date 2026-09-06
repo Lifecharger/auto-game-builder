@@ -364,6 +364,13 @@ def deploy_engine() -> DeployEngine:
 def root():
     return {"name": "AppManager API", "version": "1.0.0", "status": "running", "docs": "/docs"}
 
+try:
+    from core import comfy_gen
+except Exception as _e:  # ComfyUI kurulu degilse sunucu yine acilsin
+    comfy_gen = None
+    print(f"[AutoGameBuilder] comfy_gen yuklenemedi: {_e}")
+
+
 @app.get("/api/health")
 def health():
     return {"status": "ok", "time": datetime.now().isoformat()}
@@ -5477,3 +5484,73 @@ if __name__ == "__main__":
     import uvicorn
     _s = get_settings()
     uvicorn.run("server:app", host=_s.get("host", "0.0.0.0"), port=int(_s.get("port", 8000)), reload=True)
+
+
+# ---------------------------------------------------------------- yerel uretim
+class GenerateRequest(BaseModel):
+    task: str
+    prompt: str
+    negative: str = ""
+    width: int = 0
+    height: int = 0
+    duration: int = 5
+    seed: int | None = None
+    turbo: bool = True
+    image_path: str | None = None
+    source_job: str | None = None
+    client: str | None = None
+
+
+def _gen_ready():
+    if comfy_gen is None:
+        raise HTTPException(503, "Uretim modulu yuklenemedi")
+    return comfy_gen
+
+
+@app.get("/api/generate/tasks")
+def generate_tasks():
+    """Telefonun gosterecegi gorev listesi + ComfyUI durumu."""
+    g = _gen_ready()
+    return {"comfy_up": g.comfy_up(), "tasks": g.tasks()}
+
+
+@app.get("/api/generate/workflows")
+def generate_workflows():
+    """ComfyUI klasorundeki tum is akislari + manifest'te tanimli mi."""
+    return {"workflows": _gen_ready().available_workflows()}
+
+
+@app.get("/api/generate")
+def generate_list(limit: int = 30, client: str | None = None):
+    return {"jobs": _gen_ready().list_jobs(limit, client)}
+
+
+@app.post("/api/generate")
+def generate_submit(body: GenerateRequest):
+    g = _gen_ready()
+    try:
+        return g.submit(body.task, body.prompt, negative=body.negative,
+                        width=body.width, height=body.height, duration=body.duration,
+                        seed=body.seed, turbo=body.turbo, image_path=body.image_path,
+                        source_job=body.source_job, client=body.client)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except RuntimeError as e:
+        raise HTTPException(503, str(e))
+
+
+@app.get("/api/generate/{job_id}")
+def generate_status(job_id: str):
+    j = _gen_ready().get_job(job_id)
+    if not j:
+        raise HTTPException(404, "Is bulunamadi")
+    return j
+
+
+@app.get("/api/generate/{job_id}/file")
+def generate_file(job_id: str):
+    f = _gen_ready().job_file(job_id)
+    if not f:
+        raise HTTPException(404, "Cikti hazir degil")
+    return FileResponse(f, media_type=_attachment_media_type(f),
+                        filename=os.path.basename(f), content_disposition_type="inline")

@@ -189,3 +189,9 @@ server/report_attachments/
 workers/*/.wrangler/
 workers/*/node_modules/
 workers/*/.dev.vars
+
+# Local-only release readiness checklist app (not part of AGB)
+tools/release_checklist/
+
+# Ad-hoc source backup snapshots (*.bak-<label>) — local only, never commit
+*.bak-*

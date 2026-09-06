@@ -1,7 +1,7 @@
 """
 Stage 1 of the character pipeline: text-to-image via Grok.
 
-Saves output to C:\\Users\\caca_\\Desktop\\Characters.
+Saves output to C:\\Projects\\Hot Card Games\\design\\characters.
 
 Usage:
     python tools/character_pipeline/generate.py -d "anime swordswoman, full body" -o swords --pro
@@ -18,7 +18,7 @@ if _TOOLS_DIR not in sys.path:
 
 from grok.grok_generate_image import generate_images
 
-OUTPUT_DIR = r"C:\Users\caca_\Desktop\Characters"
+OUTPUT_DIR = r"C:\Projects\Hot Card Games\design\characters"
 
 
 def main():
