@@ -5562,6 +5562,21 @@ class FlowItemsRequest(BaseModel):
     collection: str = ""
     duration: int = 5
     turbo: bool = True
+    # --- video uretimi (2. akis)
+    prompt: str = ""            # bos = varligin kendi konu prompt'u
+    prompt2: str = ""           # hareket sablonu; bos + rotate = hazir sablonlar
+    negative: str = ""          # bos = derecenin varsayilan video negatifi
+    rotate_templates: bool = False   # "Que All": sablonlari sirayla dagit
+    task: str = ""              # bos = LTX'i sec
+
+
+class FlowMusicRequest(BaseModel):
+    """Koleksiyon muzigi uretimi (ACE-Step, yerel)."""
+    rating: str = "hot"
+    collections: list[str] = []
+    tags: str = ""              # bos = koleksiyon adindan tema uretilir
+    seconds: float = 30.0
+    overwrite: bool = False
 
 
 class BulkDeleteRequest(BaseModel):
@@ -5763,11 +5778,22 @@ def jigsaw_flow_stage(body: FlowStageRequest):
     return {"op": _flow_call(_flow().stage_jobs, body.jobs, body.rating, body.agent)}
 
 
+@app.get("/api/jigsaw/flow/video-templates")
+def jigsaw_flow_video_templates(rating: str = "hot"):
+    """2. akistaki hazir hareket sablonlari + varsayilan negatif."""
+    return _flow_call(_flow().video_templates, rating)
+
+
 @app.post("/api/jigsaw/flow/video")
 def jigsaw_flow_video(body: FlowItemsRequest):
-    """2. akis: secili gorseller icin video isi acar."""
+    """2. akis: secili gorseller icin LTX video isi acar.
+
+    rotate_templates=true ("Que All") hazir sablonlari siradaki varliga
+    sirayla dagitir; boylece parti tek tip olmaz.
+    """
     return _flow_call(_flow().make_videos, body.rating, body.ids,
-                      body.duration, body.turbo)
+                      body.duration, body.turbo, body.prompt, body.prompt2,
+                      body.negative, body.rotate_templates, body.task)
 
 
 @app.post("/api/jigsaw/flow/accept")
@@ -5797,6 +5823,21 @@ def jigsaw_flow_delete(body: FlowItemsRequest):
     if not body.ids:
         raise HTTPException(400, "varlik secilmedi")
     return _flow_call(_flow().remove, body.rating, body.stage, body.ids)
+
+
+@app.get("/api/jigsaw/flow/music")
+def jigsaw_flow_music_status(rating: str = "hot"):
+    """Koleksiyon muzikleri: hangisinde var, model hazir mi."""
+    return _flow_call(_flow().music_status, rating)
+
+
+@app.post("/api/jigsaw/flow/music")
+def jigsaw_flow_music(body: FlowMusicRequest):
+    """Secili koleksiyonlar icin yerel ACE-Step ile mp3 uretir."""
+    if not body.collections:
+        raise HTTPException(400, "koleksiyon secilmedi")
+    return {"op": _flow_call(_flow().make_music, body.rating, body.collections,
+                             body.tags, body.seconds, body.overwrite)}
 
 
 @app.get("/api/jigsaw/flow/ops")

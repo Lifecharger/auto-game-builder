@@ -6,6 +6,7 @@ import '../services/jigsaw_flow_service.dart';
 import '../services/jigsaw_profiles.dart';
 import '../theme.dart';
 import '../services/mode_service.dart';
+import '../widgets/bottom_inset.dart';
 
 /// Asset Mod - Uretilenler ekrani.
 ///
@@ -666,10 +667,13 @@ class _ViewerPageState extends State<_ViewerPage> {
       if (j.seed != null) 'seed ${j.seed}',
       if (j.exported != null) 'havuz ${j.exported}',
     ];
+    // Tam ekran route: ust Scaffold'un nav cubugu yok, sistem gezinme
+    // cubugunun yerini kimse birakmiyor. Sabit 20px yetmiyordu - "Havuza ekle"
+    // 3 tuslu cubugun altinda kaliyordu (gorev #266).
     return Container(
       width: double.infinity,
       color: Colors.black,
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
+      padding: bottomSafePadding(context, left: 16, top: 10, right: 16, bottom: 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,

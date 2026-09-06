@@ -526,19 +526,56 @@ _pending_videos: dict[str, str] = {}      # comfy_gen is id -> yazilacak mp4 yol
 _watcher_started = False
 
 
+def video_templates(rating: str) -> dict:
+    """Bir derecenin hazir video sablonlari + varsayilan negatifi."""
+    prof = (profiles().get("profiles") or {}).get(rating) or {}
+    v = prof.get("video") or {}
+    sablonlar = [{"ad": str(x.get("ad") or ""), "prompt": str(x.get("prompt") or "")}
+                 for x in (v.get("sablonlar") or []) if str(x.get("prompt") or "").strip()]
+    return {"rating": rating, "templates": sablonlar,
+            "negative": str(v.get("negatif") or ""),
+            "motion_default": (G.MODES.get("jigsaw") or {}).get("motion2") or ""}
+
+
+def _combine(p1: str, p2: str) -> str:
+    """AGB'nin kuralinin aynisi: p2'de {} varsa p1 oraya girer."""
+    p1, p2 = (p1 or "").strip(), (p2 or "").strip()
+    if not p2:
+        return p1
+    if "{}" in p2:
+        return p2.replace("{}", p1) if p1 else p2.replace("{},", "").replace("{}", "").strip(" ,")
+    return (p1 + ", " + p2).strip(" ,") if p1 else p2
+
+
 def make_videos(rating: str, item_ids: list[str], duration: int = 5,
-                turbo: bool = True) -> dict:
-    """2. akis: secili jpg'ler icin video isi acar. Is bitince mp4 jpg'nin
-    yanina yazilir (arka plan gozcusu)."""
-    gorev = next((t for t in G.tasks("jigsaw")
-                  if t.get("is_video") and t.get("needs_image")), None)
-    if not gorev:
+                turbo: bool = True, prompt: str = "", prompt2: str = "",
+                negative: str = "", rotate_templates: bool = False,
+                task: str = "") -> dict:
+    """2. akis: secili jpg'ler icin LTX video isi acar.
+
+    prompt   : bos ise her varligin kendi yan dosyasindaki konu prompt'u kullanilir
+    prompt2  : hareket sablonu ({} = konu). Bos ve rotate_templates ise hazir
+               sablonlar SIRAYLA dagitilir ("Que All" davranisi).
+    negative : bos ise derecenin varsayilan video negatifi kullanilir
+
+    Is bitince mp4 jpg'nin yanina yazilir (arka plan gozcusu).
+    """
+    gorevler = [t for t in G.tasks("jigsaw") if t.get("is_video") and t.get("needs_image")]
+    if not gorevler:
         raise ValueError("video gorevi bulunamadi")
-    motion = (G.MODES.get("jigsaw") or {}).get("motion2") or ""
-    acilan = []
+    # LTX varsayilan: "sesli" olan is akisi; istemci baskasini secebilir.
+    gorev = next((t for t in gorevler if t["id"] == task), None)         or next((t for t in gorevler if "ltx" in t["id"].lower()), gorevler[0])
+
+    vt = video_templates(rating)
+    sablonlar = [x["prompt"] for x in vt["templates"]]
+    neg = negative.strip() or vt["negative"]
+    varsayilan_motion = (prompt2.strip() or vt["motion_default"])
+
+    acilan, atlanan, sira = [], 0, 0     # sira: yalniz gercekten acilan isler
     for iid in item_ids:
         jpg = item_path(rating, "incoming", iid, "image")
         if not jpg or item_path(rating, "incoming", iid, "video"):
+            atlanan += 1
             continue                      # yok ya da zaten videosu var
         yan = {}
         try:
@@ -546,16 +583,24 @@ def make_videos(rating: str, item_ids: list[str], duration: int = 5,
                 yan = json.load(fh)
         except Exception:
             pass
-        j = G.submit(task=gorev["id"], prompt=yan.get("prompt") or "",
-                     prompt2=motion, negative="", duration=duration, turbo=turbo,
-                     image_path=jpg, mode="jigsaw", client="flow",
-                     category="")
+        konu = prompt.strip() or (yan.get("prompt") or "")
+        if rotate_templates and sablonlar and not prompt2.strip():
+            # Atlanan varlik sablon harcamasin: sayac yalniz acilan iste artar.
+            motion = sablonlar[sira % len(sablonlar)]
+        else:
+            motion = varsayilan_motion
+
+        j = G.submit(task=gorev["id"], prompt=konu, prompt2=motion, negative=neg,
+                     duration=duration, turbo=turbo, image_path=jpg,
+                     mode="jigsaw", client="flow", category="")
         jid = j.get("id") if isinstance(j, dict) else getattr(j, "id", None)
         if jid:
             _pending_videos[jid] = os.path.splitext(jpg)[0] + ".mp4"
             acilan.append(jid)
+            sira += 1
     _start_watcher()
-    return {"queued": len(acilan), "jobs": acilan}
+    return {"queued": len(acilan), "skipped": atlanan, "jobs": acilan,
+            "task": gorev["id"], "templates_used": len(sablonlar) if rotate_templates else 0}
 
 
 def _start_watcher():
@@ -661,11 +706,35 @@ def _r2_put(wrangler: str, bucket: str, key: str, dosya: str,
     return True, ""
 
 
+def collection_music(rating: str, coll: str, stage: str = "staging") -> str | None:
+    """Koleksiyondaki .mp3 (varsa). r2manager kurali: tematik koleksiyonun
+    muzigi varliklarla birlikte kovaya gider; Generic'in muzigi olmaz."""
+    if coll.lower() == DEFAULT_COLL.lower():
+        return None
+    d = os.path.join(paths(rating)[stage], coll)
+    try:
+        with os.scandir(d) as it:
+            for e in it:
+                if e.is_file() and e.name.lower().endswith(".mp3"):
+                    return os.path.join(d, e.name)
+    except OSError:
+        pass
+    return None
+
+
 def push(rating: str, item_ids: list[str]) -> str:
     """3 -> 4. Varliklari R2'ye yukler, sonra 'Pushed' klasorune tasir.
 
-    Bu bir YAYIN islemidir ve geri alinamaz; bir dosya yuklenemezse o varlik
-    tasinmaz ve islem durur - yarim yayin birakmamak icin.
+    r2manager'in push kurallari aynen gecerlidir:
+      * anahtar duzeni  collections/<koleksiyon>/images|videos|videos_webp/<n>.<uz>
+      * tematik koleksiyonun .mp3'u de gider (collections/<k>/music/<ad>.mp3);
+        Generic'in muzigi olmaz
+      * .json yan dosyasi YEREL kayittir, asla yuklenmez - yalniz tasinir
+      * videosu olup webp'i olmayan varlik uyarilir (uygulama webp'i oynatiyor)
+      * bir dosya yuklenemezse islem DURUR; o varlik tasinmaz, yarim yayin olmaz
+      * koleksiyon klasoru bosaldiysa silinir
+
+    Bu bir YAYIN islemidir ve geri alinamaz.
     """
     p = paths(rating)
     if not p["wrangler"] or not os.path.isfile(p["wrangler"]):
@@ -673,6 +742,7 @@ def push(rating: str, item_ids: list[str]) -> str:
     op_id = _op_new("push", len(item_ids))
 
     def calis():
+        dokunulan: set[str] = set()
         for i, iid in enumerate(item_ids, 1):
             jpg = item_path(rating, "staging", iid, "image")
             if not jpg:
@@ -682,11 +752,16 @@ def push(rating: str, item_ids: list[str]) -> str:
                 continue
             coll = os.path.basename(os.path.dirname(jpg))
             stem = os.path.splitext(jpg)[0]
+
             isler = [("images", jpg)]
             if os.path.isfile(stem + ".mp4"):
                 isler.append(("videos", stem + ".mp4"))
-            if os.path.isfile(stem + ".webp"):
-                isler.append(("videos_webp", stem + ".webp"))
+                if os.path.isfile(stem + ".webp"):
+                    isler.append(("videos_webp", stem + ".webp"))
+                else:
+                    # Uygulama duvarlarda webp oynatiyor; mp4 tek basina yetmez.
+                    _op(op_id, log="! %s: webp ikizi yok - uygulama oynatamaz"
+                        % os.path.basename(stem))
 
             _op(op_id, message="push %d/%d  %s" % (i, len(item_ids), iid))
             basarili = True
@@ -701,11 +776,12 @@ def push(rating: str, item_ids: list[str]) -> str:
                     break
                 _op(op_id, log="+ %s" % key)
             if not basarili:
-                _op(op_id, message="yukleme hatasi - durduruldu")
+                _op(op_id, message="yukleme hatasi - islem durduruldu")
                 return
 
             hedef = os.path.join(p["pushed"], coll)
             os.makedirs(hedef, exist_ok=True)
+            # .json yuklenmez ama varlikla birlikte tasinir (yerel kayit).
             for uz in (".jpg", ".mp4", ".webp", ".json"):
                 if os.path.isfile(stem + uz):
                     try:
@@ -713,9 +789,97 @@ def push(rating: str, item_ids: list[str]) -> str:
                                     os.path.join(hedef, os.path.basename(stem) + uz))
                     except Exception as e:
                         _op(op_id, log="tasima uyarisi: %s" % e)
+            dokunulan.add(coll)
             with _ops_lock:
                 _ops[op_id]["ok"] += 1
             _op(op_id, done=i)
+
+        # --- koleksiyon muzigi + klasor temizligi
+        for coll in sorted(dokunulan):
+            mp3 = collection_music(rating, coll)
+            if mp3:
+                key = "collections/%s/music/%s" % (coll, os.path.basename(mp3))
+                ok, err = _r2_put(p["wrangler"], p["bucket"], key, mp3)
+                if ok:
+                    _op(op_id, log="+ %s" % key)
+                    hedef = os.path.join(p["pushed"], coll)
+                    os.makedirs(hedef, exist_ok=True)
+                    try:
+                        shutil.move(mp3, os.path.join(hedef, os.path.basename(mp3)))
+                    except Exception as e:
+                        _op(op_id, log="mp3 tasima uyarisi: %s" % e)
+                else:
+                    _op(op_id, log="mp3 YUKLENEMEDI %s: %s" % (key, err[:150]))
+            # Bosalan koleksiyon klasoru kalmasin.
+            d = os.path.join(p["staging"], coll)
+            try:
+                if os.path.isdir(d) and not os.listdir(d):
+                    os.rmdir(d)
+                    _op(op_id, log="bos koleksiyon klasoru silindi: %s" % coll)
+            except OSError:
+                pass
+
+    _run(op_id, calis)
+    return op_id
+
+
+# ------------------------------------------------------------------ muzik
+def music_status(rating: str) -> dict:
+    """Hangi koleksiyonun muzigi var, hangisinin yok."""
+    from . import jigsaw_music as MZ
+    hazir, hata = MZ.model_ready()
+    p = paths(rating)
+    satirlar = []
+    for stage in ("staging", "pushed"):
+        try:
+            with os.scandir(p[stage]) as it:
+                adlar = sorted([e.name for e in it if e.is_dir()], key=str.lower)
+        except OSError:
+            adlar = []
+        for c in adlar:
+            if c.lower() == DEFAULT_COLL.lower():
+                continue                 # Generic'in muzigi olmaz
+            mp3 = collection_music(rating, c, stage)
+            satirlar.append({"name": c, "stage": stage,
+                             "music": os.path.basename(mp3) if mp3 else "",
+                             "has_music": bool(mp3)})
+    return {"model_ready": hazir, "model_error": hata,
+            "default_collection": DEFAULT_COLL, "collections": satirlar}
+
+
+def make_music(rating: str, collections: list[str], tags: str = "",
+               seconds: float = 30.0, overwrite: bool = False) -> str:
+    """Secili koleksiyonlar icin ACE-Step ile mp3 uretir (arka planda).
+
+    Generic atlanir - kovada Generic'in muzigi yok. Muzigi olan koleksiyon
+    overwrite=False iken atlanir.
+    """
+    from . import jigsaw_music as MZ
+    hazir, hata = MZ.model_ready()
+    if not hazir:
+        raise ValueError(hata)
+    p = paths(rating)
+    op_id = _op_new("music", len(collections))
+
+    def calis():
+        for i, c in enumerate(collections, 1):
+            if c.lower() == DEFAULT_COLL.lower():
+                _op(op_id, done=i, log="%s atlandi (Generic'in muzigi olmaz)" % c)
+                continue
+            d = os.path.join(p["staging"], c)
+            if not os.path.isdir(d):
+                d2 = os.path.join(p["pushed"], c)
+                d = d2 if os.path.isdir(d2) else d
+            if not overwrite and collection_music(rating, c, "staging"):
+                _op(op_id, done=i, log="%s atlandi (muzigi zaten var)" % c)
+                continue
+            _op(op_id, message="%s icin muzik uretiliyor (%d/%d)" % (c, i, len(collections)))
+            yol, err = MZ.generate(d, c, tags=tags, seconds=seconds,
+                                   log=lambda s, c=c: _op(op_id, log="%s: %s" % (c, s)))
+            with _ops_lock:
+                _ops[op_id]["ok" if yol else "failed"] += 1
+            _op(op_id, done=i,
+                log=("+ %s" % os.path.basename(yol)) if yol else ("%s: %s" % (c, err[:160])))
 
     _run(op_id, calis)
     return op_id

@@ -46,6 +46,14 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
   FlowOp? _op;
   Timer? _opPoll;
 
+  // --- 2. akis video uretimi
+  VideoDefaults _vd = VideoDefaults.empty;
+  final _vp1 = TextEditingController();
+  final _vp2 = TextEditingController();
+  final _vneg = TextEditingController();
+  int _vSablon = 0;          // 0 = (sirayla dagit)
+  int _vDuration = 5;
+
   String get _stage => _stages[_tabs.index];
   List<FlowItem> get _cur => _items[_stage] ?? const [];
   bool get _selecting => _sel.isNotEmpty;
@@ -70,7 +78,25 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
   void dispose() {
     _opPoll?.cancel();
     _tabs.dispose();
+    _vp1.dispose();
+    _vp2.dispose();
+    _vneg.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadVideoDefaults() async {
+    try {
+      final v = await JigsawFlowService.videoTemplates(_rating);
+      if (!mounted) return;
+      setState(() {
+        _vd = v;
+        _vSablon = 0;
+        _vp2.text = '';
+        if (_vneg.text.trim().isEmpty) _vneg.text = v.negative;
+      });
+    } catch (_) {
+      // sablonlar alinamazsa panel yine calisir - elle prompt girilebilir
+    }
   }
 
   // ------------------------------------------------------------- yukleme
@@ -80,6 +106,7 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
       _error = null;
     });
     try {
+      if (_vd.templates.isEmpty) unawaited(_loadVideoDefaults());
       final c = await JigsawFlowService.collections(_rating);
       final r = await JigsawFlowService.list(
           rating: _rating, stage: _stage, collection: _collection, limit: 300);
@@ -143,6 +170,150 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
       false;
 
   // -------------------------------------------------------------- eylem
+  /// Video uretim ayarlarini soran alt sayfa (Pozitif 1 / 2 / Negatif).
+  ///
+  /// Pozitif 2 bos birakilirsa ve "Que All" secildiyse hazir sablonlar
+  /// siradaki varliga sirayla dagitilir - parti tek tip olmaz.
+  Future<bool> _videoAyarSayfasi({required int adet, required bool queAll}) async {
+    final onay = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (c) => Padding(
+        padding: EdgeInsets.only(
+          left: 16, right: 16, top: 16,
+          bottom: MediaQuery.of(c).viewInsets.bottom + 16,
+        ),
+        child: StatefulBuilder(
+          builder: (c, setSheet) => SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(queAll ? 'QUE ALL - $adet varlik' : 'Video uret - $adet varlik',
+                    style: Theme.of(c).textTheme.titleMedium),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _vp1,
+                  maxLines: 2,
+                  decoration: const InputDecoration(
+                    labelText: 'Pozitif 1 - konu',
+                    helperText: "bos = her varligin kendi prompt'u",
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<int>(
+                  initialValue: _vSablon,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Hazir hareket sablonu',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: [
+                    const DropdownMenuItem(value: 0, child: Text('(sirayla dagit)')),
+                    for (var i = 0; i < _vd.templates.length; i++)
+                      DropdownMenuItem(
+                          value: i + 1,
+                          child: Text(_vd.templates[i].name,
+                              overflow: TextOverflow.ellipsis)),
+                  ],
+                  onChanged: (v) => setSheet(() {
+                    _vSablon = v ?? 0;
+                    _vp2.text = (_vSablon == 0)
+                        ? ''
+                        : _vd.templates[_vSablon - 1].prompt;
+                  }),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _vp2,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Pozitif 2 - hareket',
+                    helperText:
+                        '{} = konu promptunun yeri. Bos = sablonlar sirayla.',
+                    helperMaxLines: 2,
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _vneg,
+                  maxLines: 2,
+                  decoration: const InputDecoration(
+                    labelText: 'Negatif',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    const Text('Sure'),
+                    Expanded(
+                      child: Slider(
+                        value: _vDuration.toDouble(),
+                        min: 1, max: 10, divisions: 9,
+                        label: '$_vDuration sn',
+                        onChanged: (v) => setSheet(() => _vDuration = v.round()),
+                      ),
+                    ),
+                    Text('$_vDuration sn'),
+                  ],
+                ),
+                if (queAll && _vp2.text.trim().isEmpty && _vd.templates.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(
+                        'Hazir ${_vd.templates.length} sablon sirayla dagitilacak.',
+                        style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                  ),
+                Row(
+                  children: [
+                    TextButton(
+                        onPressed: () => Navigator.pop(c, false),
+                        child: const Text('Vazgec')),
+                    const Spacer(),
+                    FilledButton.icon(
+                      onPressed: () => Navigator.pop(c, true),
+                      icon: const Icon(Icons.movie_creation_outlined, size: 18),
+                      label: Text(queAll ? 'QUE ALL' : 'Siraya ekle'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    return onay == true;
+  }
+
+  Future<void> _gonderVideo(List<String> ids, {required bool queAll}) async {
+    if (ids.isEmpty) {
+      _snack('Videosu olmayan varlik yok');
+      return;
+    }
+    if (!await _videoAyarSayfasi(adet: ids.length, queAll: queAll)) return;
+    try {
+      final r = await JigsawFlowService.makeVideos(
+        rating: _rating,
+        ids: ids,
+        duration: _vDuration,
+        prompt: _vp1.text.trim(),
+        prompt2: _vp2.text.trim(),
+        negative: _vneg.text.trim(),
+        rotateTemplates: queAll,
+      );
+      _snack('${r.queued} video siraya eklendi'
+          '${r.skipped > 0 ? ", ${r.skipped} atlandi" : ""}'
+          ' - bitince buraya duser');
+      setState(_sel.clear);
+    } catch (e) {
+      _snack(e.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
   Future<void> _makeVideos() async {
     final ids = _sel.where((id) {
       final i = _cur.where((x) => x.id == id).firstOrNull;
@@ -152,16 +323,13 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
       _snack('Videosu olmayan varlik sec');
       return;
     }
-    if (!await _confirm('Video', '${ids.length} gorsel icin video siraya eklensin mi?')) {
-      return;
-    }
-    try {
-      final n = await JigsawFlowService.makeVideos(rating: _rating, ids: ids);
-      _snack('$n video siraya eklendi - bitince buraya duser');
-      setState(_sel.clear);
-    } catch (e) {
-      _snack(e.toString().replaceFirst('Exception: ', ''));
-    }
+    await _gonderVideo(ids, queAll: false);
+  }
+
+  /// QUE ALL - 2. akistaki videosu olmayan TUM varliklara video acar.
+  Future<void> _queueAll() async {
+    final ids = _cur.where((i) => !i.video).map((i) => i.id).toList();
+    await _gonderVideo(ids, queAll: true);
   }
 
   Future<void> _accept() async {
@@ -181,6 +349,63 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
       final op = await JigsawFlowService.accept(
           rating: _rating, ids: _sel.toList(), collection: coll);
       setState(_sel.clear);
+      _watch(op);
+    } catch (e) {
+      _snack(e.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
+  /// Koleksiyon muzigi - sunucuda ACE-Step ile yerel uretim.
+  ///
+  /// Generic'in muzigi olmaz (kovada da yok). Muzigi olan koleksiyon atlanir.
+  Future<void> _music() async {
+    MusicStatus st;
+    try {
+      st = await JigsawFlowService.musicStatus(_rating);
+    } catch (e) {
+      _snack(e.toString().replaceFirst('Exception: ', ''));
+      return;
+    }
+    if (!st.modelReady) {
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (c) => AlertDialog(
+          title: const Text('Muzik modeli hazir degil'),
+          content: Text(st.modelError),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(c), child: const Text('Tamam')),
+          ],
+        ),
+      );
+      return;
+    }
+    final eksik = st.collections
+        .where((c) => !c.hasMusic && c.stage == 'staging')
+        .map((c) => c.name)
+        .toList();
+    final secili = _collection.isEmpty
+        ? eksik
+        : eksik.where((n) => n == _collection).toList();
+    if (secili.isEmpty) {
+      _snack(_collection.isEmpty
+          ? 'Muzigi eksik tematik koleksiyon yok'
+          : '$_collection zaten muzikli ya da Generic');
+      return;
+    }
+    if (!await _confirm(
+        'Muzik',
+        '${secili.length} koleksiyon icin 30 saniyelik enstrumantal muzik '
+            'uretilecek (ACE-Step, yerel).\n\n'
+            '${secili.take(6).join(", ")}${secili.length > 6 ? " ..." : ""}\n\n'
+            'Her biri birkac dakika surebilir.',
+        onay: 'Uret')) {
+      return;
+    }
+    try {
+      final op = await JigsawFlowService.makeMusic(
+          rating: _rating, collections: secili);
       _watch(op);
     } catch (e) {
       _snack(e.toString().replaceFirst('Exception: ', ''));
@@ -365,7 +590,9 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
                     _rating = v.first;
                     _sel.clear();
                     _collection = 'Generic';
+                    _vd = VideoDefaults.empty;
                   });
+                  _loadVideoDefaults();
                   _load();
                 },
               ),
@@ -593,13 +820,15 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
     final butonlar = <Widget>[];
     if (_stage == 'incoming') {
       butonlar.addAll([
-        _act(Icons.movie_creation_outlined, 'Video uret', _makeVideos),
+        _act(Icons.movie_creation_outlined, 'Video', _makeVideos),
+        _act(Icons.playlist_play, 'QUE ALL', _queueAll),
         _act(Icons.check_circle_outline, 'Kabul et', _accept),
         _act(Icons.delete_outline, 'Reddet', _delete),
       ]);
     } else if (_stage == 'staging') {
       butonlar.addAll([
         _act(Icons.animation, 'Eksik webp', _webp),
+        _act(Icons.music_note, 'Muzik', _music),
         _act(Icons.cloud_upload_outlined, 'Push', _push),
         _act(Icons.delete_outline, 'Sil', _delete),
       ]);

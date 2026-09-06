@@ -104,6 +104,50 @@ class FlowOp {
   double? get progress => total > 0 ? (done / total).clamp(0, 1).toDouble() : null;
 }
 
+/// 2. akistaki hazir hareket sablonu.
+class VideoTemplate {
+  final String name;
+  final String prompt;
+  const VideoTemplate(this.name, this.prompt);
+
+  factory VideoTemplate.fromJson(Map<String, dynamic> j) =>
+      VideoTemplate('${j['ad'] ?? ''}', '${j['prompt'] ?? ''}');
+}
+
+class VideoDefaults {
+  final List<VideoTemplate> templates;
+  final String negative;
+  final String motionDefault;
+  const VideoDefaults(this.templates, this.negative, this.motionDefault);
+
+  static const empty = VideoDefaults([], '', '');
+}
+
+/// Bir koleksiyonun muzik durumu.
+class CollectionMusic {
+  final String name;
+  final String stage;     // staging | pushed
+  final String music;     // dosya adi, yoksa bos
+  final bool hasMusic;
+  const CollectionMusic(this.name, this.stage, this.music, this.hasMusic);
+
+  factory CollectionMusic.fromJson(Map<String, dynamic> j) => CollectionMusic(
+        '${j['name']}', '${j['stage']}', '${j['music'] ?? ''}',
+        j['has_music'] == true,
+      );
+}
+
+class MusicStatus {
+  final bool modelReady;
+  final String modelError;
+  final String defaultCollection;
+  final List<CollectionMusic> collections;
+  const MusicStatus(
+      this.modelReady, this.modelError, this.defaultCollection, this.collections);
+
+  static const empty = MusicStatus(false, '', 'Generic', []);
+}
+
 class JigsawFlowService {
   static const stages = ['incoming', 'staging', 'pushed'];
   static const _timeout = Duration(seconds: 60);
@@ -189,15 +233,46 @@ class JigsawFlowService {
       '${(await _post('/api/jigsaw/flow/stage',
           {'jobs': jobs, 'rating': rating, 'agent': agent}))['op']}';
 
-  /// 2. akis: secili gorseller icin video isi acar.
-  static Future<int> makeVideos(
-      {required String rating,
-      required List<String> ids,
-      int duration = 5,
-      bool turbo = true}) async {
-    final d = await _post('/api/jigsaw/flow/video',
-        {'rating': rating, 'ids': ids, 'duration': duration, 'turbo': turbo});
-    return (d['queued'] ?? 0) as int;
+  /// Derecenin hazir hareket sablonlari + varsayilan negatifi.
+  static Future<VideoDefaults> videoTemplates(String rating) async {
+    final d = await _get('/api/jigsaw/flow/video-templates?rating=$rating');
+    return VideoDefaults(
+      ((d['templates'] ?? []) as List)
+          .map((e) => VideoTemplate.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      '${d['negative'] ?? ''}',
+      '${d['motion_default'] ?? ''}',
+    );
+  }
+
+  /// 2. akis: secili gorseller icin LTX video isi acar.
+  ///
+  /// [rotateTemplates] "Que All" davranisi: prompt2 bossa hazir sablonlar
+  /// siradaki varliga sirayla dagitilir, parti tek tip olmaz.
+  static Future<({int queued, int skipped})> makeVideos({
+    required String rating,
+    required List<String> ids,
+    int duration = 5,
+    bool turbo = true,
+    String prompt = '',
+    String prompt2 = '',
+    String negative = '',
+    bool rotateTemplates = false,
+  }) async {
+    final d = await _post('/api/jigsaw/flow/video', {
+      'rating': rating,
+      'ids': ids,
+      'duration': duration,
+      'turbo': turbo,
+      'prompt': prompt,
+      'prompt2': prompt2,
+      'negative': negative,
+      'rotate_templates': rotateTemplates,
+    });
+    return (
+      queued: (d['queued'] ?? 0) as int,
+      skipped: (d['skipped'] ?? 0) as int,
+    );
   }
 
   /// 2 -> 3. Koleksiyona `<n>.jpg` / `.mp4` / `.webp` olarak tasir.
@@ -226,6 +301,35 @@ class JigsawFlowService {
         '/api/jigsaw/flow/delete', {'rating': rating, 'stage': stage, 'ids': ids});
     return (d['deleted'] ?? 0) as int;
   }
+
+  /// Koleksiyon muzikleri: hangisinde var, model hazir mi.
+  static Future<MusicStatus> musicStatus(String rating) async {
+    final d = await _get('/api/jigsaw/flow/music?rating=$rating');
+    return MusicStatus(
+      d['model_ready'] == true,
+      '${d['model_error'] ?? ''}',
+      '${d['default_collection'] ?? 'Generic'}',
+      ((d['collections'] ?? []) as List)
+          .map((e) => CollectionMusic.fromJson(e as Map<String, dynamic>))
+          .toList(),
+    );
+  }
+
+  /// Secili koleksiyonlar icin yerel ACE-Step ile mp3 uretir.
+  static Future<String> makeMusic({
+    required String rating,
+    required List<String> collections,
+    String tags = '',
+    double seconds = 30,
+    bool overwrite = false,
+  }) async =>
+      '${(await _post('/api/jigsaw/flow/music', {
+            'rating': rating,
+            'collections': collections,
+            'tags': tags,
+            'seconds': seconds,
+            'overwrite': overwrite,
+          }))['op']}';
 
   static Future<FlowOp> op(String opId) async =>
       FlowOp.fromJson(await _get('/api/jigsaw/flow/op/$opId'));

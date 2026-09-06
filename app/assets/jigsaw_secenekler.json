@@ -1,5 +1,5 @@
 {
-  "_aciklama": "KOPYA - kaynak: C:\\ComfyUI\\scripts\\jigsaw_secenekler.json (Uretim Studyosu). Masaustunde listeyi degistirdiysen bu dosyayi da guncelle ve uygulamayi yeniden derle, yoksa telefon eski listeyle uretir. Iki profil: 'hot' (Hot Jigsaw) ve 'kid' (Kid Jigsaw); her profilde 'alanlar' dropdown sirasi, 'secenekler' listeler, 'sablon'/'negatif' Pozitif 2 ve Negatif varsayilani (hot'ta bos = AGB'nin kip sablonu).",
+  "_aciklama": "Uretim Studyosu dropdown secenekleri. Iki profil var: 'hot' (Hot Jigsaw) ve 'kid' (Kid Jigsaw). Her profilde 'alanlar' ekrandaki siralamayi ve etiketleri, 'secenekler' listeleri verir. Serbestce duzenle; uygulama acilista okur. 'sablon'/'negatif' o profilin Pozitif 2 ve Negatif varsayilanidir - hot'ta bos birakilirsa AGB'nin kendi sablonu kullanilir. Her profildeki 'video' blogu 2. akistaki video uretimi icindir: 'sablonlar' Pozitif 2 hazir metinleri ({} = konu prompt'u), 'negatif' varsayilan negatif prompt. 'Que All' bu sablonlari sirayla dagitir.",
   "hot": {
     "alanlar": [
       [
@@ -180,6 +180,43 @@
         "goddess in flowing golden silk",
         "orc warrior, green skin"
       ]
+    },
+    "video": {
+      "negatif": "static image, no motion, frozen frame, distorted face, warped anatomy, extra limbs, flickering, morphing, jitter, duplicated person, text, watermark, low quality",
+      "sablonlar": [
+        {
+          "ad": "Yavas donus",
+          "prompt": "{}, she turns her head slowly toward the camera and holds a soft gaze, hair settling naturally, subtle camera push in, cinematic realistic motion"
+        },
+        {
+          "ad": "Sac ve kumas",
+          "prompt": "{}, gentle breeze moves her hair and clothing, she shifts her weight slightly, slow drifting camera, photorealistic natural motion"
+        },
+        {
+          "ad": "Kameraya bakis",
+          "prompt": "{}, she blinks and smiles faintly while looking into the camera, shoulders relaxing, very slow zoom in, cinematic film grain"
+        },
+        {
+          "ad": "Yurume",
+          "prompt": "{}, she takes a slow confident step toward the camera, hair and fabric flowing with the movement, steady tracking shot"
+        },
+        {
+          "ad": "Omuz uzeri",
+          "prompt": "{}, she glances back over her shoulder, hair sweeping across her back, slow arc camera move, moody cinematic lighting"
+        },
+        {
+          "ad": "Sacini duzeltir",
+          "prompt": "{}, she lifts one hand and brushes a strand of hair behind her ear, natural micro movements, shallow depth of field, slow push in"
+        },
+        {
+          "ad": "Nefes ve duruş",
+          "prompt": "{}, subtle breathing motion, tiny weight shift, eyes tracking slowly, almost still portrait in motion, cinematic"
+        },
+        {
+          "ad": "Yavas cevre",
+          "prompt": "{}, the camera slowly orbits around her while she stays composed, background parallax, smooth gimbal motion, cinematic"
+        }
+      ]
     }
   },
   "kid": {
@@ -301,6 +338,35 @@
         "earthy natural tones",
         "candy pink and mint",
         "sunny yellow and orange"
+      ]
+    },
+    "video": {
+      "negatif": "static image, no motion, frozen frame, scary, creepy, dark, distorted, morphing, flickering, extra limbs, text, watermark, low quality",
+      "sablonlar": [
+        {
+          "ad": "Sallanma",
+          "prompt": "{}, gentle bobbing motion, soft breeze in the scene, cheerful and calm, smooth camera push in, colorful children's animation"
+        },
+        {
+          "ad": "Zipla",
+          "prompt": "{}, small happy hop, squash and stretch, playful timing, bright cheerful lighting, storybook animation"
+        },
+        {
+          "ad": "El sallama",
+          "prompt": "{}, waves happily toward the viewer, friendly smile, gentle idle motion, bright and wholesome, smooth animation"
+        },
+        {
+          "ad": "Kamera yakinlasir",
+          "prompt": "{}, slow camera zoom in while the scene comes alive with tiny idle movements, warm sunny light, children's illustration in motion"
+        },
+        {
+          "ad": "Ruzgar",
+          "prompt": "{}, leaves and grass sway in a light breeze, soft parallax in the background, calm and gentle, storybook animation"
+        },
+        {
+          "ad": "Donus",
+          "prompt": "{}, turns slowly to face the viewer with a cheerful expression, smooth rounded motion, bright saturated colors"
+        }
       ]
     }
   }
