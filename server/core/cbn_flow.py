@@ -38,6 +38,7 @@ import shutil
 import sys
 import threading
 from datetime import datetime
+from pathlib import Path
 
 from . import comfy_gen as G
 from . import gpu_lane
@@ -200,8 +201,12 @@ def _incoming_items(folder: str) -> list[dict]:
                 meta = json.load(fh) or {}
         except Exception:
             pass
+        w = os.path.join(folder, kok + ".work")
         out.append({"id": kok, "name": ad, "collection": "", "stem": kok, "built": False,
                     "video": False, "svg": False, "tagged": _has_tags(p),
+                    "objects": os.path.isfile(os.path.join(w, "objects.json")),
+                    "masks": os.path.isfile(os.path.join(w, "masks.npz")),
+                    "lineart": os.path.isfile(os.path.join(w, "lineart.png")),
                     "prompt": (meta.get("prompt") or "")[:160], "size": st.st_size,
                     "mtime": int(st.st_mtime)})
     return out
@@ -378,81 +383,19 @@ def _read_tags(jpg: str) -> str:
         return ""
 
 
-def _build_one(rating: str, jpg: str, dest: str, log) -> dict:
-    """Bir Gelen jpg'sini varlik klasorune insa eder. dest bos bir klasordur."""
-    import cv2  # noqa: WPS433
-    from pathlib import Path
-    kid_cbn, hot_cbn = _pipeline_modules()
-    work = Path(dest) / "_work"
-    work.mkdir(parents=True, exist_ok=True)
-    img = cv2.imread(jpg)
-    if img is None:
-        raise ValueError("kaynak okunamadi")
-    src = work / "00_source.png"
-    cv2.imwrite(str(src), img)
-
-    # Nesne listesi ONCE: yerel VLM (Ollama) kullanilacaksa ComfyUI modelleri
-    # bosaltilip VRAM ona verilir, sonra Ollama modeli birakilir ve sira
-    # ComfyUI adimlarina (Qwen cizgi, SAM3) gelir. Serit zaten bizde.
-    if kid_cbn.ollama_ready():
-        G.free_comfy()
-        log("nesneler bulunuyor (Ollama)")
-    else:
-        log("nesneler bulunuyor (Claude)")
-    found = kid_cbn.discover_concepts(src)
-    kid_cbn.ollama_unload()
-    log("SAM3: %d kavram" % (len(found) + 10))
-    if rating == "hot":
-        lp = work / "_qwen_lineart.png"
-        log("cizgi sayfasi (Qwen Edit)")
-        hot_cbn.qwen_lineart(src, lp)
-        la = cv2.imread(str(lp), cv2.IMREAD_GRAYSCALE)
-        la = cv2.resize(la, (img.shape[1], img.shape[0]), interpolation=cv2.INTER_AREA)
-        concepts = list(dict.fromkeys(found + hot_cbn.CONCEPTS_HOT))
-        masks = kid_cbn.segment(src, concepts)
-        log("bolgeler")
-        res = hot_cbn.build(img, la, masks)
-        data = hot_cbn.write_asset(img, res, work, {"flow": "hot_cbn"}, reveal=True)
-    else:
-        concepts = list(dict.fromkeys(found + kid_cbn.CONCEPTS["kid"]))
-        masks = kid_cbn.segment(src, concepts)
-        log("bolgeler")
-        res = kid_cbn.build(img, masks, "kid")
-        data = kid_cbn.write_asset("asset", img, res, work, {"flow": "kid_cbn"})
-
-    # havuz adlari
-    def mv(a, b):
-        p = work / a
-        if p.exists():
-            shutil.move(str(p), os.path.join(dest, b))
-    cv2.imwrite(os.path.join(dest, "source.jpg"), img, [cv2.IMWRITE_JPEG_QUALITY, 92])
-    mv("05_lineart.png", "lineart.png")
-    mv("02_regions.png", "regions.png")
-    mv("04_numbered.png", "numbered.png")
-    prev = cv2.imread(str(work / "03_preview.png"))
-    if prev is not None:
-        cv2.imwrite(os.path.join(dest, "preview.jpg"), prev, [cv2.IMWRITE_JPEG_QUALITY, 88])
-    seg = cv2.imread(str(work / "01_segments.png"))
-    if seg is not None:
-        cv2.imwrite(os.path.join(dest, "segments.jpg"), seg, [cv2.IMWRITE_JPEG_QUALITY, 80])
-    mv("06_reveal.mp4", "reveal.mp4")
-    mv("asset.svg", "asset.svg")
-    data["files"] = sorted(f for f in os.listdir(dest) if not f.startswith("_"))
-    with open(os.path.join(dest, "asset.json"), "w", encoding="utf-8") as fh:
-        json.dump(data, fh, indent=1)
-    shutil.rmtree(work, ignore_errors=True)
-    return data
+def _work_dir(jpg: str) -> str:
+    return os.path.splitext(jpg)[0] + ".work"
 
 
-def build(rating: str, item_ids: list[str], collection: str) -> str:
-    """2 -> 3. Gelen'deki jpg'leri koleksiyona <n>/ olarak insa eder (Opus + SAM3
-    + [Qwen] + bolgeler). Uzun surer (kid ~2 dk, hot ~4 dk); tek tek calisir."""
-    coll = resolve_collection(rating, collection)
-    p = paths(rating)
-    op_id = _op_new("cbn-build", len(item_ids))
+def _batch(rating: str, item_ids: list[str], kind: str, label: str, needs_gpu: bool, fn) -> str:
+    """Bir asamayi SECILI varliklarin hepsinde arka arkaya calistirir - model
+    bir kez yuklenir, N gorsel islenir. GPU isteyen asamalar seridi tek bir
+    kez, partinin tamami icin alir (kullanicinin kurali: 10 etiket, sonra 10
+    SAM, sonra 10 cizgi - gorsel basina yukle/bosalt yok)."""
+    op_id = _op_new(kind, len(item_ids))
 
     def calis():
-        if True:
+        def run():
             for i, iid in enumerate(item_ids, 1):
                 jpg = item_path(rating, "incoming", iid, "image")
                 if not jpg:
@@ -460,44 +403,222 @@ def build(rating: str, item_ids: list[str], collection: str) -> str:
                         _ops[op_id]["failed"] += 1
                     _op(op_id, done=i, log="%s: bulunamadi" % iid)
                     continue
-                n = next_number(rating, coll)
-                dest = os.path.join(p["staging"], coll, str(n))
-                os.makedirs(dest, exist_ok=True)
-                _op(op_id, message="insa %d/%d  %s -> %s/%d  (GPU sirasi bekleniyor)" % (i, len(item_ids), iid[:8], coll, n))
-
-                def log(m, _i=i, _n=n):
-                    _op(op_id, message="insa %d/%d  %s/%d: %s" % (_i, len(item_ids), coll, _n, m))
+                _op(op_id, message="%s %d/%d  %s" % (label, i, len(item_ids), iid[:8]))
                 try:
-                    with gpu_lane.hold("CBN insa %s/%d" % (coll, n), kind="cbn"):
-                        data = _build_one(rating, jpg, dest, log)
+                    bilgi = fn(jpg, lambda m, _i=i, _id=iid: _op(op_id, message="%s %d/%d  %s: %s" % (label, _i, len(item_ids), _id[:8], m)))
                 except Exception as e:
-                    shutil.rmtree(dest, ignore_errors=True)
                     with _ops_lock:
                         _ops[op_id]["failed"] += 1
-                    _op(op_id, done=i, log="%s insa edilemedi: %s" % (iid[:8], str(e)[:200]))
+                    _op(op_id, done=i, log="%s: %s" % (iid[:8], str(e)[:200]))
                     continue
-                meta = {}
-                js = os.path.splitext(jpg)[0] + ".json"
-                try:
-                    with open(js, encoding="utf-8") as fh:
-                        meta = json.load(fh) or {}
-                except Exception:
-                    pass
-                meta.update({"tags": _read_tags(jpg), "rating": rating, "collection": coll, "number": n,
-                             "built_at": datetime.now().isoformat(timespec="seconds")})
-                with open(os.path.join(dest, "meta.json"), "w", encoding="utf-8") as fh:
-                    json.dump(meta, fh, ensure_ascii=False, indent=1)
-                for f in (jpg, js):
-                    try:
-                        os.remove(f)
-                    except OSError:
-                        pass
-                m = data.get("metrics", {})
                 with _ops_lock:
                     _ops[op_id]["ok"] += 1
-                _op(op_id, done=i, log="%s -> %s/%d  %s bolge, %s renk, %s" % (
-                    iid[:8], coll, n, m.get("regions"), m.get("colors"), m.get("verdict", "").upper()))
-            _op(op_id, message="bitti")
+                _op(op_id, done=i, log="%s %s" % (iid[:8], bilgi))
+        if needs_gpu:
+            with gpu_lane.hold("%s (%d)" % (label, len(item_ids)), kind="cbn"):
+                run()
+        else:
+            run()
+        _op(op_id, message="bitti")
+
+    _run(op_id, calis)
+    return op_id
+
+
+def stage_objects(rating: str, item_ids: list[str]) -> str:
+    """Asama A: nesne listesi (yerel VLM / Claude) -> <stem>.work/objects.json."""
+    kid_cbn, _hot = _pipeline_modules()
+    use_ollama = kid_cbn.ollama_ready()
+
+    def fn(jpg, log):
+        w = _work_dir(jpg)
+        os.makedirs(w, exist_ok=True)
+        if use_ollama and not getattr(fn, "_freed", False):
+            G.free_comfy()
+            fn._freed = True
+        found = kid_cbn.discover_concepts(Path(jpg))
+        with open(os.path.join(w, "objects.json"), "w", encoding="utf-8") as fh:
+            json.dump({"things": found, "agent": "ollama" if use_ollama else "claude",
+                       "at": datetime.now().isoformat(timespec="seconds")}, fh, ensure_ascii=False, indent=1)
+        return "%d nesne: %s" % (len(found), ", ".join(found[:8]))
+
+    def wrapped(jpg, log):
+        return fn(jpg, log)
+    op = _batch(rating, item_ids, "cbn-objects", "nesneler", use_ollama, wrapped)
+    # model partinin sonunda birakilir (op bittikten sonra da olsa zarari yok)
+    if use_ollama:
+        threading.Thread(target=_unload_after, args=(op, kid_cbn.ollama_unload), daemon=True).start()
+    return op
+
+
+def _unload_after(op_id: str, fn) -> None:
+    import time
+    while True:
+        o = JF.op_status(op_id)
+        if not o or o.get("status") != "running":
+            break
+        time.sleep(3)
+    fn()
+
+
+def stage_sam(rating: str, item_ids: list[str]) -> str:
+    """Asama B: SAM3 maskeleri -> <stem>.work/masks.npz. Kavramlar objects.json
+    + profil listesi; SAM checkpoint'i ComfyUI'de parti boyunca yuklu kalir."""
+    kid_cbn, hot_cbn = _pipeline_modules()
+    base = hot_cbn.CONCEPTS_HOT if rating == "hot" else kid_cbn.CONCEPTS["kid"]
+
+    def fn(jpg, log):
+        w = _work_dir(jpg)
+        os.makedirs(w, exist_ok=True)
+        found = []
+        try:
+            with open(os.path.join(w, "objects.json"), encoding="utf-8") as fh:
+                found = (json.load(fh) or {}).get("things") or []
+        except Exception:
+            pass
+        # Nesne listesi varsa SAM'e yalniz onu + birkac zemin sozcugu sor:
+        # profil listesindeki alakasiz kavramlar (boat, house, road...) SAM'de
+        # koca sahte maskeler uretiyor. Liste yoksa profil listesi yedek.
+        concepts = list(dict.fromkeys(found + ["background", "sky", "ground"])) if found else list(base)
+        log("SAM3 %d kavram" % len(concepts))
+        masks = kid_cbn.segment(Path(jpg), concepts)
+        kid_cbn.save_masks(os.path.join(w, "masks.npz"), masks)
+        return "%d maske" % len(masks)
+
+    return _batch(rating, item_ids, "cbn-sam", "SAM", True, fn)
+
+
+def stage_lineart(rating: str, item_ids: list[str]) -> str:
+    """Asama C (yalniz hot): Qwen Edit cizgi sayfasi -> <stem>.work/lineart.png."""
+    if rating != "hot":
+        raise ValueError("cizgi sayfasi yalniz Hot CBN icin")
+    _kid, hot_cbn = _pipeline_modules()
+
+    def fn(jpg, log):
+        w = _work_dir(jpg)
+        os.makedirs(w, exist_ok=True)
+        hot_cbn.qwen_lineart(Path(jpg), Path(os.path.join(w, "lineart.png")))
+        return "cizgi hazir"
+
+    return _batch(rating, item_ids, "cbn-lineart", "cizgi", True, fn)
+
+
+def _build_from_work(rating: str, jpg: str, work: str, dest: str, log) -> dict:
+    """Asama D (CPU): masks.npz (+ lineart.png) -> bolgeler, palet, varlik dosyalari."""
+    import cv2  # noqa: WPS433
+    from pathlib import Path as _P
+    kid_cbn, hot_cbn = _pipeline_modules()
+    img = cv2.imread(jpg)
+    if img is None:
+        raise ValueError("kaynak okunamadi")
+    mp = os.path.join(work, "masks.npz")
+    if not os.path.isfile(mp):
+        raise ValueError("SAM asamasi yapilmamis")
+    masks = kid_cbn.load_masks(mp)
+    tmp = _P(dest) / "_work"
+    tmp.mkdir(parents=True, exist_ok=True)
+    src = tmp / "00_source.png"
+    cv2.imwrite(str(src), img)
+    log("bolgeler")
+    if rating == "hot":
+        # Kontur kaynagi: varsayilan SAM bolum sinirlari (kaynakla piksel-piksel
+        # hizali, yalniz nesneler arasinda); settings hot_cbn.lineart="qwen" ve
+        # cizgi asamasi yapilmissa Qwen sayfasi kullanilir (gorev #281).
+        la = None
+        lp = os.path.join(work, "lineart.png")
+        if _setting("hot_cbn.lineart", "sam").lower() == "qwen" and os.path.isfile(lp):
+            la = cv2.imread(lp, cv2.IMREAD_GRAYSCALE)
+            la = cv2.resize(la, (img.shape[1], img.shape[0]), interpolation=cv2.INTER_AREA)
+            log("bolgeler (Qwen cizgi)")
+        else:
+            log("bolgeler (SAM konturu)")
+        res = hot_cbn.build(img, la, masks)
+        data = hot_cbn.write_asset(img, res, tmp, {"flow": "hot_cbn"}, reveal=True)
+    else:
+        res = kid_cbn.build(img, masks, "kid")
+        data = kid_cbn.write_asset("asset", img, res, tmp, {"flow": "kid_cbn"})
+
+    def mv(a, b):
+        p = tmp / a
+        if p.exists():
+            shutil.move(str(p), os.path.join(dest, b))
+    cv2.imwrite(os.path.join(dest, "source.jpg"), img, [cv2.IMWRITE_JPEG_QUALITY, 92])
+    mv("05_lineart.png", "lineart.png")
+    mv("02_regions.png", "regions.png")
+    mv("04_numbered.png", "numbered.png")
+    prev = cv2.imread(str(tmp / "03_preview.png"))
+    if prev is not None:
+        cv2.imwrite(os.path.join(dest, "preview.jpg"), prev, [cv2.IMWRITE_JPEG_QUALITY, 88])
+    seg = cv2.imread(str(tmp / "01_segments.png"))
+    if seg is not None:
+        cv2.imwrite(os.path.join(dest, "segments.jpg"), seg, [cv2.IMWRITE_JPEG_QUALITY, 80])
+    mv("06_reveal.mp4", "reveal.mp4")
+    mv("asset.svg", "asset.svg")
+    data["files"] = sorted(f for f in os.listdir(dest) if not f.startswith("_"))
+    with open(os.path.join(dest, "asset.json"), "w", encoding="utf-8") as fh:
+        json.dump(data, fh, indent=1)
+    shutil.rmtree(tmp, ignore_errors=True)
+    return data
+
+
+def build(rating: str, item_ids: list[str], collection: str) -> str:
+    """Asama D: bolgele + varlik yaz (CPU; GPU seridi gerekmez). SAM (ve hot'ta
+    cizgi) asamalari onceden yapilmis olmali."""
+    coll = resolve_collection(rating, collection)
+    p = paths(rating)
+    op_id = _op_new("cbn-build", len(item_ids))
+
+    def calis():
+        for i, iid in enumerate(item_ids, 1):
+            jpg = item_path(rating, "incoming", iid, "image")
+            if not jpg:
+                with _ops_lock:
+                    _ops[op_id]["failed"] += 1
+                _op(op_id, done=i, log="%s: bulunamadi" % iid)
+                continue
+            work = _work_dir(jpg)
+            n = next_number(rating, coll)
+            dest = os.path.join(p["staging"], coll, str(n))
+            os.makedirs(dest, exist_ok=True)
+
+            def log(m, _i=i, _n=n):
+                _op(op_id, message="insa %d/%d  %s/%d: %s" % (_i, len(item_ids), coll, _n, m))
+            try:
+                data = _build_from_work(rating, jpg, work, dest, log)
+            except Exception as e:
+                shutil.rmtree(dest, ignore_errors=True)
+                with _ops_lock:
+                    _ops[op_id]["failed"] += 1
+                _op(op_id, done=i, log="%s insa edilemedi: %s" % (iid[:8], str(e)[:200]))
+                continue
+            meta = {}
+            js = os.path.splitext(jpg)[0] + ".json"
+            try:
+                with open(js, encoding="utf-8") as fh:
+                    meta = json.load(fh) or {}
+            except Exception:
+                pass
+            try:
+                with open(os.path.join(work, "objects.json"), encoding="utf-8") as fh:
+                    meta["objects"] = (json.load(fh) or {}).get("things") or []
+            except Exception:
+                pass
+            meta.update({"tags": _read_tags(jpg), "rating": rating, "collection": coll, "number": n,
+                         "built_at": datetime.now().isoformat(timespec="seconds")})
+            with open(os.path.join(dest, "meta.json"), "w", encoding="utf-8") as fh:
+                json.dump(meta, fh, ensure_ascii=False, indent=1)
+            for f in (jpg, js):
+                try:
+                    os.remove(f)
+                except OSError:
+                    pass
+            shutil.rmtree(work, ignore_errors=True)
+            m = data.get("metrics", {})
+            with _ops_lock:
+                _ops[op_id]["ok"] += 1
+            _op(op_id, done=i, log="%s -> %s/%d  %s bolge, %s renk, %s" % (
+                iid[:8], coll, n, m.get("regions"), m.get("colors"), m.get("verdict", "").upper()))
+        _op(op_id, message="bitti")
 
     _run(op_id, calis)
     return op_id
@@ -569,6 +690,7 @@ def remove(rating: str, stage: str, item_ids: list[str]) -> dict:
                     silinen += 1
                 except OSError:
                     pass
+            shutil.rmtree(_work_dir(jpg), ignore_errors=True)
         else:
             rootdir = _root_for(rating, stage)
             d = _inside(rootdir, os.path.join(rootdir, _safe_id(iid).replace("/", os.sep)))

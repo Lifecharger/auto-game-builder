@@ -403,7 +403,7 @@ def tag_image_via_codex_cli(img_path: Path, timeout: int = 180) -> bool:
 
 
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434").rstrip("/")
-OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5vl:7b")
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "gemma3:12b")
 
 
 def _image_b64_for_vlm(img_path: Path, long_side: int = 1024) -> str:
@@ -422,6 +422,40 @@ def _image_b64_for_vlm(img_path: Path, long_side: int = 1024) -> str:
     return base64.b64encode(buf.getvalue()).decode()
 
 
+# Ollama "structured outputs": format alanina JSON semasi verilince model sema
+# disina cikamaz - 7B'lik Qwen duz "json" kipinde alan adlarini etikete
+# karistiriyordu, semayla ikisi de (qwen2.5vl / gemma3) duzgun donuyor.
+def _arr():
+    return {"type": "array", "items": {"type": "string"}}
+
+
+_OLLAMA_TAG_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "tags": {"type": "string"},
+        "description": {"type": "string"},
+        "adult": {"type": "integer"}, "racy": {"type": "integer"}, "violence": {"type": "integer"},
+        "rating": {"type": "string", "enum": ["kid", "teen", "adult"]},
+        "safety_level": {"type": "string", "enum": ["safe", "borderline", "risky"]},
+        "camera_angle": {"type": "string"}, "view_type": {"type": "string"}, "pose_type": {"type": "string"},
+        "framing": {"type": "string", "enum": ["full_body", "upper_body", "portrait", "close_up"]},
+        "skin_exposure": {"type": "string", "enum": ["low", "medium", "high", "very_high"]},
+        "mood": {"type": "string"},
+        "voyeur_risk": {"type": "string", "enum": ["none", "low", "medium", "high"]},
+        "context_flag": {"type": "string", "enum": ["ok", "mismatch"]},
+        "body_parts": _arr(),
+        "clothing_coverage": {"type": "string", "enum": ["minimal", "revealing", "moderate", "modest"]},
+        "clothing_fit": {"type": "string", "enum": ["loose", "fitted", "tight"]},
+        "clothing_type": _arr(), "art_style": _arr(), "setting": _arr(),
+        "risk_factors": _arr(), "visual_focus": _arr(), "policy_flags": _arr(),
+    },
+    "required": ["tags", "description", "adult", "racy", "violence", "rating", "safety_level",
+                 "camera_angle", "view_type", "pose_type", "framing", "skin_exposure", "mood",
+                 "voyeur_risk", "context_flag", "body_parts", "clothing_coverage", "clothing_fit",
+                 "clothing_type", "art_style", "setting", "risk_factors", "visual_focus", "policy_flags"],
+}
+
+
 def tag_image_via_ollama(img_path: Path, timeout: int = 180) -> bool:
     """Yerel VLM (Ollama: qwen2.5vl / gemma3) - gorsel gomulu gider, JSON modu
     semayi birebir dondurur. Ucretsiz, cevrimdisi, kota yok. VRAM'i ComfyUI
@@ -430,8 +464,11 @@ def tag_image_via_ollama(img_path: Path, timeout: int = 180) -> bool:
     img_path = img_path.resolve()
     prompt = _build_tag_prompt(img_path.name).replace(
         f'Analyze the image file "{img_path.name}" in the current directory.',
-        "Analyze the attached image.")
-    body = {"model": OLLAMA_MODEL, "stream": False, "format": "json", "keep_alive": "10m",
+        "Analyze the attached image.") + (
+        "\n\nFor \"tags\": 20-25 SPECIFIC comma-separated keywords a search would use - hair color "
+        "and style, each clothing item and accessory, pose, expression, setting details, lighting, "
+        "art style. Do NOT put field names or generic words like 'mood', 'setting', 'beauty' in tags.")
+    body = {"model": OLLAMA_MODEL, "stream": False, "format": _OLLAMA_TAG_SCHEMA, "keep_alive": "10m",
             "options": {"temperature": 0.2, "num_predict": 1200},
             "messages": [{"role": "user", "content": prompt, "images": [_image_b64_for_vlm(img_path)]}]}
     try:

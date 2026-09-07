@@ -712,8 +712,12 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
   Widget _tile(FlowItem it) {
     final on = _sel.contains(it.id);
     return GestureDetector(
-      onTap: () => setState(() => on ? _sel.remove(it.id) : _sel.add(it.id)),
-      onLongPress: () => _preview(it),
+      // Standart galeri davranisi (gorev #280): tek dokunus acar, basili tutma
+      // secime alir; secim acikken tek dokunus digerlerini de secer/birakir.
+      onTap: () => _selecting
+          ? setState(() => on ? _sel.remove(it.id) : _sel.add(it.id))
+          : _preview(it),
+      onLongPress: () => setState(() => on ? _sel.remove(it.id) : _sel.add(it.id)),
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),

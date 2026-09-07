@@ -407,7 +407,7 @@ def _ollama_cfg() -> tuple[str, str]:
         model = model or (o.get("model") or "")
     except Exception:
         pass
-    return (url or "http://127.0.0.1:11434").rstrip("/"), (model or "qwen2.5vl:7b")
+    return (url or "http://127.0.0.1:11434").rstrip("/"), (model or "gemma3:12b")
 
 
 def ollama_ready(timeout: float = 2.0) -> bool:

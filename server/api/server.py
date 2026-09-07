@@ -5971,7 +5971,10 @@ def cbn_profiles():
 
 @app.get("/api/cbn/flow/ratings")
 def cbn_flow_ratings():
-    return {"ratings": _flow_call(_cbn().ratings)}
+    """Dereceler + klasor kokleri (masaustu studyosu dosyayi yerelden acar)."""
+    f = _cbn()
+    return {"ratings": _flow_call(f.ratings),
+            "paths": {r["id"]: _flow_call(f.paths, r["id"]) for r in f.ratings()}}
 
 
 @app.get("/api/cbn/flow/collections")
@@ -6021,6 +6024,30 @@ def cbn_flow_retag(body: FlowStageRequest):
     if not body.jobs:
         raise HTTPException(400, "varlik secilmedi")
     return {"op": _flow_call(_cbn().retag, body.rating, body.jobs, body.agent)}
+
+
+@app.post("/api/cbn/flow/objects")
+def cbn_flow_objects(body: FlowItemsRequest):
+    """Asama A: secili Gelen varliklari icin nesne listesi (parti halinde)."""
+    if not body.ids:
+        raise HTTPException(400, "varlik secilmedi")
+    return {"op": _flow_call(_cbn().stage_objects, body.rating, body.ids)}
+
+
+@app.post("/api/cbn/flow/sam")
+def cbn_flow_sam(body: FlowItemsRequest):
+    """Asama B: SAM3 maskeleri (parti halinde, model bir kez yuklenir)."""
+    if not body.ids:
+        raise HTTPException(400, "varlik secilmedi")
+    return {"op": _flow_call(_cbn().stage_sam, body.rating, body.ids)}
+
+
+@app.post("/api/cbn/flow/lineart")
+def cbn_flow_lineart(body: FlowItemsRequest):
+    """Asama C (hot): Qwen cizgi sayfasi (parti halinde)."""
+    if not body.ids:
+        raise HTTPException(400, "varlik secilmedi")
+    return {"op": _flow_call(_cbn().stage_lineart, body.rating, body.ids)}
 
 
 @app.post("/api/cbn/flow/build")

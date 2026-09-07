@@ -22,6 +22,9 @@ class CbnItem {
   final bool video;           // hot: reveal.mp4 var
   final bool svg;             // kid: asset.svg var
   final bool? tagged;         // yalniz 2. akista dolu
+  final bool objects;         // asama A: nesne listesi hazir
+  final bool masks;           // asama B: SAM maskeleri hazir
+  final bool lineart;         // asama C: cizgi sayfasi hazir (hot)
   final int regions;
   final int colors;
   final String verdict;       // pass | fail | ''
@@ -37,6 +40,9 @@ class CbnItem {
     required this.video,
     required this.svg,
     required this.tagged,
+    this.objects = false,
+    this.masks = false,
+    this.lineart = false,
     required this.regions,
     required this.colors,
     required this.verdict,
@@ -53,6 +59,9 @@ class CbnItem {
         video: j['video'] == true,
         svg: j['svg'] == true,
         tagged: j.containsKey('tagged') ? j['tagged'] == true : null,
+        objects: j['objects'] == true,
+        masks: j['masks'] == true,
+        lineart: j['lineart'] == true,
         regions: (j['regions'] ?? 0) as int,
         colors: (j['colors'] ?? 0) as int,
         verdict: '${j['verdict'] ?? ''}',
@@ -157,6 +166,18 @@ class CbnFlowService {
           {required List<String> ids, required String rating, String agent = 'Gemini'}) async =>
       '${(await _post('/api/cbn/flow/retag',
           {'jobs': ids, 'rating': rating, 'agent': agent}))['op']}';
+
+  /// Asama A: nesne listesi (parti halinde).
+  static Future<String> objects({required String rating, required List<String> ids}) async =>
+      '${(await _post('/api/cbn/flow/objects', {'rating': rating, 'ids': ids}))['op']}';
+
+  /// Asama B: SAM3 maskeleri (parti halinde).
+  static Future<String> sam({required String rating, required List<String> ids}) async =>
+      '${(await _post('/api/cbn/flow/sam', {'rating': rating, 'ids': ids}))['op']}';
+
+  /// Asama C (hot): Qwen cizgi sayfasi (parti halinde).
+  static Future<String> lineart({required String rating, required List<String> ids}) async =>
+      '${(await _post('/api/cbn/flow/lineart', {'rating': rating, 'ids': ids}))['op']}';
 
   /// 2 -> 3. Secili Gelen varliklarini koleksiyona insa eder (uzun surer).
   static Future<String> build(

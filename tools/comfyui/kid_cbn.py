@@ -276,7 +276,7 @@ DISCOVER_PROMPT = (
 
 
 OLLAMA_URL = (os.environ.get("OLLAMA_URL", "") or _setting("ollama.url", "OLLAMA_URL_", "http://127.0.0.1:11434")).rstrip("/")
-OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "") or _setting("ollama.model", "OLLAMA_MODEL_", "qwen2.5vl:7b")
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "") or _setting("ollama.model", "OLLAMA_MODEL_", "gemma3:12b")
 DISCOVER_PROMPT_VLM = (
     "Look at the attached picture. It will become a color-by-number page, so list the THINGS "
     "in it that would be colored as separate areas. Return ONLY a JSON object {\"things\": [...]} "
@@ -386,6 +386,119 @@ def discover_concepts(image: Path, timeout: int = 180) -> list[str]:
 
 
 # ---------------------------------------------------------------- building
+def order_masks_by_center(masks, H: int, W: int):
+    """Claim order = distance of the mask's centre of mass to the image centre,
+    nearest first (the user's "centre pivot" rule): the subject in the middle
+    wins overlaps, background things lose. Ties broken by size (smaller first
+    so eyes beat faces beat hair)."""
+    cy, cx = H / 2.0, W / 2.0
+    diag = (H * H + W * W) ** 0.5
+    keep = []
+    for t in masks:
+        # a "thing" covering more than half the picture is a SAM hallucination
+        # (house 96%, road 56% on a unicorn...) unless it is a backdrop word
+        if t[2] > 0.5 and t[0] not in BACKDROP_WORDS:
+            continue
+        keep.append(t)
+    def key(t):
+        ys, xs = np.where(t[1])
+        if len(ys) == 0:
+            return (99, 0)
+        dist = ((ys.mean() - cy) ** 2 + (xs.mean() - cx) ** 2) ** 0.5
+        # backdrops (sky, ground, background...) always LAST whatever their
+        # centre; other things by distance in 10%-of-diagonal buckets, and
+        # inside a bucket smaller first, so the eyes are claimed before the face
+        return (1 if t[0] in BACKDROP_WORDS else 0, int(dist / (0.1 * diag)), len(ys))
+    return sorted(keep, key=key)
+
+
+BACKDROP_WORDS = ("background", "sky", "ground", "floor", "wall", "grass", "field", "sand",
+                  "water", "sea", "ocean", "road", "table", "bed", "sheet", "backdrop")
+
+
+def save_masks(path, masks) -> None:
+    """masks.npz: names, shares, m0..mN (bool). Stage output of the SAM step."""
+    arrays = {"names": np.array([m[0] for m in masks], dtype=object),
+              "shares": np.array([m[2] for m in masks], dtype=np.float32)}
+    for i, m in enumerate(masks):
+        arrays["m%d" % i] = np.packbits(m[1].astype(np.uint8), axis=None)
+    if masks:
+        arrays["shape"] = np.array(masks[0][1].shape)
+    np.savez_compressed(str(path), **arrays)
+
+
+def load_masks(path):
+    z = np.load(str(path), allow_pickle=True)
+    names = list(z["names"])
+    if not names:
+        return []
+    shape = tuple(int(x) for x in z["shape"])
+    out = []
+    for i, n in enumerate(names):
+        m = np.unpackbits(z["m%d" % i])[: shape[0] * shape[1]].reshape(shape).astype(bool)
+        out.append((str(n), m, float(z["shares"][i])))
+    return out
+
+
+def palette_by_object(labels: np.ndarray, seg: np.ndarray, lab_img: np.ndarray, line: np.ndarray,
+                      per_object_k: int, max_colors: int, merge_de: float):
+    """Numbers per OBJECT: every semantic segment (in claim order = centre-first)
+    clusters its own region colours and gets its own run of palette numbers;
+    the background ("rest", last segment) comes last. A global cap merges the
+    closest pairs across objects only if there are too many colours.
+
+    Returns (cen_lab [K,3], color_of [n_regions], owner [K] segment index)."""
+    n = labels.max() + 1
+    keep = (~line).ravel().astype(np.float32)
+    kept = np.bincount(labels.ravel(), weights=keep, minlength=n)
+    means = np.zeros((n, 3), np.float32)
+    for c in range(3):
+        means[:, c] = np.bincount(labels.ravel(), weights=lab_img[..., c].ravel() * keep, minlength=n) / np.maximum(kept, 1)
+    means[kept == 0] = np.array([20, 128, 128], np.float32)
+    counts = np.bincount(labels.ravel(), minlength=n).astype(np.float32)
+    # which segment owns each region (majority)
+    reg_seg = np.zeros(n, dtype=np.int32)
+    for r in range(n):
+        vals = seg[labels == r]
+        reg_seg[r] = np.bincount(vals).argmax() if vals.size else 0
+    centers, owner, color_of = [], [], np.zeros(n, dtype=np.int32)
+    for s in range(int(seg.max()) + 1):
+        regs = np.where(reg_seg == s)[0]
+        if len(regs) == 0:
+            continue
+        pts = means[regs]
+        k = min(per_object_k, len(regs))
+        if k > 1:
+            rep = np.clip((np.sqrt(counts[regs]) / np.sqrt(counts[regs]).max() * 8).astype(int), 1, 8)
+            _l, cen = _kmeans(np.repeat(pts, rep, axis=0), k, attempts=4)
+        else:
+            cen = pts.mean(axis=0, keepdims=True)
+        # dedupe inside the object
+        kept_c = []
+        for c in cen:
+            if all(_delta_e(c, kc) >= merge_de for kc in kept_c):
+                kept_c.append(c)
+        base = len(centers)
+        d = np.linalg.norm(pts[:, None, :] - np.array(kept_c)[None, :, :], axis=2)
+        color_of[regs] = base + np.argmin(d, axis=1)
+        centers.extend(kept_c)
+        owner.extend([s] * len(kept_c))
+    cen = np.array(centers, np.float32)
+    owner = np.array(owner)
+    # global cap: merge the closest pair until under the limit
+    while len(cen) > max_colors:
+        d = np.linalg.norm(cen[:, None, :] - cen[None, :, :], axis=2)
+        np.fill_diagonal(d, np.inf)
+        i, j = np.unravel_index(np.argmin(d), d.shape)
+        a, b = min(i, j), max(i, j)
+        cen[a] = (cen[a] + cen[b]) / 2
+        color_of[color_of == b] = a
+        color_of[color_of > b] -= 1
+        cen = np.delete(cen, b, axis=0)
+        owner = np.delete(owner, b)
+    return cen, color_of, owner
+
+
 def _kmeans(samples: np.ndarray, k: int, attempts: int = 3) -> tuple[np.ndarray, np.ndarray]:
     crit = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.5)
     _c, lbl, cen = cv2.kmeans(samples.astype(np.float32), k, None, crit, attempts, cv2.KMEANS_PP_CENTERS)
@@ -472,7 +585,7 @@ def build(img_bgr: np.ndarray, masks: list[tuple[str, np.ndarray, float]], profi
     # 1) semantic segments by claim priority; leftover pixels form the "rest"
     seg = np.full((H, W), -1, dtype=np.int32)
     seg_names: list[str] = []
-    for concept, mask, _s in masks:
+    for concept, mask, _s in order_masks_by_center(masks, H, W):
         m = mask & (seg == -1)
         m = cv2.morphologyEx(m.astype(np.uint8), cv2.MORPH_OPEN, np.ones((5, 5), np.uint8)).astype(bool)
         if m.sum() < min_px:
@@ -526,35 +639,11 @@ def build(img_bgr: np.ndarray, masks: list[tuple[str, np.ndarray, float]], profi
     # 3) connected regions, specks folded into neighbours
     labels = _merge_small(prov, min_px, lab_img)
 
-    # 4) palette over region mean colours, then fuse touching same-colour regions
+    # 4) palette PER OBJECT (centre-first order, background last), then fuse
+    #    touching same-colour regions inside one object
     n = labels.max() + 1
-    means = np.zeros((n, 3), np.float32)
-    counts = np.bincount(labels.ravel(), minlength=n).astype(np.float32)
-    keep = (~line).ravel().astype(np.float32)          # outlines would darken every mean
-    kept = np.bincount(labels.ravel(), weights=keep, minlength=n)
-    for c in range(3):
-        means[:, c] = np.bincount(labels.ravel(), weights=lab_img[..., c].ravel() * keep, minlength=n) / np.maximum(kept, 1)
-    means[kept == 0] = np.array([20, 128, 128], np.float32)   # a region that is all outline: black
-    target = PALETTE_TARGET[profile]
-    k = min(target, n)
-    weights = np.sqrt(counts)
-    # weighted k-means: repeat samples ~ sqrt(area) so big regions anchor the palette
-    rep = np.clip((weights / weights.max() * 12).astype(int), 1, 12)
-    samples = np.repeat(means, rep, axis=0)
-    lbl, cen = _kmeans(samples, k, attempts=5)
-    # assign each region to nearest centre (not via the repeated sample labels)
-    d = np.linalg.norm(means[:, None, :] - cen[None, :, :], axis=2)
-    color_of = np.argmin(d, axis=1)
-    # merge centres closer than dE 10 (they would read as the same number anyway)
-    merged = list(range(k))
-    for i in range(k):
-        for j in range(i):
-            if merged[j] == j and merged[i] == i and _delta_e(cen[i], cen[j]) < 10:
-                merged[i] = j
-    color_of = np.array([merged[c] for c in color_of])
-    uniq = {c: i for i, c in enumerate(sorted(set(color_of.tolist())))}
-    color_of = np.array([uniq[c] for c in color_of])
-    cen = np.array([cen[c] for c in sorted(uniq)])
+    cen, color_of, _owner = palette_by_object(labels, seg, lab_img, line, per_object_k=4,
+                                              max_colors=PALETTE_TARGET[profile] * 2, merge_de=10.0)
     color_map = color_of[labels]
     # fuse touching same-colour regions ONLY inside one semantic segment — the
     # white unicorn must stay a separate region from the white sky behind it

@@ -116,7 +116,7 @@ class _CbnFlowScreenState extends State<CbnFlowScreen>
               ? 'Islem hatasi: ${o.message}'
               : '${o.ok} tamam${o.failed > 0 ? ", ${o.failed} hata" : ""}');
           _load();
-        } else if (o.kind == 'cbn-build' && tick % 15 == 0) {
+        } else if (o.kind.startsWith('cbn-') && tick % 10 == 0) {
           _load();
         }
       } catch (_) {
@@ -164,10 +164,11 @@ class _CbnFlowScreenState extends State<CbnFlowScreen>
           children: [
             Text(
               _rating == 'hot'
-                  ? 'Her varlik icin: Opus nesne listesi, Qwen cizgi sayfasi, '
-                      'SAM3 bolgeler, palet ve reveal videosu (~4 dk).'
-                  : 'Her varlik icin: Opus nesne listesi, SAM3 bolgeler, palet ve '
-                      'SVG (~2 dk).',
+                  ? 'Bolgeleme + palet + numarali sablon + reveal videosu (CPU). '
+                      'SAM asamasi onceden yapilmis olmali; kontur SAM sinirlarindan gelir '
+                      '(Qwen cizgi asamasi istege bagli, ayar: hot_cbn.lineart=qwen).'
+                  : 'Bolgeleme + palet + numarali sablon + SVG (CPU). '
+                      'SAM asamasi onceden yapilmis olmali.',
               style: const TextStyle(fontSize: 12, color: Colors.grey),
             ),
             const SizedBox(height: 12),
@@ -205,6 +206,21 @@ class _CbnFlowScreenState extends State<CbnFlowScreen>
       setState(_sel.clear);
       _watch(op);
       _snack('Insa basladi - ilerleme ustte');
+    } catch (e) {
+      _snack(e.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
+  /// Asamali hat (gorev #281): her asama secili varliklarin HEPSINDE
+  /// arka arkaya kosar - model bir kez yuklenir. Sira: nesneler -> SAM ->
+  /// (hot) cizgi -> insa.
+  Future<void> _runStage(String ad, Future<String> Function(List<String>) f) async {
+    final ids = _sel.toList();
+    try {
+      final op = await f(ids);
+      setState(_sel.clear);
+      _watch(op);
+      _snack('$ad basladi (${ids.length} varlik)');
     } catch (e) {
       _snack(e.toString().replaceFirst('Exception: ', ''));
     }
@@ -429,8 +445,11 @@ class _CbnFlowScreenState extends State<CbnFlowScreen>
     // 3-4. akista karta numarali sablon konur: varligin asil yuzu odur.
     final kind = _stage == 'incoming' ? 'image' : 'numbered';
     return GestureDetector(
-      onTap: () => setState(() => on ? _sel.remove(it.id) : _sel.add(it.id)),
-      onLongPress: () => _preview(it),
+      // Tek dokunus acar, basili tutma secer; secim acikken dokunus secer/birakir.
+      onTap: () => _selecting
+          ? setState(() => on ? _sel.remove(it.id) : _sel.add(it.id))
+          : _preview(it),
+      onLongPress: () => setState(() => on ? _sel.remove(it.id) : _sel.add(it.id)),
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
@@ -467,7 +486,10 @@ class _CbnFlowScreenState extends State<CbnFlowScreen>
                 child: Row(
                   children: [
                     if (it.tagged == false) _rozet('etiket yok', AppColors.error),
-                    if (it.tagged == true) _rozet('etiketli', Colors.teal),
+                    if (it.tagged == true) _rozet('E', Colors.teal),
+                    if (it.objects) _rozet('N', Colors.blueGrey),
+                    if (it.masks) _rozet('SAM', Colors.deepOrange),
+                    if (it.lineart) _rozet('C', Colors.brown),
                     if (it.built) _rozet('${it.regions}b ${it.colors}r',
                         it.verdict == 'pass' ? Colors.green.shade700 : Colors.orange.shade800),
                     if (it.video) _rozet('video', Colors.purple),
@@ -519,7 +541,9 @@ class _CbnFlowScreenState extends State<CbnFlowScreen>
               Padding(
                 padding: const EdgeInsets.all(10),
                 child: Text(
-                  '${it.label}\netiket: ${it.tagged == true ? "var" : "YOK"}'
+                  '${it.label}\netiket: ${it.tagged == true ? "var" : "YOK"}   '
+                  'nesne: ${it.objects ? "var" : "yok"}   SAM: ${it.masks ? "var" : "yok"}'
+                  '${_rating == "hot" ? "   cizgi: ${it.lineart ? "var" : "yok"}" : ""}'
                   '${it.prompt.isEmpty ? "" : "\n${it.prompt}"}',
                   style: const TextStyle(fontSize: 12),
                   textAlign: TextAlign.center,
@@ -611,7 +635,14 @@ class _CbnFlowScreenState extends State<CbnFlowScreen>
     if (_stage == 'incoming') {
       butonlar.addAll([
         _act(Icons.new_label_outlined, 'Yeniden etiketle', _retag),
-        _act(Icons.auto_awesome, 'Insa et', _build),
+        _act(Icons.manage_search, 'A) Nesneleri bul',
+            () => _runStage('Nesne listesi', (ids) => CbnFlowService.objects(rating: _rating, ids: ids))),
+        _act(Icons.blur_on, 'B) SAM maskeleri',
+            () => _runStage('SAM', (ids) => CbnFlowService.sam(rating: _rating, ids: ids))),
+        if (_rating == 'hot')
+          _act(Icons.gesture, 'C) Cizgi sayfasi (istege bagli, Qwen)',
+              () => _runStage('Cizgi', (ids) => CbnFlowService.lineart(rating: _rating, ids: ids))),
+        _act(Icons.auto_awesome, 'D) Insa et', _build),
         _act(Icons.delete_outline, 'Sil', _delete),
       ]);
     } else if (_stage == 'staging') {

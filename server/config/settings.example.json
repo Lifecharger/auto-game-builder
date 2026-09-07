@@ -86,7 +86,11 @@
   },
   "ollama": {
     "url": "http://127.0.0.1:11434",
-    "model": "qwen2.5vl:7b",
-    "_not": "Yerel VLM: EXIF etiketleme + CBN nesne listesi. Alternatif model: gemma3:12b. Gemini CLI yoksa etiketleyici otomatik buna duser."
+    "model": "gemma3:12b",
+    "_not": "Yerel VLM: EXIF etiketleme + CBN nesne listesi. gemma3:12b semaya sadik ve 8 sn/gorsel; qwen2.5vl:7b alternatif (sema disina cikabiliyor)."
+  },
+  "hot_cbn": {
+    "lineart": "sam",
+    "_not": "sam = kontur SAM bolum sinirlarindan (varsayilan, hizali); qwen = Qwen Edit cizgi sayfasi (C asamasi gerekir)"
   }
 }

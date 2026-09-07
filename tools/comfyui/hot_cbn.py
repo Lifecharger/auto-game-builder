@@ -42,7 +42,8 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from kid_cbn import (COMFY_IN, WORKFLOWS, POOL_ROOT, _converter, _saved_files, comfy_run,  # noqa: E402
-                     discover_concepts, segment, _kmeans, _relabel, _delta_e, slugify, _setting)
+                     discover_concepts, segment, _kmeans, _relabel, _delta_e, slugify, _setting,
+                     order_masks_by_center, palette_by_object)
 
 OUT_ROOT = Path(_setting("hot_cbn.root", "HOT_CBN_ROOT",
                          str(POOL_ROOT.parent / "Hot CBN" / "_proto") if str(POOL_ROOT) != "." else ""))
@@ -168,21 +169,35 @@ def _fold_specks(labels: np.ndarray, min_px: int, lab_img: np.ndarray, rounds: i
     return _relabel(lab)[1]
 
 
-def build(img_bgr: np.ndarray, line_gray: np.ndarray, masks, min_px_override: int | None = None) -> dict:
+def sam_outline(seg: np.ndarray, thick: int = 3) -> np.ndarray:
+    """Object outlines straight from the SAM segments: the border between two
+    different segments, lightly smoothed, drawn `thick` px. Pixel-exact with
+    the source (unlike a generated line-art page) and, by construction, only
+    where objects meet - no shading lines inside a thing (task #281)."""
+    sm = cv2.medianBlur(seg.astype(np.uint16), 5).astype(np.int32)   # de-jag mask edges
+    e = _borders(sm)
+    out = cv2.dilate(e.astype(np.uint8), np.ones((thick, thick), np.uint8)).astype(bool)
+    # masks that touch the picture edge leave a dashed frame along the border;
+    # the page has no use for lines there
+    f = thick + 2
+    out[:f, :] = out[-f:, :] = False
+    out[:, :f] = out[:, -f:] = False
+    return out
+
+
+def build(img_bgr: np.ndarray, line_gray, masks, min_px_override: int | None = None) -> dict:
+    """line_gray: a drawn line-art page (Qwen) or None -> outlines come from
+    the SAM segments themselves."""
     H, W = img_bgr.shape[:2]
     area = H * W
     min_px = min_px_override or max(MIN_REGION_PX, int(area * MIN_REGION_FRAC))
     lab_img = cv2.cvtColor(cv2.bilateralFilter(img_bgr, 7, 30, 7), cv2.COLOR_BGR2LAB)
 
-    # 1) drawn lines -> cells
-    line = line_gray < LINE_THRESHOLD
-    line = cv2.morphologyEx(line.astype(np.uint8), cv2.MORPH_CLOSE, np.ones((3, 3), np.uint8)).astype(bool)
-    _n, cells = cv2.connectedComponents((~line).astype(np.uint8), connectivity=4)
-
-    # 2) semantic segments by claim priority
+    # 2) semantic segments by claim priority (needed first: with no drawn page
+    #    the outlines ARE the segment borders)
     seg = np.full((H, W), -1, dtype=np.int32)
     seg_names: list[str] = []
-    for concept, mask, _s in masks:
+    for concept, mask, _s in order_masks_by_center(masks, H, W):
         m = mask & (seg == -1)
         m = cv2.morphologyEx(m.astype(np.uint8), cv2.MORPH_OPEN, np.ones((5, 5), np.uint8)).astype(bool)
         if m.sum() < min_px:
@@ -191,6 +206,16 @@ def build(img_bgr: np.ndarray, line_gray: np.ndarray, masks, min_px_override: in
         seg_names.append(concept)
     seg[seg == -1] = len(seg_names)
     seg_names.append("rest")
+
+    # 1) lines -> cells. Drawn page if given (and sane), else SAM outlines.
+    if line_gray is not None:
+        line = line_gray < LINE_THRESHOLD
+        line = cv2.morphologyEx(line.astype(np.uint8), cv2.MORPH_CLOSE, np.ones((3, 3), np.uint8)).astype(bool)
+        if line.mean() > 0.35:            # a "page" that is a third black is not line art
+            line = sam_outline(seg)
+    else:
+        line = sam_outline(seg)
+    _n, cells = cv2.connectedComponents((~line).astype(np.uint8), connectivity=4)
 
     # 3) inside every (cell, segment) piece: colour clusters where the colour really changes
     piece = cells.astype(np.int64) * (len(seg_names) + 1) + (seg + 1)
@@ -234,26 +259,11 @@ def build(img_bgr: np.ndarray, line_gray: np.ndarray, masks, min_px_override: in
     n = labels.max() + 1
     counts = np.bincount(labels.ravel(), minlength=n).astype(np.float32)
 
-    # 4) palette over region means (lines excluded), many entries, near-duplicates fused
-    keep = (~line).ravel().astype(np.float32)
-    kept = np.bincount(labels.ravel(), weights=keep, minlength=n)
-    means = np.zeros((n, 3), np.float32)
-    for c in range(3):
-        means[:, c] = np.bincount(labels.ravel(), weights=lab_img[..., c].ravel() * keep, minlength=n) / np.maximum(kept, 1)
-    k = min(PALETTE_MAX, n)
-    rep = np.clip((np.sqrt(counts) / np.sqrt(counts).max() * 10).astype(int), 1, 10)
-    _l, cen = _kmeans(np.repeat(means, rep, axis=0), k, attempts=4)
-    merged = list(range(k))
-    for i in range(k):
-        for j in range(i):
-            if merged[j] == j and merged[i] == i and _delta_e(cen[i], cen[j]) < PALETTE_MERGE_DE:
-                merged[i] = j
-    cen = np.array([cen[i] for i in range(k) if merged[i] == i])
-    # order the palette light -> dark within hue families? keep simple: by L then hue
-    order = np.lexsort((np.arctan2(cen[:, 2] - 128, cen[:, 1] - 128), -cen[:, 0]))
-    cen = cen[order]
-    d = np.linalg.norm(means[:, None, :] - cen[None, :, :], axis=2)
-    region_color = np.argmin(d, axis=1).astype(np.int32)
+    # 4) palette PER OBJECT: each thing (centre-first) gets its own run of
+    #    numbers from its own colour pool, background last; global cap 80
+    cen, region_color, _owner = palette_by_object(labels, seg, lab_img, line, per_object_k=8,
+                                                  max_colors=PALETTE_MAX, merge_de=PALETTE_MERGE_DE)
+    region_color = region_color.astype(np.int32)
     pal_bgr = cv2.cvtColor(cen.reshape(1, -1, 3).astype(np.uint8), cv2.COLOR_LAB2BGR).reshape(-1, 3)
     palette = [f"#{b[2]:02x}{b[1]:02x}{b[0]:02x}" for b in pal_bgr]
 
