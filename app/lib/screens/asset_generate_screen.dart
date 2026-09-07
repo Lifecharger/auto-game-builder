@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:io';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -10,8 +12,8 @@ import '../services/mode_service.dart';
 
 /// Asset Mod - Uretim ekrani.
 ///
-/// Ust kisimda kip secimi vardir (Free Mod / Jigsaw Modu) ve arayuz kipe gore
-/// degisir. Emirler sunucudaki tek sirali kuyruga girer; bu ekran isi acar,
+/// Ust kisimda kip secimi vardir (Free / Jigsaw / CBN / Karakter) ve arayuz
+/// kipe gore degisir. Emirler sunucudaki tek sirali kuyruga girer; bu ekran isi acar,
 /// takibi Sira sekmesinden yapilir.
 ///
 /// Jigsaw kipinde masaustundeki Uretim Studyosu ile ayni duzen vardir:
@@ -40,12 +42,17 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
   Map<String, JigsawProfile> _profiles = {};
   final Map<String, DetailState> _details = {};
   String _rating = 'hot';
-  String _aspect = 'portrait';            // CBN: oran secici (kare / dikey / yatay)
+  String _aspect = '2:3';                 // CBN: oran secici (bes oran, gorev #285)
+  // Yedek tablo; sunucu aspect_sizes gonderiyorsa o kullanilir (_aspectSize).
   static const _aspectSizes = {
-    'portrait': (832, 1216),
-    'square': (1024, 1024),
-    'landscape': (1216, 832),
+    '9:16': (720, 1280),
+    '2:3': (832, 1248),
+    '1:1': (1024, 1024),
+    '3:2': (1248, 832),
+    '16:9': (1280, 720),
   };
+  (int, int) get _aspectSize =>
+      _modeDef.aspectSizes[_aspect] ?? _aspectSizes[_aspect] ?? _aspectSizes['2:3']!;
   int _randomCount = 10;
 
   DetailState? get _det => _details[_rating];
@@ -61,13 +68,33 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
 
   GenerateJob? _source;                  // girdi olarak secilen onceki uretim
   List<GenerateJob> _sourceOptions = [];
+
+  /// Is akisinin girdi yuvalari -> secilen girdi (gorev #287). Free kipinde
+  /// her yuva icin ayri bir secici cikar: FLF2V ilk+son kare, V2V referans
+  /// gorsel + surucu video, S2V gorsel + ses.
+  final Map<String, GenerateInputRef> _inputs = {};
+  String? _uploading;                    // o an yuklenen yuvanin adi
   int _queueDepth = 0;
   Timer? _poll;
 
-  /// Kip bir derece profili tasiyor mu (jigsaw ve cbn: evet, free: hayir).
+  /// Kip bir profil dosyasi tasiyor mu (jigsaw, cbn, character: evet;
+  /// free: hayir).
   bool get _hasProfiles => _modeDef.hasProfiles;
-  Map<String, String> get _ratingsMap =>
-      _modeDef.profiles == 'cbn' ? CbnProfiles.ratings : JigsawProfiles.ratings;
+
+  /// Kipin derece listesi. Karakter kipinde derece yoktur - tek profil vardir,
+  /// o yuzden derece anahtari da gosterilmez.
+  Map<String, String> get _ratingsMap => switch (_modeDef.profiles) {
+        'cbn' => CbnProfiles.ratings,
+        'character' => CharacterProfiles.ratings,
+        _ => JigsawProfiles.ratings,
+      };
+
+  /// Secenek dosyasi okunamadiysa ekranda gosterilecek hata - kipe gore.
+  String? get _profileError => switch (_modeDef.profiles) {
+        'cbn' => CbnProfiles.loadError,
+        'character' => CharacterProfiles.loadError,
+        _ => JigsawProfiles.loadError,
+      };
 
   GenerateMode get _modeDef => _modes.firstWhere((m) => m.id == _mode,
       orElse: () => const GenerateMode(
@@ -104,7 +131,11 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
               .firstWhere((m) => m.id == _mode, orElse: () => r.modes.first)
               .profiles
           : _modeDef.profiles;
-      final profs = pk == 'cbn' ? await CbnProfiles.load() : await JigsawProfiles.load();
+      final profs = switch (pk) {
+        'cbn' => await CbnProfiles.load(),
+        'character' => await CharacterProfiles.load(),
+        _ => await JigsawProfiles.load(),
+      };
       List<GenerateJob> srcs = [];
       try {
         final jobs = await GenerateService.list(limit: 60);
@@ -121,7 +152,13 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
         _comfyUp = r.comfyUp;
         _task = r.tasks.isNotEmpty ? r.tasks.first : null;
         _duration = _task?.duration ?? 5;
+        _pruneInputs();          // yeni gorevde olmayan yuva secimleri dussun
         _profiles = profs;
+        // Kipler farkli anahtarlar kullanir (hot/kid vs character); eldeki
+        // derece yeni kipte yoksa ilkine duseriz.
+        if (!profs.containsKey(_rating) && profs.isNotEmpty) {
+          _rating = profs.keys.first;
+        }
         for (final e in profs.entries) {
           _details.putIfAbsent(e.key, () => DetailState(e.value));
         }
@@ -207,6 +244,73 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
 
   String get _combined => _combine(_prompt1(), _prompt2());
 
+  // ------------------------------------------------------------- girdiler
+  /// Yuva secicileri mi gosterilecek: Free kipinde her is akisi icin, diger
+  /// kiplerde yalniz tek gorselden fazlasini isteyen is akislari icin.
+  /// (Eski sunucu "inputs" gondermezse liste bostur, eski akis calisir.)
+  bool get _useSlots {
+    final t = _task;
+    if (t == null || t.inputs.isEmpty) return false;
+    return _mode == 'free' || t.hasExtraInputs;
+  }
+
+  List<GenerateInputSlot> get _slots => _task?.inputs ?? const [];
+
+  /// Gorev/kip degisince baska bir is akisina ait secimler kalmasin.
+  void _pruneInputs() {
+    final adlar = {for (final s in _slots) s.slot};
+    _inputs.removeWhere((k, _) => !adlar.contains(k));
+  }
+
+  List<GenerateInputSlot> get _missingSlots =>
+      _slots.where((s) => s.required && !_inputs.containsKey(s.slot)).toList();
+
+  /// Yuvaya Uretilenler galerisinden bir is ciktisi secer.
+  Future<void> _pickFromGallery(GenerateInputSlot s) async {
+    final job = await showModalBottomSheet<GenerateJob>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.bgCard,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(18))),
+      builder: (_) => _GalleryPickerSheet(slot: s),
+    );
+    if (job == null || !mounted) return;
+    setState(() => _inputs[s.slot] = GenerateInputRef.job(job));
+  }
+
+  /// Yuvaya cihazdan bir dosya secer - dosya sunucuya yuklenir.
+  Future<void> _pickFromFile(GenerateInputSlot s) async {
+    final r = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: _extsFor(s.kind),
+      allowMultiple: false,
+      withData: false,
+    );
+    final picked = r?.files.isNotEmpty == true ? r!.files.first : null;
+    if (picked == null || !mounted) return;
+    setState(() => _uploading = s.slot);
+    try {
+      final bytes = picked.bytes ??
+          (picked.path != null ? await File(picked.path!).readAsBytes() : null);
+      if (bytes == null) throw Exception('Dosya okunamadi');
+      final ref = await GenerateService.upload(picked.name, bytes);
+      if (!mounted) return;
+      setState(() => _inputs[s.slot] = ref);
+    } catch (e) {
+      if (!mounted) return;
+      _snack(e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _uploading = null);
+    }
+  }
+
+  static List<String> _extsFor(String kind) => switch (kind) {
+        'video' => const ['mp4', 'webm', 'mov', 'mkv'],
+        'audio' => const ['mp3', 'wav', 'flac', 'ogg', 'm4a'],
+        _ => const ['png', 'jpg', 'jpeg', 'webp', 'bmp'],
+      };
+
   // -------------------------------------------------------------- uretim
   Future<void> _generate() async {
     final t = _task;
@@ -215,7 +319,13 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
       _snack('Prompt bos olamaz');
       return;
     }
-    if (t.needsImage && _source == null) {
+    if (_useSlots) {
+      final eksik = _missingSlots;
+      if (eksik.isNotEmpty) {
+        _snack('Eksik girdi: ${eksik.map((s) => s.label).join(', ')}');
+        return;
+      }
+    } else if (t.needsImage && _source == null) {
       _snack('Bu gorev bir girdi gorseli istiyor - uretilenlerden birini sec');
       return;
     }
@@ -228,13 +338,14 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
           prompt: _prompt1(),
           prompt2: _prompt2(),
           negative: _negative.text.trim(),
-          width: _modeDef.aspects ? _aspectSizes[_aspect]!.$1 : t.width,
-          height: _modeDef.aspects ? _aspectSizes[_aspect]!.$2 : t.height,
+          width: _modeDef.aspects ? _aspectSize.$1 : t.width,
+          height: _modeDef.aspects ? _aspectSize.$2 : t.height,
           duration: _duration,
           turbo: _turbo,
           mode: _mode,
           category: '',
-          sourceJob: t.needsImage ? _source?.id : null,
+          inputs: _useSlots ? _inputs : const {},
+          sourceJob: (!_useSlots && t.needsImage) ? _source?.id : null,
         );
       }
       if (!mounted) return;
@@ -357,19 +468,29 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
             setState(() {
               _task = v;
               _duration = v?.duration ?? 5;
+              _pruneInputs();       // baska is akisinin yuvalari kalmasin
             });
             _applyModeDefaults();
           },
         ),
         if (jigsaw) ...[
-          const SizedBox(height: 12),
-          _ratingSwitch(),
+          if (_ratingsMap.length > 1) ...[
+            const SizedBox(height: 12),
+            _ratingSwitch(),
+          ],
           if (_modeDef.aspects) ...[
             const SizedBox(height: 10),
             _aspectRow(),
           ],
         ],
-        if (t != null && t.needsImage) ...[
+        if (t != null && _useSlots) ...[
+          const SizedBox(height: 16),
+          const Text('Is akisinin girdileri',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold,
+                  color: Colors.grey)),
+          const SizedBox(height: 6),
+          for (final s in _slots) _slotRow(s),
+        ] else if (t != null && t.needsImage) ...[
           const SizedBox(height: 16),
           const Text('Girdi gorseli',
               style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold,
@@ -478,12 +599,12 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
     );
   }
 
-  /// CBN: kare / dikey / yatay - havuz her orani kabul eder, boyut buradan gider.
+  /// CBN: bes oran (9:16, 2:3, 1:1, 3:2, 16:9) - boyutlar sunucunun
+  /// tablosundan gelir; hepsi tam oran, cizgi sayfasi esnemez.
   Widget _aspectRow() => SegmentedButton<String>(
-        segments: const [
-          ButtonSegment(value: 'portrait', label: Text('Dikey'), icon: Icon(Icons.crop_portrait, size: 16)),
-          ButtonSegment(value: 'square', label: Text('Kare'), icon: Icon(Icons.crop_square, size: 16)),
-          ButtonSegment(value: 'landscape', label: Text('Yatay'), icon: Icon(Icons.crop_landscape, size: 16)),
+        segments: [
+          for (final id in (_modeDef.aspectSizes.isNotEmpty ? _modeDef.aspectSizes.keys : _aspectSizes.keys))
+            ButtonSegment(value: id, label: Text(id)),
         ],
         selected: {_aspect},
         showSelectedIcon: false,
@@ -535,12 +656,12 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
   Widget _detailPanel() {
     final d = _det;
     if (d == null) return const SizedBox.shrink();
-    if (JigsawProfiles.loadError != null && !d.hasAnyOption) {
+    if (_profileError != null && !d.hasAnyOption) {
       return Card(
         color: AppColors.error.withValues(alpha: 0.12),
         child: Padding(
           padding: const EdgeInsets.all(12),
-          child: Text(JigsawProfiles.loadError!,
+          child: Text(_profileError!,
               style: TextStyle(color: AppColors.error, fontSize: 12)),
         ),
       );
@@ -651,10 +772,14 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
     final d = _det;
     if (t == null || d == null) return;
     if (!d.hasAnyOption) {
-      _snack(JigsawProfiles.loadError ?? 'Secenek listesi bos');
+      _snack(_profileError ?? 'Secenek listesi bos');
       return;
     }
-    if (t.needsImage && _source == null) {
+    if (_useSlots && _missingSlots.isNotEmpty) {
+      _snack('Eksik girdi: ${_missingSlots.map((s) => s.label).join(', ')}');
+      return;
+    }
+    if (!_useSlots && t.needsImage && _source == null) {
       _snack('Bu gorev bir girdi gorseli istiyor');
       return;
     }
@@ -677,13 +802,14 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
           prompt: p1,
           prompt2: p2,
           negative: _negative.text.trim(),
-          width: _modeDef.aspects ? _aspectSizes[_aspect]!.$1 : t.width,
-          height: _modeDef.aspects ? _aspectSizes[_aspect]!.$2 : t.height,
+          width: _modeDef.aspects ? _aspectSize.$1 : t.width,
+          height: _modeDef.aspects ? _aspectSize.$2 : t.height,
           duration: _duration,
           turbo: _turbo,
           mode: _mode,
           category: '',
-          sourceJob: t.needsImage ? _source?.id : null,
+          inputs: _useSlots ? _inputs : const {},
+          sourceJob: (!_useSlots && t.needsImage) ? _source?.id : null,
         );
         n++;
       }
@@ -737,6 +863,138 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
     );
   }
 
+  /// Tek bir girdi yuvasi: onizleme + Galeriden sec / Dosyadan sec / temizle.
+  Widget _slotRow(GenerateInputSlot s) {
+    final ref = _inputs[s.slot];
+    final busy = _uploading == s.slot;
+    final ipucu = s.title.isEmpty ? s.defaultFile : s.title;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _slotThumb(s, ref),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(s.label,
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 13)),
+                          if (!s.required)
+                            const Padding(
+                              padding: EdgeInsets.only(left: 6),
+                              child: Text('istege bagli',
+                                  style: TextStyle(fontSize: 10, color: Colors.grey)),
+                            ),
+                        ],
+                      ),
+                      if (ipucu.isNotEmpty)
+                        Text(ipucu,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style:
+                                const TextStyle(fontSize: 11, color: Colors.grey)),
+                      const SizedBox(height: 2),
+                      Text(
+                        busy
+                            ? 'yukleniyor...'
+                            : ref == null
+                                ? 'secilmedi'
+                                : ref.display,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: ref == null && !busy
+                                ? AppColors.error
+                                : Colors.white70),
+                      ),
+                    ],
+                  ),
+                ),
+                if (ref != null)
+                  IconButton(
+                    tooltip: 'temizle',
+                    icon: const Icon(Icons.close, size: 18),
+                    onPressed: () => setState(() => _inputs.remove(s.slot)),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: busy ? null : () => _pickFromGallery(s),
+                    icon: const Icon(Icons.photo_library, size: 16),
+                    label: const Text('Galeriden sec',
+                        style: TextStyle(fontSize: 12)),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: busy ? null : () => _pickFromFile(s),
+                    icon: busy
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.folder_open, size: 16),
+                    label: const Text('Dosyadan sec',
+                        style: TextStyle(fontSize: 12)),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Yuvanin onizlemesi: is ciktisi ise kucuk resim, dosya ise tur simgesi.
+  Widget _slotThumb(GenerateInputSlot s, GenerateInputRef? ref) {
+    final ikon = switch (s.kind) {
+      'video' => Icons.movie_outlined,
+      'audio' => Icons.music_note,
+      _ => Icons.image_outlined,
+    };
+    Widget child;
+    if (ref?.job != null && !s.isAudio) {
+      child = Image.network(
+        ref!.job!.thumbUrl(size: 200),
+        headers: GenerateService.authHeaders,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => Icon(ikon, color: Colors.grey),
+      );
+    } else {
+      child = Icon(ikon, color: ref == null ? Colors.grey : AppColors.accent);
+    }
+    return Container(
+      width: 56,
+      height: 56,
+      decoration: BoxDecoration(
+        color: Colors.white10,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+            color: ref == null ? Colors.transparent : AppColors.accent,
+            width: 1.5),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Center(child: child),
+    );
+  }
+
   /// Girdi gorseli secimi - metin listesi degil, kucuk kareler.
   Widget _sourceStrip() {
     if (_sourceOptions.isEmpty) {
@@ -781,4 +1039,216 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
       ),
     );
   }
+}
+
+
+/// Uretilenler galerisinden bir is ciktisi secme sayfasi (gorev #287).
+///
+/// Yalniz yuvanin turune uyan bitmis isler listelenir: gorsel yuvasina gorsel,
+/// video yuvasina video, ses yuvasina ses. Ustteki alan prompt metninde arar.
+class _GalleryPickerSheet extends StatefulWidget {
+  const _GalleryPickerSheet({required this.slot});
+
+  final GenerateInputSlot slot;
+
+  @override
+  State<_GalleryPickerSheet> createState() => _GalleryPickerSheetState();
+}
+
+class _GalleryPickerSheetState extends State<_GalleryPickerSheet> {
+  static const _audioExt = ['.mp3', '.wav', '.flac', '.ogg', '.m4a', '.opus'];
+
+  final _search = TextEditingController();
+  List<GenerateJob> _all = [];
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final jobs = await GenerateService.list(limit: 200);
+      if (!mounted) return;
+      setState(() {
+        _all = jobs.where(_matchesKind).toList();
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString().replaceFirst('Exception: ', '');
+        _loading = false;
+      });
+    }
+  }
+
+  /// Isin ciktisi yuvanin turune uyuyor mu (uzantiya bakar).
+  bool _matchesKind(GenerateJob j) {
+    if (!j.isDone || j.fileName == null) return false;
+    final ad = j.fileName!.toLowerCase();
+    final ses = _audioExt.any(ad.endsWith);
+    return switch (widget.slot.kind) {
+      'video' => j.isVideo && !ses,
+      'audio' => ses,
+      _ => !j.isVideo && !ses,
+    };
+  }
+
+  List<GenerateJob> get _shown {
+    final q = _search.text.trim().toLowerCase();
+    if (q.isEmpty) return _all;
+    return _all
+        .where((j) =>
+            j.prompt.toLowerCase().contains(q) ||
+            j.combined.toLowerCase().contains(q) ||
+            j.task.toLowerCase().contains(q))
+        .toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final list = _shown;
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.only(
+            left: 14,
+            right: 14,
+            top: 12,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 12),
+        child: SizedBox(
+          height: MediaQuery.of(context).size.height * 0.72,
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text('${widget.slot.label} - Uretilenlerden sec',
+                        style: const TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.bold)),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.refresh),
+                    onPressed: _loading ? null : _load,
+                  ),
+                ],
+              ),
+              TextField(
+                controller: _search,
+                onChanged: (_) => setState(() {}),
+                decoration: const InputDecoration(
+                  isDense: true,
+                  prefixIcon: Icon(Icons.search, size: 18),
+                  hintText: 'promptta ara',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Expanded(
+                child: _loading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _error != null
+                        ? Center(
+                            child: Text(_error!,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(color: AppColors.error)))
+                        : list.isEmpty
+                            ? const Center(
+                                child: Text(
+                                    'Bu ture uygun bitmis uretim yok.',
+                                    style: TextStyle(color: Colors.grey)))
+                            : widget.slot.isAudio
+                                ? _audioList(list)
+                                : _thumbGrid(list),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _thumbGrid(List<GenerateJob> list) => GridView.builder(
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3,
+          mainAxisSpacing: 8,
+          crossAxisSpacing: 8,
+          childAspectRatio: 0.72,
+        ),
+        itemCount: list.length,
+        itemBuilder: (_, i) {
+          final j = list[i];
+          return InkWell(
+            onTap: () => Navigator.pop(context, j),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Image.network(
+                          j.thumbUrl(size: 300),
+                          headers: GenerateService.authHeaders,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) =>
+                              Container(color: Colors.white10),
+                        ),
+                        if (j.isVideo)
+                          const Align(
+                            alignment: Alignment.topRight,
+                            child: Padding(
+                              padding: EdgeInsets.all(4),
+                              child: Icon(Icons.play_circle_fill,
+                                  size: 18, color: Colors.white70),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(j.prompt.isEmpty ? j.id : j.prompt,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 10, color: Colors.grey)),
+              ],
+            ),
+          );
+        },
+      );
+
+  Widget _audioList(List<GenerateJob> list) => ListView.separated(
+        itemCount: list.length,
+        separatorBuilder: (_, _) => const Divider(height: 1),
+        itemBuilder: (_, i) {
+          final j = list[i];
+          return ListTile(
+            dense: true,
+            leading: const Icon(Icons.music_note),
+            title: Text(j.prompt.isEmpty ? j.id : j.prompt,
+                maxLines: 1, overflow: TextOverflow.ellipsis),
+            subtitle: Text(j.fileName ?? '',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 11)),
+            onTap: () => Navigator.pop(context, j),
+          );
+        },
+      );
 }

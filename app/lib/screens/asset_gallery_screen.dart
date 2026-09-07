@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../services/generate_service.dart';
 import '../services/cbn_flow_service.dart';
+import '../services/character_flow_service.dart';
 import '../services/jigsaw_flow_service.dart';
 import '../services/jigsaw_profiles.dart';
 import '../theme.dart';
@@ -195,6 +196,168 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
     if (changed == true) _load();
   }
 
+  /// Secili tamamlanmis gorseller - karakter eylemleri bunlarla calisir.
+  List<GenerateJob> get _selectedImages => _sel
+      .map((id) => _jobs.where((j) => j.id == id).firstOrNull)
+      .whereType<GenerateJob>()
+      .where((j) => j.isDone && !j.isVideo)
+      .toList();
+
+  /// Karakter Modu - "Karakter yap": secili TEK isten yeni bir karakter
+  /// klasoru acar (isim + sinif). Sunucu character.json, card.md iskeleti ve
+  /// sinif presetinden anims.json yazar.
+  Future<void> _makeCharacter() async {
+    final gorseller = _selectedImages;
+    if (gorseller.isEmpty) {
+      _msg('Tamamlanmis gorsel sec');
+      return;
+    }
+    if (gorseller.length > 1) {
+      _msg('Karakter tek gorselden acilir - birini sec');
+      return;
+    }
+    final siniflar = await CharacterProfiles.classes();
+    if (!mounted) return;
+    final ad = TextEditingController();
+    var sinif = siniflar.isNotEmpty ? siniflar.first : '';
+    final sonuc = await showDialog<(String, String)>(
+      context: context,
+      builder: (c) => StatefulBuilder(
+        builder: (c, setS) => AlertDialog(
+          title: const Text('Karakter yap'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Secili gorsel bu karakterin ilk adayi olur. Klasor, kart ve '
+                'sinif presetinin klip seti sunucuda olusur.',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: ad,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: 'Isim',
+                  hintText: 'orn. Freya',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 10),
+              if (siniflar.isEmpty)
+                TextField(
+                  onChanged: (v) => sinif = v,
+                  decoration: const InputDecoration(
+                    labelText: 'Sinif',
+                    hintText: 'warrior',
+                    border: OutlineInputBorder(),
+                  ),
+                )
+              else
+                DropdownButtonFormField<String>(
+                  initialValue: sinif,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Sinif',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: siniflar
+                      .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                      .toList(),
+                  onChanged: (v) => setS(() => sinif = v ?? sinif),
+                ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(c), child: const Text('Vazgec')),
+            FilledButton(
+              onPressed: () => Navigator.pop(c, (ad.text.trim(), sinif.trim())),
+              child: const Text('Olustur'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (sonuc == null || sonuc.$1.isEmpty) return;
+    setState(() => _busy = true);
+    try {
+      await CharacterFlowService.create(
+          name: sonuc.$1, klass: sonuc.$2, jobId: gorseller.first.id);
+      if (!mounted) return;
+      _msg('${sonuc.$1} olusturuldu - "Hat" sekmesindeki Karakter hattinda');
+      setState(_sel.clear);
+    } catch (e) {
+      _msg(e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// Karakter Modu - "Adaylara ekle": secili isleri mevcut bir karakterin
+  /// candidates/ klasorune kopyalar.
+  Future<void> _stageToCharacter() async {
+    final gorseller = _selectedImages;
+    if (gorseller.isEmpty) {
+      _msg('Tamamlanmis gorsel sec');
+      return;
+    }
+    List<CharacterItem> karakterler;
+    try {
+      karakterler = await CharacterFlowService.list();
+    } catch (e) {
+      _msg(e.toString().replaceFirst('Exception: ', ''));
+      return;
+    }
+    if (!mounted) return;
+    if (karakterler.isEmpty) {
+      _msg('Once "Karakter yap" ile bir karakter olustur');
+      return;
+    }
+    final ad = await showDialog<String>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text('Adaylara ekle - ${gorseller.length} gorsel'),
+        content: SizedBox(
+          width: 380,
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              for (final k in karakterler)
+                ListTile(
+                  dense: true,
+                  title: Text(k.name),
+                  subtitle: Text(k.klass.isEmpty ? '-' : k.klass,
+                      style: const TextStyle(fontSize: 11)),
+                  onTap: () => Navigator.pop(c, k.name),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Vazgec')),
+        ],
+      ),
+    );
+    if (ad == null) return;
+    setState(() => _busy = true);
+    try {
+      final n = await CharacterFlowService.stage(
+          name: ad, jobIds: gorseller.map((j) => j.id).toList());
+      if (!mounted) return;
+      _msg('$ad adaylarina $n gorsel eklendi');
+      setState(_sel.clear);
+    } catch (e) {
+      _msg(e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  void _msg(String m) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+  }
+
   /// 1 -> 2. Secili gorselleri sunucuda _Incoming'e tasitir ve etiketletir.
   Future<void> _acceptSelected() async {
     final gorseller = _sel
@@ -285,7 +448,18 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
                   onPressed: () =>
                       setState(() => _sel.addAll(_visible.map((j) => j.id))),
                 ),
-                if (_mode != 'free')
+                if (_mode == 'character') ...[
+                  IconButton(
+                    icon: const Icon(Icons.person_add_alt),
+                    tooltip: 'Karakter yap - yeni karakter olustur',
+                    onPressed: _busy ? null : _makeCharacter,
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.playlist_add),
+                    tooltip: 'Adaylara ekle - mevcut karaktere kopyala',
+                    onPressed: _busy ? null : _stageToCharacter,
+                  ),
+                ] else if (_mode != 'free')
                   IconButton(
                     icon: const Icon(Icons.check_circle_outline),
                     tooltip: 'Kabul et - 2. akisa gonder',
@@ -318,10 +492,15 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: SegmentedButton<String>(
                   segments: const [
-                    ButtonSegment(value: 'free', label: Text('Free Mod')),
-                    ButtonSegment(value: 'jigsaw', label: Text('Jigsaw Modu')),
-                    ButtonSegment(value: 'cbn', label: Text('CBN Modu')),
+                    ButtonSegment(value: 'free', label: Text('Free')),
+                    ButtonSegment(value: 'jigsaw', label: Text('Jigsaw')),
+                    ButtonSegment(value: 'cbn', label: Text('CBN')),
+                    ButtonSegment(value: 'character', label: Text('Karakter')),
                   ],
+                  style: const ButtonStyle(
+                    visualDensity: VisualDensity.compact,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
                   selected: {_mode},
                   showSelectedIcon: false,
                   onSelectionChanged: (v) {

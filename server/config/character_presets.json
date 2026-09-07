@@ -1,0 +1,162 @@
+{
+ "_aciklama": "Sinif presetleri (gorev #286): create sirasinda <Isim>/anims.json'a kopyalanir. 'fbx' Mixamo arsivindeki TAM dosya adidir (tools/mixamo_downloader/animations). 'groups' ayni tuvali paylasan klipler - manken kamerasi grubun tum kliplerini kapsayacak sekilde kurulur (bbox_fbx). prop bos string = o klipte silah yok.",
+ "warrior": {
+  "canvas": 640,
+  "fps_out": 15,
+  "pad": 0.06,
+  "mirror": false,
+  "prop": "sword",
+  "prop_len": 0.95,
+  "sam_prompt": "woman,sword",
+  "groups": {
+   "stand": [
+    "idle",
+    "attack",
+    "hit"
+   ],
+   "skill": [
+    "skill"
+   ],
+   "death": [
+    "death"
+   ],
+   "win": [
+    "win"
+   ]
+  },
+  "clips": {
+   "idle": {
+    "fbx": "Great Sword Idle [c9cc7140].fbx",
+    "pose": "A warrior woman stands in a ready stance holding a large two-handed greatsword, breathing, subtle sway. plain solid flat uniform light gray seamless background, no floor shadow, static camera, full body always visible from head to feet."
+   },
+   "attack": {
+    "fbx": "Great Sword Slash [c9cc7d9c].fbx",
+    "pose": "A warrior woman gripping a large two-handed greatsword performs a powerful sword slash attack with the whole body, then returns to her stance. plain solid flat uniform light gray seamless background, no floor shadow, static camera, full body always visible from head to feet."
+   },
+   "skill": {
+    "fbx": "Great Sword High Spin Attack [c9cc8d52].fbx",
+    "pose": "A warrior woman spins with her greatsword in a wide high spinning attack, then lands back in her stance. plain solid flat uniform light gray seamless background, no floor shadow, static camera, full body always visible from head to feet."
+   },
+   "hit": {
+    "fbx": "Great Sword Impact [c9cc82f0].fbx",
+    "pose": "A warrior woman holding a greatsword recoils from a heavy hit, staggers, then recovers her stance. plain solid flat uniform light gray seamless background, no floor shadow, static camera, full body always visible from head to feet."
+   },
+   "death": {
+    "fbx": "Falling Back Death [c9cdb348].fbx",
+    "pose": "A warrior woman is struck, falls backwards and collapses to the ground lying still. plain solid flat uniform light gray seamless background, no floor shadow, static camera, full body always visible from head to feet.",
+    "prop": ""
+   },
+   "win": {
+    "fbx": "Cheering [c9c66ec0].fbx",
+    "pose": "A warrior woman raises her arms and cheers in victory, jumping with joy. plain solid flat uniform light gray seamless background, no floor shadow, static camera, full body always visible from head to feet.",
+    "prop": ""
+   }
+  }
+ },
+ "mage": {
+  "canvas": 640,
+  "fps_out": 15,
+  "pad": 0.06,
+  "mirror": false,
+  "prop": "staff",
+  "prop_len": 1.5,
+  "sam_prompt": "woman,staff",
+  "groups": {
+   "stand": [
+    "idle",
+    "attack",
+    "hit"
+   ],
+   "skill": [
+    "skill"
+   ],
+   "death": [
+    "death"
+   ],
+   "win": [
+    "win"
+   ]
+  },
+  "clips": {
+   "idle": {
+    "fbx": "Standing Idle 01 [c9ceb236].fbx",
+    "pose": "A sorceress stands calmly holding her long staff, robes and hair drifting slightly. plain solid flat uniform light gray seamless background, no floor shadow, static camera, full body always visible from head to feet."
+   },
+   "attack": {
+    "fbx": "Standing 1H Magic Attack 01 [a3d120fd].fbx",
+    "pose": "A sorceress thrusts one hand forward and casts a magic bolt, then returns to her stance. plain solid flat uniform light gray seamless background, no floor shadow, static camera, full body always visible from head to feet."
+   },
+   "skill": {
+    "fbx": "Standing 2H Magic Area Attack 01 [3a2c5c31].fbx",
+    "pose": "A sorceress raises both arms and slams a wide area spell down, then returns to her stance. plain solid flat uniform light gray seamless background, no floor shadow, static camera, full body always visible from head to feet."
+   },
+   "hit": {
+    "fbx": "Hit Reaction [c9c6baf0].fbx",
+    "pose": "A sorceress recoils from a hit, staggers back, then recovers her stance. plain solid flat uniform light gray seamless background, no floor shadow, static camera, full body always visible from head to feet."
+   },
+   "death": {
+    "fbx": "Standing Death Backward 01 [c9ceae44].fbx",
+    "pose": "A sorceress is struck, falls backwards and collapses to the ground lying still. plain solid flat uniform light gray seamless background, no floor shadow, static camera, full body always visible from head to feet.",
+    "prop": ""
+   },
+   "win": {
+    "fbx": "Cheering [c9c66ec0].fbx",
+    "pose": "A sorceress raises her arms and cheers in victory, jumping with joy. plain solid flat uniform light gray seamless background, no floor shadow, static camera, full body always visible from head to feet.",
+    "prop": ""
+   }
+  }
+ },
+ "archer": {
+  "canvas": 640,
+  "fps_out": 15,
+  "pad": 0.06,
+  "mirror": false,
+  "prop": "bow",
+  "prop_len": 1.4,
+  "sam_prompt": "woman,bow",
+  "groups": {
+   "stand": [
+    "idle",
+    "attack",
+    "hit"
+   ],
+   "skill": [
+    "skill"
+   ],
+   "death": [
+    "death"
+   ],
+   "win": [
+    "win"
+   ]
+  },
+  "clips": {
+   "idle": {
+    "fbx": "Standing Aim Idle 01 [123cd592].fbx",
+    "pose": "An archer woman holds her bow at the ready, breathing, subtle sway. plain solid flat uniform light gray seamless background, no floor shadow, static camera, full body always visible from head to feet."
+   },
+   "attack": {
+    "fbx": "Standing Aim Recoil [c9cebedc].fbx",
+    "pose": "An archer woman looses an arrow and her body recoils, then she returns to her stance. plain solid flat uniform light gray seamless background, no floor shadow, static camera, full body always visible from head to feet."
+   },
+   "skill": {
+    "fbx": "Standing Aim Overdraw [c9cebbb5].fbx",
+    "pose": "An archer woman draws her bow far back for a powerful charged shot and releases it. plain solid flat uniform light gray seamless background, no floor shadow, static camera, full body always visible from head to feet."
+   },
+   "hit": {
+    "fbx": "Hit Reaction [c9c6baf0].fbx",
+    "pose": "An archer woman recoils from a hit, staggers back, then recovers her stance. plain solid flat uniform light gray seamless background, no floor shadow, static camera, full body always visible from head to feet."
+   },
+   "death": {
+    "fbx": "Standing Death Forward 01 [c9ceaf01].fbx",
+    "pose": "An archer woman is struck, falls forward and collapses to the ground lying still. plain solid flat uniform light gray seamless background, no floor shadow, static camera, full body always visible from head to feet.",
+    "prop": ""
+   },
+   "win": {
+    "fbx": "Cheering [c9c66ec0].fbx",
+    "pose": "An archer woman raises her arms and cheers in victory, jumping with joy. plain solid flat uniform light gray seamless background, no floor shadow, static camera, full body always visible from head to feet.",
+    "prop": ""
+   }
+  }
+ }
+}

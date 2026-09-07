@@ -270,3 +270,38 @@ class CbnProfiles {
     return _cache!;
   }
 }
+
+/// Karakter kipinin profili - `assets/karakter_secenekler.json` (sunucudaki
+/// `server/config/character_options.json` ile ayni dosya).
+///
+/// Jigsaw/CBN'den farki: derece (hot/kid) yoktur, tek profil vardir. Alanlar
+/// sinif, set, sac, goz, ten, vucut, kostum ve aksesuardir; sinif listesi
+/// ayrica "Karakter yap" penceresinde de kullanilir.
+class CharacterProfiles {
+  static const id = 'character';
+  static const ratings = <String, String>{id: 'Karakter'};
+
+  static Map<String, JigsawProfile>? _cache;
+  static String? loadError;
+
+  static Future<Map<String, JigsawProfile>> load() async {
+    if (_cache != null) return _cache!;
+    try {
+      _cache = await JigsawProfiles.loadFrom('assets/karakter_secenekler.json', ratings);
+      loadError = null;
+    } catch (e) {
+      loadError = 'Karakter secenek dosyasi okunamadi: $e';
+      _cache = {
+        id: const JigsawProfile(
+            id: id, label: 'Karakter', fields: [],
+            options: {}, template: '', negative: '')
+      };
+    }
+    return _cache!;
+  }
+
+  /// "Karakter yap" penceresindeki sinif listesi. Dosya okunmadiysa bos doner
+  /// ve pencere serbest metin alanina duser.
+  static Future<List<String>> classes() async =>
+      (await load())[id]?.optionsFor('class') ?? const [];
+}

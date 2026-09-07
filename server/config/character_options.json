@@ -1,0 +1,234 @@
+{
+ "_aciklama": "Karakter Modu profil dosyasi (gorev #286). 'character' tek profildir. 'sablon' Pozitif 2 varsayilanidir ({} = 1. prompt), 'negatif' negatif prompt, 'alanlar' ekrandaki dropdown sirasi, 'secenekler' listeleri. Secimler 1. prompta eklenir (Jigsaw MERGE mantigi). YALNIZ YETISKIN KADIN - cocuk/ergen secenegi yok.",
+ "character": {
+  "alanlar": [
+   [
+    "class",
+    "Sinif"
+   ],
+   [
+    "set",
+    "Set"
+   ],
+   [
+    "age",
+    "Yas"
+   ],
+   [
+    "origin",
+    "Koken"
+   ],
+   [
+    "body",
+    "Vucut"
+   ],
+   [
+    "hair",
+    "Sac"
+   ],
+   [
+    "hairstyle",
+    "Sac stili"
+   ],
+   [
+    "eyes",
+    "Goz"
+   ],
+   [
+    "skin",
+    "Ten"
+   ],
+   [
+    "face",
+    "Yuz"
+   ],
+   [
+    "outfit",
+    "Kostum"
+   ],
+   [
+    "outfit_color",
+    "Kostum rengi"
+   ],
+   [
+    "prop",
+    "Silah"
+   ],
+   [
+    "expression",
+    "Ifade"
+   ]
+  ],
+  "sablon": "{} standing straight facing the camera, neutral relaxed pose, arms at her sides, full body from head to feet with empty space above and below, plain solid flat uniform light gray seamless studio background, no floor shadow, no gradient, even soft lighting, photorealistic, sharp focus, 85mm",
+  "negatif": "anime, cartoon, illustration, drawing, painting, 3d render, cgi, child, teen, minor, deformed, disfigured, extra limbs, extra fingers, bad hands, bad anatomy, watermark, text, logo, cluttered background, props, furniture, cropped feet, cropped head",
+  "video_sablon": "{}, static locked camera, no camera movement, the character stays fully inside the frame from head to feet at all times, never leaves or touches the frame edges, plain solid flat uniform light gray seamless background, no floor shadow, even lighting",
+  "secenekler": {
+   "class": [
+    "warrior",
+    "mage",
+    "archer",
+    "rogue",
+    "healer",
+    "paladin",
+    "berserker",
+    "assassin",
+    "necromancer",
+    "druid",
+    "monk",
+    "gunslinger",
+    "knight",
+    "shaman",
+    "summoner",
+    "bard"
+   ],
+   "set": [
+    "neutral",
+    "costume"
+   ],
+   "age": [
+    "in her early 20s",
+    "in her mid 20s",
+    "in her late 20s",
+    "in her early 30s",
+    "in her mid 30s",
+    "in her late 30s"
+   ],
+   "origin": [
+    "Nordic",
+    "Slavic",
+    "Mediterranean",
+    "Middle Eastern",
+    "East Asian",
+    "South Asian",
+    "African",
+    "Latin American",
+    "elf",
+    "half-elf",
+    "dark elf",
+    "half-orc",
+    "tiefling",
+    "dwarf-blooded",
+    "celestial-blooded"
+   ],
+   "body": [
+    "tall and athletic with a feminine hourglass figure",
+    "slim and lithe with long toned legs",
+    "curvy hourglass figure with a narrow waist",
+    "compact and muscular with strong shoulders",
+    "statuesque and broad-shouldered, powerful",
+    "petite but toned and wiry",
+    "voluptuous with soft curves",
+    "lean runner's build, flat stomach"
+   ],
+   "hair": [
+    "platinum blonde",
+    "golden blonde",
+    "strawberry blonde",
+    "copper red",
+    "auburn",
+    "chestnut brown",
+    "dark brown",
+    "jet black",
+    "silver white",
+    "ash grey",
+    "deep purple",
+    "electric blue",
+    "emerald green",
+    "rose pink"
+   ],
+   "hairstyle": [
+    "a thick single braid over one shoulder",
+    "long straight hair with blunt bangs",
+    "long wavy hair",
+    "a high ponytail",
+    "twin braids",
+    "a short pixie cut",
+    "a messy bun with loose strands",
+    "shoulder-length bob",
+    "dreadlocks tied back",
+    "a shaved undercut with long top",
+    "curly voluminous hair",
+    "a topknot"
+   ],
+   "eyes": [
+    "ice blue eyes",
+    "deep blue eyes",
+    "emerald green eyes",
+    "hazel eyes",
+    "amber eyes",
+    "dark brown eyes",
+    "violet eyes",
+    "grey eyes",
+    "golden eyes",
+    "heterochromia, one blue one green"
+   ],
+   "skin": [
+    "fair porcelain skin",
+    "light skin with freckles",
+    "sun-tanned skin",
+    "olive skin",
+    "warm bronze skin",
+    "deep brown skin",
+    "ebony skin",
+    "pale ashen skin",
+    "faintly blue-grey skin",
+    "skin with subtle glowing runes"
+   ],
+   "face": [
+    "high cheekbones and a sharp jawline",
+    "soft rounded features",
+    "sharp angular features",
+    "a small nose and full lips",
+    "a strong regal profile",
+    "delicate elven features",
+    "a scar across one cheek",
+    "faint war paint across the eyes"
+   ],
+   "outfit": [
+    "revealing fantasy warrior armor: a polished steel bikini-plate breastplate with fur trim, a steel pauldron on one shoulder, a leather and steel tasset skirt, steel greaves and gauntlets",
+    "full plate knight armor with an ornate engraved breastplate, pauldrons and a tabard",
+    "a dark witch outfit: a black and deep purple corset with a plunging neckline, a short flowing skirt with a high slit, long opera gloves, sheer thigh-high stockings and a wide-brimmed pointed hat",
+    "an arcane mage robe with wide sleeves, a hooded mantle, glowing embroidery and a wide belt of pouches",
+    "a forest ranger outfit: a fitted green leather cropped bodice with a hooded short cape, a short pleated skirt, a leather belt with pouches and thigh-high boots",
+    "a leather rogue outfit: a fitted dark jerkin, a hooded cloak, bracers, a belt of throwing knives and knee-high boots",
+    "a white and gold healer's dress with a hooded mantle, a long slit skirt and gold arm bands",
+    "a barbarian outfit of fur, hide straps and bone ornaments with heavy leather boots",
+    "a sleek assassin bodysuit in matte black with a half mask, harness straps and light armored plates",
+    "a desert nomad outfit: layered linen wraps, a hooded scarf, a wide belt and leather sandals",
+    "a steampunk gunslinger outfit: a corseted leather coat, goggles, a holster belt and tall boots",
+    "a simple plain black bikini (neutral identity reference)"
+   ],
+   "outfit_color": [
+    "black and steel",
+    "black and deep purple",
+    "forest green and brown",
+    "white and gold",
+    "crimson and bronze",
+    "midnight blue and silver",
+    "bone white and ash grey",
+    "teal and copper"
+   ],
+   "prop": [
+    "a large two-handed sword resting point-down in front of her, both hands on the hilt",
+    "a one-handed sword held at her side",
+    "a gnarled wooden staff with a glowing crystal",
+    "an ornate arcane staff",
+    "a tall elegant recurve bow in one hand with a quiver of arrows on her back",
+    "a pair of curved daggers",
+    "a heavy war hammer resting on her shoulder",
+    "a round shield on one arm and a short sword in the other",
+    "a long spear planted in the ground",
+    "no weapon, hands empty"
+   ],
+   "expression": [
+    "a fierce confident expression",
+    "a calm determined look",
+    "a sly knowing smirk",
+    "a mischievous half smile",
+    "a cold unreadable stare",
+    "a warm gentle smile",
+    "a battle-hardened glare"
+   ]
+  }
+ }
+}

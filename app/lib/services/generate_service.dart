@@ -16,6 +16,7 @@ class GenerateMode {
     required this.exports,
     this.profiles = '',
     this.aspects = false,
+    this.aspectSizes = const {},
   });
 
   final String id;
@@ -25,7 +26,10 @@ class GenerateMode {
   final String negative;
   final bool exports;     // ciktilar bir havuza yazilabiliyor mu
   final String profiles;  // '' | 'jigsaw' | 'cbn' - derece secenek dosyasi
-  final bool aspects;     // oran secici (kare / dikey / yatay) gosterilsin mi
+  final bool aspects;     // oran secici gosterilsin mi
+  /// Sunucunun oran tablosu: id -> (genislik, yukseklik). Bos ise istemci
+  /// kendi tablosunu kullanir.
+  final Map<String, (int, int)> aspectSizes;
 
   bool get isJigsaw => id == 'jigsaw';
   bool get hasProfiles => profiles.isNotEmpty;
@@ -39,7 +43,52 @@ class GenerateMode {
         exports: j['exports'] == true,
         profiles: (j['profiles'] ?? (j['id'] == 'jigsaw' ? 'jigsaw' : '')) as String,
         aspects: j['aspects'] == true,
+        aspectSizes: {
+          for (final a in (j['aspect_sizes'] as List? ?? const []))
+            if (a is Map && a['id'] != null)
+              a['id'] as String: ((a['width'] ?? 0) as int, (a['height'] ?? 0) as int),
+        },
       );
+}
+
+/// Bir is akisinin girdi yuvasi (gorev #287).
+///
+/// Sunucu is akisi JSON'undaki dosya okuyan dugumleri (LoadImage / LoadVideo /
+/// LoadAudio) tarar ve her birini bir yuva olarak bildirir: FLF2V ilk+son kare,
+/// V2V referans gorsel + surucu video, S2V gorsel + ses...
+class GenerateInputSlot {
+  const GenerateInputSlot({
+    required this.slot,
+    required this.kind,
+    required this.label,
+    this.title = '',
+    this.defaultFile = '',
+    this.required = true,
+  });
+
+  final String slot;        // image_1 | video_1 | audio_1 ...
+  final String kind;        // image | video | audio
+  final String label;       // "Gorsel 1" - arayuzde gorunen kisa ad
+  final String title;       // is akisindaki dugum basligi (ipucu)
+  final String defaultFile; // is akisinin kendi ornek dosyasi
+  final bool required;
+
+  bool get isImage => kind == 'image';
+  bool get isVideo => kind == 'video';
+  bool get isAudio => kind == 'audio';
+
+  factory GenerateInputSlot.fromJson(Map<String, dynamic> j) {
+    final kind = (j['kind'] ?? 'image') as String;
+    final slot = (j['slot'] ?? kind) as String;
+    return GenerateInputSlot(
+      slot: slot,
+      kind: kind,
+      label: (j['label'] ?? slot) as String,
+      title: (j['title'] ?? '') as String,
+      defaultFile: (j['default'] ?? '') as String,
+      required: j['required'] != false,
+    );
+  }
 }
 
 /// Bir uretim gorevi (sunucudaki manifest'ten gelir).
@@ -52,6 +101,7 @@ class GenerateTask {
     required this.width,
     required this.height,
     required this.duration,
+    this.inputs = const [],
   });
 
   final String id;
@@ -62,6 +112,14 @@ class GenerateTask {
   final int height;
   final int duration;
 
+  /// Is akisinin girdi yuvalari. Eski sunucularda bos gelir - o zaman eski
+  /// tek gorsellik akis kullanilir.
+  final List<GenerateInputSlot> inputs;
+
+  /// Tek bir gorsel yuvasi disinda girdi istiyor mu (ikinci kare, video, ses).
+  bool get hasExtraInputs =>
+      inputs.length > 1 || (inputs.length == 1 && !inputs.first.isImage);
+
   factory GenerateTask.fromJson(Map<String, dynamic> j) => GenerateTask(
         id: j['id'] as String,
         label: (j['label'] ?? j['id']) as String,
@@ -70,7 +128,29 @@ class GenerateTask {
         width: (j['default_width'] ?? 0) as int,
         height: (j['default_height'] ?? 0) as int,
         duration: (j['default_duration'] ?? 5) as int,
+        inputs: ((j['inputs'] ?? const []) as List)
+            .map((e) => GenerateInputSlot.fromJson(e as Map<String, dynamic>))
+            .toList(),
       );
+}
+
+/// Bir yuvaya secilen girdi: ya onceki bir uretim isi ya da bir dosya.
+class GenerateInputRef {
+  const GenerateInputRef.job(this.job)
+      : path = '',
+        fileName = '';
+  const GenerateInputRef.file(this.path, this.fileName) : job = null;
+
+  final GenerateJob? job;
+  final String path;        // sunucudaki mutlak yol
+  final String fileName;    // gosterim adi
+
+  String get display => job != null
+      ? (job!.prompt.isEmpty ? job!.id : job!.prompt)
+      : (fileName.isEmpty ? path : fileName);
+
+  Map<String, String> toJson() =>
+      job != null ? {'job_id': job!.id} : {'path': path};
 }
 
 /// Hot Jigsaw havuzundaki bir kategori.
@@ -278,8 +358,11 @@ class GenerateService {
     String mode = 'free',
     String category = '',
     String? client,
+    Map<String, GenerateInputRef> inputs = const {},
   }) async {
     final d = await _post('/api/generate', {
+      if (inputs.isNotEmpty)
+        'inputs': {for (final e in inputs.entries) e.key: e.value.toJson()},
       'task': task,
       'prompt': prompt,
       'prompt2': prompt2,
@@ -296,6 +379,21 @@ class GenerateService {
       if (client != null) 'client': client,
     });
     return GenerateJob.fromJson(d);
+  }
+
+  /// Telefondan secilen dosyayi sunucuya yukler; girdi yuvasina verilecek
+  /// sunucu yolunu doner ("Dosyadan sec").
+  static Future<GenerateInputRef> upload(String name, List<int> bytes) async {
+    // Buyuk dosya (video) tunelden gecerken 30 sn yetmez - kendi suresi var.
+    final r = await http
+        .post(Uri.parse('${ApiService.baseUrl}/api/generate/upload'),
+            headers: _headers,
+            body: jsonEncode({'name': name, 'data': base64Encode(bytes)}))
+        .timeout(const Duration(minutes: 5));
+    if (r.statusCode != 200) _fail(r, 'Dosya yuklenemedi');
+    final d = jsonDecode(r.body) as Map<String, dynamic>;
+    return GenerateInputRef.file(
+        (d['path'] ?? '') as String, (d['name'] ?? name) as String);
   }
 
   /// Tek bir isin guncel durumu.

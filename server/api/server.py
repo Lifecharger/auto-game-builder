@@ -31,7 +31,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 # Add parent to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -386,8 +386,15 @@ try:  # Jigsaw dort akisli yayin hatti (r2manager boru hattinin sunucu tarafi)
     except Exception as _e2:  # noqa: BLE001
         cbn_flow = None
         print(f"[AutoGameBuilder] cbn_flow yuklenemedi: {_e2}")
+    try:  # Karakter Modu (gorev #286) - ayni op defterini paylasir
+        from core import character_flow
+    except Exception as _e3:  # noqa: BLE001
+        character_flow = None
+        print(f"[AutoGameBuilder] character_flow yuklenemedi: {_e3}")
 except Exception as _e:
     jigsaw_flow = None
+    cbn_flow = None
+    character_flow = None
     print(f"[AutoGameBuilder] jigsaw_flow yuklenemedi: {_e}")
 
 try:  # AGB ile birlikte kalkan yerel servisler (ComfyUI + LAN sitesi)
@@ -5529,6 +5536,10 @@ class GenerateRequest(BaseModel):
     mode: str = "free"         # free | jigsaw
     category: str = ""         # eski istemcilerden gelebilir, artik yonlendirmede kullanilmaz
     extras: list[str] = []     # secili prompt ekleri (kadraj, aci, poz, isik)
+    # is akisinin girdi yuvalari (gorev #287): {"image_1": {"job_id": "ab12"},
+    # "video_1": {"path": "C:/.../dans.mp4"}}. Yuva adlari /api/generate/tasks
+    # icindeki "inputs" listesinden gelir.
+    inputs: dict[str, dict] = {}
 
 
 class JobMetaRequest(BaseModel):
@@ -5638,11 +5649,52 @@ def generate_submit(body: GenerateRequest):
                         width=body.width, height=body.height, duration=body.duration,
                         seed=body.seed, turbo=body.turbo, image_path=body.image_path,
                         source_job=body.source_job, client=body.client,
-                        mode=body.mode, category=body.category, extras=body.extras)
+                        mode=body.mode, category=body.category, extras=body.extras,
+                        inputs=body.inputs)
     except ValueError as e:
         raise HTTPException(400, str(e))
     except RuntimeError as e:
         raise HTTPException(503, str(e))
+
+
+class GenerateUploadRequest(BaseModel):
+    """Girdi yuvasi icin dosya yukleme (gorev #287 'Dosyadan sec').
+
+    Telefon sunucudaki dosya yollarini bilmez; secilen dosya base64 olarak
+    gelir, sunucu data/generated/_uploads altina yazar ve yolu doner.
+    """
+    name: str = ""             # ozgun dosya adi - uzantisi tur denetiminde kullanilir
+    data: str = ""             # base64 (data: URL on eki kabul edilir)
+
+
+_GEN_UPLOAD_MAX = 96 * 1024 * 1024      # 96 MB - video da gelebilir
+
+
+@app.post("/api/generate/upload")
+def generate_upload(body: GenerateUploadRequest):
+    """Yerel bir dosyayi sunucuya alir; girdi yuvasina verilecek yolu doner."""
+    import base64 as _b64
+    import uuid as _uuid
+    g = _gen_ready()
+    ext = os.path.splitext(body.name or "")[1].lower()
+    if ext not in g.input_extensions():
+        raise HTTPException(415, "desteklenmeyen dosya turu: %s" % (ext or "(uzantisiz)"))
+    ham = body.data.split(",", 1)[-1] if body.data.startswith("data:") else body.data
+    try:
+        blob = _b64.b64decode(ham)
+    except Exception:
+        raise HTTPException(400, "dosya cozulemedi (base64 bekleniyor)")
+    if not blob:
+        raise HTTPException(400, "dosya bos")
+    if len(blob) > _GEN_UPLOAD_MAX:
+        raise HTTPException(413, "dosya cok buyuk (en fazla %d MB)"
+                            % (_GEN_UPLOAD_MAX // (1024 * 1024)))
+    hedef = os.path.join(g.OUT_DIR, "_uploads")
+    os.makedirs(hedef, exist_ok=True)
+    yol = os.path.join(hedef, _uuid.uuid4().hex[:12] + ext)
+    with open(yol, "wb") as fh:
+        fh.write(blob)
+    return {"path": yol, "name": os.path.basename(body.name), "size": len(blob)}
 
 
 @app.post("/api/generate/delete")
@@ -6080,6 +6132,306 @@ def cbn_flow_ops():
 
 @app.get("/api/cbn/flow/op/{op_id}")
 def cbn_flow_op(op_id: str):
+    o = _flow().op_status(op_id)
+    if not o:
+        raise HTTPException(404, "islem yok")
+    return o
+
+
+# ------------------------------------------------- Karakter Modu (gorev #286)
+# Uretim hattinin 4. kipi. Jigsaw/CBN'in dort akisini KOPYALAMAZ; uc asamasi
+# var: 1 Karakter (aday -> kabul -> isim), 2 sekiz Yon (Qwen Edit), 3 Animasyon
+# (manken/Blender -> Wan Animate 2 ya da saf i2v -> kabul -> SAM3 sprite).
+# Uzun isler arka planda, jigsaw/cbn ile ayni op defterinden izlenir.
+def _char():
+    if character_flow is None:
+        raise HTTPException(503, "Karakter akis modulu yuklenemedi")
+    return character_flow
+
+
+async def _json_body(request: Request) -> dict:
+    """DELETE govdesi (varsa) - istemciler ya sorgu parametresi ya govde yollar."""
+    try:
+        raw = await request.body()
+        d = json.loads(raw) if raw else {}
+        return d if isinstance(d, dict) else {}
+    except Exception:
+        return {}
+
+
+class CharacterCreateRequest(BaseModel):
+    name: str
+    cls: str = Field("", alias="class")
+    job_id: str = ""
+    file: str = ""
+    model_config = {"populate_by_name": True}
+
+
+class CharacterStageRequest(BaseModel):
+    name: str
+    job_ids: list[str] = []
+    jobs: list[str] = []          # eski istemciler bu adi gonderiyor
+
+
+class CharacterPickRequest(BaseModel):
+    name: str
+    file: str
+    kind: str = "look"            # look | base | portrait | dir:<yon>
+
+
+class CharacterDirsRequest(BaseModel):
+    name: str
+    dirs: list[str] = []
+    n: int = 2
+
+
+class CharacterPortraitRequest(BaseModel):
+    name: str
+    n: int = 2
+
+
+class CharacterAnimsRequest(BaseModel):
+    name: str
+    anims: dict = {}
+
+
+class CharacterMankenRequest(BaseModel):
+    name: str
+    clips: list[str] = []
+    dirs: list[str] = []
+
+
+class CharacterAnimateRequest(BaseModel):
+    name: str
+    dir: str
+    mode: str = "mixamo"          # mixamo | i2v
+    clips: list[str] = []
+    clip: str = ""                # i2v: klip adi (bos = prompt'tan turetilir)
+    prompt: str = ""              # i2v: hareket metni
+    engine: str = ""              # i2v: comfy_gen gorev id'si (bos = varsayilan)
+    n: int = 1
+    padding: float | None = None  # 0 | 0.1 | 0.2 | 0.3 (bos = character.json)
+
+
+class CharacterVersionRequest(BaseModel):
+    name: str = ""
+    dir: str = ""
+    clip: str = ""
+    version: str = ""
+
+
+class CharacterSpritesRequest(BaseModel):
+    name: str
+    dir: str
+    clips: list[str] = []
+
+
+class CharacterCardRequest(BaseModel):
+    name: str
+    card: str = ""
+    text: str = ""                # istemciler iki adi da gonderebiliyor
+
+
+class CharacterSettingsRequest(BaseModel):
+    name: str
+    padding: float | None = None
+    sprite_canvas: int | None = None
+
+
+@app.get("/api/character/profiles")
+def character_profiles():
+    """Dropdown profilleri + sinif presetleri + kutuphane koku + 8 yon."""
+    return _flow_call(_char().profiles)
+
+
+@app.get("/api/character/flow/dirs_list")
+def character_flow_dirs_list():
+    """8 yon, sabit sira: [{id, label, azimuth}]."""
+    return {"dirs": _flow_call(_char().dirs_list), "paddings": _flow_call(_char().paddings)}
+
+
+@app.get("/api/character/flow/list")
+def character_flow_list():
+    return _flow_call(_char().list_characters)
+
+
+@app.post("/api/character/flow/create")
+def character_flow_create(body: CharacterCreateRequest):
+    return _flow_call(_char().create, body.name, body.cls, body.job_id, body.file)
+
+
+@app.post("/api/character/flow/stage")
+def character_flow_stage(body: CharacterStageRequest):
+    ids = body.job_ids or body.jobs
+    if not ids:
+        raise HTTPException(400, "is secilmedi")
+    return _flow_call(_char().stage, body.name, ids)
+
+
+@app.post("/api/character/flow/pick")
+def character_flow_pick(body: CharacterPickRequest):
+    return _flow_call(_char().pick, body.name, body.file, body.kind)
+
+
+@app.post("/api/character/flow/dirs")
+def character_flow_dirs(body: CharacterDirsRequest):
+    """op: secili yonlerin adaylarini uretir (Qwen Edit, gpu seridi)."""
+    return {"op": _flow_call(_char().generate_dirs, body.name, body.dirs, body.n)}
+
+
+@app.delete("/api/character/flow/dir")
+async def character_flow_delete_dir(request: Request, name: str = "", dir: str = ""):
+    b = await _json_body(request)
+    return _flow_call(_char().delete_dir, name or b.get("name", ""), dir or b.get("dir", ""))
+
+
+@app.post("/api/character/flow/portrait")
+def character_flow_portrait(body: CharacterPortraitRequest):
+    """op: look'tan bas-omuz portre adaylari (Qwen Edit, gpu seridi)."""
+    return {"op": _flow_call(_char().generate_portrait, body.name, body.n)}
+
+
+@app.get("/api/character/flow/anims")
+def character_flow_anims(name: str):
+    return _flow_call(_char().anims, name)
+
+
+@app.put("/api/character/flow/anims")
+def character_flow_anims_put(body: CharacterAnimsRequest):
+    return _flow_call(_char().save_anims, body.name, body.anims)
+
+
+@app.get("/api/character/flow/mixamo")
+def character_flow_mixamo(q: str = "", limit: int = 100, offset: int = 0):
+    """Mixamo arsivinde klip arar: [{name, hash, filename}], sayfali."""
+    return _flow_call(_char().mixamo, q, limit, offset)
+
+
+@app.post("/api/character/flow/manken")
+def character_flow_manken(body: CharacterMankenRequest):
+    """op: Blender manken videolari (CPU - gpu seridi ALMAZ)."""
+    return {"op": _flow_call(_char().render_manken, body.name, body.clips, body.dirs)}
+
+
+@app.post("/api/character/flow/animate")
+def character_flow_animate(body: CharacterAnimateRequest):
+    """op: her klip icin n YENI surum. mode=mixamo (Wan Animate 2, gpu seridi)
+    ya da mode=i2v (comfy_gen video hatti)."""
+    return {"op": _flow_call(_char().animate, body.name, body.dir, body.clips, body.n,
+                             body.mode, body.prompt, body.clip, body.engine, body.padding)}
+
+
+@app.get("/api/character/flow/anims_of")
+def character_flow_anims_of(name: str, dir: str):
+    return _flow_call(_char().anims_of, name, dir)
+
+
+@app.post("/api/character/flow/accept")
+def character_flow_accept(body: CharacterVersionRequest):
+    return _flow_call(_char().accept, body.name, body.dir, body.clip, body.version)
+
+
+@app.delete("/api/character/flow/version")
+async def character_flow_delete_version(request: Request, name: str = "", dir: str = "",
+                                        clip: str = "", version: str = ""):
+    b = await _json_body(request)
+    return _flow_call(_char().delete_version, name or b.get("name", ""), dir or b.get("dir", ""),
+                      clip or b.get("clip", ""), version or b.get("version", ""))
+
+
+@app.delete("/api/character/flow/clip")
+async def character_flow_delete_clip(request: Request, name: str = "", dir: str = "", clip: str = ""):
+    b = await _json_body(request)
+    return _flow_call(_char().delete_clip, name or b.get("name", ""), dir or b.get("dir", ""),
+                      clip or b.get("clip", ""))
+
+
+@app.post("/api/character/flow/sprites")
+def character_flow_sprites(body: CharacterSpritesRequest):
+    """op: kabul edilen surumlerden SAM3 kare kare kesim -> anim.webp + sheet.png."""
+    return {"op": _flow_call(_char().sprites, body.name, body.dir, body.clips)}
+
+
+@app.get("/api/character/flow/thumb")
+def character_flow_thumb(name: str, rel: str, size: int = 360):
+    t = _flow_call(_char().thumb, name, rel, max(64, min(1024, size)))
+    if not t:
+        raise HTTPException(404, "Onizleme yok")
+    return FileResponse(t, media_type="image/jpeg",
+                        headers={"Cache-Control": "public, max-age=604800"})
+
+
+@app.get("/api/character/flow/file")
+def character_flow_file(name: str, rel: str):
+    """Karakter klasorundeki dosya - video da buradan akar (anim.webp, wan.mp4)."""
+    p = _flow_call(_char().file_path, name, rel)
+    if not p:
+        raise HTTPException(404, "Dosya yok")
+    tip = GENERATED_MEDIA_TYPES.get(os.path.splitext(p)[1].lower(), "application/octet-stream")
+    if p.endswith(".json"):
+        tip = "application/json"
+    elif p.endswith(".md"):
+        tip = "text/markdown; charset=utf-8"
+    return FileResponse(p, media_type=tip, filename=os.path.basename(p),
+                        content_disposition_type="inline")
+
+
+@app.get("/api/character/flow/card")
+def character_flow_card(name: str):
+    return _flow_call(_char().card, name)
+
+
+@app.put("/api/character/flow/card")
+def character_flow_card_put(body: CharacterCardRequest):
+    return _flow_call(_char().save_card, body.name, body.card or body.text)
+
+
+@app.put("/api/character/flow/settings")
+def character_flow_settings(body: CharacterSettingsRequest):
+    """Karakter basina varsayilanlar: padding (0/0.1/0.2/0.3), sprite_canvas."""
+    return _flow_call(_char().settings, body.name, body.padding, body.sprite_canvas)
+
+
+@app.post("/api/character/flow/card/enrich")
+def character_flow_card_enrich(body: CharacterCardRequest):
+    """Yerel Ollama (gemma3:12b) kart metnini genisletir; metni DONDURUR,
+    kullanici onaylayinca PUT card ile kaydedilir."""
+    return _flow_call(_char().enrich_card, body.name)
+
+
+class CharacterExpandRequest(BaseModel):
+    name: str
+    dir: str = ""
+    text: str = ""
+    mode: str = "i2v"             # i2v | mixamo
+
+
+@app.post("/api/character/flow/prompt/expand")
+def character_flow_prompt_expand(body: CharacterExpandRequest):
+    """rev8: kisa istegi ("idle", "kick") yerel Ollama ile genisletir.
+    mode=i2v -> {prompt} (kadraj/fon sablonu KOD tarafindan eklenir),
+    mode=mixamo -> {clips:[{name,hash,filename,why}]}. Ollama yoksa 503."""
+    try:
+        return _char().expand_prompt(body.name, body.dir, body.text, body.mode)
+    except ConnectionError as e:
+        raise HTTPException(503, str(e))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.delete("/api/character/flow/character")
+async def character_flow_delete_character(request: Request, name: str = ""):
+    b = await _json_body(request)
+    return _flow_call(_char().remove, name or b.get("name", ""))
+
+
+@app.get("/api/character/flow/ops")
+def character_flow_ops():
+    return {"ops": _flow().ops()}
+
+
+@app.get("/api/character/flow/op/{op_id}")
+def character_flow_op(op_id: str):
     o = _flow().op_status(op_id)
     if not o:
         raise HTTPException(404, "islem yok")

@@ -15,7 +15,7 @@ Iki uretim kipi vardir:
 """
 from __future__ import annotations
 
-import json
+import json, re
 import os
 import shutil
 import subprocess
@@ -92,6 +92,10 @@ def _load_manifest() -> list[dict]:
         mtime = os.path.getmtime(MANIFEST)
     except OSError:
         mtime = 0.0
+    try:
+        mtime += os.path.getmtime(WFDIR)          # WFDIR'a dosya eklenince liste tazelensin
+    except OSError:
+        pass
     if _manifest_cache and _manifest_cache[0] == mtime:
         return _manifest_cache[1]
 
@@ -123,12 +127,260 @@ def _load_manifest() -> list[dict]:
                             "modes": list(MODES)})
     # is akisi diskte yoksa gorevi gizle
     entries = [e for e in entries if os.path.isfile(os.path.join(WFDIR, e["workflow"]))]
+    entries += _auto_workflows({e["workflow"] for e in entries})
     _manifest_cache = (mtime, entries)
     return entries
 
 
+# Free kipinde WFDIR'daki HER is akisi gorunur (kullanici 2026-09-08: "free modda tum workflowlar
+# gorunmelidir"). Manifest'te olmayanlar dosya on ekinden (T2I/I2I/I2V/FLF2V/V2V/S2V/UPS/I23D/T2M)
+# turetilen ayarlarla yalniz "free" kipinde listelenir; id = wf_<slug>.
+_IMG_PREFIX = ("I2I", "I2V", "FLF2V", "V2V", "S2V", "UPS", "I23D")
+_VID_PREFIX = ("T2V", "I2V", "FLF2V", "V2V", "S2V")
+
+
+def _auto_workflows(known: set[str]) -> list[dict]:
+    out: list[dict] = []
+    try:
+        files = sorted(f for f in os.listdir(WFDIR) if f.lower().endswith(".json"))
+    except OSError:
+        return out
+    for fn in files:
+        if fn in known:
+            continue
+        stem = fn[:-5]
+        pre = stem.split(" ", 1)[0].upper()
+        up = stem.upper()
+        needs_image = pre in _IMG_PREFIX or "EDIT" in up or "I2V" in up or "SEGMENT" in up
+        is_video = pre in _VID_PREFIX or "VIDEO" in up or "I2V" in up or "ANIMATE" in up
+        out.append({"id": "wf_" + re.sub(r"[^a-z0-9]+", "_", stem.lower()).strip("_"),
+                    "label": stem, "workflow": fn, "needs_image": needs_image, "is_video": is_video,
+                    "width": 0, "height": 0, "duration": 5, "modes": ["free"], "auto": True})
+    return out
+
+
 def _task(task_id: str) -> dict | None:
     return next((t for t in _load_manifest() if t["id"] == task_id), None)
+
+
+# --- is akisi girdi yuvalari (gorev #287) --------------------------------
+# Bir is akisi "bir gorsel + prompt"tan fazlasini isteyebilir: FLF2V ilk+son
+# kare, V2V referans gorsel + surucu video, S2V gorsel + ses, UPS video.
+# Asagidaki tablo ComfyUI'nin dosya okuyan dugumlerini tanir: her dugum bir
+# YUVA olur, istemci her yuvaya ya Uretilenler galerisinden bir is ciktisi ya
+# da bir dosya secer.  deger: (tur, dosya adini tutan widget)
+_LOAD_NODES = {
+    "LoadImage":         ("image", "image"),
+    "LoadImageMask":     ("image", "image"),
+    "LoadImageOutput":   ("image", "image"),
+    "LoadAudio":         ("audio", "audio"),
+    "LoadVideo":         ("video", "file"),
+    "VHS_LoadVideo":     ("video", "video"),
+    "VHS_LoadVideoPath": ("video", "video"),
+    "VHS_LoadImagePath": ("image", "image"),
+    "VHS_LoadAudio":     ("audio", "audio_file"),
+    "VHS_LoadAudioUpload": ("audio", "audio"),
+}
+_KIND_EXT = {
+    "image": (".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"),
+    "video": (".mp4", ".webm", ".mov", ".mkv", ".avi", ".gif"),
+    "audio": (".mp3", ".wav", ".flac", ".ogg", ".m4a", ".aac", ".opus"),
+}
+_KIND_LABEL = {"image": "gorsel", "video": "video", "audio": "ses"}
+_KIND_TITLE = {"image": "Gorsel", "video": "Video", "audio": "Ses"}
+_SLOT_MARK = "__agb_slot_%s__"
+
+# is akisi dosyasi -> (mtime, yuvalar); dosya degisince kendiliginden tazelenir
+_inputs_cache: dict[str, tuple[float, list[dict]]] = {}
+
+
+def input_extensions(kind: str = "") -> tuple:
+    """Bir yuva turunun kabul ettigi dosya uzantilari (bos = hepsi)."""
+    if kind:
+        return _KIND_EXT.get(kind, ())
+    return tuple(sorted({e for v in _KIND_EXT.values() for e in v}))
+
+
+def _slot_nodes(wf: dict) -> list[dict]:
+    """Is akisindaki (alt-grafikler dahil) tum dosya okuyan dugumler."""
+    found: list[dict] = []
+
+    def scan(nodes, scope: str) -> None:
+        for n in nodes or []:
+            spec = _LOAD_NODES.get(n.get("type"))
+            if not spec:
+                continue
+            kind, widget = spec
+            # Dugum widget girislerini bildiriyorsa adi oradan al; eski
+            # kayitlarda "inputs" bos gelir (bkz. UPS SeedVR2 Video / LoadVideo).
+            names = [i.get("name") for i in (n.get("inputs") or []) if i.get("widget")]
+            w = widget if (widget in names or not names) else names[0]
+            vals = list(n.get("widgets_values") or [])
+            default = vals[0] if vals and isinstance(vals[0], str) else ""
+            found.append({"scope": scope, "nid": n.get("id"), "class_type": n["type"],
+                          "kind": kind, "widget": w, "default": default,
+                          "title": (n.get("title") or "").strip()})
+
+    scan(wf.get("nodes"), "")
+    for sg in (wf.get("definitions", {}) or {}).get("subgraphs", []) or []:
+        scan(sg.get("nodes"), str(sg.get("id")))
+    found.sort(key=lambda n: (n["scope"], n["nid"] if isinstance(n["nid"], int) else 0))
+    return found
+
+
+def _apply_slot_files(wf: dict, slots: list[dict], files: dict) -> None:
+    """Yuvalarin dosya adlarini is akisi JSON'una yazar (yerinde degistirir).
+
+    Dolu olmayan yuva kendi varsayilan dosyasiyla kalir. Dugum widget girisini
+    bildirmiyorsa burada eklenir - yoksa donusturucu (wf2api._widget_map)
+    dosya adini API grafigine HIC yazmaz ve ComfyUI "file eksik" der.
+    """
+    index: dict[tuple, dict] = {}
+
+    def idx(nodes, scope: str) -> None:
+        for n in nodes or []:
+            index[(scope, n.get("id"))] = n
+
+    idx(wf.get("nodes"), "")
+    for sg in (wf.get("definitions", {}) or {}).get("subgraphs", []) or []:
+        idx(sg.get("nodes"), str(sg.get("id")))
+
+    for s in slots:
+        val = files.get(s["slot"]) or s.get("default") or ""
+        if not val:
+            continue
+        for scope, nid, widget in s.get("nodes") or []:
+            n = index.get((scope, nid))
+            if n is None:
+                continue
+            names = [i.get("name") for i in (n.get("inputs") or []) if i.get("widget")]
+            if not names:
+                n.setdefault("inputs", []).insert(
+                    0, {"name": widget, "type": "COMBO", "widget": {"name": widget},
+                        "link": None})
+            wv = n.setdefault("widgets_values", [])
+            if wv:
+                wv[0] = val
+            else:
+                wv.append(val)
+
+
+def _reachable_slots(wf: dict, slots: list[dict]) -> list[dict]:
+    """Cikti dugumlerinden ulasilamayan (kopuk) yuvalari eler.
+
+    Her yuvaya benzersiz bir isaret yazip is akisini API formatina cevirir;
+    isareti grafikte gorunmeyen yuva hicbir ise yaramiyor demektir.
+    """
+    if not slots:
+        return slots
+    try:
+        convert = _convert()
+    except Exception:
+        return slots                  # ComfyUI kurulu degil - hepsini birak
+    import copy
+    probe = copy.deepcopy(wf)
+    marks = {s["slot"]: _SLOT_MARK % s["slot"] for s in slots}
+    _apply_slot_files(probe, slots, marks)
+    try:
+        graph = convert(probe, {})
+    except Exception as e:
+        print("[comfy_gen] is akisi cozumlenemedi: %s" % e)
+        return slots
+    seen = set()
+    for n in graph.values():
+        for v in (n.get("inputs") or {}).values():
+            if isinstance(v, str) and v.startswith("__agb_slot_"):
+                seen.add(v)
+    kept = [s for s in slots if marks[s["slot"]] in seen]
+    return kept or slots
+
+
+def workflow_inputs(wf_name: str) -> list[dict]:
+    """Is akisinin girdi yuvalari, sirayla.
+
+    [{"slot": "image_1", "kind": "image", "node_id": 189,
+      "title": "Load Image (Reference Image)", "default": "ref.png",
+      "class_type": "LoadImage", "nodes": [[scope, node_id, widget], ...]}]
+
+    Ayni tur + ayni varsayilan dosyayi tasiyan dugumler TEK yuvadir: is
+    akislarinda ayni girdi cogu zaman birden fazla kolda (yuksek/dusuk gurultu,
+    bypass edilmis kopya) durur, kullaniciya iki kez sorulmaz.
+    """
+    path = os.path.join(WFDIR, wf_name) if WFDIR else wf_name
+    try:
+        mtime = os.path.getmtime(path)
+    except OSError:
+        return []
+    hit = _inputs_cache.get(wf_name)
+    if hit and hit[0] == mtime:
+        return [dict(s) for s in hit[1]]
+    try:
+        wf = json.load(open(path, encoding="utf-8"))
+    except Exception as e:
+        print("[comfy_gen] is akisi okunamadi (%s): %s" % (wf_name, e))
+        return []
+
+    slots: list[dict] = []
+    by_key: dict[tuple, dict] = {}
+    for n in _slot_nodes(wf):
+        key = (n["class_type"], n["default"])
+        g = by_key.get(key)
+        if g is None:
+            by_key[key] = g = {"slot": "", "kind": n["kind"], "node_id": n["nid"],
+                               "class_type": n["class_type"], "title": n["title"],
+                               "default": n["default"], "nodes": []}
+            slots.append(g)
+        g["nodes"].append([n["scope"], n["nid"], n["widget"]])
+        if not g["title"] and n["title"]:
+            g["title"] = n["title"]
+    # gecici ad (isaret koyabilmek icin), eleme sonrasi yeniden numaralanir
+    for i, s in enumerate(slots):
+        s["slot"] = "%s_%d" % (s["kind"], i + 1)
+    slots = _reachable_slots(wf, slots)
+    say: dict[str, int] = {}
+    for s in slots:
+        say[s["kind"]] = say.get(s["kind"], 0) + 1
+        s["slot"] = "%s_%d" % (s["kind"], say[s["kind"]])
+        # label = arayuzde her zaman anlamli olan kisa ad; title = is akisinin
+        # kendi dugum basligi (yoksa varsayilan dosya adi) - ipucu olarak durur
+        s["label"] = "%s %d" % (_KIND_TITLE[s["kind"]], say[s["kind"]])
+        if not s["title"]:
+            s["title"] = os.path.splitext(s["default"])[0]
+    _inputs_cache[wf_name] = (mtime, slots)
+    return [dict(s) for s in slots]
+
+
+def slot_name(s: dict) -> str:
+    """Hata mesajlarinda gecen yuva adi: "Gorsel 1 - Load Image (Reference)"."""
+    t = (s.get("title") or "").strip()
+    return "%s - %s" % (s.get("label") or s["slot"], t) if t else (s.get("label") or s["slot"])
+
+
+def task_inputs(spec: dict) -> list[dict]:
+    """Bir gorevin yuvalari + zorunlu mu bilgisi.
+
+    Manifest'te tanimli gorevler "needs_image" ile yonetilir (eski davranis
+    korunur); manifest disi - klasordeki her is akisi icin uretilen - gorevlerde
+    HER yuva zorunludur, eksikse is bastan reddedilir.
+    """
+    slots = workflow_inputs(spec["workflow"])
+    zorunlu = True if spec.get("auto") else bool(spec.get("needs_image"))
+    for s in slots:
+        s["required"] = zorunlu
+    return slots
+
+
+def task_needs_image(spec: dict, slots: list[dict] | None = None) -> bool:
+    """Geriye donuk "needs_image": ilk gorsel yuvasi var mi.
+
+    Manifest gorevlerinde manifest'in dedigi gecerlidir; otomatik listelenen is
+    akislarinda dosya adi on ekinden tahmin yerine gercek yuvalara bakilir
+    (ornek: FLF2V MiniMax H3 hicbir LoadImage tasimaz, gorsel istemez).
+    """
+    if not spec.get("auto"):
+        return bool(spec.get("needs_image"))
+    slots = task_inputs(spec) if slots is None else slots
+    return any(s["kind"] == "image" for s in slots)
 
 
 def available_workflows() -> list[dict]:
@@ -309,6 +561,41 @@ def extras_text(ids) -> str:
 CBN_NEG = ("blurry, low quality, deformed, extra limbs, text, watermark, logo, "
            "photo, noise, grain, muddy colors")
 
+# CBN uretim boyutlari (gorev #285): bes oran, hepsi TAM oran ve 16'nin kati,
+# ~1 MP, uzun kenar <= 1280. 2x buyutme ile uzun kenar 2560'a cikar. 2:3 ve
+# 1:1 Qwen Edit'in Kontext kanvasiyla birebir (832x1248, 1024x1024); digerleri
+# Qwen'e verilirken cbn_align.pad_for_edit ile tam Kontext oranina dolgulanir,
+# boylece cizgi sayfasi esnemez/kaymaz.
+CBN_ASPECTS = [
+    {"id": "9:16", "label": "9:16", "width": 720, "height": 1280},
+    {"id": "2:3", "label": "2:3", "width": 832, "height": 1248},
+    {"id": "1:1", "label": "1:1", "width": 1024, "height": 1024},
+    {"id": "3:2", "label": "3:2", "width": 1248, "height": 832},
+    {"id": "16:9", "label": "16:9", "width": 1280, "height": 720},
+]
+
+# --- karakter kipi (Karakter Modu, gorev #286) ----------------------------
+# Kullanicinin sarti: fon HEM stillde HEM videoda kolay silinsin. O yuzden iki
+# sablon da ayni fon cumlesini tasir (duz, tek renk, acik gri, golgesiz) -
+# SAM3/isnet kesimi bu fonda temiz calisiyor. {} = 1. prompt (kimlik + kostum).
+CHARACTER_BG = ("plain solid flat uniform light gray seamless studio background, no floor shadow, "
+                "no gradient, even soft lighting")
+CHARACTER_PROMPT2 = (
+    "{} standing straight facing the camera, neutral relaxed pose, arms at her sides, "
+    "full body from head to feet with empty space above and below, " + CHARACTER_BG +
+    ", photorealistic, sharp focus, 85mm"
+)
+# Video (i2v) sablonu: kadraj kilitli, karakter kareden TASMAZ - sprite kesimi
+# ancak tum govde her karede iceride kalirsa ise yarar (rev3).
+CHARACTER_MOTION2 = (
+    "{}, static locked camera, no camera movement, the character stays fully inside the frame "
+    "from head to feet at all times, never leaves or touches the frame edges, " + CHARACTER_BG
+)
+CHARACTER_NEG = ("anime, cartoon, illustration, drawing, painting, 3d render, cgi, child, teen, minor, "
+                 "deformed, disfigured, extra limbs, extra fingers, bad hands, bad anatomy, "
+                 "watermark, text, logo, cluttered background, props, furniture, "
+                 "cropped feet, cropped head, camera pan, camera zoom")
+
 MODES = {
     "free": {
         "id": "free", "label": "Free Mod",
@@ -323,7 +610,13 @@ MODES = {
     "cbn": {
         "id": "cbn", "label": "CBN Modu",
         "prompt2": "", "negative": CBN_NEG, "motion2": "",
-        "width": 832, "height": 1216, "exports": True, "profiles": "cbn", "aspects": True,
+        "width": 832, "height": 1248, "exports": True, "profiles": "cbn", "aspects": True,
+        "aspect_sizes": CBN_ASPECTS,
+    },
+    "character": {
+        "id": "character", "label": "Karakter Modu",
+        "prompt2": CHARACTER_PROMPT2, "negative": CHARACTER_NEG, "motion2": CHARACTER_MOTION2,
+        "width": 832, "height": 1472, "exports": True, "profiles": "character", "aspects": False,
     },
 }
 
@@ -504,9 +797,15 @@ def tasks(mode: str = "") -> list[dict]:
             continue
         if mode == "cbn" and t.get("is_video"):
             continue
-        out.append({"id": t["id"], "label": t["label"], "needs_image": t["needs_image"],
+        slots = task_inputs(t)
+        out.append({"id": t["id"], "label": t["label"],
+                    "needs_image": task_needs_image(t, slots),
                     "is_video": t["is_video"], "default_width": t["width"],
-                    "default_height": t["height"], "default_duration": t["duration"]})
+                    "default_height": t["height"], "default_duration": t["duration"],
+                    # gorevin girdi yuvalari - istemci her biri icin bir secici gosterir
+                    "inputs": [{k: s[k] for k in
+                                ("slot", "kind", "label", "title", "default", "required")}
+                               for s in slots]})
     return out
 
 
@@ -827,11 +1126,15 @@ def submit(task: str, prompt: str, *, prompt2: str = "", negative: str = "",
            turbo: bool = True, image_path: str | None = None,
            source_job: str | None = None, client: str | None = None,
            mode: str = "free", category: str = "",
-           extras: list | None = None) -> dict:
+           extras: list | None = None, inputs: dict | None = None) -> dict:
     """Yeni uretim isi kuyruga alir; job kaydini doner.
 
-    Girdi gorseli iki yoldan gelebilir:
-      * image_path  - masaustunden gelen mutlak dosya yolu
+    Girdi dosyalari uc yoldan gelebilir:
+      * inputs      - yuva -> {"job_id": ...} | {"path": ...} (gorev #287).
+                      Yuvalar workflow_inputs() ile is akisindan cikarilir:
+                      FLF2V ilk+son kare, V2V referans + surucu video, S2V
+                      gorsel + ses...
+      * image_path  - masaustunden gelen mutlak dosya yolu (eski istemciler)
       * source_job  - daha once uretilmis bir isin id'si (telefon/LAN bunu
                       kullanir, dosya zaten sunucuda oldugu icin yukleme yok)
 
@@ -840,7 +1143,8 @@ def submit(task: str, prompt: str, *, prompt2: str = "", negative: str = "",
     spec = _task(task)
     if spec is None:
         raise ValueError("bilinmeyen gorev: %s" % task)
-    need_img, is_vid = spec["needs_image"], spec["is_video"]
+    slots = task_inputs(spec)
+    need_img, is_vid = task_needs_image(spec, slots), spec["is_video"]
     mode = mode if mode in MODES else "free"
     md = MODES[mode]
 
@@ -852,6 +1156,45 @@ def submit(task: str, prompt: str, *, prompt2: str = "", negative: str = "",
             raise ValueError("kaynak bir video - girdi olarak gorsel gerekiyor")
         image_path = src
 
+    # --- yuvalari coz: is ciktisi ya da dosya yolu -> yerel mutlak yol
+    cozulen: dict[str, str] = {}
+    for slot, ref in (inputs or {}).items():
+        s = next((x for x in slots if x["slot"] == slot), None)
+        if s is None:
+            raise ValueError("bu gorevde '%s' diye bir girdi yuvasi yok" % slot)
+        if isinstance(ref, str):
+            yol, kaynak = ref, ref
+        elif isinstance(ref, dict) and ref.get("job_id"):
+            kaynak = str(ref["job_id"])
+            yol = job_file(kaynak)
+            if not yol:
+                raise ValueError("kaynak is bulunamadi veya ciktisi yok: %s" % kaynak)
+        elif isinstance(ref, dict):
+            yol = kaynak = ref.get("path") or ""
+        else:
+            raise ValueError("'%s' yuvasi icin gecersiz girdi" % slot)
+        if not yol or not os.path.isfile(yol):
+            raise ValueError("'%s' yuvasinin dosyasi bulunamadi: %s" % (slot_name(s), kaynak))
+        if os.path.splitext(yol)[1].lower() not in _KIND_EXT[s["kind"]]:
+            raise ValueError("'%s' yuvasi %s dosyasi istiyor (%s verildi)"
+                             % (slot_name(s), _KIND_LABEL[s["kind"]], os.path.basename(yol)))
+        cozulen[slot] = yol
+
+    img_slots = [s for s in slots if s["kind"] == "image"]
+    # Eski istemciler tek bir gorsel yollar: is akisindaki TUM gorsel yuvalari
+    # onunla dolar (eskiden her LoadImage ayni dosyaya ayarlaniyordu).
+    if image_path and not any(s["slot"] in cozulen for s in img_slots):
+        for s in img_slots:
+            cozulen[s["slot"]] = image_path
+    if not image_path:
+        ilk = next((s for s in img_slots if s["slot"] in cozulen), None)
+        if ilk:
+            image_path = cozulen[ilk["slot"]]
+
+    eksik = [s for s in slots if s.get("required") and s["slot"] not in cozulen]
+    if eksik:
+        raise ValueError("Bu is akisi eksik girdi ile calismaz - eksik olanlar: %s"
+                         % ", ".join(slot_name(s) for s in eksik))
     if need_img and not (image_path and os.path.isfile(image_path)):
         raise ValueError("bu gorev bir girdi gorseli istiyor")
 
@@ -861,7 +1204,7 @@ def submit(task: str, prompt: str, *, prompt2: str = "", negative: str = "",
     # talimatidir - "a breathtakingly beautiful young woman, {}" kalibina
     # sarilmasi anlamsiz olur (goruntuleyicideki Duzenle dugmesi, gorev #274).
     is_edit = need_img and not is_vid
-    if not prompt2 and mode == "jigsaw" and not is_edit:
+    if not prompt2 and mode in ("jigsaw", "character") and not is_edit:
         prompt2 = md["motion2"] if is_vid else md["prompt2"]
     if not negative:
         negative = md["negative"] or (NEG_VID if is_vid else NEG_IMG)
@@ -893,11 +1236,13 @@ def submit(task: str, prompt: str, *, prompt2: str = "", negative: str = "",
         "seed": seed, "width": width or spec["width"], "height": height or spec["height"],
         "duration": duration or spec["duration"], "turbo": turbo,
         "favorite": False, "note": "", "progress": 0, "node": "",
+        # galeride/kuyrukta gosterilebilsin diye yuva -> dosya adi
+        "inputs": {k: os.path.basename(v) for k, v in cozulen.items()},
         "_args": dict(prompt=combined, negative=negative,
                       width=width or spec["width"] or 1024,
                       height=height or spec["height"] or 1024,
                       duration=duration or spec["duration"], seed=seed, turbo=turbo,
-                      image_path=image_path),
+                      image_path=image_path, inputs=cozulen),
     }
     _start_dispatcher()
     with _cv:
@@ -913,7 +1258,7 @@ def _run_job(job_id: str, task: str, a: dict) -> None:
     """Tek bir isi bastan sona calistirir. Dispatcher tarafindan cagrilir."""
     import random
     spec = _task(task)
-    wf_name, need_img, is_vid = spec["workflow"], spec["needs_image"], spec["is_video"]
+    wf_name, is_vid = spec["workflow"], spec["is_video"]
     with _lock:
         mode = (_jobs.get(job_id, {}).get("mode") or "free")
     t0 = time.time()
@@ -950,18 +1295,31 @@ def _run_job(job_id: str, task: str, a: dict) -> None:
         else:
             ov.update({"prompt": a["prompt"], "positive_prompt": a["prompt"],
                        "negative_prompt": a["negative"], "enable_turbo_mode": a["turbo"]})
+        # --- girdi yuvalari: her dosya ComfyUI/input'a ise ozgu adla kopyalanir
+        # ve YALNIZ kendi dugumune yazilir (gorev #287). Donusturucu dugum
+        # numaralarini yeniden uretir, o yuzden eslestirme is akisi JSON'u
+        # uzerinde, cevirmeden ONCE yapilir.
+        slots = workflow_inputs(wf_name)
+        kopyalar: dict[str, str] = {}
+        if slots:
+            os.makedirs(COMFY_IN, exist_ok=True)
+        for s in slots:
+            src = (a.get("inputs") or {}).get(s["slot"])
+            if not src or not os.path.isfile(src):
+                continue
+            ext = os.path.splitext(src)[1] or os.path.splitext(s.get("default") or "")[1] or ".png"
+            ad = "agb_%s_%s%s" % (job_id, s["slot"], ext)
+            shutil.copy(src, os.path.join(COMFY_IN, ad))
+            kopyalar[s["slot"]] = ad
+        # Dolu olmayan yuva is akisinin kendi varsayilaniyla kalir; yine de
+        # yaziyoruz ki widget girisi bildirmeyen dugumlerde (LoadVideo) dosya
+        # adi API grafigine dussun.
+        _apply_slot_files(wf, slots, kopyalar)
+
         graph = convert(wf, ov)
 
-        img_name = None
-        if need_img:
-            ext = os.path.splitext(a["image_path"])[1] or ".png"
-            img_name = "agb_%s%s" % (job_id, ext)
-            os.makedirs(COMFY_IN, exist_ok=True)
-            shutil.copy(a["image_path"], os.path.join(COMFY_IN, img_name))
         for n in graph.values():
             ct = n["class_type"]
-            if ct == "LoadImage" and img_name:
-                n["inputs"]["image"] = img_name
             if ct.startswith(("SaveImage", "SaveVideo")):
                 n["inputs"]["filename_prefix"] = "agb_gen"
 

@@ -57,7 +57,7 @@ _ID_RE = re.compile(r"^(?:[^\\/:*?\"<>|]{1,120}/)?[^\\/:*?\"<>|]{1,120}$")
 # kind -> varlik klasorundeki dosya adi
 FILES = {"image": "source.jpg", "source": "source.jpg", "lineart": "lineart.png",
          "regions": "regions.png", "numbered": "numbered.png", "preview": "preview.jpg",
-         "segments": "segments.jpg", "video": "reveal.mp4", "svg": "asset.svg",
+         "segments": "segments.jpg", "video": "reveal.mp4", "svg": "asset.svg", "lineart_svg": "lineart.svg",
          "json": "asset.json", "meta": "meta.json"}
 
 # Insa GPU seridinden (gpu_lane) gecer: uretim, etiketleme ve muzikle ayni FIFO.
@@ -310,6 +310,15 @@ def thumb(rating: str, stage: str, item_id: str, kind: str = "image", size: int 
         return None
 
 
+def _still_native(src: str, dest: str) -> None:
+    """CBN kaynagi uretim boyutunda, oran ve piksel birebir (gorev #285): bes
+    oran tam oranli uretilir, Qwen cizgi sayfasi esnemesin diye buyutme/kucultme
+    yapilmaz; 2x buyutme SAM asamasinda ESRGAN ile olur."""
+    from PIL import Image
+    with Image.open(src) as f:
+        f.convert("RGB").save(dest, "JPEG", quality=95)
+
+
 # ------------------------------------------------------------------ 1 -> 2
 def stage_jobs(job_ids: list[str], rating: str, agent: str = "Gemini") -> str:
     """Uretim islerini Gelen'e yazar (oran korunur, uzun kenar 1280) ve EXIF
@@ -329,7 +338,7 @@ def stage_jobs(job_ids: list[str], rating: str, agent: str = "Gemini") -> str:
                 continue
             stem = os.path.join(incoming, jid)
             try:
-                G.still_to_pool(src, stem + ".jpg")
+                _still_native(src, stem + ".jpg")
             except Exception as e:
                 with _ops_lock:
                     _ops[op_id]["failed"] += 1
@@ -483,6 +492,12 @@ def stage_sam(rating: str, item_ids: list[str]) -> str:
         log("SAM3 %d kavram" % len(concepts))
         masks = kid_cbn.segment(Path(jpg), concepts)
         kid_cbn.save_masks(os.path.join(w, "masks.npz"), masks)
+        if rating == "hot":
+            # boyanacak resim: ESRGAN x2 (uzun kenar 2560) - GPU seridi zaten bizde
+            up = os.path.join(w, "source_2x.png")
+            if not os.path.isfile(up):
+                log("x2 buyutme")
+                hot_cbn.upscale(Path(jpg), Path(up))
         return "%d maske" % len(masks)
 
     return _batch(rating, item_ids, "cbn-sam", "SAM", True, fn)
@@ -517,6 +532,13 @@ def _build_from_work(rating: str, jpg: str, work: str, dest: str, log) -> dict:
     masks = kid_cbn.load_masks(mp)
     tmp = _P(dest) / "_work"
     tmp.mkdir(parents=True, exist_ok=True)
+    if rating == "hot":
+        up = os.path.join(work, "source_2x.png")
+        if not os.path.isfile(up):
+            raise ValueError("x2 buyutme yapilmamis (SAM asamasini yeniden calistir)")
+        img = cv2.imread(up)
+        if img is None:
+            raise ValueError("x2 kaynak okunamadi")
     src = tmp / "00_source.png"
     cv2.imwrite(str(src), img)
     log("bolgeler")
@@ -527,8 +549,7 @@ def _build_from_work(rating: str, jpg: str, work: str, dest: str, log) -> dict:
         la = None
         lp = os.path.join(work, "lineart.png")
         if _setting("hot_cbn.lineart", "sam").lower() == "qwen" and os.path.isfile(lp):
-            la = cv2.imread(lp, cv2.IMREAD_GRAYSCALE)
-            la = cv2.resize(la, (img.shape[1], img.shape[0]), interpolation=cv2.INTER_AREA)
+            la = cv2.imread(lp, cv2.IMREAD_GRAYSCALE)   # build() olcekler + kaynaga hizalar
             log("bolgeler (Qwen cizgi)")
         else:
             log("bolgeler (SAM konturu)")
@@ -553,6 +574,7 @@ def _build_from_work(rating: str, jpg: str, work: str, dest: str, log) -> dict:
     if seg is not None:
         cv2.imwrite(os.path.join(dest, "segments.jpg"), seg, [cv2.IMWRITE_JPEG_QUALITY, 80])
     mv("06_reveal.mp4", "reveal.mp4")
+    mv("05_lineart.svg", "lineart.svg")
     mv("asset.svg", "asset.svg")
     data["files"] = sorted(f for f in os.listdir(dest) if not f.startswith("_"))
     with open(os.path.join(dest, "asset.json"), "w", encoding="utf-8") as fh:
