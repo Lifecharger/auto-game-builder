@@ -39,6 +39,9 @@ class CreateAppSheet {
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      // gorev #289: klavye acikken sayfa dolusuna cikan sayfanin basligi
+      // durum cubugunun arkasinda kalmasin (SafeArea sadece ust tarafi kirpar).
+      useSafeArea: true,
       backgroundColor: AppColors.bgCard,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),

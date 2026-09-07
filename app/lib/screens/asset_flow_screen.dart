@@ -161,6 +161,8 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
       await showDialog<bool>(
         context: context,
         builder: (c) => AlertDialog(
+          // Uzun onay metni (orn. Muzik) kucuk ekranda tasiyordu (gorev #289).
+          scrollable: true,
           title: Text(baslik),
           content: Text(metin),
           actions: [
@@ -182,10 +184,15 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
     final onay = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
+      // Uygulama edgeToEdge modunda: alt sayfa sistem gezinme cubugunun
+      // (3 tus ~48px) ARKASINA uzanir, `viewInsets` yalnizca klavyeyi verir.
+      // `padding.bottom` eklenmezse Vazgec / QUE ALL cubugun altinda kalir
+      // (gorev #288). Kod tabaninin kalibi: viewInsets + padding + N.
       builder: (c) => Padding(
         padding: EdgeInsets.only(
           left: 16, right: 16, top: 16,
-          bottom: MediaQuery.of(c).viewInsets.bottom + 16,
+          bottom: MediaQuery.of(c).viewInsets.bottom +
+              MediaQuery.of(c).padding.bottom + 16,
         ),
         child: StatefulBuilder(
           builder: (c, setSheet) => SingleChildScrollView(
@@ -484,6 +491,8 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
     return showDialog<String>(
       context: context,
       builder: (c) => AlertDialog(
+        // Metin kutusu + 180px liste klavye acilinca sigmiyordu (gorev #289).
+        scrollable: true,
         title: Text('${JigsawProfiles.ratings[_rating]} koleksiyonu'),
         content: Column(
           mainAxisSize: MainAxisSize.min,

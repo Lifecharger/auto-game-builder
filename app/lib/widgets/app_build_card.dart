@@ -504,7 +504,10 @@ class _AppBuildCardState extends State<AppBuildCard> {
                 ],
               ),
               const SizedBox(height: 8),
-              Row(
+              // gorev #289: iki dugme dar ekranda/uzun cevirilerde satirdan tasiyordu
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
                 children: [
                   FilledButton.tonalIcon(
                     onPressed: _deploying ? null : () => _retryUpload(),
@@ -514,7 +517,6 @@ class _AppBuildCardState extends State<AppBuildCard> {
                       backgroundColor: AppColors.warning.withValues(alpha: 0.2),
                     ),
                   ),
-                  const SizedBox(width: 8),
                   FilledButton.tonalIcon(
                     onPressed: () async {
                       final confirm = await showDialog<bool>(

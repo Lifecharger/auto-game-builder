@@ -4,7 +4,8 @@ Masaustundeki Uretim Studyosu ile ayni akis; buradaki uclar sayesinde telefon
 (AGB companion) da ayni isi yapabilir.
 
   1 Uretim        comfy_gen isleri (bu modul disinda)
-  2 Etiketli      _Incoming\\<stem>.jpg (+ .mp4, + .json yan dosya), EXIF etiketli
+  2 Etiketli      _Incoming\\<stem>.jpg (Hot) / _Incoming Kid\\<stem>.jpg (Kid)
+                  (+ .mp4, + .json yan dosya), EXIF etiketli - dereceler karismaz
   3 Push bekleyen <Derece>\\<Koleksiyon>\\<n>.jpg / .mp4 / .webp
   4 Push edilmis  <Derece> - Pushed\\<Koleksiyon>\\...
 
@@ -102,7 +103,14 @@ def paths(rating: str) -> dict:
     c = _cfg()
     ck = "Teen" if rating == "hot" else "Kid"
     pk = "Hot Jigsaw (teen)" if rating == "hot" else "Kid Jigsaw (kid)"
-    return {"incoming": str(c.INCOMING),
+    # 2. akis dereceye gore AYRI klasor (#291): Hot -> _Incoming, Kid ->
+    # _Incoming Kid. Eski config'de INCOMING_ROOTS yoksa ayni duzeni turet.
+    roots = getattr(c, "INCOMING_ROOTS", None) or {}
+    incoming = roots.get(ck)
+    if not incoming:
+        incoming = (c.INCOMING if ck == "Teen"
+                    else os.path.join(os.path.dirname(str(c.INCOMING)), "_Incoming Kid"))
+    return {"incoming": str(incoming),
             "staging": str(c.STAGING_ROOTS[ck]),
             "pushed": str(c.PUSHED_ROOTS[pk]),
             "bucket": c.BUCKET_BY_RATING[ck],
@@ -251,11 +259,49 @@ def collections(rating: str) -> dict:
     return out
 
 
+def _sort_misplaced(rating: str, root: str) -> int:
+    """Yan dosyasi baska dereceye ait varliklari KENDI klasorune tasir (#291).
+
+    Hot ve Kid'in 2. akis klasorleri ayridir; yine de eski surumden kalan ya da
+    elle birakilmis bir varlik yanlis klasore dusmus olabilir. Yan dosya
+    (`<stem>.json`, stage_jobs yazar) hangi dereceyi soyluyorsa jpg/mp4/webp/
+    json dortlusu oraya gider. Yan dosyasi olmayan dosyaya dokunulmaz.
+    """
+    tasinan = 0
+    try:
+        with os.scandir(root) as it:
+            jsonlar = [e.path for e in it if e.is_file() and e.name.lower().endswith(".json")]
+    except OSError:
+        return 0
+    for js in jsonlar:
+        try:
+            with open(js, encoding="utf-8") as fh:
+                hedef_r = (json.load(fh) or {}).get("rating")
+        except Exception:
+            continue
+        if hedef_r == rating or hedef_r not in dict(RATINGS):
+            continue
+        hedef_dir = paths(hedef_r)["incoming"]
+        stem = os.path.splitext(js)[0]
+        ad = os.path.basename(stem)
+        try:
+            os.makedirs(hedef_dir, exist_ok=True)
+            for uz in (".jpg", ".jpeg", ".mp4", ".webp", ".json"):
+                src = stem + uz
+                if os.path.isfile(src):
+                    os.replace(src, os.path.join(hedef_dir, ad + uz))
+            tasinan += 1
+        except OSError:
+            continue
+    return tasinan
+
+
 def list_items(rating: str, stage: str, collection: str = "",
                limit: int = 200, offset: int = 0) -> dict:
     """Bir akisin varliklari. Sayfali - telefon 2000 kaydi bir kerede cekmesin."""
     root = _root_for(rating, stage)
     if stage == "incoming":
+        _sort_misplaced(rating, root)
         items = _folder_items(root, "", True)
     else:
         if collection and collection != "*":

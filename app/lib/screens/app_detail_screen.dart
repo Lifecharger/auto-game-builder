@@ -239,6 +239,8 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      // gorev #289: tam ekrana buyuyen sayfa durum cubugunun altina girmesin
+      useSafeArea: true,
       backgroundColor: AppColors.bgCard,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
@@ -1092,6 +1094,8 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      // gorev #289: tam ekrana buyuyen sayfa durum cubugunun altina girmesin
+      useSafeArea: true,
       backgroundColor: AppColors.bgCard,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
@@ -1257,6 +1261,8 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      // gorev #289: tam ekrana buyuyen sayfa durum cubugunun altina girmesin
+      useSafeArea: true,
       backgroundColor: AppColors.bgCard,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
@@ -1422,6 +1428,8 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      // gorev #289: tam ekrana buyuyen sayfa durum cubugunun altina girmesin
+      useSafeArea: true,
       backgroundColor: AppColors.bgCard,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),

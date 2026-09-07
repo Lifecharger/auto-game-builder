@@ -13,6 +13,14 @@ from pathlib import Path
 # unrelated files never show up in the review list.
 INCOMING = Path(r"C:\Path\To\Asset Generation Pipeline\_Incoming")
 
+# 2. akis (Etiketli) DERECEYE GORE AYRI klasor: Hot ve Kid varliklari
+# birbirine karismaz (AGB #291). Teen = eski _Incoming (r2manager, grok
+# araclari ve kurtarma scriptleri oraya yazmaya devam eder); Kid ayri klasor.
+INCOMING_ROOTS = {
+    "Teen": INCOMING,
+    "Kid":  Path(r"C:\Path\To\Asset Generation Pipeline\_Incoming Kid"),
+}
+
 # Staging area where un-pushed assets wait, keyed by content rating.
 STAGING_ROOTS = {
     "Teen": Path(r"C:\Path\To\Hot Jigsaw Staging"),

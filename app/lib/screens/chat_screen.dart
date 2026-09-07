@@ -507,6 +507,8 @@ class _ChatScreenState extends State<ChatScreen> {
                   width: 120,
                   child: DropdownButtonFormField<int>(
                     value: _selectedAppId,
+                    // gorev #289: 120px alanda uzun uygulama adi tasiyordu
+                    isExpanded: true,
                     decoration: InputDecoration(
                       hintText: l10n.allAppsHint,
                       contentPadding:
@@ -607,7 +609,10 @@ class _ChatScreenState extends State<ChatScreen> {
               left: 12,
               right: 8,
               top: 8,
-              bottom: mq.viewInsets.bottom + mq.padding.bottom + 8,
+              // gorev #289: Scaffold klavye kadar zaten kuculuyor (viewInsets),
+              // burada ikinci kez eklenirse giris cubugu klavyenin bir boy
+              // uzerinde kaliyordu. Sadece sistem cubugunu telafi et.
+              bottom: mq.padding.bottom + 8,
             ),
             decoration: BoxDecoration(
               color: AppColors.bgSidebar,

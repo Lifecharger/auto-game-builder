@@ -224,6 +224,8 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
       context: context,
       builder: (c) => StatefulBuilder(
         builder: (c, setS) => AlertDialog(
+          // Isim alani otomatik odakli: klavye acilinca icerik tasmasin (gorev #289).
+          scrollable: true,
           title: const Text('Karakter yap'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -852,6 +854,8 @@ class _ViewerPageState extends State<_ViewerPage> {
     final text = await showDialog<String>(
       context: context,
       builder: (c) => AlertDialog(
+        // 4 satirlik otomatik odakli prompt kutusu klavyeyle tasiyordu (gorev #289).
+        scrollable: true,
         title: const Text('Duzenle'),
         content: Column(
           mainAxisSize: MainAxisSize.min,

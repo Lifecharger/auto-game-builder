@@ -262,6 +262,9 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
     final l10n = AppLocalizations.of(context)!;
 
     final showOffline = appState.showOfflineBanner;
+    // gorev #289: edge-to-edge'de icerik durum cubugunun ARKASINDAN basliyor;
+    // banner gorunurken ust guvenli alani banner tuketir, sekmelerden dusulur.
+    final topInset = MediaQuery.of(context).padding.top;
 
     return PopScope(
       canPop: false,
@@ -298,7 +301,8 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
         children: [
           AnimatedContainer(
             duration: const Duration(milliseconds: 300),
-            height: showOffline ? 32 : 0,
+            height: showOffline ? 32 + topInset : 0,
+            padding: EdgeInsets.only(top: showOffline ? topInset : 0),
             curve: Curves.easeInOut,
             clipBehavior: Clip.hardEdge,
             decoration: BoxDecoration(
@@ -319,12 +323,25 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
             ),
           ),
           Expanded(
-            child: FadeTransition(
-              opacity: _fadeAnimation,
-              child: IndexedStack(
-                index: _currentIndex,
-                children: _screens,
-              ),
+            // gorev #289: banner ust boslugu zaten yedi; sekmelerin AppBar'lari
+            // ayni boslugu ikinci kez eklemesin diye MediaQuery govde
+            // context'inden (Scaffold'un ICINDEN) yeniden kuruluyor.
+            child: Builder(
+              builder: (bodyContext) {
+                final bodyMq = MediaQuery.of(bodyContext);
+                return MediaQuery(
+                  data: showOffline
+                      ? bodyMq.removePadding(removeTop: true)
+                      : bodyMq,
+                  child: FadeTransition(
+                    opacity: _fadeAnimation,
+                    child: IndexedStack(
+                      index: _currentIndex,
+                      children: _screens,
+                    ),
+                  ),
+                );
+              },
             ),
           ),
         ],

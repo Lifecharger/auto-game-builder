@@ -1523,6 +1523,8 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
         return StatefulBuilder(
           builder: (ctx, setDialogState) {
             return AlertDialog(
+              // gorev #289: 7 secim kutusu kucuk ekranda tasiyordu, kaydirilabilir yap
+              scrollable: true,
               title: Text(l10n.codeCheck),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -1887,6 +1889,8 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             child: DropdownButtonFormField<int>(
               key: ValueKey('app_dropdown_$_appCategory'),
+              // gorev #289: uzun uygulama adlari satirdan tasiyordu
+              isExpanded: true,
               value: _selectedAppId,
               decoration: InputDecoration(
                 hintText: l10n.selectApp,

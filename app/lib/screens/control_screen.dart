@@ -284,6 +284,9 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      // gorev #289: icerik uzayinca sayfa dolusuna cikan sayfa basligi
+      // durum cubugunun arkasinda kalmasin (SafeArea sadece ust tarafi kirpar).
+      useSafeArea: true,
       backgroundColor: AppColors.bgCard,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
@@ -434,6 +437,9 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      // gorev #289: icerik uzayinca sayfa dolusuna cikan sayfa basligi
+      // durum cubugunun arkasinda kalmasin (SafeArea sadece ust tarafi kirpar).
+      useSafeArea: true,
       backgroundColor: AppColors.bgCard,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
@@ -630,6 +636,9 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      // gorev #289: icerik uzayinca sayfa dolusuna cikan sayfa basligi
+      // durum cubugunun arkasinda kalmasin (SafeArea sadece ust tarafi kirpar).
+      useSafeArea: true,
       backgroundColor: AppColors.bgCard,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),

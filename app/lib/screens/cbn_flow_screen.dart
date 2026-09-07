@@ -134,6 +134,8 @@ class _CbnFlowScreenState extends State<CbnFlowScreen>
       await showDialog<bool>(
         context: context,
         builder: (c) => AlertDialog(
+          // Uzun onay metni kucuk ekranda tasiyordu (gorev #289).
+          scrollable: true,
           title: Text(baslik),
           content: Text(metin),
           actions: [
@@ -157,6 +159,9 @@ class _CbnFlowScreenState extends State<CbnFlowScreen>
     final coll = await showDialog<String>(
       context: context,
       builder: (c) => AlertDialog(
+        // Uzun aciklama + koleksiyon kutusu + chip listesi klavyeyle tasiyordu
+        // (gorev #289).
+        scrollable: true,
         title: Text('Insa et - ${ids.length} varlik'),
         content: Column(
           mainAxisSize: MainAxisSize.min,

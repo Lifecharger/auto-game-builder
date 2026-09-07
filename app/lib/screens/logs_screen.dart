@@ -133,6 +133,8 @@ class _LogsScreenState extends State<LogsScreen> with WidgetsBindingObserver {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: DropdownButtonFormField<int>(
               value: _selectedAppId,
+              // gorev #289: uzun uygulama adlarinda yatay tasmayi engeller
+              isExpanded: true,
               decoration: InputDecoration(
                 hintText: l10n.allAppsHint, prefixIcon: Icon(Icons.filter_list),
                 contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8)),

@@ -7,6 +7,7 @@ import '../services/character_flow_service.dart';
 import '../services/jigsaw_flow_service.dart' show FlowOp;
 import '../services/mode_service.dart';
 import '../theme.dart';
+import '../widgets/bottom_inset.dart';
 import '../widgets/network_video.dart';
 
 /// Asset Mod - Karakter hatti.
@@ -719,7 +720,9 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
   Widget _tabKarakter(CharacterItem it) {
     final adaylar = it.candidates;
     return ListView(
-      padding: const EdgeInsets.all(12),
+      // Tam ekran route, alt cubuk yok: sistem gezinme cubugunu ekle (gorev #289).
+      padding: bottomSafePadding(context,
+          left: 12, top: 12, right: 12, bottom: 12),
       children: [
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1010,6 +1013,8 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
     final yeni = await showDialog<String>(
       context: context,
       builder: (c) => AlertDialog(
+        // 16 satirlik metin kutusu klavye acikken sigmiyordu (gorev #289).
+        scrollable: true,
         title: Text(baslik),
         content: SizedBox(
           width: 520,
@@ -1043,7 +1048,9 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
   Widget _tabYon(CharacterItem it) {
     final eksik = _dirs.where((d) => d.id != 'front' && it.dirs[d.id] != true).toList();
     return ListView(
-      padding: const EdgeInsets.all(12),
+      // Tam ekran route, alt cubuk yok: sistem gezinme cubugunu ekle (gorev #289).
+      padding: bottomSafePadding(context,
+          left: 12, top: 12, right: 12, bottom: 12),
       children: [
         Row(
           children: [
@@ -1237,6 +1244,8 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
       context: context,
       isScrollControlled: true,
       builder: (c) => SafeArea(
+        // 240px onizleme + 150px aday seridi yatay ekranda tasiyordu (gorev #289).
+        child: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(14),
           child: Column(
@@ -1300,6 +1309,7 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
             ],
           ),
         ),
+        ),
       ),
     );
   }
@@ -1319,7 +1329,9 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
   Widget _tabAnimasyon(CharacterItem it) {
     final dir = _animDir;
     return ListView(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 24),
+      // Tam ekran route, alt cubuk yok: sistem gezinme cubugunu ekle (gorev #289).
+      padding: bottomSafePadding(context,
+          left: 12, top: 10, right: 12, bottom: 24),
       children: [
         dirCompass(
           _dirs,
@@ -1876,6 +1888,8 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
       context: context,
       isScrollControlled: true,
       builder: (sheet) => SafeArea(
+        // Liste + "+ Uret" dugmesi yatay ekranda tasiyordu (gorev #289).
+        child: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(14),
           child: Column(
@@ -1966,6 +1980,7 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
             ],
           ),
         ),
+        ),
       ),
     );
   }
@@ -2027,6 +2042,8 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
       isScrollControlled: true,
       builder: (sheet) => StatefulBuilder(
         builder: (sheet2, setS) => SafeArea(
+          // Liste + dugme satiri yatay ekranda tasiyordu (gorev #289).
+          child: SingleChildScrollView(
           child: Padding(
             padding: const EdgeInsets.all(14),
             child: Column(
@@ -2098,6 +2115,7 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
               ],
             ),
           ),
+          ),
         ),
       ),
     );
@@ -2111,6 +2129,9 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
       context: context,
       builder: (c) => StatefulBuilder(
         builder: (c2, setS) => AlertDialog(
+          // Otomatik odakli arama kutusu + 280px sonuc listesi klavyeyle
+          // tasiyordu (gorev #289).
+          scrollable: true,
           title: const Text('Mixamo arsivi'),
           content: SizedBox(
             width: 460,
@@ -2171,6 +2192,8 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
     final ok = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
+        // Iki metin kutusu (biri 3 satir) klavyeyle tasiyordu (gorev #289).
+        scrollable: true,
         title: const Text('Klip ekle'),
         content: Column(
           mainAxisSize: MainAxisSize.min,

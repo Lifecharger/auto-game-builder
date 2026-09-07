@@ -1122,15 +1122,20 @@ class _GalleryPickerSheetState extends State<_GalleryPickerSheet> {
   @override
   Widget build(BuildContext context) {
     final list = _shown;
+    final mq = MediaQuery.of(context);
+    // Sabit 0.72 yukseklik klavye acilinca ekrani asiyordu (gorev #289):
+    // guvenli alan + klavye dusuldukten sonra kalanla sinirla.
+    final tavan = mq.size.height * 0.72;
+    final kalan = mq.size.height - mq.viewInsets.bottom - mq.padding.vertical - 24;
     return SafeArea(
       child: Padding(
         padding: EdgeInsets.only(
             left: 14,
             right: 14,
             top: 12,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 12),
+            bottom: mq.viewInsets.bottom + 12),
         child: SizedBox(
-          height: MediaQuery.of(context).size.height * 0.72,
+          height: kalan > 0 && kalan < tavan ? kalan : tavan,
           child: Column(
             children: [
               Row(
