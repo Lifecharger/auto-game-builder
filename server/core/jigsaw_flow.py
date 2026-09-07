@@ -396,6 +396,80 @@ _TAG_KOD = (
 )
 
 
+def _ollama_cfg() -> tuple[str, str]:
+    """(url, model) - settings.json `ollama` bolumu ya da varsayilanlar."""
+    url = os.environ.get("OLLAMA_URL", "").strip()
+    model = os.environ.get("OLLAMA_MODEL", "").strip()
+    try:
+        with open(_SETTINGS, encoding="utf-8") as fh:
+            o = (json.load(fh) or {}).get("ollama") or {}
+        url = url or (o.get("url") or "")
+        model = model or (o.get("model") or "")
+    except Exception:
+        pass
+    return (url or "http://127.0.0.1:11434").rstrip("/"), (model or "qwen2.5vl:7b")
+
+
+def ollama_ready(timeout: float = 2.0) -> bool:
+    import urllib.request
+    try:
+        urllib.request.urlopen(_ollama_cfg()[0] + "/api/tags", timeout=timeout).read()
+        return True
+    except Exception:
+        return False
+
+
+def ollama_unload() -> None:
+    """Modeli VRAM'den hemen birak (keep_alive 0) - sira ComfyUI'ye gecerken."""
+    import urllib.request
+    url, model = _ollama_cfg()
+    try:
+        req = urllib.request.Request(url + "/api/generate",
+                                     data=json.dumps({"model": model, "keep_alive": 0}).encode(),
+                                     headers={"Content-Type": "application/json"})
+        urllib.request.urlopen(req, timeout=30).read()
+    except Exception:
+        pass
+
+
+def resolve_agent(agent: str) -> str:
+    """Istemcinin istedigi etiketleyici elde yoksa eldekine dus:
+    Gemini CLI kurulu degilse -> yerel Ollama (VLM) -> Claude CLI."""
+    if agent == "Ollama":
+        return agent
+    if agent == "Gemini" and not (shutil.which("gemini.cmd") or shutil.which("gemini")):
+        if ollama_ready():
+            return "Ollama"
+        if shutil.which("claude.cmd") or shutil.which("claude"):
+            return "Claude"
+    return agent
+
+
+class _tag_batch:
+    """Bir parti etiketleme: Ollama kullanilacaksa GPU seridini al, once
+    ComfyUI'nin modellerini bosalt, bitince Ollama modelini birak. Bulut
+    etiketleyiciler (Gemini/Claude) GPU'ya dokunmaz, serit gerekmez."""
+
+    def __init__(self, agent: str, n: int):
+        self.agent, self.n, self._cm = agent, n, None
+
+    def __enter__(self):
+        if self.agent == "Ollama":
+            from . import gpu_lane
+            self._cm = gpu_lane.hold("etiketleme (%d)" % self.n, kind="tag")
+            self._cm.__enter__()
+            G.free_comfy()
+        return self
+
+    def __exit__(self, *exc):
+        if self._cm is not None:
+            try:
+                ollama_unload()
+            finally:
+                self._cm.__exit__(*exc)
+        return False
+
+
 def _tag(jpg: str, agent: str) -> tuple[bool, str]:
     """r2manager'in EXIF etiketleyicisini AYRI BIR SURECTE calistirir.
 
@@ -406,15 +480,13 @@ def _tag(jpg: str, agent: str) -> tuple[bool, str]:
 
     Yazdiktan sonra EXIF geri okunup etiketin gercekten dustugu dogrulanir.
     """
-    # Format sonrasi Gemini CLI kurulu degilse istemcinin varsayilani bos
-    # dondurmesin: elde olan etiketleyiciye (Claude CLI) dus.
-    if agent == "Gemini" and not (shutil.which("gemini.cmd") or shutil.which("gemini")):
-        if shutil.which("claude.cmd") or shutil.which("claude"):
-            agent = "Claude"
+    agent = resolve_agent(agent)
+    url, model = _ollama_cfg()
+    env = dict(os.environ, OLLAMA_URL=url, OLLAMA_MODEL=model)
     try:
         proc = subprocess.run(
             [sys.executable, "-c", _TAG_KOD, R2M_DIR, jpg, agent],
-            cwd=R2M_DIR, capture_output=True, text=True, timeout=300,
+            cwd=R2M_DIR, capture_output=True, text=True, timeout=300, env=env,
             encoding="utf-8", errors="replace",
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     except subprocess.TimeoutExpired:
@@ -440,10 +512,21 @@ def stage_jobs(job_ids: list[str], rating: str, agent: str = "Gemini") -> str:
     p = paths(rating)
     incoming = p["incoming"]
     op_id = _op_new("stage", len(job_ids))
+    agent = resolve_agent(agent)
 
     def calis():
         os.makedirs(incoming, exist_ok=True)
         tum = G.list_jobs(limit=1000)
+        with _tag_batch(agent, len(job_ids)):
+            _stage_loop(job_ids, rating, agent, incoming, tum, op_id)
+        _op(op_id, message="bitti")
+
+    _run(op_id, calis)
+    return op_id
+
+
+def _stage_loop(job_ids, rating, agent, incoming, tum, op_id):
+    if True:
         for i, jid in enumerate(job_ids, 1):
             j = G.get_job(jid)
             if not j or j.get("status") != "done" or j.get("is_video"):
@@ -507,10 +590,40 @@ def stage_jobs(job_ids: list[str], rating: str, agent: str = "Gemini") -> str:
                     G.delete_job(x)
                 except Exception:
                     pass
+
+
+def retag(rating: str, item_ids: list[str], agent: str = "Gemini",
+          stage: str = "incoming", item_path_fn=None, kind: str = "retag") -> str:
+    """Etiketi dusmemis (ya da yeniden etiketlenmek istenen) varliklari
+    tekrar etiketler. CBN akisi da ayni isi kendi item_path'iyle kullanir."""
+    ip = item_path_fn or item_path
+    op_id = _op_new(kind, len(item_ids))
+    agent = resolve_agent(agent)
+
+    def calis():
+        with _tag_batch(agent, len(item_ids)):
+            _retag_loop(item_ids, rating, stage, agent, ip, op_id)
         _op(op_id, message="bitti")
 
     _run(op_id, calis)
     return op_id
+
+
+def _retag_loop(item_ids, rating, stage, agent, ip, op_id):
+    if True:
+        for i, iid in enumerate(item_ids, 1):
+            jpg = ip(rating, stage, iid, "image")
+            if not jpg:
+                with _ops_lock:
+                    _ops[op_id]["failed"] += 1
+                _op(op_id, done=i, log="%s: bulunamadi" % iid)
+                continue
+            _op(op_id, message="%d/%d etiketleniyor (%s)" % (i, len(item_ids), agent))
+            ok, bilgi = _tag(jpg, agent)
+            with _ops_lock:
+                _ops[op_id]["ok" if ok else "failed"] += 1
+            _op(op_id, done=i, log=("%s etiket: %s" % (iid[:12], bilgi[:60])) if ok
+                else ("%s etiketlenemedi: %s" % (iid[:12], bilgi[:160])))
 
 
 def _to_still(src: str, dest: str) -> None:

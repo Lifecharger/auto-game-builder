@@ -275,12 +275,80 @@ DISCOVER_PROMPT = (
 )
 
 
+OLLAMA_URL = (os.environ.get("OLLAMA_URL", "") or _setting("ollama.url", "OLLAMA_URL_", "http://127.0.0.1:11434")).rstrip("/")
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "") or _setting("ollama.model", "OLLAMA_MODEL_", "qwen2.5vl:7b")
+DISCOVER_PROMPT_VLM = (
+    "Look at the attached picture. It will become a color-by-number page, so list the THINGS "
+    "in it that would be colored as separate areas. Return ONLY a JSON object {\"things\": [...]} "
+    "with short lowercase English nouns (1-2 words each): every distinct visible object, body "
+    "part, garment, accessory and background element, ordered from the smallest and finest "
+    "(eyes, mouth, buttons) to the largest (dress, tree, sky, ground). Plain generic words "
+    "(\"hair\", \"dress\", \"cloud\"), one entry per kind of thing, at most 40 entries.")
+
+
+def ollama_ready(timeout: float = 2.0) -> bool:
+    try:
+        urllib.request.urlopen(OLLAMA_URL + "/api/tags", timeout=timeout).read()
+        return True
+    except Exception:
+        return False
+
+
+def ollama_unload() -> None:
+    try:
+        req = urllib.request.Request(OLLAMA_URL + "/api/generate",
+                                     data=json.dumps({"model": OLLAMA_MODEL, "keep_alive": 0}).encode(),
+                                     headers={"Content-Type": "application/json"})
+        urllib.request.urlopen(req, timeout=30).read()
+    except Exception:
+        pass
+
+
+def _discover_ollama(image: Path, timeout: int = 180) -> list[str]:
+    """Local VLM object list (Ollama). Empty on failure."""
+    import base64
+    import io
+    from PIL import Image
+    with Image.open(image) as im:
+        im = im.convert("RGB")
+        w, h = im.size
+        s = 1024 / float(max(w, h))
+        if s < 1:
+            im = im.resize((max(1, round(w * s)), max(1, round(h * s))), Image.LANCZOS)
+        buf = io.BytesIO()
+        im.save(buf, "JPEG", quality=88)
+    body = {"model": OLLAMA_MODEL, "stream": False, "format": "json", "keep_alive": "5m",
+            "options": {"temperature": 0.2, "num_predict": 600},
+            "messages": [{"role": "user", "content": DISCOVER_PROMPT_VLM,
+                          "images": [base64.b64encode(buf.getvalue()).decode()]}]}
+    try:
+        req = urllib.request.Request(OLLAMA_URL + "/api/chat", data=json.dumps(body).encode(),
+                                     headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            text = (json.loads(resp.read().decode("utf-8")).get("message") or {}).get("content") or ""
+        obj = json.loads(text)
+    except Exception as e:
+        print(f"  ollama discover failed: {e}")
+        return []
+    arr = obj.get("things") if isinstance(obj, dict) else obj
+    out = []
+    for x in arr or []:
+        w = re.sub(r"[^a-z ]", "", str(x).lower()).strip()
+        if w and w not in out:
+            out.append(w)
+    return out[:40]
+
+
 def discover_concepts(image: Path, timeout: int = 180) -> list[str]:
     """Ask a vision model what is IN the picture, the way r2manager's EXIF tagger
     does, and hand those nouns to SAM — an object finder instead of a fixed
-    guess list. Uses the Claude CLI headless (Opus; Gemini CLI is not installed
-    on this machine since the format). Empty list on any failure — the caller
-    falls back to the profile list."""
+    guess list. Local Ollama VLM first (free, offline); the Claude CLI headless
+    (Opus, subscription quota) only as fallback. Empty list on any failure — the
+    caller falls back to the profile list."""
+    if ollama_ready():
+        found = _discover_ollama(image, timeout)
+        if found:
+            return found
     exe = shutil.which("claude.cmd") or shutil.which("claude")
     if not exe:
         return []

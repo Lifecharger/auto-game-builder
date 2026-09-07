@@ -874,6 +874,20 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
     }
   }
 
+  /// Yeniden etiketle: secili varliklara EXIF etiketini tekrar yazdirir
+  /// (etiketleme basarisiz olduysa ya da etiket yenilenecekse).
+  Future<void> _retag() async {
+    final ids = _sel.toList();
+    try {
+      final op = await JigsawFlowService.retag(ids: ids, rating: _rating);
+      setState(_sel.clear);
+      _watch(op);
+      _snack('Etiketleme basladi');
+    } catch (e) {
+      _snack(e.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
   /// Etiket: secili varligin EXIF etiketleri + prompt yan dosyasi.
   Future<void> _showMeta() async {
     final id = _sel.first;
@@ -935,6 +949,7 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
       butonlar.addAll([
         _act(Icons.movie_creation_outlined, 'Video uret', _makeVideos),
         _act(Icons.sell_outlined, 'Etiket / metadata', _showMeta),
+        _act(Icons.new_label_outlined, 'Yeniden etiketle', _retag),
         _act(Icons.check_circle_outline, 'Kabul et', _accept),
         _act(Icons.videocam_off_outlined, 'Videoyu sil (gorsel kalir)',
             _selWithVideo.isEmpty ? null : _deleteVideo),

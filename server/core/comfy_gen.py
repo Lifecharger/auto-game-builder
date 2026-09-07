@@ -639,8 +639,19 @@ def clear_queue() -> int:
     return len(ids)
 
 
+def free_comfy() -> bool:
+    """ComfyUI'nin yukledigi modelleri bosaltir (VRAM + RAM). Yalniz GPU
+    seridi bizdeyken cagrilir - aksi halde calisan uretimi keser."""
+    try:
+        _post("/free", {"unload_models": True, "free_memory": True})
+        return True
+    except Exception:
+        return False
+
+
 def _dispatcher() -> None:
-    """Kuyruktaki isleri tek tek, sirayla calistirir."""
+    """Kuyruktaki isleri tek tek, sirayla calistirir. Her is GPU seridini
+    (gpu_lane) alir: etiketleme / CBN insa / muzik ile ayni FIFO'da."""
     global _current
     while True:
         with _cv:
@@ -654,7 +665,9 @@ def _dispatcher() -> None:
             _current = job_id
         try:
             if args:
-                _run_job(job_id, job["task"], args)
+                from . import gpu_lane
+                with gpu_lane.hold("uretim: %s" % job["task"], kind="comfy"):
+                    _run_job(job_id, job["task"], args)
         except Exception as e:  # noqa: BLE001 - dispatcher asla olmemeli
             print("[comfy_gen] dispatcher hatasi: %s" % e)
         finally:

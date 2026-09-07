@@ -83,5 +83,10 @@
     "bucket": "cbn",
     "options_file": "",
     "_not": "root: Hot CBN / Kid CBN / _Incoming CBN klasorlerinin ust dizini (bos = jigsaw.pool_root'un ustu). options_file bos = server/config/cbn_options.json"
+  },
+  "ollama": {
+    "url": "http://127.0.0.1:11434",
+    "model": "qwen2.5vl:7b",
+    "_not": "Yerel VLM: EXIF etiketleme + CBN nesne listesi. Alternatif model: gemma3:12b. Gemini CLI yoksa etiketleyici otomatik buna duser."
   }
 }

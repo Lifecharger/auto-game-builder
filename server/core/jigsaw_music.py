@@ -131,6 +131,12 @@ def generate(coll_dir: str, coll: str, tags: str = "", seconds: float = SANIYE,
     tags = tags.strip() or tags_for(coll)
     seed = seed if seed is not None else random.randint(1, 2 ** 31)
     log("tags: %s" % tags[:150])
+    from . import gpu_lane
+    with gpu_lane.hold("muzik: %s" % coll, kind="music"):
+        return _generate_locked(coll_dir, coll, tags, seconds, seed, timeout, log)
+
+
+def _generate_locked(coll_dir, coll, tags, seconds, seed, timeout, log):
     try:
         pid = G._post("/prompt", {"prompt": _graph(tags, seconds, seed),
                                   "client_id": "agb-music"})["prompt_id"]

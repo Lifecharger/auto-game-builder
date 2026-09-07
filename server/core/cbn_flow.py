@@ -40,6 +40,7 @@ import threading
 from datetime import datetime
 
 from . import comfy_gen as G
+from . import gpu_lane
 from . import jigsaw_flow as JF
 from .jigsaw_flow import _op, _op_new, _ops, _ops_lock, _run, _tag, _has_tags, _r2_put  # noqa: F401
 
@@ -58,7 +59,7 @@ FILES = {"image": "source.jpg", "source": "source.jpg", "lineart": "lineart.png"
          "segments": "segments.jpg", "video": "reveal.mp4", "svg": "asset.svg",
          "json": "asset.json", "meta": "meta.json"}
 
-_pipe_lock = threading.Lock()      # insa tek tek: GPU + RAM ayni anda iki hat kaldirmaz
+# Insa GPU seridinden (gpu_lane) gecer: uretim, etiketleme ve muzikle ayni FIFO.
 
 
 # ------------------------------------------------------------------ ayarlar
@@ -354,6 +355,11 @@ def stage_jobs(job_ids: list[str], rating: str, agent: str = "Gemini") -> str:
     return op_id
 
 
+def retag(rating: str, item_ids: list[str], agent: str = "Gemini") -> str:
+    """Gelen'deki varliklari yeniden etiketler (jigsaw_flow.retag ile ayni op)."""
+    return JF.retag(rating, item_ids, agent, "incoming", item_path, "cbn-retag")
+
+
 # ------------------------------------------------------------------ 2 -> 3
 def _pipeline_modules():
     if _TOOLS not in sys.path:
@@ -385,8 +391,16 @@ def _build_one(rating: str, jpg: str, dest: str, log) -> dict:
     src = work / "00_source.png"
     cv2.imwrite(str(src), img)
 
-    log("nesneler bulunuyor (Opus)")
+    # Nesne listesi ONCE: yerel VLM (Ollama) kullanilacaksa ComfyUI modelleri
+    # bosaltilip VRAM ona verilir, sonra Ollama modeli birakilir ve sira
+    # ComfyUI adimlarina (Qwen cizgi, SAM3) gelir. Serit zaten bizde.
+    if kid_cbn.ollama_ready():
+        G.free_comfy()
+        log("nesneler bulunuyor (Ollama)")
+    else:
+        log("nesneler bulunuyor (Claude)")
     found = kid_cbn.discover_concepts(src)
+    kid_cbn.ollama_unload()
     log("SAM3: %d kavram" % (len(found) + 10))
     if rating == "hot":
         lp = work / "_qwen_lineart.png"
@@ -438,7 +452,7 @@ def build(rating: str, item_ids: list[str], collection: str) -> str:
     op_id = _op_new("cbn-build", len(item_ids))
 
     def calis():
-        with _pipe_lock:
+        if True:
             for i, iid in enumerate(item_ids, 1):
                 jpg = item_path(rating, "incoming", iid, "image")
                 if not jpg:
@@ -449,12 +463,13 @@ def build(rating: str, item_ids: list[str], collection: str) -> str:
                 n = next_number(rating, coll)
                 dest = os.path.join(p["staging"], coll, str(n))
                 os.makedirs(dest, exist_ok=True)
-                _op(op_id, message="insa %d/%d  %s -> %s/%d" % (i, len(item_ids), iid[:8], coll, n))
+                _op(op_id, message="insa %d/%d  %s -> %s/%d  (GPU sirasi bekleniyor)" % (i, len(item_ids), iid[:8], coll, n))
 
                 def log(m, _i=i, _n=n):
                     _op(op_id, message="insa %d/%d  %s/%d: %s" % (_i, len(item_ids), coll, _n, m))
                 try:
-                    data = _build_one(rating, jpg, dest, log)
+                    with gpu_lane.hold("CBN insa %s/%d" % (coll, n), kind="cbn"):
+                        data = _build_one(rating, jpg, dest, log)
                 except Exception as e:
                     shutil.rmtree(dest, ignore_errors=True)
                     with _ops_lock:

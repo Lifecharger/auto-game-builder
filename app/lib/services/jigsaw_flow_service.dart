@@ -302,6 +302,12 @@ class JigsawFlowService {
     return (d['deleted'] ?? 0) as int;
   }
 
+  /// Etiketi dusmemis varliklari yeniden etiketler (2. akis).
+  static Future<String> retag(
+          {required List<String> ids, required String rating, String agent = 'Gemini'}) async =>
+      '${(await _post('/api/jigsaw/flow/retag',
+          {'jobs': ids, 'rating': rating, 'agent': agent}))['op']}';
+
   /// Yalniz mp4 + webp'i siler; gorsel kalir, yeniden video uretilebilir.
   static Future<int> removeVideo(
       {required String rating,

@@ -205,14 +205,24 @@ RATE_MARKERS = (
     "rate limit", "rate_limit", "rate-limit",
     "quota exceeded", "quota_exceeded",
     "resource_exhausted", "resource exhausted",
-    "too many requests", "429",
+    "too many requests",
     "daily limit", "usage limit",
 )
+# A bare "429" used to be a marker too - but Claude's --output-format json
+# wrapper is full of numbers (token counts, costs, session ids) and "429"
+# inside one of them threw LLMRateLimit on a perfectly good answer
+# (2026-09-07: 2 of 10 CBN stills "etiketlenemedi" that way). Only an HTTP
+# status-shaped 429 counts now.
+_RATE_429 = re.compile(r"(?:http|status|error|code)\W{0,12}429(?!\d)", re.IGNORECASE)
 
 
 def _check_rate_limit(text: str):
+    # A reply that already carries the tag JSON is a success whatever else it
+    # mentions - never turn it into a rate-limit failure.
+    if _extract_metadata_json(text):
+        return
     low = text.lower()
-    if any(m in low for m in RATE_MARKERS):
+    if any(m in low for m in RATE_MARKERS) or _RATE_429.search(text):
         raise LLMRateLimit(text[:400].strip() or "rate/quota limit")
 
 
@@ -392,10 +402,71 @@ def tag_image_via_codex_cli(img_path: Path, timeout: int = 180) -> bool:
         return False
 
 
+OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434").rstrip("/")
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5vl:7b")
+
+
+def _image_b64_for_vlm(img_path: Path, long_side: int = 1024) -> str:
+    """Kucultulmus JPEG (base64) - 7B VLM'e 1600 px gondermenin anlami yok."""
+    import base64
+    import io
+    from PIL import Image
+    with Image.open(img_path) as im:
+        im = im.convert("RGB")
+        w, h = im.size
+        s = long_side / float(max(w, h))
+        if s < 1:
+            im = im.resize((max(1, round(w * s)), max(1, round(h * s))), Image.LANCZOS)
+        buf = io.BytesIO()
+        im.save(buf, "JPEG", quality=88)
+    return base64.b64encode(buf.getvalue()).decode()
+
+
+def tag_image_via_ollama(img_path: Path, timeout: int = 180) -> bool:
+    """Yerel VLM (Ollama: qwen2.5vl / gemma3) - gorsel gomulu gider, JSON modu
+    semayi birebir dondurur. Ucretsiz, cevrimdisi, kota yok. VRAM'i ComfyUI
+    ile paylasir: AGB tarafinda GPU seridi + /free ile sirali kullanilir."""
+    import urllib.request
+    img_path = img_path.resolve()
+    prompt = _build_tag_prompt(img_path.name).replace(
+        f'Analyze the image file "{img_path.name}" in the current directory.',
+        "Analyze the attached image.")
+    body = {"model": OLLAMA_MODEL, "stream": False, "format": "json", "keep_alive": "10m",
+            "options": {"temperature": 0.2, "num_predict": 1200},
+            "messages": [{"role": "user", "content": prompt, "images": [_image_b64_for_vlm(img_path)]}]}
+    try:
+        req = urllib.request.Request(OLLAMA_URL + "/api/chat", data=json.dumps(body).encode(),
+                                     headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            text = (json.loads(resp.read().decode("utf-8")).get("message") or {}).get("content") or ""
+    except Exception as e:
+        print(f"ollama err on {img_path.name}: {e}")
+        return False
+    meta = _extract_metadata_json(text)
+    if not meta:
+        try:
+            obj = json.loads(text)
+            meta = obj if isinstance(obj, dict) and obj.get("tags") else None
+        except json.JSONDecodeError:
+            meta = None
+    if not meta:
+        print(f"ollama: gecerli JSON yok ({img_path.name}): {text[:200]}")
+        return False
+    if isinstance(meta.get("tags"), list):
+        meta["tags"] = ", ".join(str(t) for t in meta["tags"])
+    try:
+        write_exif(img_path, meta)
+        return True
+    except Exception as e:
+        print(f"write_exif err on {img_path.name}: {e}")
+        return False
+
+
 AGENTS = {
     "Gemini": tag_image_via_gemini_cli,
     "Claude": tag_image_via_claude_cli,
     "Codex":  tag_image_via_codex_cli,
+    "Ollama": tag_image_via_ollama,
 }
 
 

@@ -210,6 +210,19 @@ class _CbnFlowScreenState extends State<CbnFlowScreen>
     }
   }
 
+  /// Yeniden etiketle: etiketi dusmemis Gelen varliklari icin.
+  Future<void> _retag() async {
+    final ids = _sel.toList();
+    try {
+      final op = await CbnFlowService.retag(ids: ids, rating: _rating);
+      setState(_sel.clear);
+      _watch(op);
+      _snack('Etiketleme basladi');
+    } catch (e) {
+      _snack(e.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
   Future<void> _push() async {
     final ids = _sel.toList();
     final ok = await _confirm(
@@ -597,6 +610,7 @@ class _CbnFlowScreenState extends State<CbnFlowScreen>
     final butonlar = <Widget>[];
     if (_stage == 'incoming') {
       butonlar.addAll([
+        _act(Icons.new_label_outlined, 'Yeniden etiketle', _retag),
         _act(Icons.auto_awesome, 'Insa et', _build),
         _act(Icons.delete_outline, 'Sil', _delete),
       ]);

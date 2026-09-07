@@ -5823,6 +5823,14 @@ def jigsaw_flow_webp(body: FlowItemsRequest):
     return {"op": _flow_call(_flow().webp_missing, body.rating, body.collection)}
 
 
+@app.post("/api/jigsaw/flow/retag")
+def jigsaw_flow_retag(body: FlowStageRequest):
+    """2. akistaki varliklari yeniden etiketler (jobs alani = varlik id'leri)."""
+    if not body.jobs:
+        raise HTTPException(400, "varlik secilmedi")
+    return {"op": _flow_call(_flow().retag, body.rating, body.jobs, body.agent)}
+
+
 @app.get("/api/jigsaw/flow/meta")
 def jigsaw_flow_meta(rating: str, stage: str, id: str):
     """Bir varligin EXIF etiketleri + yan dosyasi (telefondaki Etiket dugmesi)."""
@@ -5949,6 +5957,13 @@ def _cbn():
     return cbn_flow
 
 
+@app.get("/api/gpu/queue")
+def gpu_queue():
+    """Ekran karti seridi: calisan is + bekleyenler (uretim, etiketleme, CBN insa, muzik)."""
+    from core import gpu_lane
+    return gpu_lane.status()
+
+
 @app.get("/api/cbn/profiles")
 def cbn_profiles():
     return _flow_call(_cbn().profiles)
@@ -5998,6 +6013,14 @@ def cbn_flow_stage(body: FlowStageRequest):
     if not body.jobs:
         raise HTTPException(400, "is secilmedi")
     return {"op": _flow_call(_cbn().stage_jobs, body.jobs, body.rating, body.agent)}
+
+
+@app.post("/api/cbn/flow/retag")
+def cbn_flow_retag(body: FlowStageRequest):
+    """Gelen'deki varliklari yeniden etiketler (jobs alani = varlik id'leri)."""
+    if not body.jobs:
+        raise HTTPException(400, "varlik secilmedi")
+    return {"op": _flow_call(_cbn().retag, body.rating, body.jobs, body.agent)}
 
 
 @app.post("/api/cbn/flow/build")
