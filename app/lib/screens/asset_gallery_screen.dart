@@ -260,7 +260,7 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
     if (!j.isDone) return;
     final list = _visible;
     final changed = await Navigator.of(context).push<bool>(MaterialPageRoute(
-      builder: (_) => _ViewerPage(jobs: list, index: list.indexOf(j)),
+      builder: (_) => _ViewerPage(jobs: List.of(list), index: list.indexOf(j)),
     ));
     if (changed == true) _load();
   }
@@ -593,52 +593,132 @@ class _ViewerPageState extends State<_ViewerPage> {
     }
   }
 
-  Future<void> _jigsawExport() async {
+  /// Kabul: derece sor, isi hattin 2. akisina (Gelen) gonder, sonraki
+  /// gorsele gec. Uretilenler'deki toplu "Kabul et" ile ayni yol; burada tek
+  /// tek eleme icin (gorev #273 - "Havuza ekle" yerine Kabul / Red).
+  Future<void> _accept() async {
     final j = _job;
-    final imageJob = j.isVideo ? j.sourceJob : j.id;
-    if (imageJob == null) {
-      _snack('Bu videonun kaynak gorseli kayitli degil');
-      return;
-    }
-    List<JigsawCategory> cats;
-    try {
-      cats = await GenerateService.jigsawCategories();
-    } catch (e) {
-      _snack('Kategoriler alinamadi');
-      return;
-    }
-    if (!mounted) return;
-    final chosen = await showModalBottomSheet<JigsawCategory>(
+    if (!j.isDone || j.isVideo) return;
+    final cbn = j.mode == 'cbn';
+    final ratings = cbn ? CbnFlowService.ratings : JigsawProfiles.ratings;
+    final rating = await showDialog<String>(
       context: context,
-      showDragHandle: true,
-      builder: (c) => ListView.builder(
-        itemCount: cats.length,
-        itemBuilder: (_, i) => ListTile(
-          title: Text(cats[i].name),
-          subtitle: Text('${cats[i].count} varlik  ·  siradaki: ${cats[i].next}'),
-          onTap: () => Navigator.pop(c, cats[i]),
-        ),
+      builder: (c) => AlertDialog(
+        title: const Text('Kabul et'),
+        content: Text(cbn
+            ? 'CBN hattinin "Gelen" akisina tasinacak (jpg + EXIF etiketi).\n\nHangi derece?'
+            : '2. akisa tasinacak (jpg + EXIF etiketi).\n\nHangi derece?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Vazgec')),
+          for (final e in ratings.entries)
+            FilledButton(
+                onPressed: () => Navigator.pop(c, e.key), child: Text(e.value)),
+        ],
       ),
     );
-    if (chosen == null || !mounted) return;
-    _snack('havuza yaziliyor...');
+    if (rating == null) return;
     try {
-      final r = await GenerateService.jigsawExport(
-        imageJob: imageJob,
-        videoJob: j.isVideo ? j.id : null,
-        category: chosen.name,
-      );
-      _snack('Eklendi: ${r.category}/${r.number} — ${r.written.join(", ")}'
-          '${r.warnings.isEmpty ? "" : "  (${r.warnings.join(" | ")})"}');
-      _changed = true;
+      if (cbn) {
+        await CbnFlowService.stageJobs(jobs: [j.id], rating: rating);
+      } else {
+        await JigsawFlowService.stageJobs(jobs: [j.id], rating: rating);
+      }
+      _snack('Kabul edildi - etiketleniyor, "Hat" sekmesinden izle');
+      _advanceAfterRemoving();
     } catch (e) {
       _snack(e.toString().replaceFirst('Exception: ', ''));
     }
   }
 
+  /// Red: uretimi hemen siler ve sonraki gorsele gecer - eleme hizli olsun
+  /// diye onay sorulmaz (yanlislikla basildiysa ayni prompt/seed ile
+  /// yeniden uretilebilir; bilgi cubugunda seed yaziyor).
+  Future<void> _reject() async {
+    final j = _job;
+    try {
+      await GenerateService.delete(j.id);
+      _snack('Reddedildi');
+      _advanceAfterRemoving();
+    } catch (e) {
+      _snack(e.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
+  /// Gecerli isi listeden dusurur; kalan yoksa kapanir, varsa ayni konumdaki
+  /// (yani bir sonraki) gorsele gecer.
+  void _advanceAfterRemoving() {
+    _changed = true;
+    if (!mounted) return;
+    widget.jobs.removeAt(_i);
+    if (widget.jobs.isEmpty) {
+      Navigator.pop(context, true);
+      return;
+    }
+    setState(() => _i = _i.clamp(0, widget.jobs.length - 1));
+    _pages.jumpToPage(_i);
+  }
+
   void _snack(String m) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+  }
+
+  /// Duzenle: bu gorseli kaynak alip edit motoruyla (Qwen Image Edit -
+  /// kimlik korur) YENI bir uretim acar. Ek prompt sorulur; sonuc ayni kipin
+  /// galerisine duser (gorev #274).
+  Future<void> _edit() async {
+    final j = _job;
+    if (!j.isDone || j.isVideo) return;
+    final ctl = TextEditingController();
+    final text = await showDialog<String>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Duzenle'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Bu gorsel kaynak olur; edit motoru (Qwen Image Edit, kimlik korur) '
+              'yeni bir uretim acar. Ne degissin?',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: ctl,
+              autofocus: true,
+              maxLines: 4,
+              decoration: const InputDecoration(
+                labelText: 'Ek prompt',
+                hintText: 'orn. change the dress to a red pleated miniskirt, keep face and pose',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Vazgec')),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(c, ctl.text.trim()),
+            icon: const Icon(Icons.auto_fix_high, size: 18),
+            label: const Text('Uret'),
+          ),
+        ],
+      ),
+    );
+    if (text == null || text.isEmpty) return;
+    try {
+      await GenerateService.submit(
+        task: 'edit_qwen',
+        prompt: text,
+        sourceJob: j.id,
+        mode: j.mode.isEmpty ? 'free' : j.mode,
+      );
+      _changed = true;
+      _snack('Duzenleme siraya eklendi - sonucu Uretilenler\'de gorursun');
+    } catch (e) {
+      _snack(e.toString().replaceFirst('Exception: ', ''));
+    }
   }
 
   @override
@@ -665,6 +745,12 @@ class _ViewerPageState extends State<_ViewerPage> {
               } catch (_) {}
             },
           ),
+          if (j.isDone && !j.isVideo)
+            IconButton(
+              icon: const Icon(Icons.auto_fix_high),
+              tooltip: 'Duzenle - edit motoruyla yeni uretim',
+              onPressed: _edit,
+            ),
           IconButton(icon: const Icon(Icons.delete_outline), onPressed: _delete),
         ],
       ),
@@ -726,15 +812,30 @@ class _ViewerPageState extends State<_ViewerPage> {
           const SizedBox(height: 6),
           Text(bits.join('  ·  '),
               style: const TextStyle(fontSize: 11, color: Colors.grey)),
-          if (j.mode == 'jigsaw' && j.isDone) ...[
+          if ((j.mode == 'jigsaw' || j.mode == 'cbn') && j.isDone && !j.isVideo) ...[
             const SizedBox(height: 10),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: _jigsawExport,
-                icon: const Icon(Icons.archive_outlined, size: 18),
-                label: const Text('Havuza ekle'),
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _reject,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.error,
+                      side: BorderSide(color: AppColors.error),
+                    ),
+                    icon: const Icon(Icons.close, size: 18),
+                    label: const Text('Reddet'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: _accept,
+                    icon: const Icon(Icons.check, size: 18),
+                    label: const Text('Kabul'),
+                  ),
+                ),
+              ],
             ),
           ],
         ],

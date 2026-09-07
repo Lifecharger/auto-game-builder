@@ -836,7 +836,12 @@ def submit(task: str, prompt: str, *, prompt2: str = "", negative: str = "",
         raise ValueError("bu gorev bir girdi gorseli istiyor")
 
     # kip varsayilanlari: istemci bos birakirsa devreye girer
-    if not prompt2 and mode == "jigsaw":
+    # Kip sablonu yalniz METINDEN uretimde ve videoda devreye girer: bir edit
+    # isinde (girdi gorseli olan, video olmayan) prompt bir degisiklik
+    # talimatidir - "a breathtakingly beautiful young woman, {}" kalibina
+    # sarilmasi anlamsiz olur (goruntuleyicideki Duzenle dugmesi, gorev #274).
+    is_edit = need_img and not is_vid
+    if not prompt2 and mode == "jigsaw" and not is_edit:
         prompt2 = md["motion2"] if is_vid else md["prompt2"]
     if not negative:
         negative = md["negative"] or (NEG_VID if is_vid else NEG_IMG)
