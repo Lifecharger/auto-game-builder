@@ -712,10 +712,13 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
           child: Stack(
             fit: StackFit.expand,
             children: [
+              // Sigdir, kirpma: havuz dikey/yatay/kare karisik, "cover" genis
+              // gorselin yalnizca ortasini gosteriyordu (gorev #268).
+              const ColoredBox(color: Colors.black),
               Image.network(
                 JigsawFlowService.thumbUrl(_rating, _stage, it.id),
                 headers: JigsawFlowService.authHeaders,
-                fit: BoxFit.cover,
+                fit: BoxFit.contain,
                 errorBuilder: (_, _, _) => Container(color: Colors.white10),
               ),
               // Video, gorselin uzerinde oynat dugmesi olarak durur.

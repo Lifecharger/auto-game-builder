@@ -731,7 +731,7 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
                 child: Image.network(
                   j.thumbUrl(size: 200),
                   headers: GenerateService.authHeaders,
-                  fit: BoxFit.cover,
+                  fit: BoxFit.contain,
                   errorBuilder: (_, _, _) =>
                       Container(color: Colors.white10),
                 ),

@@ -364,11 +364,13 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
         child: Stack(
           fit: StackFit.expand,
           children: [
+            // Sigdir, kirpma: yatay/kare ciktilar hucrede butun gorunsun.
+            const ColoredBox(color: Colors.black),
             if (j.isDone)
               Image.network(
                 j.thumbUrl(),
                 headers: GenerateService.authHeaders,
-                fit: BoxFit.cover,
+                fit: BoxFit.contain,
                 errorBuilder: (_, _, _) => _placeholder(j),
               )
             else

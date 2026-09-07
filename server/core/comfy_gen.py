@@ -768,6 +768,28 @@ def _watch_progress(job_id: str, client_id: str) -> None:
 
 
 # ------------------------------------------------------------------ uretim
+
+# Gorselden video: cikti boyutu KAYNAGIN oranindan turer. Sabit 704x1280
+# dayatmak yatay/kare kaynaklari ortadan kirpiyordu (LTX latent'e sigdirirken
+# center-crop yapar) - kafasi kesik plaj videolari boyle cikti (gorev #268).
+VIDEO_PIXEL_BUDGET = 704 * 1280     # dikey varsayilanla ayni piksel yuku
+VIDEO_LONG_SIDE_MAX = 1280
+VIDEO_STEP = 32                     # LTX her iki kenari 32'nin kati ister
+
+
+def video_size_for(image_path: str, budget: int = VIDEO_PIXEL_BUDGET,
+                   step: int = VIDEO_STEP, long_max: int = VIDEO_LONG_SIDE_MAX) -> tuple[int, int]:
+    """Kaynak gorselin oranini koruyan, piksel butcesine sigan (w, h)."""
+    from PIL import Image
+    with Image.open(image_path) as im:
+        w, h = im.size
+    scale = (budget / float(w * h)) ** 0.5
+    if max(w, h) * scale > long_max:
+        scale = long_max / float(max(w, h))
+    rw = max(step, int(round(w * scale / step)) * step)
+    rh = max(step, int(round(h * scale / step)) * step)
+    return rw, rh
+
 def submit(task: str, prompt: str, *, prompt2: str = "", negative: str = "",
            width: int = 0, height: int = 0, duration: int = 5, seed: int | None = None,
            turbo: bool = True, image_path: str | None = None,
@@ -806,6 +828,12 @@ def submit(task: str, prompt: str, *, prompt2: str = "", negative: str = "",
         prompt2 = md["motion2"] if is_vid else md["prompt2"]
     if not negative:
         negative = md["negative"] or (NEG_VID if is_vid else NEG_IMG)
+    if is_vid and image_path and not (width and height):
+        # Istemci boyut vermediyse kaynagin orani belirler (yatay, kare, dikey).
+        try:
+            width, height = video_size_for(image_path)
+        except Exception:
+            width, height = 0, 0
     if mode == "jigsaw" and not (width and height):
         width, height = (704, 1280) if is_vid else (md["width"], md["height"])
 
@@ -1072,15 +1100,10 @@ def jigsaw_accept(image_job: str, video_job: str | None, collection: str,
 
     written, warnings = [], []
 
-    # 1) hareketsiz gorsel -> <n>.jpg (720x1280, ortadan kirpilir)
-    from PIL import Image
-    im = Image.open(img).convert("RGB")
-    tw, th = JIGSAW_STILL
-    scale = max(tw / im.width, th / im.height)
-    im = im.resize((round(im.width * scale), round(im.height * scale)), Image.LANCZOS)
-    left, top = (im.width - tw) // 2, (im.height - th) // 2
-    im.crop((left, top, left + tw, top + th)).save(
-        os.path.join(dest, "%d.jpg" % n), "JPEG", quality=92)
+    # 1) hareketsiz gorsel -> <n>.jpg (oran korunur; dikey 720x1280, yatay
+    #    1280x720, kare 1280x1280). Eskiden 720x1280'e ortadan kirpiliyordu ve
+    #    genis gorsellerin yalnizca ortasi kaliyordu (gorev #268).
+    still_to_pool(img, os.path.join(dest, "%d.jpg" % n))
     written.append("%d.jpg" % n)
 
     if vid:
@@ -1102,6 +1125,21 @@ def jigsaw_accept(image_job: str, video_job: str | None, collection: str,
 
     return {"collection": coll, "category": coll, "number": n, "folder": dest,
             "written": written, "warnings": warnings, "next": _jigsaw_next(coll)}
+
+
+def still_to_pool(src: str, dest: str) -> None:
+    """Havuz jpg'si: kaynagin orani korunur, uzun kenar JIGSAW_STILL'in uzun
+    kenarina (1280) olceklenir, kirpma yok, q92. r2manager/jigsaw_flow ile
+    ayni islem ki iki yoldan gelen varliklar kovada ayni olcude olsun."""
+    from PIL import Image
+    with Image.open(src) as f:
+        im = f.convert("RGB")
+    long_side = max(JIGSAW_STILL)
+    scale = long_side / float(max(im.width, im.height))
+    if scale != 1.0:
+        im = im.resize((max(1, round(im.width * scale)), max(1, round(im.height * scale))),
+                       Image.LANCZOS)
+    im.save(dest, "JPEG", quality=92)
 
 
 def _encode_webp(src: str, dest: str) -> tuple[bool, str]:

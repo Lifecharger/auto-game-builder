@@ -509,16 +509,9 @@ def stage_jobs(job_ids: list[str], rating: str, agent: str = "Gemini") -> str:
 
 
 def _to_still(src: str, dest: str) -> None:
-    """Havuz jpg'si: 720x1280, ortadan kirpma, q92 - AGB'nin jigsaw_accept'i
-    ile ayni islem, iki yoldan gelen varliklar kovada ayni olcude olsun."""
-    from PIL import Image
-    with Image.open(src) as f:
-        im = f.convert("RGB")
-    tw, th = G.JIGSAW_STILL
-    scale = max(tw / im.width, th / im.height)
-    im = im.resize((round(im.width * scale), round(im.height * scale)), Image.LANCZOS)
-    left, top = (im.width - tw) // 2, (im.height - th) // 2
-    im.crop((left, top, left + tw, top + th)).save(dest, "JPEG", quality=92)
+    """Havuz jpg'si: oran korunur, uzun kenar 1280, kirpma yok - AGB'nin
+    jigsaw_accept'i ile ayni islem (comfy_gen.still_to_pool)."""
+    G.still_to_pool(src, dest)
 
 
 # ------------------------------------------------------------------ 2. akis
