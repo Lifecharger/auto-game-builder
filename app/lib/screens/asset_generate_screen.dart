@@ -40,6 +40,12 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
   Map<String, JigsawProfile> _profiles = {};
   final Map<String, DetailState> _details = {};
   String _rating = 'hot';
+  String _aspect = 'portrait';            // CBN: oran secici (kare / dikey / yatay)
+  static const _aspectSizes = {
+    'portrait': (832, 1216),
+    'square': (1024, 1024),
+    'landscape': (1216, 832),
+  };
   int _randomCount = 10;
 
   DetailState? get _det => _details[_rating];
@@ -57,6 +63,11 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
   List<GenerateJob> _sourceOptions = [];
   int _queueDepth = 0;
   Timer? _poll;
+
+  /// Kip bir derece profili tasiyor mu (jigsaw ve cbn: evet, free: hayir).
+  bool get _hasProfiles => _modeDef.hasProfiles;
+  Map<String, String> get _ratingsMap =>
+      _modeDef.profiles == 'cbn' ? CbnProfiles.ratings : JigsawProfiles.ratings;
 
   GenerateMode get _modeDef => _modes.firstWhere((m) => m.id == _mode,
       orElse: () => const GenerateMode(
@@ -87,7 +98,13 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
     });
     try {
       final r = await GenerateService.fetchTasks(mode: _mode);
-      final profs = await JigsawProfiles.load();
+      // Secenek dosyasi kipe gore: jigsaw_secenekler / cbn_secenekler.
+      final pk = r.modes.isNotEmpty
+          ? r.modes
+              .firstWhere((m) => m.id == _mode, orElse: () => r.modes.first)
+              .profiles
+          : _modeDef.profiles;
+      final profs = pk == 'cbn' ? await CbnProfiles.load() : await JigsawProfiles.load();
       List<GenerateJob> srcs = [];
       try {
         final jobs = await GenerateService.list(limit: 60);
@@ -137,7 +154,7 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
     final isVideo = _task?.isVideo ?? false;
     var p2 = isVideo ? m.motion2 : m.prompt2;
     var neg = m.negative;
-    if (_mode == 'jigsaw') {
+    if (_hasProfiles) {
       final p = _profiles[_rating];
       if (p != null) {
         if (!isVideo && p.template.isNotEmpty) p2 = p.template;
@@ -160,20 +177,23 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
 
   void _setMode(String id) {
     if (id == _mode) return;
-    setState(() => _mode = id);
+    setState(() {
+      _mode = id;
+      _details.clear();      // hot/kid anahtarlari kipler arasinda ortak, durum degil
+    });
     HapticFeedback.selectionClick();
     _loadAll();
   }
 
   /// Konu prompt'u + secili detaylar (jigsaw disinda sadece konu).
   String _prompt1([Map<String, String>? v]) {
-    if (_mode != 'jigsaw' || _det == null) return _p1.text.trim();
+    if (!_hasProfiles || _det == null) return _p1.text.trim();
     return _det!.promptWith(_p1.text, v);
   }
 
   /// Sablon; dropdown'un kapsadigi parcalar dusulmus halde.
   String _prompt2([Map<String, String>? v]) {
-    if (_mode != 'jigsaw' || _det == null) return _p2.text.trim();
+    if (!_hasProfiles || _det == null) return _p2.text.trim();
     return _det!.templateFor(_p2.text,
         isVideo: _task?.isVideo ?? false, v: v);
   }
@@ -208,8 +228,8 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
           prompt: _prompt1(),
           prompt2: _prompt2(),
           negative: _negative.text.trim(),
-          width: t.width,
-          height: t.height,
+          width: _modeDef.aspects ? _aspectSizes[_aspect]!.$1 : t.width,
+          height: _modeDef.aspects ? _aspectSizes[_aspect]!.$2 : t.height,
           duration: _duration,
           turbo: _turbo,
           mode: _mode,
@@ -300,7 +320,7 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
 
   Widget _form() {
     final t = _task;
-    final jigsaw = _mode == 'jigsaw';
+    final jigsaw = _hasProfiles;
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
       children: [
@@ -344,6 +364,10 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
         if (jigsaw) ...[
           const SizedBox(height: 12),
           _ratingSwitch(),
+          if (_modeDef.aspects) ...[
+            const SizedBox(height: 10),
+            _aspectRow(),
+          ],
         ],
         if (t != null && t.needsImage) ...[
           const SizedBox(height: 16),
@@ -454,7 +478,22 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
     );
   }
 
-  /// Derece secimi - Hot Jigsaw / Kid Jigsaw. Gorevin hemen altinda durur.
+  /// CBN: kare / dikey / yatay - havuz her orani kabul eder, boyut buradan gider.
+  Widget _aspectRow() => SegmentedButton<String>(
+        segments: const [
+          ButtonSegment(value: 'portrait', label: Text('Dikey'), icon: Icon(Icons.crop_portrait, size: 16)),
+          ButtonSegment(value: 'square', label: Text('Kare'), icon: Icon(Icons.crop_square, size: 16)),
+          ButtonSegment(value: 'landscape', label: Text('Yatay'), icon: Icon(Icons.crop_landscape, size: 16)),
+        ],
+        selected: {_aspect},
+        showSelectedIcon: false,
+        onSelectionChanged: (v) {
+          HapticFeedback.selectionClick();
+          setState(() => _aspect = v.first);
+        },
+      );
+
+  /// Derece secimi - Hot/Kid (Jigsaw ya da CBN). Gorevin hemen altinda durur.
   Widget _ratingSwitch() {
     return Container(
       padding: const EdgeInsets.all(4),
@@ -463,7 +502,7 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
         borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
-        children: JigsawProfiles.ratings.entries.map((e) {
+        children: _ratingsMap.entries.map((e) {
           final on = e.key == _rating;
           return Expanded(
             child: GestureDetector(
@@ -638,8 +677,8 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
           prompt: p1,
           prompt2: p2,
           negative: _negative.text.trim(),
-          width: t.width,
-          height: t.height,
+          width: _modeDef.aspects ? _aspectSizes[_aspect]!.$1 : t.width,
+          height: _modeDef.aspects ? _aspectSizes[_aspect]!.$2 : t.height,
           duration: _duration,
           turbo: _turbo,
           mode: _mode,

@@ -406,6 +406,11 @@ def _tag(jpg: str, agent: str) -> tuple[bool, str]:
 
     Yazdiktan sonra EXIF geri okunup etiketin gercekten dustugu dogrulanir.
     """
+    # Format sonrasi Gemini CLI kurulu degilse istemcinin varsayilani bos
+    # dondurmesin: elde olan etiketleyiciye (Claude CLI) dus.
+    if agent == "Gemini" and not (shutil.which("gemini.cmd") or shutil.which("gemini")):
+        if shutil.which("claude.cmd") or shutil.which("claude"):
+            agent = "Claude"
     try:
         proc = subprocess.run(
             [sys.executable, "-c", _TAG_KOD, R2M_DIR, jpg, agent],

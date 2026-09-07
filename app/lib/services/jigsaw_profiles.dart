@@ -46,12 +46,53 @@ class JigsawProfiles {
   static Map<String, JigsawProfile>? _cache;
   static String? loadError;
 
+  /// Birlikte tek ifade olmasi gereken alan ciftleri: renk + kiyafet
+  /// "pastel pink pleated miniskirt" olarak gider, "pastel pink, pleated
+  /// miniskirt" olarak degil (virgul modelin rengi baska seye baglamasina
+  /// yol aciyor).
+  static const mergePairs = <(String, String)>[
+    ('outfit_color', 'outfit'),
+  ];
+
+  /// Ayni dosya bicimini kullanan baska bir kip (CBN) icin ortak yukleyici.
+  static Future<Map<String, JigsawProfile>> loadFrom(
+      String asset, Map<String, String> ratings) async {
+    final raw = json.decode(await rootBundle.loadString(asset)) as Map<String, dynamic>;
+    final out = <String, JigsawProfile>{};
+    ratings.forEach((id, label) {
+      final blok = (raw[id] as Map<String, dynamic>?) ?? const {};
+      final fields = ((blok['alanlar'] as List?) ?? const [])
+          .whereType<List>()
+          .where((a) => a.length >= 2)
+          .map((a) => JigsawField('${a[0]}', '${a[1]}'))
+          .toList();
+      final secenekler = (blok['secenekler'] as Map<String, dynamic>?) ?? const {};
+      final opts = <String, List<String>>{
+        for (final f in fields)
+          f.key: ((secenekler[f.key] as List?) ?? const [])
+              .map((e) => '$e'.trim())
+              .where((e) => e.isNotEmpty)
+              .toList(),
+      };
+      out[id] = JigsawProfile(
+          id: id, label: label, fields: fields, options: opts,
+          template: '${blok['sablon'] ?? ''}', negative: '${blok['negatif'] ?? ''}');
+    });
+    return out;
+  }
+
   /// Dropdown dolduysa Pozitif 2 sablonunun ayni seyi soyleyen parcasi
   /// gonderimden dusulur - yoksa sablon secimi eziyor ("close-up portrait"
   /// secip sablonda "full body ... composition" birakmak gibi.)
   static final Map<String, RegExp> coverage = {
     'pose': RegExp(r'\b(pose|composition)\b', caseSensitive: false),
     'hair': RegExp(r'\bhair\b', caseSensitive: false),
+    'hairstyle': RegExp(r'\bhair\b', caseSensitive: false),
+    // Aci secilince sablonun "full body ... composition" parcasi dusmeli,
+    // yoksa "close-up portrait" ile "full body" ayni prompta biner.
+    'angle': RegExp(r'\b(shot|angle|composition|framing|view)\b', caseSensitive: false),
+    'outfit': RegExp(r'\b(outfit|dress|clothing|wearing|lingerie|bikini|nude|naked)\b',
+        caseSensitive: false),
     'eyes': RegExp(r'\beyes?\b', caseSensitive: false),
   };
 
@@ -152,11 +193,22 @@ class DetailState {
   bool get hasAnyOption =>
       profile.fields.any((f) => profile.optionsFor(f.key).isNotEmpty);
 
-  /// Secili detaylari alan sirasiyla virgullu tek metne cevirir.
+  /// Secili detaylari alan sirasiyla virgullu tek metne cevirir; birlesik
+  /// ciftler (kiyafet rengi + kiyafet) tek ifade olur.
   String detailsText([Map<String, String>? v]) {
     final src = v ?? values;
+    final merged = <String, String>{};
+    final skip = <String>{};
+    for (final (a, b) in JigsawProfiles.mergePairs) {
+      final va = (src[a] ?? '').trim(), vb = (src[b] ?? '').trim();
+      if (va.isNotEmpty && vb.isNotEmpty) {
+        merged[b] = '$va $vb';
+        skip.add(a);
+      }
+    }
     return profile.fields
-        .map((f) => (src[f.key] ?? '').trim())
+        .where((f) => !skip.contains(f.key))
+        .map((f) => merged[f.key] ?? (src[f.key] ?? '').trim())
         .where((s) => s.isNotEmpty)
         .join(', ');
   }
@@ -187,5 +239,34 @@ class DetailState {
         .map((s) => s.trim())
         .where((s) => s.isNotEmpty && !pats.any((rx) => rx.hasMatch(s)))
         .join(', ');
+  }
+}
+
+/// CBN kipinin derece profilleri (Hot CBN / Kid CBN) - `assets/cbn_secenekler.json`
+/// (sunucudaki `server/config/cbn_options.json` ile ayni dosya).
+class CbnProfiles {
+  static const ratings = <String, String>{
+    'hot': 'Hot CBN',
+    'kid': 'Kid CBN',
+  };
+
+  static Map<String, JigsawProfile>? _cache;
+  static String? loadError;
+
+  static Future<Map<String, JigsawProfile>> load() async {
+    if (_cache != null) return _cache!;
+    try {
+      _cache = await JigsawProfiles.loadFrom('assets/cbn_secenekler.json', ratings);
+      loadError = null;
+    } catch (e) {
+      loadError = 'CBN secenek dosyasi okunamadi: $e';
+      _cache = {
+        for (final e in ratings.entries)
+          e.key: JigsawProfile(
+              id: e.key, label: e.value, fields: const [],
+              options: const {}, template: '', negative: '')
+      };
+    }
+    return _cache!;
   }
 }

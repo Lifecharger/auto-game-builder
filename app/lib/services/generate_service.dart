@@ -14,6 +14,8 @@ class GenerateMode {
     required this.motion2,
     required this.negative,
     required this.exports,
+    this.profiles = '',
+    this.aspects = false,
   });
 
   final String id;
@@ -22,8 +24,11 @@ class GenerateMode {
   final String motion2;   // video gorevleri icin hareket sablonu
   final String negative;
   final bool exports;     // ciktilar bir havuza yazilabiliyor mu
+  final String profiles;  // '' | 'jigsaw' | 'cbn' - derece secenek dosyasi
+  final bool aspects;     // oran secici (kare / dikey / yatay) gosterilsin mi
 
   bool get isJigsaw => id == 'jigsaw';
+  bool get hasProfiles => profiles.isNotEmpty;
 
   factory GenerateMode.fromJson(Map<String, dynamic> j) => GenerateMode(
         id: j['id'] as String,
@@ -32,6 +37,8 @@ class GenerateMode {
         motion2: (j['motion2'] ?? '') as String,
         negative: (j['negative'] ?? '') as String,
         exports: j['exports'] == true,
+        profiles: (j['profiles'] ?? (j['id'] == 'jigsaw' ? 'jigsaw' : '')) as String,
+        aspects: j['aspects'] == true,
       );
 }
 

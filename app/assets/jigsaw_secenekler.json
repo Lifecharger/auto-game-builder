@@ -1,373 +1,706 @@
 {
-  "_aciklama": "Uretim Studyosu dropdown secenekleri. Iki profil var: 'hot' (Hot Jigsaw) ve 'kid' (Kid Jigsaw). Her profilde 'alanlar' ekrandaki siralamayi ve etiketleri, 'secenekler' listeleri verir. Serbestce duzenle; uygulama acilista okur. 'sablon'/'negatif' o profilin Pozitif 2 ve Negatif varsayilanidir - hot'ta bos birakilirsa AGB'nin kendi sablonu kullanilir. Her profildeki 'video' blogu 2. akistaki video uretimi icindir: 'sablonlar' Pozitif 2 hazir metinleri ({} = konu prompt'u), 'negatif' varsayilan negatif prompt. 'Que All' bu sablonlari sirayla dagitir.",
-  "hot": {
-    "alanlar": [
-      [
-        "pose",
-        "Poz"
-      ],
-      [
-        "hair",
-        "Sac"
-      ],
-      [
-        "eyes",
-        "Goz"
-      ],
-      [
-        "race",
-        "Irk"
-      ],
-      [
-        "location",
-        "Mekan"
-      ],
-      [
-        "weather",
-        "Hava"
-      ],
-      [
-        "fantasy",
-        "Fantazi"
-      ]
-    ],
-    "sablon": "",
-    "negatif": "",
-    "secenekler": {
-      "pose": [
-        "full body shot",
-        "upper body shot",
-        "close-up portrait",
-        "cowboy shot",
-        "from below, low angle",
-        "from above, high angle",
-        "from behind, looking back over shoulder",
-        "sitting on a chair, legs crossed",
-        "kneeling on one knee",
-        "leaning against a wall",
-        "walking toward the camera",
-        "hands on hips, confident stance",
-        "arms crossed",
-        "stretching, arms raised",
-        "lying on her side",
-        "dynamic action pose, mid-motion"
-      ],
-      "hair": [
-        "black hair",
-        "jet black hair",
-        "dark brown hair",
-        "brown hair",
-        "light brown hair",
-        "chestnut hair",
-        "auburn hair",
-        "red hair",
-        "ginger hair",
-        "strawberry blonde hair",
-        "dirty blonde hair",
-        "blonde hair",
-        "golden blonde hair",
-        "platinum blonde hair",
-        "silver hair",
-        "white hair",
-        "pastel pink hair",
-        "hot pink hair",
-        "lavender hair",
-        "purple hair",
-        "deep blue hair",
-        "electric blue hair",
-        "turquoise hair",
-        "mint green hair",
-        "emerald green hair",
-        "orange hair",
-        "crimson red hair",
-        "two tone black and pink hair"
-      ],
-      "eyes": [
-        "black eyes",
-        "dark brown eyes",
-        "brown eyes",
-        "light brown eyes",
-        "hazel eyes",
-        "amber eyes",
-        "green eyes",
-        "emerald green eyes",
-        "blue eyes",
-        "light blue eyes",
-        "deep blue eyes",
-        "grey eyes"
-      ],
-      "race": [
-        "caucasian",
-        "east asian",
-        "korean",
-        "japanese",
-        "chinese",
-        "southeast asian",
-        "south asian, indian",
-        "black, african",
-        "latina, hispanic",
-        "middle eastern, arab",
-        "mediterranean",
-        "slavic, eastern european",
-        "scandinavian, nordic",
-        "mixed race"
-      ],
-      "location": [
-        "busy city street at night, neon lights",
-        "modern city rooftop at sunset",
-        "quiet park with autumn trees",
-        "dense misty forest",
-        "sandy beach at golden hour",
-        "snowy mountain slope",
-        "desert dunes under harsh sun",
-        "luxury hotel lobby",
-        "cozy cafe interior",
-        "modern apartment living room",
-        "industrial warehouse, dramatic light",
-        "subway station platform",
-        "old european cobblestone alley",
-        "flower field in full bloom",
-        "rainy street with reflections",
-        "library with tall bookshelves",
-        "nightclub with colored lights",
-        "abandoned ruins overgrown with vines",
-        "seaside pier at dusk",
-        "japanese temple garden"
-      ],
-      "weather": [
-        "clear blue sky",
-        "bright sunny day",
-        "warm golden hour light",
-        "soft overcast light",
-        "heavy grey clouds",
-        "light drizzle",
-        "pouring rain",
-        "thunderstorm with lightning",
-        "thick fog",
-        "morning mist",
-        "gentle snowfall",
-        "heavy blizzard",
-        "strong wind",
-        "hazy summer heat",
-        "sunset glow",
-        "clear starry night",
-        "moonlit night",
-        "after the rain, wet ground and reflections"
-      ],
-      "fantasy": [
-        "elf with pointed ears",
-        "dark elf, dusky skin",
-        "elven queen in ornate armor",
-        "fairy with translucent wings",
-        "sorceress casting arcane light",
-        "battle mage in enchanted robes",
-        "vampire noble, pale skin",
-        "succubus with small horns",
-        "angel with white feathered wings",
-        "demoness with dark horns and tail",
-        "valkyrie in winged helm",
-        "warrior princess in plate armor",
-        "assassin in dark leather hood",
-        "druid crowned with leaves",
-        "necromancer in tattered black robes",
-        "cyberpunk mercenary with neon implants",
-        "steampunk aviator with goggles",
-        "pirate captain in a long coat",
-        "samurai in lacquered armor",
-        "witch with a wide brimmed hat",
-        "mermaid with iridescent scales",
-        "ice queen crowned in frost",
-        "goddess in flowing golden silk",
-        "orc warrior, green skin"
-      ]
-    },
-    "video": {
-      "negatif": "static image, no motion, frozen frame, distorted face, warped anatomy, extra limbs, flickering, morphing, jitter, duplicated person, text, watermark, low quality",
-      "sablonlar": [
-        {
-          "ad": "Yavas donus",
-          "prompt": "{}, she turns her head slowly toward the camera and holds a soft gaze, hair settling naturally, subtle camera push in, cinematic realistic motion"
-        },
-        {
-          "ad": "Sac ve kumas",
-          "prompt": "{}, gentle breeze moves her hair and clothing, she shifts her weight slightly, slow drifting camera, photorealistic natural motion"
-        },
-        {
-          "ad": "Kameraya bakis",
-          "prompt": "{}, she blinks and smiles faintly while looking into the camera, shoulders relaxing, very slow zoom in, cinematic film grain"
-        },
-        {
-          "ad": "Yurume",
-          "prompt": "{}, she takes a slow confident step toward the camera, hair and fabric flowing with the movement, steady tracking shot"
-        },
-        {
-          "ad": "Omuz uzeri",
-          "prompt": "{}, she glances back over her shoulder, hair sweeping across her back, slow arc camera move, moody cinematic lighting"
-        },
-        {
-          "ad": "Sacini duzeltir",
-          "prompt": "{}, she lifts one hand and brushes a strand of hair behind her ear, natural micro movements, shallow depth of field, slow push in"
-        },
-        {
-          "ad": "Nefes ve duruş",
-          "prompt": "{}, subtle breathing motion, tiny weight shift, eyes tracking slowly, almost still portrait in motion, cinematic"
-        },
-        {
-          "ad": "Yavas cevre",
-          "prompt": "{}, the camera slowly orbits around her while she stays composed, background parallax, smooth gimbal motion, cinematic"
-        }
-      ]
-    }
+ "_aciklama": "Uretim Studyosu dropdown secenekleri. Iki profil var: 'hot' (Hot Jigsaw) ve 'kid' (Kid Jigsaw). Her profilde 'alanlar' ekrandaki siralamayi ve etiketleri, 'secenekler' listeleri verir. Serbestce duzenle; uygulama acilista okur. 'sablon'/'negatif' o profilin Pozitif 2 ve Negatif varsayilanidir - hot'ta bos birakilirsa AGB'nin kendi sablonu kullanilir. Her profildeki 'video' blogu 2. akistaki video uretimi icindir: 'sablonlar' Pozitif 2 hazir metinleri ({} = konu prompt'u), 'negatif' varsayilan negatif prompt. 'Que All' bu sablonlari sirayla dagitir.",
+ "hot": {
+  "alanlar": [
+   [
+    "angle",
+    "Aci"
+   ],
+   [
+    "pose",
+    "Poz"
+   ],
+   [
+    "expression",
+    "Ifade"
+   ],
+   [
+    "outfit_color",
+    "Kiyafet rengi"
+   ],
+   [
+    "outfit",
+    "Kiyafet"
+   ],
+   [
+    "hair",
+    "Sac"
+   ],
+   [
+    "hairstyle",
+    "Sac stili"
+   ],
+   [
+    "eyes",
+    "Goz"
+   ],
+   [
+    "race",
+    "Irk"
+   ],
+   [
+    "job",
+    "Meslek"
+   ],
+   [
+    "theme",
+    "Tema"
+   ],
+   [
+    "location",
+    "Mekan"
+   ],
+   [
+    "weather",
+    "Hava"
+   ],
+   [
+    "fantasy",
+    "Fantazi"
+   ]
+  ],
+  "sablon": "",
+  "negatif": "",
+  "secenekler": {
+   "pose": [
+    "sitting on a chair, legs crossed",
+    "kneeling on one knee",
+    "leaning against a wall",
+    "walking toward the camera",
+    "hands on hips, confident stance",
+    "arms crossed",
+    "stretching, arms raised",
+    "lying on her side",
+    "dynamic action pose, mid-motion",
+    "looking up at the sky",
+    "sitting on the floor, knees up",
+    "leaning forward on a table",
+    "twirling, dress flowing",
+    "hands in pockets, relaxed",
+    "adjusting her sunglasses",
+    "peeking around a corner",
+    "lying on her back, looking at the camera",
+    "crouching, ready to spring",
+    "playing with her hair",
+    "standing tall, weight on one hip",
+    "one hand on the wall, leaning in",
+    "sitting on a windowsill",
+    "sitting on the edge of a bed",
+    "perched on a bar stool",
+    "lounging on a sofa",
+    "stepping out of a car",
+    "walking down stairs",
+    "running, hair flying",
+    "jumping mid-air",
+    "dancing, arms up",
+    "bending forward, hands on knees",
+    "stretching one leg on a bar",
+    "lying on her stomach, chin on hands",
+    "sitting cross-legged on the floor",
+    "leaning back on her hands",
+    "hugging her knees",
+    "holding a coffee cup with both hands",
+    "brushing hair from her face",
+    "tying her hair up",
+    "fixing her earring",
+    "holding a hat brim",
+    "pulling a jacket over her shoulder",
+    "hands clasped behind her back",
+    "one knee raised, hand on it",
+    "twisting to look back",
+    "arms stretched along a railing",
+    "kneeling on a bed"
+   ],
+   "hair": [
+    "black hair",
+    "jet black hair",
+    "dark brown hair",
+    "brown hair",
+    "light brown hair",
+    "chestnut hair",
+    "auburn hair",
+    "red hair",
+    "ginger hair",
+    "strawberry blonde hair",
+    "dirty blonde hair",
+    "blonde hair",
+    "golden blonde hair",
+    "platinum blonde hair",
+    "silver hair",
+    "white hair",
+    "pastel pink hair",
+    "hot pink hair",
+    "lavender hair",
+    "purple hair",
+    "deep blue hair",
+    "electric blue hair",
+    "turquoise hair",
+    "mint green hair",
+    "emerald green hair",
+    "orange hair",
+    "crimson red hair",
+    "two tone black and pink hair"
+   ],
+   "eyes": [
+    "black eyes",
+    "dark brown eyes",
+    "brown eyes",
+    "light brown eyes",
+    "hazel eyes",
+    "amber eyes",
+    "green eyes",
+    "emerald green eyes",
+    "blue eyes",
+    "light blue eyes",
+    "deep blue eyes",
+    "grey eyes"
+   ],
+   "race": [
+    "caucasian",
+    "east asian",
+    "korean",
+    "japanese",
+    "chinese",
+    "southeast asian",
+    "south asian, indian",
+    "black, african",
+    "latina, hispanic",
+    "middle eastern, arab",
+    "mediterranean",
+    "slavic, eastern european",
+    "scandinavian, nordic",
+    "mixed race"
+   ],
+   "location": [
+    "busy city street at night, neon lights",
+    "modern city rooftop at sunset",
+    "quiet park with autumn trees",
+    "dense misty forest",
+    "sandy beach at golden hour",
+    "snowy mountain slope",
+    "desert dunes under harsh sun",
+    "luxury hotel lobby",
+    "cozy cafe interior",
+    "modern apartment living room",
+    "industrial warehouse, dramatic light",
+    "subway station platform",
+    "old european cobblestone alley",
+    "flower field in full bloom",
+    "rainy street with reflections",
+    "library with tall bookshelves",
+    "nightclub with colored lights",
+    "abandoned ruins overgrown with vines",
+    "seaside pier at dusk",
+    "japanese temple garden",
+    "luxury penthouse with city view",
+    "art gallery with white walls",
+    "greenhouse full of plants",
+    "vintage record store",
+    "neon arcade",
+    "rooftop garden",
+    "marble palace corridor",
+    "tropical waterfall",
+    "hot spring with steam",
+    "motorcycle garage",
+    "train carriage at night",
+    "opera house balcony"
+   ],
+   "weather": [
+    "clear blue sky",
+    "bright sunny day",
+    "warm golden hour light",
+    "soft overcast light",
+    "heavy grey clouds",
+    "light drizzle",
+    "pouring rain",
+    "thunderstorm with lightning",
+    "thick fog",
+    "morning mist",
+    "gentle snowfall",
+    "heavy blizzard",
+    "strong wind",
+    "hazy summer heat",
+    "sunset glow",
+    "clear starry night",
+    "moonlit night",
+    "after the rain, wet ground and reflections",
+    "dramatic storm clouds, shafts of light",
+    "sun through leaves, dappled light",
+    "neon-lit rain at night",
+    "golden dust in the air",
+    "soft snow under street lamps",
+    "blue hour twilight"
+   ],
+   "fantasy": [
+    "elf with pointed ears",
+    "dark elf, dusky skin",
+    "elven queen in ornate armor",
+    "fairy with translucent wings",
+    "sorceress casting arcane light",
+    "battle mage in enchanted robes",
+    "vampire noble, pale skin",
+    "succubus with small horns",
+    "angel with white feathered wings",
+    "demoness with dark horns and tail",
+    "valkyrie in winged helm",
+    "warrior princess in plate armor",
+    "assassin in dark leather hood",
+    "druid crowned with leaves",
+    "necromancer in tattered black robes",
+    "cyberpunk mercenary with neon implants",
+    "steampunk aviator with goggles",
+    "pirate captain in a long coat",
+    "samurai in lacquered armor",
+    "witch with a wide brimmed hat",
+    "mermaid with iridescent scales",
+    "ice queen crowned in frost",
+    "goddess in flowing golden silk",
+    "orc warrior, green skin",
+    "phoenix sorceress with fiery wings",
+    "dragon rider in scaled armor",
+    "moon priestess in silver robes",
+    "forest nymph with vine tattoos",
+    "storm goddess crackling with lightning",
+    "shadow assassin wreathed in smoke",
+    "celestial knight in starlit armor",
+    "sea witch with coral crown",
+    "desert queen in gold jewelry",
+    "frost elf archer"
+   ],
+   "expression": [
+    "warm genuine smile",
+    "playful smirk",
+    "soft suggestive gaze",
+    "confident smile",
+    "laughing joyfully",
+    "surprised, mouth slightly open",
+    "shocked wide eyes, delighted",
+    "flirty wink",
+    "biting her lip playfully",
+    "dreamy relaxed expression",
+    "curious raised eyebrow",
+    "cheeky tongue out",
+    "serene closed-eye smile",
+    "excited bright grin",
+    "seductive half-lidded eyes",
+    "amused giggle"
+   ],
+   "hairstyle": [
+    "long straight hair",
+    "long wavy hair",
+    "loose curls",
+    "tight coily curls",
+    "sleek bob",
+    "pixie cut",
+    "high ponytail",
+    "low ponytail",
+    "messy bun",
+    "elegant updo",
+    "french braid",
+    "double braids",
+    "space buns",
+    "side-swept bangs",
+    "blunt bangs",
+    "wet slicked-back hair",
+    "half-up half-down",
+    "voluminous blowout",
+    "beach waves",
+    "braided crown"
+   ],
+   "job": [
+    "police officer in uniform",
+    "nurse in scrubs",
+    "doctor in a white coat",
+    "firefighter with suspenders",
+    "flight attendant in uniform",
+    "pilot with aviator cap",
+    "chef in a white jacket",
+    "barista with apron",
+    "waitress in a diner uniform",
+    "teacher with glasses",
+    "librarian with cardigan",
+    "lawyer in a tailored suit",
+    "businesswoman in a pencil skirt",
+    "secretary with a clipboard",
+    "scientist in a lab coat",
+    "mechanic in overalls",
+    "construction worker with hard hat",
+    "farmer in denim",
+    "cowgirl with a hat",
+    "soldier in camouflage",
+    "detective in a trench coat",
+    "race car driver in a racing suit",
+    "fitness trainer in sportswear",
+    "yoga instructor",
+    "lifeguard in red swimsuit",
+    "ballet dancer in leotard",
+    "cheerleader in uniform",
+    "tennis player in a white skirt",
+    "surfer with a board",
+    "rock guitarist on stage",
+    "dj with headphones",
+    "photographer with a camera",
+    "painter with a brush",
+    "fashion model on a runway",
+    "news anchor at a desk",
+    "astronaut in a spacesuit",
+    "sailor in a striped top",
+    "maid in a classic uniform",
+    "bartender behind the bar",
+    "gardener with a straw hat"
+   ],
+   "theme": [
+    "cyberpunk city with neon holograms",
+    "steampunk workshop with brass gears",
+    "retro 80s synthwave",
+    "vaporwave pastel aesthetic",
+    "film noir, black and white with red accent",
+    "gothic cathedral",
+    "art deco 1920s glamour",
+    "vintage 1950s pin-up",
+    "victorian era elegance",
+    "space opera starship bridge",
+    "post-apocalyptic wasteland",
+    "high fantasy castle hall",
+    "tropical summer paradise",
+    "winter wonderland",
+    "japanese street fashion, harajuku",
+    "old hollywood red carpet",
+    "underwater dreamscape",
+    "enchanted forest at twilight",
+    "luxury yacht deck",
+    "desert oasis at dusk",
+    "cozy cabin by the fireplace",
+    "rooftop pool party",
+    "carnival at night",
+    "royal palace ballroom"
+   ],
+   "angle": [
+    "full body shot",
+    "upper body shot",
+    "close-up portrait",
+    "cowboy shot",
+    "from below, low angle",
+    "from above, high angle",
+    "from behind, looking back over shoulder",
+    "full body shot, head to toe in frame",
+    "wide shot with the environment around her",
+    "medium shot, waist up",
+    "knee-up shot",
+    "three-quarter view",
+    "side profile",
+    "over-the-shoulder shot",
+    "eye-level straight on",
+    "slightly from above, looking down at the camera",
+    "low angle looking up at her",
+    "extreme close-up of the face",
+    "top-down bird's eye view",
+    "dutch angle, tilted camera",
+    "mirror reflection shot",
+    "through a doorway, framed",
+    "back view, walking away",
+    "profile silhouette against the light",
+    "candid off-guard shot"
+   ],
+   "outfit": [
+    "short dress",
+    "mini dress",
+    "bodycon mini dress",
+    "slip dress",
+    "wrap dress",
+    "sundress",
+    "off-shoulder dress",
+    "little black dress",
+    "cocktail dress",
+    "evening gown with a high slit",
+    "pleated miniskirt",
+    "ruffle miniskirt",
+    "denim miniskirt",
+    "tennis skirt",
+    "leather miniskirt",
+    "high-waisted shorts",
+    "denim shorts",
+    "hot pants",
+    "biker shorts",
+    "pencil skirt",
+    "bralette",
+    "crop top",
+    "tube top",
+    "tank top",
+    "halter top",
+    "off-shoulder top",
+    "corset top",
+    "satin camisole",
+    "silk blouse",
+    "button-up shirt tied at the waist",
+    "oversized sweater",
+    "cropped hoodie",
+    "blazer over a bralette",
+    "leather jacket over a crop top",
+    "bikini",
+    "string bikini",
+    "one-piece swimsuit",
+    "sheer cover-up over a bikini",
+    "lingerie set",
+    "lace bodysuit",
+    "satin robe",
+    "jumpsuit",
+    "romper",
+    "yoga set, sports bra and leggings",
+    "cheerleader outfit",
+    "school uniform style skirt and blouse",
+    "maid dress",
+    "nurse dress",
+    "fishnet stockings and a mini dress",
+    "thigh-high boots and a mini dress",
+    "knit dress",
+    "sequin party dress",
+    "latex catsuit",
+    "kimono-style robe"
+   ],
+   "outfit_color": [
+    "black",
+    "white",
+    "red",
+    "hot pink",
+    "pastel pink",
+    "baby blue",
+    "royal blue",
+    "navy",
+    "emerald green",
+    "mint green",
+    "olive",
+    "mustard yellow",
+    "lavender",
+    "purple",
+    "burgundy",
+    "coral",
+    "peach",
+    "beige",
+    "cream",
+    "gold",
+    "silver metallic",
+    "denim blue",
+    "sheer black",
+    "glossy latex black",
+    "leopard print",
+    "zebra print",
+    "red plaid",
+    "polka dot",
+    "floral print",
+    "striped",
+    "tie-dye",
+    "neon green",
+    "neon orange",
+    "holographic"
+   ]
   },
-  "kid": {
-    "alanlar": [
-      [
-        "subject",
-        "Konu"
-      ],
-      [
-        "style",
-        "Stil"
-      ],
-      [
-        "location",
-        "Mekan"
-      ],
-      [
-        "mood",
-        "Hava"
-      ],
-      [
-        "palette",
-        "Renk"
-      ]
-    ],
-    "sablon": "a cheerful children's jigsaw puzzle illustration of {}, bright saturated colors, clean bold shapes, soft rounded forms, friendly and wholesome, simple uncluttered background, even lighting, high detail, vertical 9:16 composition",
-    "negatif": "scary, horror, gore, blood, weapon, violence, dark, gloomy, creepy, realistic photo, photorealistic, text, watermark, logo, signature, blurry, low quality, deformed, extra limbs, cluttered",
-    "secenekler": {
-      "subject": [
-        "a fluffy orange kitten",
-        "a playful golden puppy",
-        "a baby elephant",
-        "a red panda",
-        "a family of penguins",
-        "a friendly brown bear",
-        "a curious fox cub",
-        "a spotted giraffe",
-        "a smiling dolphin",
-        "a sea turtle",
-        "a koala hugging a branch",
-        "a rabbit with long ears",
-        "a hedgehog",
-        "a squirrel holding an acorn",
-        "a parrot with rainbow feathers",
-        "a green triceratops",
-        "a long-necked brontosaurus",
-        "a cheerful little robot",
-        "a hot air balloon",
-        "a red steam train",
-        "a yellow school bus",
-        "a sailing boat",
-        "a rocket ship",
-        "a wooden treehouse",
-        "a lighthouse by the sea",
-        "a windmill",
-        "a basket of fruit",
-        "a stack of pancakes",
-        "a birthday cake",
-        "a bowl of ice cream",
-        "a friendly dragon",
-        "a unicorn with a pastel mane",
-        "a tiny garden fairy",
-        "a snowman with a scarf",
-        "a scarecrow in a field",
-        "a castle with tall towers"
-      ],
-      "style": [
-        "storybook illustration",
-        "flat vector illustration",
-        "soft watercolor painting",
-        "colored pencil drawing",
-        "cut paper collage",
-        "claymation style",
-        "cute chibi cartoon",
-        "3d cartoon render",
-        "gouache painting",
-        "crayon drawing",
-        "pixel art",
-        "stained glass style"
-      ],
-      "location": [
-        "in a sunny meadow",
-        "in a green forest clearing",
-        "on a sandy beach",
-        "in a snowy landscape",
-        "in a flower garden",
-        "on a farm",
-        "by a calm lake",
-        "on a mountain top",
-        "in an orchard",
-        "in a cozy bedroom",
-        "in a busy kitchen",
-        "in a playground",
-        "under the starry sky",
-        "in outer space",
-        "underwater coral reef",
-        "in an autumn park",
-        "on a rainbow bridge",
-        "in a candy land"
-      ],
-      "mood": [
-        "sunny and bright",
-        "warm golden afternoon",
-        "soft morning light",
-        "gentle rain",
-        "light snowfall",
-        "starry night",
-        "rainbow after rain",
-        "cozy and calm",
-        "festive and joyful",
-        "dreamy pastel haze"
-      ],
-      "palette": [
-        "bright primary colors",
-        "soft pastel palette",
-        "warm autumn colors",
-        "cool blue and green tones",
-        "rainbow colors",
-        "earthy natural tones",
-        "candy pink and mint",
-        "sunny yellow and orange"
-      ]
+  "video": {
+   "negatif": "static image, no motion, frozen frame, distorted face, warped anatomy, extra limbs, flickering, morphing, jitter, duplicated person, text, watermark, low quality",
+   "sablonlar": [
+    {
+     "ad": "Yavas donus",
+     "prompt": "{}, she turns her head slowly toward the camera and holds a soft gaze, hair settling naturally, subtle camera push in, cinematic realistic motion"
     },
-    "video": {
-      "negatif": "static image, no motion, frozen frame, scary, creepy, dark, distorted, morphing, flickering, extra limbs, text, watermark, low quality",
-      "sablonlar": [
-        {
-          "ad": "Sallanma",
-          "prompt": "{}, gentle bobbing motion, soft breeze in the scene, cheerful and calm, smooth camera push in, colorful children's animation"
-        },
-        {
-          "ad": "Zipla",
-          "prompt": "{}, small happy hop, squash and stretch, playful timing, bright cheerful lighting, storybook animation"
-        },
-        {
-          "ad": "El sallama",
-          "prompt": "{}, waves happily toward the viewer, friendly smile, gentle idle motion, bright and wholesome, smooth animation"
-        },
-        {
-          "ad": "Kamera yakinlasir",
-          "prompt": "{}, slow camera zoom in while the scene comes alive with tiny idle movements, warm sunny light, children's illustration in motion"
-        },
-        {
-          "ad": "Ruzgar",
-          "prompt": "{}, leaves and grass sway in a light breeze, soft parallax in the background, calm and gentle, storybook animation"
-        },
-        {
-          "ad": "Donus",
-          "prompt": "{}, turns slowly to face the viewer with a cheerful expression, smooth rounded motion, bright saturated colors"
-        }
-      ]
+    {
+     "ad": "Sac ve kumas",
+     "prompt": "{}, gentle breeze moves her hair and clothing, she shifts her weight slightly, slow drifting camera, photorealistic natural motion"
+    },
+    {
+     "ad": "Kameraya bakis",
+     "prompt": "{}, she blinks and smiles faintly while looking into the camera, shoulders relaxing, very slow zoom in, cinematic film grain"
+    },
+    {
+     "ad": "Yurume",
+     "prompt": "{}, she takes a slow confident step toward the camera, hair and fabric flowing with the movement, steady tracking shot"
+    },
+    {
+     "ad": "Omuz uzeri",
+     "prompt": "{}, she glances back over her shoulder, hair sweeping across her back, slow arc camera move, moody cinematic lighting"
+    },
+    {
+     "ad": "Sacini duzeltir",
+     "prompt": "{}, she lifts one hand and brushes a strand of hair behind her ear, natural micro movements, shallow depth of field, slow push in"
+    },
+    {
+     "ad": "Nefes ve duruş",
+     "prompt": "{}, subtle breathing motion, tiny weight shift, eyes tracking slowly, almost still portrait in motion, cinematic"
+    },
+    {
+     "ad": "Yavas cevre",
+     "prompt": "{}, the camera slowly orbits around her while she stays composed, background parallax, smooth gimbal motion, cinematic"
     }
+   ]
   }
+ },
+ "kid": {
+  "alanlar": [
+   [
+    "subject",
+    "Konu"
+   ],
+   [
+    "style",
+    "Stil"
+   ],
+   [
+    "location",
+    "Mekan"
+   ],
+   [
+    "mood",
+    "Hava"
+   ],
+   [
+    "palette",
+    "Renk"
+   ]
+  ],
+  "sablon": "a cheerful children's jigsaw puzzle illustration of {}, bright saturated colors, clean bold shapes, soft rounded forms, friendly and wholesome, simple uncluttered background, even lighting, high detail, vertical 9:16 composition",
+  "negatif": "scary, horror, gore, blood, weapon, violence, dark, gloomy, creepy, realistic photo, photorealistic, text, watermark, logo, signature, blurry, low quality, deformed, extra limbs, cluttered",
+  "secenekler": {
+   "subject": [
+    "a fluffy orange kitten",
+    "a playful golden puppy",
+    "a baby elephant",
+    "a red panda",
+    "a family of penguins",
+    "a friendly brown bear",
+    "a curious fox cub",
+    "a spotted giraffe",
+    "a smiling dolphin",
+    "a sea turtle",
+    "a koala hugging a branch",
+    "a rabbit with long ears",
+    "a hedgehog",
+    "a squirrel holding an acorn",
+    "a parrot with rainbow feathers",
+    "a green triceratops",
+    "a long-necked brontosaurus",
+    "a cheerful little robot",
+    "a hot air balloon",
+    "a red steam train",
+    "a yellow school bus",
+    "a sailing boat",
+    "a rocket ship",
+    "a wooden treehouse",
+    "a lighthouse by the sea",
+    "a windmill",
+    "a basket of fruit",
+    "a stack of pancakes",
+    "a birthday cake",
+    "a bowl of ice cream",
+    "a friendly dragon",
+    "a unicorn with a pastel mane",
+    "a tiny garden fairy",
+    "a snowman with a scarf",
+    "a scarecrow in a field",
+    "a castle with tall towers",
+    "a friendly robot",
+    "a baby dragon",
+    "a sleepy sloth",
+    "a dancing octopus",
+    "a tiny hedgehog",
+    "a race car",
+    "a pirate ship",
+    "a unicorn",
+    "a school bus",
+    "a lighthouse",
+    "a treehouse"
+   ],
+   "style": [
+    "storybook illustration",
+    "flat vector illustration",
+    "soft watercolor painting",
+    "colored pencil drawing",
+    "cut paper collage",
+    "claymation style",
+    "cute chibi cartoon",
+    "3d cartoon render",
+    "gouache painting",
+    "crayon drawing",
+    "pixel art",
+    "stained glass style",
+    "sticker art, bold outlines",
+    "felt and fabric craft"
+   ],
+   "location": [
+    "in a sunny meadow",
+    "in a green forest clearing",
+    "on a sandy beach",
+    "in a snowy landscape",
+    "in a flower garden",
+    "on a farm",
+    "by a calm lake",
+    "on a mountain top",
+    "in an orchard",
+    "in a cozy bedroom",
+    "in a busy kitchen",
+    "in a playground",
+    "under the starry sky",
+    "in outer space",
+    "underwater coral reef",
+    "in an autumn park",
+    "on a rainbow bridge",
+    "in a candy land",
+    "under the sea",
+    "in a magical castle",
+    "at a carnival",
+    "in a treehouse village",
+    "in a rainbow valley",
+    "at a train station"
+   ],
+   "mood": [
+    "sunny and bright",
+    "warm golden afternoon",
+    "soft morning light",
+    "gentle rain",
+    "light snowfall",
+    "starry night",
+    "rainbow after rain",
+    "cozy and calm",
+    "festive and joyful",
+    "dreamy pastel haze"
+   ],
+   "palette": [
+    "bright primary colors",
+    "soft pastel palette",
+    "warm autumn colors",
+    "cool blue and green tones",
+    "rainbow colors",
+    "earthy natural tones",
+    "candy pink and mint",
+    "sunny yellow and orange"
+   ]
+  },
+  "video": {
+   "negatif": "static image, no motion, frozen frame, scary, creepy, dark, distorted, morphing, flickering, extra limbs, text, watermark, low quality",
+   "sablonlar": [
+    {
+     "ad": "Sallanma",
+     "prompt": "{}, gentle bobbing motion, soft breeze in the scene, cheerful and calm, smooth camera push in, colorful children's animation"
+    },
+    {
+     "ad": "Zipla",
+     "prompt": "{}, small happy hop, squash and stretch, playful timing, bright cheerful lighting, storybook animation"
+    },
+    {
+     "ad": "El sallama",
+     "prompt": "{}, waves happily toward the viewer, friendly smile, gentle idle motion, bright and wholesome, smooth animation"
+    },
+    {
+     "ad": "Kamera yakinlasir",
+     "prompt": "{}, slow camera zoom in while the scene comes alive with tiny idle movements, warm sunny light, children's illustration in motion"
+    },
+    {
+     "ad": "Ruzgar",
+     "prompt": "{}, leaves and grass sway in a light breeze, soft parallax in the background, calm and gentle, storybook animation"
+    },
+    {
+     "ad": "Donus",
+     "prompt": "{}, turns slowly to face the viewer with a cheerful expression, smooth rounded motion, bright saturated colors"
+    }
+   ]
+  }
+ }
 }

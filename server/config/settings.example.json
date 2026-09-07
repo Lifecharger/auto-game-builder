@@ -77,5 +77,11 @@
     "_comment": "ComfyUI kurulum koku ve adresi. COMFYUI_ROOT / COMFYUI_URL ortam degiskenleri onceliklidir.",
     "root": "C:/ComfyUI",
     "url": "http://127.0.0.1:8188"
+  },
+  "cbn": {
+    "root": "D:\\Asset Generation Pipeline",
+    "bucket": "cbn",
+    "options_file": "",
+    "_not": "root: Hot CBN / Kid CBN / _Incoming CBN klasorlerinin ust dizini (bos = jigsaw.pool_root'un ustu). options_file bos = server/config/cbn_options.json"
   }
 }

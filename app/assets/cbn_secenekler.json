@@ -1,0 +1,26 @@
+{
+  "_aciklama": "CBN (Color-By-Number) kipinin derece profilleri. 'hot' = Hot CBN (reveal: sonuc bitmis golgeli resim), 'kid' = Kid CBN (her bolge tek duz renk). 'sablon' Pozitif 2 varsayilanidir ({} = konu), 'negatif' negatif prompt. 'alanlar' ekrandaki dropdown sirasi, 'secenekler' listeleri. Serbestce duzenle; uygulama acilista okur.",
+  "hot": {
+    "alanlar": [["subject", "Konu"], ["hair", "Sac"], ["outfit", "Kiyafet"], ["location", "Mekan"], ["pose", "Poz"]],
+    "sablon": "{}, clean semi-realistic digital illustration, smooth cel shading with soft gradients, crisp clean edges, glossy highlights, vivid saturated colors, detailed hair strands, beautiful adult woman, glamorous, high detail",
+    "negatif": "blurry, low quality, deformed, extra limbs, text, watermark, logo, photo, noise, grain, muddy colors, child, minor",
+    "secenekler": {
+      "subject": ["beautiful adult woman", "glamorous adult woman", "elegant adult woman", "athletic adult woman", "adult woman with a warm smile"],
+      "hair": ["long wavy honey-brown hair", "sleek black bob", "curly auburn hair", "platinum blonde waves", "long straight dark hair", "copper red curls", "silver hair", "braided chestnut hair"],
+      "outfit": ["white halter bikini and a blue sarong", "red satin evening dress", "yellow sundress", "black leather jacket and jeans", "white summer dress", "emerald green gown", "denim shorts and a crop top", "elegant lingerie and a silk robe"],
+      "location": ["tropical beach cafe with a palm tree", "city balcony at night with neon lights", "sunflower field on a picnic blanket", "desert road at sunset", "poolside lounge chair", "rooftop bar at golden hour", "cozy bedroom with morning light", "autumn park bench"],
+      "pose": ["leaning on a table with a cup of coffee", "standing with one hand in her hair", "sitting with legs crossed", "walking toward the viewer", "lying on her side", "looking over her shoulder"]
+    }
+  },
+  "kid": {
+    "alanlar": [["subject", "Konu"], ["style", "Stil"], ["location", "Mekan"], ["mood", "Hava"]],
+    "sablon": "{}, cute children's coloring-book illustration, flat vector art, bold thick black outlines, big simple rounded shapes, solid flat colors, no gradients, no shading, no texture, cheerful, simple background made of a few large shapes",
+    "negatif": "gradient, shading, texture, photo, realistic, noise, blur, sketchy lines, tiny details, text, watermark",
+    "secenekler": {
+      "subject": ["a friendly unicorn", "a smiling astronaut cat", "a red tractor on a farm", "a happy dinosaur", "a little robot", "a sailing boat", "a family of ducks", "a fire truck", "a dragon eating ice cream", "a bear on a bicycle"],
+      "style": ["kawaii", "storybook", "simple geometric", "cartoon animals", "vehicles", "fairy tale"],
+      "location": ["under a rainbow with clouds", "in a sunflower field", "among planets and stars", "at the beach", "in a snowy village", "in a jungle", "on a farm with a barn", "in a candy land"],
+      "mood": ["cheerful", "sleepy", "playful", "brave", "curious"]
+    }
+  }
+}

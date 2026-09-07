@@ -381,6 +381,11 @@ except Exception as _e:  # ComfyUI kurulu degilse sunucu yine acilsin
 
 try:  # Jigsaw dort akisli yayin hatti (r2manager boru hattinin sunucu tarafi)
     from core import jigsaw_flow
+    try:
+        from core import cbn_flow
+    except Exception as _e2:  # noqa: BLE001
+        cbn_flow = None
+        print(f"[AutoGameBuilder] cbn_flow yuklenemedi: {_e2}")
 except Exception as _e:
     jigsaw_flow = None
     print(f"[AutoGameBuilder] jigsaw_flow yuklenemedi: {_e}")
@@ -5919,3 +5924,99 @@ def generate_file(job_id: str):
     ext = os.path.splitext(f)[1].lower()
     return FileResponse(f, media_type=GENERATED_MEDIA_TYPES.get(ext, "application/octet-stream"),
                         filename=os.path.basename(f), content_disposition_type="inline")
+
+
+# ------------------------------------------------- CBN (color-by-number) hatti
+# Jigsaw hattinin ikizi: 1 uretim (mode="cbn") -> 2 Gelen (etiket) -> 3 Hazir
+# (Opus + SAM3 [+ Qwen cizgi] insa) -> 4 Push. Uzun isler arka planda, /op ile.
+def _cbn():
+    if cbn_flow is None:
+        raise HTTPException(503, "CBN akis modulu yuklenemedi")
+    return cbn_flow
+
+
+@app.get("/api/cbn/profiles")
+def cbn_profiles():
+    return _flow_call(_cbn().profiles)
+
+
+@app.get("/api/cbn/flow/ratings")
+def cbn_flow_ratings():
+    return {"ratings": _flow_call(_cbn().ratings)}
+
+
+@app.get("/api/cbn/flow/collections")
+def cbn_flow_collections(rating: str = "hot"):
+    return _flow_call(_cbn().collections, rating)
+
+
+@app.get("/api/cbn/flow/list")
+def cbn_flow_list(rating: str = "hot", stage: str = "incoming",
+                  collection: str = "", limit: int = 200, offset: int = 0):
+    return _flow_call(_cbn().list_items, rating, stage, collection, limit, offset)
+
+
+@app.get("/api/cbn/flow/thumb")
+def cbn_flow_thumb(rating: str, stage: str, id: str, kind: str = "image", size: int = 360):
+    t = _flow_call(_cbn().thumb, rating, stage, id, kind, max(64, min(1024, size)))
+    if not t:
+        raise HTTPException(404, "Onizleme yok")
+    return FileResponse(t, media_type="image/jpeg",
+                        headers={"Cache-Control": "public, max-age=604800"})
+
+
+@app.get("/api/cbn/flow/file")
+def cbn_flow_file(rating: str, stage: str, id: str, kind: str = "image"):
+    p = _flow_call(_cbn().item_path, rating, stage, id, kind)
+    if not p:
+        raise HTTPException(404, "Dosya yok")
+    tip = GENERATED_MEDIA_TYPES.get(os.path.splitext(p)[1].lower(), "application/octet-stream")
+    if p.endswith(".svg"):
+        tip = "image/svg+xml"
+    elif p.endswith(".json"):
+        tip = "application/json"
+    return FileResponse(p, media_type=tip, filename=os.path.basename(p))
+
+
+@app.post("/api/cbn/flow/stage")
+def cbn_flow_stage(body: FlowStageRequest):
+    """1 -> 2. Uretim islerini Gelen'e yazar ve EXIF etiketler."""
+    if not body.jobs:
+        raise HTTPException(400, "is secilmedi")
+    return {"op": _flow_call(_cbn().stage_jobs, body.jobs, body.rating, body.agent)}
+
+
+@app.post("/api/cbn/flow/build")
+def cbn_flow_build(body: FlowItemsRequest):
+    """2 -> 3. Secili Gelen varliklarini koleksiyona insa eder (uzun surer)."""
+    if not body.ids:
+        raise HTTPException(400, "varlik secilmedi")
+    return {"op": _flow_call(_cbn().build, body.rating, body.ids, body.collection)}
+
+
+@app.post("/api/cbn/flow/push")
+def cbn_flow_push(body: FlowItemsRequest):
+    """3 -> 4. R2'ye yukler ve Pushed'a tasir. GERI ALINAMAZ."""
+    if not body.ids:
+        raise HTTPException(400, "varlik secilmedi")
+    return {"op": _flow_call(_cbn().push, body.rating, body.ids)}
+
+
+@app.post("/api/cbn/flow/delete")
+def cbn_flow_delete(body: FlowItemsRequest):
+    if not body.ids:
+        raise HTTPException(400, "varlik secilmedi")
+    return _flow_call(_cbn().remove, body.rating, body.stage, body.ids)
+
+
+@app.get("/api/cbn/flow/ops")
+def cbn_flow_ops():
+    return {"ops": _flow().ops()}
+
+
+@app.get("/api/cbn/flow/op/{op_id}")
+def cbn_flow_op(op_id: str):
+    o = _flow().op_status(op_id)
+    if not o:
+        raise HTTPException(404, "islem yok")
+    return o

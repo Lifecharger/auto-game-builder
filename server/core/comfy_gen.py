@@ -302,16 +302,28 @@ def extras_text(ids) -> str:
     return ", ".join(parts)
 
 
+# CBN (Color-By-Number) kipi: uretim jigsaw gibi bir gorsel isidir; sablon ve
+# negatif derece profilinden gelir (cbn_options.json), o yuzden burada bos.
+# Kabul/insa/push akisi cbn_flow.py'dedir. "profiles" istemciye hangi secenek
+# dosyasinin gectigini soyler; "aspects" oran secicisini acar.
+CBN_NEG = ("blurry, low quality, deformed, extra limbs, text, watermark, logo, "
+           "photo, noise, grain, muddy colors")
+
 MODES = {
     "free": {
         "id": "free", "label": "Free Mod",
         "prompt2": "", "negative": "", "motion2": "",
-        "width": 0, "height": 0, "exports": False,
+        "width": 0, "height": 0, "exports": False, "profiles": "", "aspects": False,
     },
     "jigsaw": {
         "id": "jigsaw", "label": "Jigsaw Modu",
         "prompt2": JIGSAW_PROMPT2, "negative": JIGSAW_NEG, "motion2": JIGSAW_MOTION2,
-        "width": 896, "height": 1600, "exports": True,
+        "width": 896, "height": 1600, "exports": True, "profiles": "jigsaw", "aspects": False,
+    },
+    "cbn": {
+        "id": "cbn", "label": "CBN Modu",
+        "prompt2": "", "negative": CBN_NEG, "motion2": "",
+        "width": 832, "height": 1216, "exports": True, "profiles": "cbn", "aspects": True,
     },
 }
 
@@ -834,7 +846,7 @@ def submit(task: str, prompt: str, *, prompt2: str = "", negative: str = "",
             width, height = video_size_for(image_path)
         except Exception:
             width, height = 0, 0
-    if mode == "jigsaw" and not (width and height):
+    if md.get("width") and not (width and height):
         width, height = (704, 1280) if is_vid else (md["width"], md["height"])
 
     combined = combine(prompt, prompt2)

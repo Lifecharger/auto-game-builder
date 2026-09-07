@@ -22,7 +22,7 @@ import 'screens/login_screen.dart';
 import 'screens/asset_generate_screen.dart';
 import 'screens/asset_gallery_screen.dart';
 import 'screens/asset_queue_screen.dart';
-import 'screens/asset_flow_screen.dart';
+import 'screens/asset_flow_hub.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -124,7 +124,7 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
     AssetGenerateScreen(),
     AssetQueueScreen(),
     AssetGalleryScreen(),
-    AssetFlowScreen(),
+    FlowHub(),
     SettingsScreen(),
   ];
 

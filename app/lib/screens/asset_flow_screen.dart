@@ -22,7 +22,10 @@ import '../theme.dart';
 /// 1. akis (uretim) "Uretilenler" ekranindadir; oradaki KABUL ET bu ekranin
 /// 2. akisina dusurur.
 class AssetFlowScreen extends StatefulWidget {
-  const AssetFlowScreen({super.key});
+  const AssetFlowScreen({super.key, this.kindSwitch});
+
+  /// Ust cubuktaki Jigsaw | CBN anahtari (FlowHub verir).
+  final Widget? kindSwitch;
 
   @override
   State<AssetFlowScreen> createState() => _AssetFlowScreenState();
@@ -541,7 +544,9 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
                 icon: const Icon(Icons.close),
                 onPressed: () => setState(_sel.clear))
             : null,
-        title: Text(_selecting ? '${_sel.length} secili' : 'Yayin hatti'),
+        title: _selecting
+            ? Text('${_sel.length} secili')
+            : (widget.kindSwitch ?? const Text('Yayin hatti')),
         actions: [
           if (!_selecting)
             IconButton(

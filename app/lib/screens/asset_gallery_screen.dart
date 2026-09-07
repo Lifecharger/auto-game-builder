@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../services/generate_service.dart';
+import '../services/cbn_flow_service.dart';
 import '../services/jigsaw_flow_service.dart';
 import '../services/jigsaw_profiles.dart';
 import '../theme.dart';
@@ -36,10 +39,27 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
   bool get _selecting => _sel.isNotEmpty;
   bool _busy = false;
 
+  /// Kendiliginden tazeleme (gorev #269): sirada/calisan is varken 3 sn'de
+  /// bir, yoksa 15 sn'de bir sessizce yeniden yukler - Uretim ekranindan
+  /// eklenen is de yenile dugmesine basmadan buraya duser.
+  Timer? _timer;
+  int _tick = 0;
+
   @override
   void initState() {
     super.initState();
     _load();
+    _timer = Timer.periodic(const Duration(seconds: 3), (_) {
+      _tick++;
+      final busy = _jobs.any((j) => j.isBusy);
+      if (busy || _tick % 5 == 0) _load(silent: true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
   }
 
   /// Videolar AYRI kart degildir: uretildikleri gorselin kartina baglanir ve
@@ -85,11 +105,14 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
     };
   }
 
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+  Future<void> _load({bool silent = false}) async {
+    if (silent && (_loading || _busy)) return;
+    if (!silent) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     try {
       final j = await GenerateService.list(limit: 80, mode: _mode);
       if (!mounted) return;
@@ -184,17 +207,23 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
           content: Text('Tamamlanmis gorsel sec')));
       return;
     }
+    final cbn = _mode == 'cbn';
+    final ratings = cbn ? CbnFlowService.ratings : JigsawProfiles.ratings;
     final rating = await showDialog<String>(
       context: context,
       builder: (c) => AlertDialog(
         title: const Text('Kabul et'),
-        content: Text('${gorseller.length} gorsel 2. akisa tasinacak: '
-            '720x1280 jpg + EXIF etiketi, varsa videosu da yaninda.\n\n'
-            'Hangi derece?'),
+        content: Text(cbn
+            ? '${gorseller.length} gorsel CBN hattinin "Gelen" akisina tasinacak: '
+                'jpg + EXIF etiketi. Insa (SAM, cizgi, bolgeler) orada baslatilir.\n\n'
+                'Hangi derece?'
+            : '${gorseller.length} gorsel 2. akisa tasinacak: '
+                'jpg + EXIF etiketi, varsa videosu da yaninda.\n\n'
+                'Hangi derece?'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(c), child: const Text('Vazgec')),
-          for (final e in JigsawProfiles.ratings.entries)
+          for (final e in ratings.entries)
             FilledButton(
                 onPressed: () => Navigator.pop(c, e.key), child: Text(e.value)),
         ],
@@ -203,8 +232,12 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
     if (rating == null) return;
     setState(() => _busy = true);
     try {
-      await JigsawFlowService.stageJobs(
-          jobs: gorseller.map((j) => j.id).toList(), rating: rating);
+      final jobs = gorseller.map((j) => j.id).toList();
+      if (cbn) {
+        await CbnFlowService.stageJobs(jobs: jobs, rating: rating);
+      } else {
+        await JigsawFlowService.stageJobs(jobs: jobs, rating: rating);
+      }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('Basladi - ilerlemeyi "Hat" sekmesinden izle')));
@@ -252,7 +285,7 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
                   onPressed: () =>
                       setState(() => _sel.addAll(_visible.map((j) => j.id))),
                 ),
-                if (_mode == 'jigsaw')
+                if (_mode != 'free')
                   IconButton(
                     icon: const Icon(Icons.check_circle_outline),
                     tooltip: 'Kabul et - 2. akisa gonder',
@@ -287,6 +320,7 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
                   segments: const [
                     ButtonSegment(value: 'free', label: Text('Free Mod')),
                     ButtonSegment(value: 'jigsaw', label: Text('Jigsaw Modu')),
+                    ButtonSegment(value: 'cbn', label: Text('CBN Modu')),
                   ],
                   selected: {_mode},
                   showSelectedIcon: false,
