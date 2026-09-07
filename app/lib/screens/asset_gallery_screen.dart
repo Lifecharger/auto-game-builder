@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:video_player/video_player.dart';
 
 import '../services/generate_service.dart';
 import '../services/jigsaw_flow_service.dart';
@@ -7,6 +6,7 @@ import '../services/jigsaw_profiles.dart';
 import '../theme.dart';
 import '../services/mode_service.dart';
 import '../widgets/bottom_inset.dart';
+import '../widgets/network_video.dart';
 
 /// Asset Mod - Uretilenler ekrani.
 ///
@@ -642,7 +642,10 @@ class _ViewerPageState extends State<_ViewerPage> {
               itemBuilder: (_, i) {
                 final job = widget.jobs[i];
                 return job.isVideo
-                    ? _VideoView(key: ValueKey(job.id), job: job)
+                    ? NetworkVideo(
+                        key: ValueKey(job.id),
+                        url: job.fileUrl,
+                        headers: GenerateService.authHeaders)
                     : InteractiveViewer(
                         child: Center(
                           child: Image.network(job.fileUrl,
@@ -705,80 +708,3 @@ class _ViewerPageState extends State<_ViewerPage> {
 }
 
 /// Tek bir video isini oynatir.
-class _VideoView extends StatefulWidget {
-  const _VideoView({super.key, required this.job});
-
-  final GenerateJob job;
-
-  @override
-  State<_VideoView> createState() => _VideoViewState();
-}
-
-class _VideoViewState extends State<_VideoView> {
-  VideoPlayerController? _c;
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    _init();
-  }
-
-  Future<void> _init() async {
-    final c = VideoPlayerController.networkUrl(
-      Uri.parse(widget.job.fileUrl),
-      httpHeaders: GenerateService.authHeaders,
-    );
-    try {
-      await c.initialize();
-      await c.setLooping(true);
-      await c.play();
-      if (!mounted) {
-        await c.dispose();
-        return;
-      }
-      setState(() => _c = c);
-    } catch (e) {
-      await c.dispose();
-      if (mounted) setState(() => _error = e.toString());
-    }
-  }
-
-  @override
-  void dispose() {
-    _c?.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_error != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Text('Video oynatilamadi\n$_error',
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 12, color: Colors.grey)),
-        ),
-      );
-    }
-    final c = _c;
-    if (c == null) return const Center(child: CircularProgressIndicator());
-    return Center(
-      child: AspectRatio(
-        aspectRatio: c.value.aspectRatio,
-        child: Stack(
-          alignment: Alignment.bottomCenter,
-          children: [
-            GestureDetector(
-              onTap: () => setState(
-                  () => c.value.isPlaying ? c.pause() : c.play()),
-              child: VideoPlayer(c),
-            ),
-            VideoProgressIndicator(c, allowScrubbing: true),
-          ],
-        ),
-      ),
-    );
-  }
-}

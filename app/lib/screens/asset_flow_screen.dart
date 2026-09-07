@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import '../services/jigsaw_flow_service.dart';
 import '../services/jigsaw_profiles.dart';
 import '../services/mode_service.dart';
+import '../widgets/network_video.dart';
 import '../theme.dart';
 
 /// Asset Mod - Jigsaw yayin hatti (2-3-4. akis).
@@ -785,20 +786,32 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
         child: Text(t, style: const TextStyle(fontSize: 8, color: Colors.white)),
       );
 
+  /// Onizleme. Oynat dugmesine basildiysa GERCEK videoyu oynatir - eskiden
+  /// burada yalnizca kucuk resim gosteriliyordu, "video oynamiyor" hatasi
+  /// (gorev #267) tam olarak buydu.
   void _preview(FlowItem it, {bool video = false}) {
+    final oynat = video && it.video;
     showDialog(
       context: context,
       builder: (_) => Dialog(
         insetPadding: const EdgeInsets.all(12),
+        backgroundColor: oynat ? Colors.black : null,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Flexible(
-              child: Image.network(
-                JigsawFlowService.thumbUrl(_rating, _stage, it.id, size: 900),
-                headers: JigsawFlowService.authHeaders,
-                errorBuilder: (_, _, _) => const SizedBox(height: 120),
-              ),
+              child: oynat
+                  ? NetworkVideo(
+                      url: JigsawFlowService.fileUrl(_rating, _stage, it.id,
+                          kind: 'video'),
+                      headers: JigsawFlowService.authHeaders,
+                    )
+                  : Image.network(
+                      JigsawFlowService.thumbUrl(_rating, _stage, it.id,
+                          size: 900),
+                      headers: JigsawFlowService.authHeaders,
+                      errorBuilder: (_, _, _) => const SizedBox(height: 120),
+                    ),
             ),
             Padding(
               padding: const EdgeInsets.all(10),
@@ -806,7 +819,8 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
                 '${it.label}\nvideo: ${it.video ? "var" : "yok"}   '
                 'webp: ${it.webp ? "var" : "yok"}'
                 '${it.tagged == null ? "" : "   etiket: ${it.tagged! ? "var" : "YOK"}"}',
-                style: const TextStyle(fontSize: 12),
+                style: TextStyle(
+                    fontSize: 12, color: oynat ? Colors.white70 : null),
                 textAlign: TextAlign.center,
               ),
             ),
