@@ -675,6 +675,14 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
                 Text('${_cur.length} / ${_totals[_stage] ?? _cur.length}',
                     style: const TextStyle(fontSize: 11, color: Colors.grey)),
                 const Spacer(),
+                // QUE ALL secime bagli degil: videosu olmayan HERKESE video
+                // acar, o yuzden "Tumunu sec"in yanindaki tek dugme (gorev #275).
+                if (_stage == 'incoming')
+                  TextButton.icon(
+                    onPressed: _queueAll,
+                    icon: const Icon(Icons.playlist_play, size: 18),
+                    label: const Text('QUE ALL'),
+                  ),
                 TextButton(
                   onPressed: () =>
                       setState(() => _sel.addAll(_cur.map((i) => i.id))),
@@ -838,24 +846,112 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
     );
   }
 
+  /// Secili varliklardan videosu olanlar.
+  List<String> get _selWithVideo => _sel.where((id) {
+        final i = _cur.where((x) => x.id == id).firstOrNull;
+        return i != null && i.video;
+      }).toList();
+
+  /// Yalniz videoyu siler (jpg + json kalir) - yeniden video uretilebilsin.
+  Future<void> _deleteVideo() async {
+    final ids = _selWithVideo;
+    if (ids.isEmpty) {
+      _snack('Secilenlerde video yok');
+      return;
+    }
+    final ok = await _confirm('Videoyu sil',
+        '${ids.length} varligin mp4 + webp\'i silinecek; gorsel kalir, yeniden video uretebilirsin.',
+        onay: 'Videoyu sil');
+    if (!ok) return;
+    try {
+      final n = await JigsawFlowService.removeVideo(
+          rating: _rating, stage: _stage, ids: ids);
+      setState(_sel.clear);
+      _snack('$n dosya silindi');
+      _load();
+    } catch (e) {
+      _snack(e.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
+  /// Etiket: secili varligin EXIF etiketleri + prompt yan dosyasi.
+  Future<void> _showMeta() async {
+    final id = _sel.first;
+    Map<String, dynamic> m;
+    try {
+      m = await JigsawFlowService.meta(_rating, _stage, id);
+    } catch (e) {
+      _snack(e.toString().replaceFirst('Exception: ', ''));
+      return;
+    }
+    if (!mounted) return;
+    String kv(Map<String, dynamic> d) =>
+        d.entries.map((e) => '${e.key}: ${e.value}').join('\n');
+    final sc = (m['sidecar'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final rows = <(String, String)>[
+      ('Dosya', '${m['file']}'),
+      ('Etiketler', '${m['tags'] ?? ''}'),
+      if ((m['description'] ?? '').toString().isNotEmpty) ('Aciklama', '${m['description']}'),
+      if ((m['subject'] as Map?)?.isNotEmpty ?? false) ('Konu', kv((m['subject'] as Map).cast<String, dynamic>())),
+      if ((m['policy'] as Map?)?.isNotEmpty ?? false) ('Politika', kv((m['policy'] as Map).cast<String, dynamic>())),
+      if (sc['prompt'] != null) ('Prompt', '${sc['prompt']}'),
+      if ((sc['prompt2'] ?? '').toString().isNotEmpty) ('Pozitif 2', '${sc['prompt2']}'),
+      if ((sc['negative'] ?? '').toString().isNotEmpty) ('Negatif', '${sc['negative']}'),
+      if (sc['seed'] != null) ('Seed', '${sc['seed']}'),
+      ('Video', '${m['video'] == true ? "var" : "yok"}   webp: ${m['webp'] == true ? "var" : "yok"}'),
+    ];
+    await showDialog<void>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text(id, style: const TextStyle(fontSize: 14)),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final r in rows) ...[
+                Text(r.$1,
+                    style: const TextStyle(
+                        fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
+                SelectableText(r.$2.isEmpty ? '-' : r.$2,
+                    style: const TextStyle(fontSize: 12)),
+                const SizedBox(height: 8),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Kapat')),
+        ],
+      ),
+    );
+  }
+
+  /// Alt cubuk: yalniz ikon + tooltip - yazili hali telefona sigmiyordu
+  /// (gorev #276). QUE ALL secime bagli olmadigi icin ust satira tasindi.
   Widget _actionBar() {
     final butonlar = <Widget>[];
     if (_stage == 'incoming') {
       butonlar.addAll([
-        _act(Icons.movie_creation_outlined, 'Video', _makeVideos),
-        _act(Icons.playlist_play, 'QUE ALL', _queueAll),
+        _act(Icons.movie_creation_outlined, 'Video uret', _makeVideos),
+        _act(Icons.sell_outlined, 'Etiket / metadata', _showMeta),
         _act(Icons.check_circle_outline, 'Kabul et', _accept),
+        _act(Icons.videocam_off_outlined, 'Videoyu sil (gorsel kalir)',
+            _selWithVideo.isEmpty ? null : _deleteVideo),
         _act(Icons.delete_outline, 'Reddet', _delete),
       ]);
     } else if (_stage == 'staging') {
       butonlar.addAll([
         _act(Icons.animation, 'Eksik webp', _webp),
         _act(Icons.music_note, 'Muzik', _music),
+        _act(Icons.sell_outlined, 'Etiket / metadata', _showMeta),
+        _act(Icons.videocam_off_outlined, 'Videoyu sil (gorsel kalir)',
+            _selWithVideo.isEmpty ? null : _deleteVideo),
         _act(Icons.cloud_upload_outlined, 'Push', _push),
         _act(Icons.delete_outline, 'Sil', _delete),
       ]);
     } else {
-      butonlar.add(_act(Icons.info_outline, 'Salt gorunum', null));
+      butonlar.add(_act(Icons.sell_outlined, 'Etiket / metadata', _showMeta));
     }
     return BottomAppBar(
       child: Row(
@@ -865,10 +961,10 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
     );
   }
 
-  Widget _act(IconData ikon, String etiket, VoidCallback? fn) => TextButton.icon(
+  Widget _act(IconData ikon, String tooltip, VoidCallback? fn) => IconButton(
         onPressed: fn,
-        icon: Icon(ikon, size: 20),
-        label: Text(etiket, style: const TextStyle(fontSize: 12)),
+        tooltip: tooltip,
+        icon: Icon(ikon, size: 24),
       );
 
   Widget _errorView() => Center(

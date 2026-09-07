@@ -111,7 +111,7 @@ def _load_manifest() -> list[dict]:
                     "width": int(t.get("width", 0)),
                     "height": int(t.get("height", 0)),
                     "duration": int(t.get("duration", 5)),
-                    "modes": t.get("modes") or ["free", "jigsaw"],
+                    "modes": t.get("modes") or list(MODES),
                 })
         except Exception as e:  # bozuk manifest sunucuyu dusurmesin
             print("[comfy_gen] manifest okunamadi, yedek liste kullaniliyor: %s" % e)
@@ -120,7 +120,7 @@ def _load_manifest() -> list[dict]:
             entries.append({"id": key, "label": key, "workflow": wf,
                             "needs_image": ni, "is_video": iv,
                             "width": size[0], "height": size[1], "duration": 5,
-                            "modes": ["free", "jigsaw"]})
+                            "modes": list(MODES)})
     # is akisi diskte yoksa gorevi gizle
     entries = [e for e in entries if os.path.isfile(os.path.join(WFDIR, e["workflow"]))]
     _manifest_cache = (mtime, entries)
@@ -495,7 +495,14 @@ def tasks(mode: str = "") -> list[dict]:
     """Istemcinin gosterecegi gorev listesi (manifest'ten)."""
     out = []
     for t in _load_manifest():
-        if mode and mode not in t.get("modes", ["free", "jigsaw"]):
+        # Manifest'te "modes" verilmemisse gorev her kipte gecerlidir; CBN
+        # kipinde yalniz gorsel gorevleri (uretim + edit) sunulur - orada video
+        # yok. (Eski varsayilan ["free","jigsaw"] CBN'i dislayip gorev
+        # listesini bos birakiyordu: telefonda "gorev secilemiyor".)
+        izinli = t.get("modes") or list(MODES)
+        if mode and mode not in izinli:
+            continue
+        if mode == "cbn" and t.get("is_video"):
             continue
         out.append({"id": t["id"], "label": t["label"], "needs_image": t["needs_image"],
                     "is_video": t["is_video"], "default_width": t["width"],

@@ -302,6 +302,22 @@ class JigsawFlowService {
     return (d['deleted'] ?? 0) as int;
   }
 
+  /// Yalniz mp4 + webp'i siler; gorsel kalir, yeniden video uretilebilir.
+  static Future<int> removeVideo(
+      {required String rating,
+      required String stage,
+      required List<String> ids}) async {
+    final d = await _post('/api/jigsaw/flow/delete-video',
+        {'rating': rating, 'stage': stage, 'ids': ids});
+    return (d['deleted'] ?? 0) as int;
+  }
+
+  /// EXIF etiketleri + yan dosya (Etiket dugmesi).
+  static Future<Map<String, dynamic>> meta(
+          String rating, String stage, String id) async =>
+      _get('/api/jigsaw/flow/meta?rating=$rating&stage=$stage'
+          '&id=${Uri.encodeQueryComponent(id)}');
+
   /// Koleksiyon muzikleri: hangisinde var, model hazir mi.
   static Future<MusicStatus> musicStatus(String rating) async {
     final d = await _get('/api/jigsaw/flow/music?rating=$rating');

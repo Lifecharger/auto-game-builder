@@ -884,6 +884,78 @@ def make_music(rating: str, collections: list[str], tags: str = "",
 
 
 # ------------------------------------------------------------------ silme
+def _xp(zeroth: dict, tag: int) -> str:
+    raw = zeroth.get(tag)
+    if not raw:
+        return ""
+    if isinstance(raw, tuple):
+        raw = bytes(raw)
+    try:
+        return raw.decode("utf-16le").rstrip("\x00").strip()
+    except Exception:
+        return ""
+
+
+def _pipe(text: str) -> dict:
+    out = {}
+    for part in (text or "").split("|"):
+        k, _, v = part.partition(":")
+        if k.strip():
+            out[k.strip()] = v.strip()
+    return out
+
+
+def item_meta(rating: str, stage: str, item_id: str) -> dict:
+    """Bir varligin etiketleri: EXIF (r2manager'in yazdigi XPKeywords /
+    XPSubject / XPTitle / XPComment) + yerel .json yan dosyasi (prompt, seed).
+    Telefondaki "Etiket" dugmesi bunu gosterir (gorev #276)."""
+    jpg = item_path(rating, stage, item_id, "image")
+    if not jpg:
+        raise ValueError("varlik bulunamadi")
+    out = {"id": item_id, "file": os.path.basename(jpg), "tags": "", "subject": {},
+           "policy": {}, "description": "", "sidecar": {}, "video": False, "webp": False}
+    try:
+        import piexif  # noqa: WPS433
+        z = piexif.load(jpg).get("0th") or {}
+        out["tags"] = _xp(z, 0x9C9E)
+        out["subject"] = _pipe(_xp(z, 0x9C9F))
+        out["policy"] = _pipe(_xp(z, 0x9C9B))
+        out["description"] = _xp(z, 0x9C9C)
+        if not out["description"]:
+            raw = z.get(0x010E)
+            if raw:
+                out["description"] = bytes(raw).decode("utf-8", "replace").rstrip("\x00").strip()
+    except Exception as e:
+        out["exif_error"] = str(e)[:200]
+    stem = os.path.splitext(jpg)[0]
+    out["video"] = os.path.isfile(stem + ".mp4")
+    out["webp"] = os.path.isfile(stem + ".webp")
+    try:
+        with open(stem + ".json", encoding="utf-8") as fh:
+            out["sidecar"] = json.load(fh) or {}
+    except Exception:
+        pass
+    return out
+
+
+def remove_video(rating: str, stage: str, item_ids: list[str]) -> dict:
+    """Yalniz videoyu (mp4 + webp) siler; jpg ve json kalir - varlik yeniden
+    video uretimine acilir (gorev #276)."""
+    silinen = 0
+    for iid in item_ids:
+        jpg = item_path(rating, stage, iid, "image")
+        if not jpg:
+            continue
+        stem = os.path.splitext(jpg)[0]
+        for uz in (".mp4", ".webp"):
+            try:
+                os.remove(stem + uz)
+                silinen += 1
+            except OSError:
+                pass
+    return {"deleted": silinen}
+
+
 def remove(rating: str, stage: str, item_ids: list[str]) -> dict:
     """Varliklari tumuyle siler (jpg + mp4 + webp + json)."""
     silinen = 0

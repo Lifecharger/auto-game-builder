@@ -618,11 +618,7 @@ class _CbnFlowScreenState extends State<CbnFlowScreen>
   }
 
   Widget _act(IconData i, String t, VoidCallback? f) => Expanded(
-        child: TextButton.icon(
-          onPressed: f,
-          icon: Icon(i, size: 18),
-          label: Text(t, style: const TextStyle(fontSize: 12)),
-        ),
+        child: IconButton(onPressed: f, tooltip: t, icon: Icon(i, size: 24)),
       );
 
   Widget _errorView() => Center(

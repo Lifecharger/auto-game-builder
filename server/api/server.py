@@ -5823,6 +5823,20 @@ def jigsaw_flow_webp(body: FlowItemsRequest):
     return {"op": _flow_call(_flow().webp_missing, body.rating, body.collection)}
 
 
+@app.get("/api/jigsaw/flow/meta")
+def jigsaw_flow_meta(rating: str, stage: str, id: str):
+    """Bir varligin EXIF etiketleri + yan dosyasi (telefondaki Etiket dugmesi)."""
+    return _flow_call(_flow().item_meta, rating, stage, id)
+
+
+@app.post("/api/jigsaw/flow/delete-video")
+def jigsaw_flow_delete_video(body: FlowItemsRequest):
+    """Yalniz mp4 + webp'i siler; gorsel kalir, yeniden video uretilebilir."""
+    if not body.ids:
+        raise HTTPException(400, "varlik secilmedi")
+    return _flow_call(_flow().remove_video, body.rating, body.stage, body.ids)
+
+
 @app.post("/api/jigsaw/flow/delete")
 def jigsaw_flow_delete(body: FlowItemsRequest):
     if not body.ids:
