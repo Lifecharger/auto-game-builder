@@ -568,6 +568,31 @@ class CardFlowService {
             'include_dealers': includeDealers,
           }))['op'] ?? ''}';
 
+  /// #325: her still'in YESIL fonunu duz acik gri studyo fonuna cevirir
+  /// (kadin aynen kalir). Ilk hal `still_green.png` olarak saklanir; zaten gri
+  /// olan kartlar atlanir; SAM'in bulamadigi kart ELLE duzeltilir.
+  static Future<String> restill({
+    String collection = 'all',
+    bool includeDealers = true,
+    bool force = false,
+  }) async =>
+      '${(await _post('/api/card/flow/restill', {
+            'collection': collection,
+            'include_dealers': includeDealers,
+            'force': force,
+          }))['op'] ?? ''}';
+
+  /// #325: anime still'leri gercekci kadina cevirir (edit_qwen). Koleksiyonun
+  /// kimligi ve adi DEGISMEZ, yalniz gorseller + `style` alani.
+  static Future<String> realify({
+    required String collection,
+    String kind = 'card',
+  }) async =>
+      '${(await _post('/api/card/flow/realify', {
+            'collection': collection,
+            'kind': kind,
+          }))['op'] ?? ''}';
+
   /// Yedek yol: eski Grok videosunu hybrid kiple yeniden keser.
   static Future<String> recut({
     String collection = 'all',

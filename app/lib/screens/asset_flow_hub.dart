@@ -5,6 +5,7 @@ import 'asset_flow_screen.dart';
 import 'card_flow_screen.dart';
 import 'cbn_flow_screen.dart';
 import 'character_flow_screen.dart';
+import '../widgets/flow_kind_switch.dart';
 
 /// "Hat" sekmesi: dort yayin hatti arasinda gecis - Jigsaw (jpg + mp4 + webp),
 /// CBN (color-by-number varlik klasorleri), Kart (#323: Hot Card Games
@@ -25,22 +26,18 @@ class FlowHub extends StatefulWidget {
 class _FlowHubState extends State<FlowHub> {
   String _kind = 'jigsaw';
 
-  Widget _switch() => SegmentedButton<String>(
-        segments: const [
-          ButtonSegment(value: 'jigsaw', label: Text('Jigsaw')),
-          ButtonSegment(value: 'cbn', label: Text('CBN')),
-          ButtonSegment(value: 'card', label: Text('Kart')),
-          ButtonSegment(value: 'character', label: Text('Karakter')),
-        ],
-        selected: {_kind},
-        showSelectedIcon: false,
-        style: const ButtonStyle(
-          visualDensity: VisualDensity.compact,
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        ),
-        onSelectionChanged: (v) {
+  // #327: ortak anahtar - dar ekranda sarmaz, sigmazsa olcekle kuculur.
+  Widget _switch() => FlowKindSwitch(
+        items: const {
+          'jigsaw': 'Jigsaw',
+          'cbn': 'CBN',
+          'card': 'Kart',
+          'character': 'Karakter',
+        },
+        selected: _kind,
+        onChanged: (v) {
           HapticFeedback.selectionClick();
-          setState(() => _kind = v.first);
+          setState(() => _kind = v);
         },
       );
 

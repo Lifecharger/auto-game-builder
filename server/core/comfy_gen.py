@@ -246,13 +246,20 @@ def _apply_slot_files(wf: dict, slots: list[dict], files: dict) -> None:
         idx(sg.get("nodes"), str(sg.get("id")))
 
     for s in slots:
-        val = files.get(s["slot"]) or s.get("default") or ""
+        verilen = files.get(s["slot"])
+        val = verilen or s.get("default") or ""
         if not val:
             continue
         for scope, nid, widget in s.get("nodes") or []:
             n = index.get((scope, nid))
             if n is None:
                 continue
+            # Sablonlarda girdi dugumu cogu zaman BYPASS (mode 4) kaydedilmistir
+            # (ornek: Wan2.2 I2V'deki LoadImage). Donusturucu artik bypass'i
+            # dogru uyguladigi icin (gorev #326) dugum grafige hic girmiyordu;
+            # yuvaya gercek bir dosya koyduysak dugumu geri acariz.
+            if verilen and n.get("mode") in (2, 4):
+                n["mode"] = 0
             names = [i.get("name") for i in (n.get("inputs") or []) if i.get("widget")]
             if not names:
                 n.setdefault("inputs", []).insert(
@@ -799,12 +806,17 @@ def _bootstrap() -> None:
 
 
 # ------------------------------------------------------------------ altyapi
-def _convert():
-    """wf2api.convert'i gec yukle - ComfyUI kurulu degilse modul yine de import edilir."""
+def _wf2api():
+    """wf2api modulunu gec yukle - ComfyUI kurulu degilse modul yine de import edilir."""
     if COMFY_SCRIPTS not in sys.path:
         sys.path.insert(0, COMFY_SCRIPTS)
-    from wf2api import convert  # noqa: WPS433
-    return convert
+    import wf2api  # noqa: WPS433
+    return wf2api
+
+
+def _convert():
+    """wf2api.convert (geriye donuk kisayol)."""
+    return _wf2api().convert
 
 
 def comfy_up(timeout: float = 2.0) -> bool:
@@ -818,7 +830,16 @@ def comfy_up(timeout: float = 2.0) -> bool:
 def _post(path: str, payload: dict) -> dict:
     req = urllib.request.Request(COMFY + path, data=json.dumps(payload).encode(),
                                  headers={"Content-Type": "application/json"})
-    body = urllib.request.urlopen(req, timeout=180).read()
+    try:
+        body = urllib.request.urlopen(req, timeout=180).read()
+    except urllib.error.HTTPError as e:
+        # ComfyUI 400'de asil nedeni govdede soyler (node_errors) - is kaydina
+        # yalniz "HTTP Error 400" dusuyordu, teshis imkansizdi.
+        try:
+            detay = e.read().decode("utf-8", "replace")[:900]
+        except Exception:
+            detay = ""
+        raise RuntimeError("ComfyUI %s %s: %s" % (e.code, path, detay or e.reason)) from e
     return json.loads(body) if body else {}
 
 
@@ -1336,7 +1357,8 @@ def _run_job(job_id: str, task: str, a: dict) -> None:
             if not comfy_up():
                 raise RuntimeError("ComfyUI calismiyor (127.0.0.1:8188)")
             upd(node="")
-        convert = _convert()
+        w2a = _wf2api()
+        convert = w2a.convert
         wf = json.load(open(os.path.join(WFDIR, wf_name), encoding="utf-8"))
         seed = a["seed"] if a["seed"] is not None else random.randint(1, 2 ** 31)
         upd(seed=seed)
@@ -1374,6 +1396,14 @@ def _run_job(job_id: str, task: str, a: dict) -> None:
             ct = n["class_type"]
             if ct.startswith(("SaveImage", "SaveVideo")):
                 n["inputs"]["filename_prefix"] = "agb_gen"
+
+        # Grafigi GONDERMEDEN once denetle (gorev #326): ComfyUI'nin 400'u
+        # "prompt_outputs_failed_validation" diye gelip is kaydina anlamsiz
+        # dusuyordu; burada hangi dugumde ne eksik oldugunu soyluyoruz.
+        sorun = w2a.validate_graph(graph)
+        if sorun:
+            raise RuntimeError("is akisi gecersiz (%s): %s"
+                               % (wf_name, " | ".join(sorun[:4])))
 
         cid = "agb-" + job_id
         threading.Thread(target=_watch_progress, args=(job_id, cid), daemon=True).start()

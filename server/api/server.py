@@ -6241,6 +6241,26 @@ class CardReanimateRequest(BaseModel):
     kind: str = "card"
     include_dealers: bool = False
     dealers_v3: bool = False
+    restill_first: bool = False   # #325: once yesil fonlari duz acik griye al
+    realify_first: bool = False   # #325: once anime koleksiyonlari gercekci yap
+
+
+class CardRestillRequest(BaseModel):
+    """#325: yesil fonlu still'leri duz acik gri studyo fonuna cevirir.
+    `force` zaten gri olanlari da yeniden isler (varsayilan: atlanir)."""
+    collection: str = "all"
+    kind: str = "card"
+    include_dealers: bool = True
+    force: bool = False
+    ranks: list[str] = []
+
+
+class CardRealifyRequest(BaseModel):
+    """#325: anime stilli koleksiyonun still'lerini gercekci kadina cevirir
+    (edit_qwen). Koleksiyonun id/ad'i degismez, yalniz gorseller + `style`."""
+    collection: str
+    kind: str = "card"
+    ranks: list[str] = []
 
 
 class CardRecutRequest(BaseModel):
@@ -6348,9 +6368,27 @@ def card_flow_cut(body: CardCutRequest):
 
 @app.post("/api/card/flow/reanimate")
 def card_flow_reanimate(body: CardReanimateRequest):
-    """Gece modu: goc + eksik still + i2v + kesim tek op zincirinde (all = hepsi)."""
+    """Gece modu: goc + eksik still + (#325 gercekci/gri fon) + i2v + kesim tek op
+    zincirinde (all = hepsi)."""
     return {"op": _flow_call(_card().reanimate, body.collection, body.gesture, body.kind,
-                             body.include_dealers, body.dealers_v3)}
+                             body.include_dealers, body.dealers_v3,
+                             body.restill_first, body.realify_first)}
+
+
+@app.post("/api/card/flow/restill")
+def card_flow_restill(body: CardRestillRequest):
+    """#325: her still'in YESIL fonunu duz acik gri studyo fonuna cevirir (kadin
+    aynen kalir). Ilk hal `still_green.png` olarak saklanir; zaten gri olanlar
+    atlanir; SAM'in bulamadigi rutbeye DOKUNULMAZ, op mesajinda listelenir."""
+    return {"op": _flow_call(_card().restill, body.collection, body.kind,
+                             body.include_dealers, body.force, body.ranks)}
+
+
+@app.post("/api/card/flow/realify")
+def card_flow_realify(body: CardRealifyRequest):
+    """#325: anime still'leri gercekci kadina cevirir (edit_qwen), eskisini
+    `still_anime.png` olarak saklar, bitince collection.json style -> realistic."""
+    return {"op": _flow_call(_card().realify, body.collection, body.kind, body.ranks)}
 
 
 @app.post("/api/card/flow/recut")

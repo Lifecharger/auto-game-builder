@@ -48,6 +48,7 @@ import json
 import math
 import os
 import random
+import re
 import shutil
 import subprocess
 import sys
@@ -91,6 +92,7 @@ FRAME_V3 = (512, 768)           # sheet karesi (12x6 -> 6144x4608)
 THUMB_V3 = (640, 960)
 DEALER_FRAME_V1 = (320, 480)    # APK'da gomulu scarlett'in geometrisi
 SHEET_QUALITY = 85
+RESTILL_BG = (212, 212, 208)    # #325 duz acik gri studyo fonu (cut.RESTILL_BG)
 
 # --------------------------------------------------------------- turler
 KINDS = {
@@ -596,7 +598,9 @@ def collection(collection_id: str, kind: str = "") -> dict:
            "kind": k, "style": m.get("style") or "realistic", "theme": m.get("theme") or "",
            "jokers": int(m.get("jokers") or 0), "created": m.get("created") or "",
            "dir": _rel(col_dir(collection_id, k)),
-           "cover": (kapak or {}).get("thumb_rel") or (kapak or {}).get("still_rel") or "",
+           # #327: thumb yalniz gercekten varsa; yoksa still (Jokers: yalniz J1/J2).
+           "cover": ((kapak or {}).get("thumb_rel") if (kapak or {}).get("thumb")
+                     else (kapak or {}).get("still_rel")) or "",
            "rev": max([0] + [c["rev"] for c in cards]),
            "ranks": harita, "cards": cards,
            "counts": {"total": len(cards),
@@ -942,8 +946,11 @@ def create(collection_id: str, name: str = "", theme: str = "", jokers: int = 0,
         raise ValueError("tema bos - koleksiyonun konusu yazilmali")
     j = 2 if int(jokers or 0) >= 2 else 0
     ranks = ranks_of(k, j)
-    m = {"id": cid, "name": (name or cid).strip(), "theme": theme,
-         "style": (style or "realistic").strip() or "realistic", "kind": k,
+    # #325 "anime olmasin hic": Kart Modu'nda tek stil var, gelen deger yok sayilir.
+    if (style or "").strip().lower() not in ("", "realistic"):
+        style = "realistic"
+    m = {"id": cid, "name": (name or cid).strip(), "theme": _deanime(theme),
+         "style": "realistic", "kind": k,
          "jokers": j, "created": datetime.now().isoformat(timespec="seconds"),
          "ranks": {}}
     for i, r in enumerate(ranks):
@@ -1364,6 +1371,265 @@ def _cut_body(op_id: str, collection: str, kind: str, hedef: list[str], mode: st
                    (": " + "; ".join(kayit["reasons"])[:160]) if kayit["reasons"] else ""))
 
 
+# --------------------------------------------------- #325 restill: fonu griye al
+def _restill_one(tool, collection: str, kind: str, rank: str, force: bool = False) -> dict:
+    """Tek kartin still'ini duz acik gri fona tasir. gpu_lane cagiran tarafta TUTULUR.
+
+    Yedek `still_green.png` BIR KEZ yazilir - ikinci kosuda ustune yazilmaz, yani
+    ilk (yesil) hal her zaman geri alinabilir. Basarisiz kesimde still'e HIC
+    dokunulmaz; cagiran taraf o rutbeyi "elle duzelt" listesine koyar.
+    """
+    d = rank_dir(collection, rank, kind, create=True)
+    still = os.path.join(d, "still.png")
+    if not os.path.isfile(still):
+        raise ValueError("still yok")
+    on = tool.still_bg(still)                       # GPU'suz on bakis
+    if not on.get("chromatic") and not force:
+        return {"skipped": True, "reason": "fon zaten gri (bg_chroma %.3f)"
+                % float(on.get("bg_chroma") or 0.0), "bg_chroma": on.get("bg_chroma")}
+
+    gecici = os.path.join(d, "still_gray.png")
+    res = tool.restill(still, gecici, bg=RESTILL_BG, mode="auto",
+                       concept=KINDS[kind_id(kind)]["concept"])
+    v = res.get("verdict") or {}
+    if not res.get("ok") or not v.get("pass", True):
+        try:
+            os.remove(gecici)
+        except OSError:
+            pass
+        return {"failed": True, "reasons": list(v.get("reasons") or ["restill uretmedi"]),
+                "coverage": res.get("coverage"), "metrics": res}
+
+    yedek = os.path.join(d, "still_green.png")
+    if not os.path.isfile(yedek):                   # YEDEGIN USTUNE ASLA YAZILMAZ
+        shutil.copy(still, yedek)
+    os.replace(gecici, still)
+    try:
+        _still_webp(still, os.path.join(d, "still.webp"))
+    except Exception:
+        pass
+    kayit = {"at": datetime.now().isoformat(timespec="seconds"), "mode": res.get("mode"),
+             "bg_in": res.get("bg_in"), "bg_chroma_in": res.get("bg_chroma_in"),
+             "bg_out": res.get("bg_out"), "coverage": res.get("coverage"),
+             "green": res.get("green"), "spill": res.get("spill"),
+             "backup": _rel(yedek)}
+    _set_state(collection, rank, kind, restill=kayit)
+    kayit.update({"ok": True, "rev": _rev(d)})
+    return kayit
+
+
+def _restill_body(op_id: str, collection: str, kind: str, hedef: list[str],
+                  force: bool, etiket_on: str, taban: int = 0) -> dict:
+    """Bir koleksiyonun rutbeleri TEK gpu_lane bileti altinda (kesimle ayni kural).
+
+    `taban` cok koleksiyonlu op'ta ilerleme sayaci geri sarmasin diye onceki
+    koleksiyonlarin rutbe sayisidir."""
+    tool = _cut_tool()
+    sonuc = {"ok": [], "skipped": [], "failed": []}
+    with gpu_lane.hold("kart restill %s (%d)" % (collection, len(hedef)), kind="card",
+                       op_id=op_id, total=len(hedef)):                      # #299
+        for i, r in enumerate(hedef, 1):
+            etiket = "%s %s" % (collection, str(r).upper())
+            _op(op_id, message="%s %d/%d  %s" % (etiket_on, i, len(hedef), etiket))
+            try:
+                k = _restill_one(tool, collection, kind, r, force)
+            except Exception as e:
+                sonuc["failed"].append(etiket)
+                with _ops_lock:
+                    _ops[op_id]["failed"] += 1
+                _op(op_id, done=taban + i, log="%s: %s" % (etiket, str(e)[:220]))
+                continue
+            if k.get("skipped"):
+                sonuc["skipped"].append(etiket)
+                _op(op_id, done=taban + i, log="%s atlandi: %s" % (etiket, k.get("reason")))
+            elif k.get("failed"):
+                sonuc["failed"].append(etiket)
+                with _ops_lock:
+                    _ops[op_id]["failed"] += 1
+                _op(op_id, done=taban + i, log="%s ELLE DUZELT (still'e dokunulmadi): %s"
+                    % (etiket, "; ".join(k.get("reasons") or [])[:200]))
+            else:
+                sonuc["ok"].append(etiket)
+                with _ops_lock:
+                    _ops[op_id]["ok"] += 1
+                _op(op_id, done=taban + i, log="%s -> gri fon (%s kip, kapsama %.1f%%, yedek %s)"
+                    % (etiket, k.get("mode"), float(k.get("coverage") or 0) * 100,
+                       os.path.basename(k.get("backup") or "")))
+    return sonuc
+
+
+def restill(collection: str = "all", kind: str = "", include_dealers: bool = False,
+            force: bool = False, ranks: list[str] | None = None) -> str:
+    """op `card-restill`: eski YESIL fonlu still'leri duz acik gri studyo fonuna cevirir.
+
+    Neden (tasarim §3/§4): yeni hat still'i duz gri fonda uretiyor, kesim de ona
+    gore. Eski Grok still'leri yesil oldugu icin LTX yeniden canlandirma yesil
+    fonlu video uretiyordu. Fonu ONCEDEN griye alirsak hem i2v hem SAM3 kendi
+    girdisini gorur; kadin pikselleri degismez.
+
+    Zaten gri olan rutbeler (bg_chroma <= 0.06) `force` verilmedikce ATLANIR.
+    SAM kapsamasi %5'in altinda kalan ya da verdict'i geceni rutbenin still'ine
+    DOKUNULMAZ (Qwen otomatik cagrilmaz) - op mesajinda elle duzeltilecekler listelenir.
+    """
+    hedef = _targets(collection, kind, include_dealers)
+    if ranks:
+        istek = {str(r).lower() for r in ranks}
+        hedef = [t for t in hedef if str(t[2]).lower() in istek]
+    hedef = [(c, k, r) for c, k, r in hedef
+             if os.path.isfile(os.path.join(rank_dir(c, r, k), "still.png"))]
+    if not hedef:
+        raise ValueError("still'i olan rutbe yok")
+    op_id = _op_new("card-restill", len(hedef))
+
+    def calis():
+        gruplar: dict[tuple[str, str], list[str]] = {}
+        for c, k, r in hedef:
+            gruplar.setdefault((c, k), []).append(r)
+        toplam = {"ok": [], "skipped": [], "failed": []}
+        taban = 0
+        for (c, k), rs in gruplar.items():
+            s = _restill_body(op_id, c, k, rs, force, "gri fon %s" % c, taban)
+            taban += len(rs)
+            for a in toplam:
+                toplam[a].extend(s[a])
+        with _ops_lock:
+            _ops[op_id]["result"] = toplam
+        mesaj = "bitti: %d gri, %d atlandi" % (len(toplam["ok"]), len(toplam["skipped"]))
+        if toplam["failed"]:
+            mesaj += " - ELLE DUZELT: " + ", ".join(toplam["failed"])
+        _op(op_id, message=mesaj)
+
+    _run(op_id, calis)
+    return op_id
+
+
+# ------------------------------------------- #325 realify: anime -> gercekci kadin
+REALIFY_PROMPT = (
+    "Convert this anime illustration into a photorealistic photograph of the exact same "
+    "young adult woman: same face structure, same hair colour and style, same outfit, "
+    "colours and accessories, same pose and framing, same plain background. Ultra "
+    "realistic glamour photography, natural skin texture, 85mm lens, sharp focus.")
+REALIFY_NEG = ("anime, cartoon, illustration, cel shading, lineart, deformed, extra limbs, "
+               "text, watermark, child")
+_ANIME_RE = re.compile(r"\b(anime|manga|cel[- ]shaded|cartoon)\b\s*", re.IGNORECASE)
+
+
+def _deanime(metin: str) -> str:
+    """Metinden anime/manga sozcuklerini atar (kullanici: "anime olmasin hic").
+
+    Koleksiyonun KIMLIGI ve ADI ASLA degismez - yalniz uretim metinleri temizlenir,
+    yoksa "↻ Yeniden uret" yine anime bir still uretirdi.
+    """
+    out = _ANIME_RE.sub("", metin or "")
+    return re.sub(r"\s{2,}", " ", out).strip(" ,")
+
+
+def _realify_body(op_id: str, collection: str, kind: str, hedef: list[str],
+                  etiket_on: str) -> list[str]:
+    """Butun edit_qwen isleri TEK SEFERDE kuyruga, ciktilar sirayla toplanir.
+
+    gpu_lane BURADA ALINMAZ - comfy_gen dispatcher'i her isi kendi bileti ile
+    calistirir (#299, _animate_body ile ayni kural).
+    """
+    isler = []
+    for r in hedef:
+        etiket = "%s %s" % (collection, str(r).upper())
+        src = os.path.join(rank_dir(collection, r, kind), "still.png")
+        if not os.path.isfile(src):
+            _op(op_id, log="%s: still yok, atlandi" % etiket)
+            continue
+        try:
+            job = G.submit(EDIT_TASK, REALIFY_PROMPT, negative=REALIFY_NEG,
+                           seed=random.randint(1, 2 ** 31), turbo=True, image_path=src,
+                           mode="free", client="flow", category=collection)
+        except Exception as e:
+            with _ops_lock:
+                _ops[op_id]["failed"] += 1
+            _op(op_id, log="%s kuyruga girmedi: %s" % (etiket, str(e)[:200]))
+            continue
+        isler.append((job["id"], r, etiket))
+        _op(op_id, log="%s gercekci kuyrukta (%s)" % (etiket, job["id"][:8]))
+    _op(op_id, message="%s  %d is kuyruga girdi" % (etiket_on, len(isler)))
+
+    olanlar = []
+    for i, (jid, r, etiket) in enumerate(isler, 1):
+        _op(op_id, message="%s %d/%d  %s" % (etiket_on, i, len(isler), etiket))
+        tasindi = False
+        try:
+            out = _await_job(jid, op_id, etiket)
+            d = rank_dir(collection, r, kind, create=True)
+            still = os.path.join(d, "still.png")
+            yedek = os.path.join(d, "still_anime.png")
+            if os.path.isfile(still) and not os.path.isfile(yedek):
+                shutil.copy(still, yedek)          # YEDEGIN USTUNE ASLA YAZILMAZ
+            _to_png(out, still)
+            tasindi = not os.path.isfile(out)
+            try:
+                _still_webp(still, os.path.join(d, "still.webp"))
+            except Exception:
+                pass
+            _set_state(collection, r, kind,
+                       realify={"at": datetime.now().isoformat(timespec="seconds"),
+                                "job": jid, "backup": _rel(yedek)})
+        except Exception as e:
+            with _ops_lock:
+                _ops[op_id]["failed"] += 1
+            _op(op_id, done=i, log="%s: %s" % (etiket, str(e)[:200]))
+        else:
+            olanlar.append(r)
+            with _ops_lock:
+                _ops[op_id]["ok"] += 1
+            _op(op_id, done=i, log="%s -> gercekci still (yedek still_anime.png)" % etiket)
+        _is_sil(jid, tasindi)
+    return olanlar
+
+
+def _mark_realistic(collection: str, kind: str) -> dict:
+    """collection.json: style -> "realistic", tema/prompt metinlerinden anime cikar.
+
+    id ve name AYNEN KALIR (kullanici: "Neon Nurse" adi degismesin).
+    """
+    m = collection_meta(collection, kind)
+    m["style"] = "realistic"
+    if m.get("theme"):
+        m["theme"] = _deanime(m["theme"])
+    for r, look in (m.get("ranks") or {}).items():
+        if isinstance(look, dict) and look.get("prompt"):
+            look["prompt"] = _deanime(look["prompt"])
+    m["realified"] = datetime.now().isoformat(timespec="seconds")
+    return _save_collection(collection, kind, m)
+
+
+def realify(collection: str, kind: str = "card", ranks: list[str] | None = None) -> str:
+    """op `card-realify`: anime koleksiyonun still'lerini gercekci kadina cevirir.
+
+    Rutbe basina bir `edit_qwen` isi; ciktilar otomatik kabul, eski hal
+    `still_anime.png` olarak BIR KEZ saklanir. Butun rutbeler bitince
+    collection.json `style` alani "realistic" olur ve tema/prompt metinlerinden
+    anime sozcugu temizlenir - koleksiyonun id/ad'i degismez.
+    """
+    k = kind_id(kind)
+    collection_meta(collection, k)
+    tum = _collection_ranks(collection, k)
+    hedef = [r for r in _sec(ranks, tum)
+             if os.path.isfile(os.path.join(rank_dir(collection, r, k), "still.png"))]
+    if not hedef:
+        raise ValueError("still'i olan rutbe yok - once asama 1")
+    op_id = _op_new("card-realify", len(hedef))
+
+    def calis():
+        olan = _realify_body(op_id, collection, k, hedef, "gercekci %s" % collection)
+        if olan:
+            _mark_realistic(collection, k)
+            _op(op_id, log="collection.json: style -> realistic (%d rutbe)" % len(olan))
+        with _ops_lock:
+            _ops[op_id]["result"] = {"collection": collection, "kind": k, "ranks": olan}
+        _op(op_id, message="bitti: %d rutbe gercekci" % len(olan))
+
+    _run(op_id, calis)
+    return op_id
+
+
 # --------------------------------------------------- yeniden canlandirma / kesim
 def _grok_still(video: str, dest: str) -> bool:
     """Grok masterinin ilk karesi -> still.png. Once #322'nin `still_first_frame`
@@ -1397,7 +1663,8 @@ def _targets(collection: str, kind: str = "", include_dealers: bool = False) -> 
 
 
 def reanimate(collection: str = "all", gesture: str = DEFAULT_GESTURE, kind: str = "",
-              include_dealers: bool = False, dealers_v3: bool = False) -> str:
+              include_dealers: bool = False, dealers_v3: bool = False,
+              restill_first: bool = False, realify_first: bool = False) -> str:
     """op `card-reanimate` (GECE MODU): still -> i2v -> kesim, tek zincirde.
 
     Mevcut 54 kart (+ krupiyeler) icin varsayilan yol. Once Grok masterlari
@@ -1405,6 +1672,10 @@ def reanimate(collection: str = "all", gesture: str = DEFAULT_GESTURE, kind: str
     karesi still yapilir; sonra butun i2v isleri kuyruga birakilir; en sonda
     kesimler TEK gpu_lane bileti altinda kosar. Ilerleme asama asama bildirilir
     ("1/4 still", "2/4 video", "3/4 webp") - sabaha kadar gozetimsiz caliabilir.
+
+    #325 iki on adim (varsayilan KAPALI, sira bu):
+      `realify_first`  anime stilli koleksiyonlarin still'leri gercekci kadina cevrilir
+      `restill_first`  yesil fonlu still'ler duz acik gri studyo fonuna tasinir
     """
     op_id = _op_new("card-reanimate", 0)
 
@@ -1442,11 +1713,34 @@ def reanimate(collection: str = "all", gesture: str = DEFAULT_GESTURE, kind: str
             _op(op_id, log="1/4 %s %s: still YOK - atlanacak" % (c, str(r).upper()))
         hedef = [t for t in hedef if t not in eksik]
 
-        # --- 2/4 video: koleksiyon koleksiyon i2v (isler toplu kuyruga girer)
         kesilecek: dict[tuple[str, str], list[str]] = {}
         gruplar: dict[tuple[str, str], list[str]] = {}
         for c, k, r in hedef:
             gruplar.setdefault((c, k), []).append(r)
+
+        # --- 1a/4 gercekci: yalniz style "anime" olan koleksiyonlar (#325)
+        if realify_first:
+            for (c, k), rs in gruplar.items():
+                if str((collection_meta(c, k).get("style") or "")).lower() != "anime":
+                    continue
+                try:
+                    _realify_body(op_id, c, k, rs, "1a/4 gercekci %s" % c)
+                    _mark_realistic(c, k)
+                except Exception as e:
+                    _op(op_id, log="1a/4 %s: gercekci yapilamadi: %s" % (c, str(e)[:200]))
+
+        # --- 1b/4 gri fon: yesil still'ler duz acik griye tasinir (#325)
+        if restill_first:
+            elle = []
+            for (c, k), rs in gruplar.items():
+                try:
+                    elle += _restill_body(op_id, c, k, rs, False, "1b/4 gri fon %s" % c)["failed"]
+                except Exception as e:
+                    _op(op_id, log="1b/4 %s: gri fon yapilamadi: %s" % (c, str(e)[:200]))
+            if elle:
+                _op(op_id, log="1b/4 ELLE DUZELT (still'e dokunulmadi): %s" % ", ".join(elle))
+
+        # --- 2/4 video: koleksiyon koleksiyon i2v (isler toplu kuyruga girer)
         for (c, k), rs in gruplar.items():
             jest = gesture or DEFAULT_GESTURE
             olan = _animate_body(op_id, c, k, rs, jest, "2/4 video %s" % c)
@@ -1516,7 +1810,7 @@ def _collection_from_roster(cid: str) -> dict:
                                                           v.get("look") or "",
                                                           v.get("pose") or "") if x)}
     return {"id": cid, "name": rc.get("name") or cid, "theme": rc.get("theme") or "",
-            "style": rc.get("style") or "realistic", "kind": "card",
+            "style": "realistic", "kind": "card",       # #325: anime stili yok
             "jokers": len(ranks) if joker else 0,
             "created": datetime.now().isoformat(timespec="seconds"),
             "ranks": ranks, "from": "roster.json"}

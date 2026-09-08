@@ -20,6 +20,10 @@ sabit 0.10 soluk yesilde figurun yarisina kadar uzanabiliyordu. Maske disini pes
 sifirlayip icini pesinen doldurunca yaricap artik yalnizca KENARI belirler, govdeyi
 degil - o yuzden sabit siki deger guvenli.
 
+#325 restill: ayni alfa yolu tek karede calisir ve sonuc SEFFAF degil, duz acik
+gri (212,212,208) bir fonun uzerine kompozit edilir. Eski yesil still'ler boylece
+LTX'e ve `sam` kesimine tasarlandiklari girdiyi verir; kadin pikselleri degismez.
+
 Alfa fonksiyonlari yalnizca ALFA dondurur (sozlesme boyle). RGB tarafindaki iki
 temizlik ayri yardimcilarda ve `cut_video` ikisini de uygular:
   defringe_rgb  yari saydam kenarda fon renginin un-premultiply ile cikarilmasi
@@ -34,6 +38,7 @@ Kullanim
     python cut.py --video master.mp4 --out D:/.../ace --mode sam
     python cut.py --video master.mp4 --out D:/.../ace --mode hybrid --still still.png
     python cut.py --compare --video master.mp4 --out D:/.../_cut_test/ace
+    python cut.py --restill --still still.png --out D:/.../restill/A.png --compare
 
 Kutuphane olarak
     from tools.cardpipe_local.cut import cut_video, build_sheet, sam_masks
@@ -94,6 +99,11 @@ LUM_LO, LUM_HI = 8.0, 38.0  # bantta saci ayiran luminance farki (0..255)
 FRINGE_TOL = 12.0          # bantta fon rengine bu kadar yakin piksel = fon
 LOCAL_BG_R = 24            # yerel fon tahmininin yaricapi (piksel)
 BG_CHROMA = 0.06           # fonun UV doygunlugu bunun ustundeyse "renkli fon"
+
+# #325 restill: eski YESIL fonlu still'leri duz acik gri studyo fonuna cevirme.
+RESTILL_BG = (212, 212, 208)   # karakter hattiyla ayni "plain light gray seamless"
+RESTILL_MIN_COVER = 0.05       # SAM bu kadar bile yakalamadiysa STILL'E DOKUNULMAZ
+RESTILL_MAX_SPILL = 0.15       # kenar bandinda eski fon renginde kalan piksel orani
 
 # guard esikleri
 G_FIRSTFRAME = 25.0        # guard_firstframe.py ile ayni olcek (64x96 mean abs RGB)
@@ -862,9 +872,190 @@ def build_compare(video, out_dir, concept: str = "woman", fps: int = FPS,
             "sam": res["sam"]["metrics"]["verdict"], "hybrid": res["hybrid"]["metrics"]["verdict"]}
 
 
+# ------------------------------------------------------------------ #325 restill
+def still_bg(still_path) -> dict:
+    """GPU'suz on bakis: still'in olculen fon rengi, UV doygunlugu ve boyutu.
+
+    Sunucu bunu "bu still zaten gri mi" sorusuna cevap icin kullanir - gri olan
+    kartlar icin SAM3 hic calistirilmaz (`restill` op'unda atlanir).
+    """
+    with Image.open(still_path) as im:
+        rgb = np.asarray(im.convert("RGB"), dtype=np.uint8)
+    bg = bg_color(rgb)
+    ch = bg_chroma(bg)
+    return {"bg": [round(float(c), 1) for c in bg], "bg_chroma": round(ch, 4),
+            "chromatic": bool(ch > BG_CHROMA),
+            "size": [int(rgb.shape[1]), int(rgb.shape[0])]}
+
+
+def restill(still_path, out_path, bg: tuple = RESTILL_BG, mode: str = "auto",
+            concept: str = "woman", min_cover: float = RESTILL_MIN_COVER,
+            log=print) -> dict:
+    """Tek still'in fonunu duz acik griye cevirir - KADIN PIKSEL PIKSEL AYNI KALIR.
+
+    Neden: eski Grok masterlarinin still'i yesil ekranda. LTX yeniden canlandirma
+    o still'den basladigi icin video da yesil fonlu oluyor, kesim (`sam` kipi) ise
+    duz gri fona gore ayarli. Fonu onceden griye cevirirsek hem i2v hem SAM3 kendi
+    tasarlandiklari girdiyi gorur.
+
+    Akis: tek karelik SAM3 maskesi -> alfa (`hybrid` renkli fonda, `sam` gride)
+    -> de-fringe + despill -> duz gri uzerine kompozit -> RGB PNG, KAYNAK BOYUTTA.
+
+    `mode="auto"` fonun UV doygunluguna bakar: bg_chroma 0.06'nin ustundeyse
+    chroma yardimi olan `hybrid`, degilse saf `sam`.
+
+    GERI DONUS her zaman sozluktur; BASARISIZLIKTA DOSYA YAZILMAZ (`ok=False`,
+    `verdict.reasons` doludur) - cagiran taraf o kartin still'ine dokunmaz.
+    """
+    t0 = time.time()
+    still_path, out_path = Path(still_path), Path(out_path)
+    with Image.open(still_path) as im:
+        rgb = np.asarray(im.convert("RGB"), dtype=np.uint8)
+    h, w = rgb.shape[:2]
+    src_bg = bg_color(rgb)
+    src_chroma = bg_chroma(src_bg)
+    chromatic = bool(src_chroma > BG_CHROMA)
+    kip = (mode or "auto").strip().lower()
+    if kip == "auto":
+        kip = "hybrid" if chromatic else "sam"
+    if kip not in ("sam", "hybrid"):
+        raise ValueError("mode 'auto', 'sam' ya da 'hybrid' olmali")
+
+    flat = np.asarray(bg, dtype=np.float32).reshape(1, 1, 3)
+    res = {
+        "still": str(still_path), "out": "", "ok": False, "mode": kip,
+        "bg_in": [round(float(c), 1) for c in src_bg],
+        "bg_chroma_in": round(src_chroma, 4), "chromatic_in": chromatic,
+        "bg_out": [int(c) for c in np.asarray(bg).reshape(3)],
+        "bg_chroma_out": round(bg_chroma(flat), 4),
+        "size": [int(w), int(h)], "coverage": 0.0, "opaque": 0.0, "semi": 0.0,
+        "green": 0.0, "spill": 0.0, "verdict": {"pass": False, "reasons": []},
+    }
+
+    masks = sam_masks([still_path], concept, log=log)
+    mask = masks[0]
+    cover = float(mask.mean())
+    res["coverage"] = round(cover, 5)
+    nedenler: list[str] = []
+    if cover < min_cover:
+        nedenler.append("SAM kapsamasi %.1f%% (<%.0f%%): figur bulunamadi"
+                        % (cover * 100, min_cover * 100))
+    if cover > MAX_SHARE:
+        nedenler.append("SAM kapsamasi %.1f%% (>%.0f%%): fon maskeye girmis"
+                        % (cover * 100, MAX_SHARE * 100))
+    if nedenler:
+        res["verdict"] = {"pass": False, "reasons": nedenler}
+        log("restill ATLANDI %s: %s" % (still_path.name, "; ".join(nedenler)))
+        return res
+
+    if kip == "hybrid":
+        a = alpha_hybrid(rgb, mask, src_bg)
+        # #325: sonuc SEFFAF degil, opak gri uzerine kompozit. Hybrid alfa neredeyse
+        # ikili kaldigi icin sac siluetinde merdiven olusuyor; 1 px guided yumusatma
+        # (goruntunun kendi kenarini takip eder) merdiveni siler, figuru kaydirmaz.
+        a = np.clip(_guided((_luma(rgb) / 255.0).astype(np.float32), a, 1, 1e-4), 0.0, 1.0)
+        clean = despill_rgb(defringe_rgb(rgb, a, src_bg), a, src_bg)
+    else:
+        # yerel fon haritasi: alfa ve de-fringe AYNI referansi kullanmali
+        bgmap = local_bg(rgb, mask, BAND_PX + 2, fallback=src_bg)
+        a = alpha_sam(rgb, mask, bgmap)
+        clean = defringe_rgb(rgb, a, bgmap)
+        if chromatic:
+            clean = despill_rgb(clean, a, bgmap)
+
+    a3 = a[..., None]
+    comp = np.clip(clean * a3 + flat * (1.0 - a3), 0, 255).astype(np.uint8)
+
+    st = _frame_stats(comp, a)
+    res.update({"opaque": round(st["opaque"], 5), "semi": round(st["semi"], 5),
+                "green": round(st["green"], 5)})
+    # Kalinti tasma: kenar bandinda hala ESKI fon renginde duran piksel orani.
+    # Gri kaynakta olcum anlamsiz (her notr piksel "fona benzer"), o yuzden 0.
+    if chromatic:
+        band = (a > 0.02) & (a < 0.98)
+        u, v = _uv(comp)
+        ub, vb = _uv(_bg3(src_bg))
+        d = np.hypot(u - float(ub[0, 0]), v - float(vb[0, 0]))
+        n = float(band.sum())
+        res["spill"] = round(float((band & (d < CHROMA_SIM)).sum()) / max(n, 1.0), 5)
+
+    if st["green"] > G_GREEN:
+        nedenler.append("artik yesil %.2f%% (under-key)" % (st["green"] * 100))
+    if res["spill"] > RESTILL_MAX_SPILL:
+        nedenler.append("kenar bandinda eski fon rengi %.0f%% (>%.0f%%)"
+                        % (res["spill"] * 100, RESTILL_MAX_SPILL * 100))
+    res["verdict"] = {"pass": not nedenler, "reasons": nedenler}
+    if nedenler:
+        log("restill KALDI %s: %s" % (still_path.name, "; ".join(nedenler)))
+        return res
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    Image.fromarray(comp, "RGB").save(out_path)     # kaynak boyut korunur
+    res.update({"ok": True, "out": str(out_path),
+                "seconds": round(time.time() - t0, 2)})
+    log("restill %s: %s kip, kapsama %.1f%%, fon %s -> %s (%.1fs)"
+        % (still_path.name, kip, cover * 100, res["bg_in"], res["bg_out"],
+           time.time() - t0))
+    return res
+
+
+def _hair_box(rgb: np.ndarray, bg: np.ndarray, size: tuple[int, int]) -> tuple[int, int]:
+    """Sac cizgisi penceresinin sol-ust kosesi: fondan belirgin ayrilan en ust bant."""
+    d = np.max(np.abs(rgb.astype(np.float32) - _bg3(bg)), axis=2)
+    ys, xs = np.nonzero(d > 3.0 * FRINGE_TOL)
+    if ys.size == 0:
+        return (max(0, (rgb.shape[1] - size[0]) // 2), 0)
+    top = int(np.percentile(ys, 0.5))
+    yakin = ys < top + 24
+    cx = int(np.median(xs[yakin])) if yakin.any() else rgb.shape[1] // 2
+    x = int(np.clip(cx - size[0] // 2, 0, max(0, rgb.shape[1] - size[0])))
+    y = int(np.clip(top - size[1] // 6, 0, max(0, rgb.shape[0] - size[1])))
+    return (x, y)
+
+
+def restill_compare(src_png, out_png, dest, zoom: int = 3,
+                    cell: tuple[int, int] = (420, 630), log=print) -> str:
+    """Kaynak | sonuc yan yana + ayni sac penceresinin `zoom` kat buyutulmusu.
+
+    build_compare ile ayni amac: hale, yesil sacak ve yenen sac telleri ancak
+    1:1 uzerinde `zoom` katta gozle secilir.
+    """
+    src_png, out_png, dest = Path(src_png), Path(out_png), Path(dest)
+    with Image.open(src_png) as im:
+        src = im.convert("RGB")
+    with Image.open(out_png) as im:
+        res = im.convert("RGB")
+    win = (max(8, cell[0] // zoom), max(8, cell[1] // zoom))
+    arr = np.asarray(src, dtype=np.uint8)
+    box = _hair_box(arr, bg_color(arr), win)
+
+    cols = ["kaynak (yesil)", "restill (gri)"]
+    cw, ch = cell
+    pad, head, gap = 6, 22, 18
+    grid = Image.new("RGB", (2 * (cw + pad) + pad, head + 2 * (ch + pad) + gap + pad),
+                     (16, 16, 16))
+    draw = ImageDraw.Draw(grid)
+    for c, ad in enumerate(cols):
+        draw.text((pad + c * (cw + pad) + 4, 6), ad, fill=(235, 235, 235))
+    for c, im in enumerate((src, res)):
+        grid.paste(_fit(im.convert("RGBA"), cell)[0].convert("RGB"),
+                   (pad + c * (cw + pad), head))
+    y = head + ch + pad + gap
+    draw.text((pad + 4, y - 15), "sac cizgisi %dx (pencere %dx%d @ %d,%d)"
+              % (zoom, win[0], win[1], box[0], box[1]), fill=(190, 190, 190))
+    for c, im in enumerate((src, res)):
+        crop = im.crop((box[0], box[1], box[0] + win[0], box[1] + win[1]))
+        grid.paste(crop.resize((win[0] * zoom, win[1] * zoom), Image.NEAREST),
+                   (pad + c * (cw + pad), y))
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    grid.save(dest, quality=92)
+    log("karsilastirma -> %s" % dest)
+    return str(dest)
+
+
 def main() -> None:
-    ap = argparse.ArgumentParser(description="#322 Kart Modu kesim + paketleme")
-    ap.add_argument("--video", required=True)
+    ap = argparse.ArgumentParser(description="#322/#325 Kart Modu kesim + paketleme")
+    ap.add_argument("--video", default=None)
     ap.add_argument("--out", required=True)
     ap.add_argument("--mode", default="sam", choices=["sam", "hybrid"])
     ap.add_argument("--concept", default="woman")
@@ -881,16 +1072,37 @@ def main() -> None:
                     help="--compare: onceki kesimi kullan, SAM'i tekrar calistirma")
     ap.add_argument("--masks", default=None,
                     help="maske onbellegi (.npz); varsa okunur, yoksa yazilir")
+    # #325: tek still'in fonunu duz acik griye cevirir (video yok, --still girdi)
+    ap.add_argument("--restill", action="store_true",
+                    help="--still fonunu duz acik griye cevir, --out dosyasina yaz")
+    ap.add_argument("--restill-mode", default="auto", choices=["auto", "sam", "hybrid"])
+    ap.add_argument("--bg", default="%d,%d,%d" % RESTILL_BG,
+                    help="restill hedef fon rengi, orn 212,212,208")
+    ap.add_argument("--zoom", type=int, default=3, help="--restill --compare buyutme")
     a = ap.parse_args()
 
     def wh(s: str) -> tuple[int, int]:
         x, y = s.lower().split("x")
         return int(x), int(y)
 
-    if a.compare:
+    if a.restill:
+        if not a.still:
+            ap.error("--restill icin --still gerekli")
+        renk = tuple(int(x) for x in str(a.bg).split(",")[:3])
+        out = restill(a.still, a.out, bg=renk, mode=a.restill_mode, concept=a.concept)
+        if a.compare and out.get("ok"):
+            out["compare"] = restill_compare(a.still, out["out"],
+                                             Path(a.out).with_name(
+                                                 Path(a.out).stem + "_compare.jpg"),
+                                             zoom=max(1, a.zoom))
+    elif a.compare:
+        if not a.video:
+            ap.error("--compare icin --video gerekli")
         out = build_compare(a.video, a.out, a.concept, a.fps, a.seconds,
                             still=a.still, reuse=a.reuse, masks_npz=a.masks)
     else:
+        if not a.video:
+            ap.error("--video gerekli (ya da --restill kullan)")
         out = cut_video(a.video, a.out, a.mode, a.concept, a.fps, a.seconds,
                         still=a.still, masks_npz=a.masks,
                         frame=wh(a.frame), thumb_size=wh(a.thumb),

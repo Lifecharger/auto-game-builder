@@ -644,6 +644,28 @@ class _CardFlowScreenState extends State<CardFlowScreen> {
   }
 
 
+  /// #325: butun kartlarin (ve krupiyelerin) YESIL fonunu duz acik gri studyo
+  /// fonuna cevirir - yeniden canlandirmadan once bir kez calistirilir.
+  Future<void> _restillAll() async {
+    final ok = await _confirm(
+        'Fonlari griye al',
+        'Butun kartlarin VE krupiyelerin still fonu duz acik griye cevrilir '
+            '(kadin aynen kalir). Ilk hal still_green.png olarak saklanir, '
+            'zaten gri olanlar atlanir.\n\nVideo uretilmez.',
+        onay: 'Kuyruga ekle');
+    if (!ok) return;
+    try {
+      final op = await CardFlowService.restill(
+          collection: 'all', includeDealers: true);
+      _watch(op);
+      _snack('Siraya eklendi - Sira sekmesinden izle');
+    } on CardNotReadyException catch (e) {
+      _snack(e.message);
+    } catch (e) {
+      _snack(e.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
   /// Salt okunur manifest onizlemesi - push manifesti kendi icinde uretir.
   Future<void> _manifestPreview() async {
     Map<String, dynamic> m;
@@ -709,6 +731,14 @@ class _CardFlowScreenState extends State<CardFlowScreen> {
                   style: TextStyle(fontSize: 11)),
               onTap: () => Navigator.pop(c, 'reanimate'),
             ),
+            // #325: anime koleksiyonu gercekci kadina cevirir (id/ad degismez).
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Anime -> gercekci (koleksiyon)'),
+              subtitle: const Text('her still edit_qwen ile gercekci fotografa',
+                  style: TextStyle(fontSize: 11)),
+              onTap: () => Navigator.pop(c, 'realify'),
+            ),
           ],
         ),
       ),
@@ -723,6 +753,8 @@ class _CardFlowScreenState extends State<CardFlowScreen> {
         final op = await CardFlowService.reanimate(
             collection: id, gesture: jest, includeDealers: false);
         _watch(op);
+      } else if (secim == 'realify') {
+        _watch(await CardFlowService.realify(collection: id, kind: _kind));
       }
       _snack('Siraya eklendi - Sira sekmesinden izle');
     } on CardNotReadyException catch (e) {
@@ -751,12 +783,16 @@ class _CardFlowScreenState extends State<CardFlowScreen> {
               tooltip: 'Toplu islemler',
               onSelected: (v) => switch (v) {
                 'night' => _reanimateAll(),
+                'restill' => _restillAll(),          // #325
                 _ => _manifestPreview(),
               },
               itemBuilder: (_) => const [
                 PopupMenuItem(
                     value: 'night',
                     child: Text('Gece modu: hepsini yeniden canlandir')),
+                PopupMenuItem(
+                    value: 'restill',
+                    child: Text('Fonlari griye al (hepsi)')),
                 PopupMenuItem(
                     value: 'manifest', child: Text('Manifest onizle')),
               ],
@@ -858,11 +894,21 @@ class _CardFlowScreenState extends State<CardFlowScreen> {
 
   Widget _collectionCard(CardCollection c) {
     final (s, v, w, p) = c.progress;
-    // Kapak = A rutbesinin thumb'i (sunucu `cover` verirse o da ayni ucu kullanir).
-    final kapak = CardFlowService.thumbUrl(c.id, 'A',
-        kind: c.stateOf('A').sheet ? 'thumb' : 'still',
-        size: 300,
-        v: c.stateOf('A').rev > 0 ? c.stateOf('A').rev : c.rev);
+    // Kapak = A rutbesinin thumb'i; A'nin still'i yoksa (#327: Jokers'ta
+    // yalniz J1/J2 var) still'i olan ILK rutbe. Hicbiri yoksa yer tutucu.
+    final kapakRutbe = c.stateOf('A').still
+        ? 'A'
+        : c.ranks.entries
+            .where((e) => e.value.still)
+            .map((e) => e.key)
+            .firstOrNull;
+    final kr = kapakRutbe == null ? null : c.stateOf(kapakRutbe);
+    final kapak = kapakRutbe == null
+        ? ''
+        : CardFlowService.thumbUrl(c.id, kapakRutbe,
+            kind: kr!.sheet ? 'thumb' : 'still',
+            size: 300,
+            v: kr.rev > 0 ? kr.rev : c.rev);
     return Card(
       margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
@@ -881,18 +927,15 @@ class _CardFlowScreenState extends State<CardFlowScreen> {
                   height: 99,          // 2:3
                   child: ColoredBox(
                     color: Colors.black26,
-                    child: Image.network(
-                      kapak,
-                      headers: CardFlowService.authHeaders,
-                      // #289/#292: contain - tam boy kare kirpilmaz.
-                      fit: BoxFit.contain,
-                      errorBuilder: (_, _, _) => Container(
-                        color: Colors.white10,
-                        alignment: Alignment.center,
-                        child: const Icon(Icons.style_outlined,
-                            size: 20, color: Colors.grey),
-                      ),
-                    ),
+                    child: kapak.isEmpty
+                        ? const _KapakYok()
+                        : Image.network(
+                            kapak,
+                            headers: CardFlowService.authHeaders,
+                            // #289/#292: contain - tam boy kare kirpilmaz.
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, _, _) => const _KapakYok(),
+                          ),
                   ),
                 ),
               ),
@@ -1876,5 +1919,17 @@ class _CardDetailPageState extends State<CardDetailPage> {
             ],
           ),
         ),
+      );
+}
+
+/// #327: kapak yer tutucusu (henuz still yok / yuklenemedi).
+class _KapakYok extends StatelessWidget {
+  const _KapakYok();
+
+  @override
+  Widget build(BuildContext context) => Container(
+        color: Colors.white10,
+        alignment: Alignment.center,
+        child: const Icon(Icons.style_outlined, size: 20, color: Colors.grey),
       );
 }

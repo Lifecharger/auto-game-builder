@@ -13,6 +13,7 @@ import '../theme.dart';
 import '../services/mode_service.dart';
 import '../widgets/bottom_inset.dart';
 import '../widgets/network_video.dart';
+import '../widgets/flow_kind_switch.dart';
 
 /// Asset Mod - Uretilenler ekrani.
 ///
@@ -578,23 +579,18 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
               // Galeri kipe ozel - masaustundeki studyo ile ayni davranis.
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: SegmentedButton<String>(
-                  segments: const [
-                    ButtonSegment(value: 'free', label: Text('Free')),
-                    ButtonSegment(value: 'jigsaw', label: Text('Jigsaw')),
-                    ButtonSegment(value: 'cbn', label: Text('CBN')),
-                    ButtonSegment(value: 'card', label: Text('Kart')),   // #323
-                    ButtonSegment(value: 'character', label: Text('Karakter')),
-                  ],
-                  style: const ButtonStyle(
-                    visualDensity: VisualDensity.compact,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                  selected: {_mode},
-                  showSelectedIcon: false,
-                  onSelectionChanged: (v) {
+                child: FlowKindSwitch(                       // #327
+                  items: const {
+                    'free': 'Free',
+                    'jigsaw': 'Jigsaw',
+                    'cbn': 'CBN',
+                    'card': 'Kart',                           // #323
+                    'character': 'Karakter',
+                  },
+                  selected: _mode,
+                  onChanged: (v) {
                     setState(() {
-                      _mode = v.first;
+                      _mode = v;
                       _sel.clear();
                     });
                     _load();

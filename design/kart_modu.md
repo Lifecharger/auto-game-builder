@@ -75,6 +75,23 @@ concept="woman", fps=12, seconds=6) -> {frames_dir, sheet, thumb, metrics}`; `bu
 6. Sheet: 12×6, 448×672 (kaynak büyükse LANCZOS), WebP q≥80; thumb ilk kareden 300×450.
 Yeni kural: **yeşil kıyafet yasağı ve yeşil fon KALKAR**; fon düz açık gri (SAM için yeterli, saç kenarı luminance ile).
 
+### 3.1 Restill — eski yeşil still'leri düz gri fona taşıma (#325)
+Yeniden canlandırma still'den başladığı için **yeşil still = yeşil video = `hybrid` kesim zorunluluğu**. Onun yerine still bir kez düzeltilir:
+`cut.py: restill(still_path, out_path, bg=(212,212,208), mode="auto")` — tek karelik SAM3 maskesi → alfa (`bg_chroma > 0.06` ise `alpha_hybrid`,
+değilse `alpha_sam`) → de-fringe + despill → **düz açık gri üzerine kompozit** (RGBA değil, RGB; kaynak boyut korunur). Kadın pikselleri değişmez.
+Sunucu: `restill(collection|"all", kind, include_dealers, force)` op `card-restill`, koleksiyon başına **bir gpu_lane bileti** (kesimle aynı kural);
+`still.png` → `still_green.png` **bir kez** yedeklenir (üstüne asla yazılmaz), gri hâl `still.png` olur, `rev` artar, `still.webp` yenilenir.
+Zaten gri olan rütbe (`bg_chroma <= 0.06`) `force` verilmedikçe atlanır. **SAM kapsaması %5'in altındaysa ya da verdict düşerse still'e DOKUNULMAZ**
+(Qwen otomatik çağrılmaz) — o rütbeler op mesajında "ELLE DÜZELT" olarak listelenir. `reanimate(..., restill_first=True)` video aşamasından önce çalıştırır.
+Uç: `POST /api/card/flow/restill {collection, kind, include_dealers, force}` → `{op}`.
+
+### 3.2 Realify — anime koleksiyonu gerçekçiye çevirme (#325)
+Kart Modu'nda **anime yoktur**. Elde kalan anime koleksiyon (`neon_nurse`, `style: "anime"`) `realify(collection, kind, ranks)` op'u (`card-realify`)
+ile çevrilir: rütbe başına bir `edit_qwen` işi (mode `free`, `client="flow"`), eski hâl `still_anime.png` olarak **bir kez** saklanır, sonuç `still.png`
+olur; bütün rütbeler bitince `collection.json` `style` → `"realistic"` ve tema/prompt metinlerinden anime sözcüğü temizlenir.
+**Koleksiyonun `id` ve `name` değeri asla değişmez** ("Neon Nurse" adıyla kalır). `reanimate(..., realify_first=True)` yalnız `style == "anime"` olan
+koleksiyonlar için çalışır. Uç: `POST /api/card/flow/realify {collection, kind, ranks}` → `{op}`. Gece sırası: **realify → restill → reanimate**.
+
 ## 4. Üretim (yeni koleksiyonlar, tamamen yerel)
 - **Kart kipi** `comfy_gen.MODES["card"]`: label "Kart Modu", 2:3 832×1248, `prompt2` = roster `style_prompts.realistic` + `base_prompt`
   (plain light gray seamless studio background, full body head to heels, centered, static), negatif = mevcut + "green clothing" YOK artık; profil dosyası
