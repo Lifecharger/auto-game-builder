@@ -231,10 +231,13 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
     try {
       // #306: create artik otomatik hatti baslatir ve op doner - secili is
       // dogrudan base olur, portre/hikaye/yonler kendiliginden uretilir.
+      // #314: pencerede secilen tur (Kadin/Erkek/Hayvan/Makine) sunucuya
+      // gonderilir - prompt'lar, notr base ve animasyon yollari buna gore.
       await CharacterFlowService.create(
           name: sonuc.name,
           klass: sonuc.klass,
           prompt: sonuc.prompt,
+          kind: sonuc.kind,
           jobId: gorseller.first.id);
       if (!mounted) return;
       _msg('${sonuc.name} siraya eklendi - pipeline Sira sekmesinde');

@@ -78,6 +78,17 @@ Map<String, Map<String, ClipDirState>> _parseAnims(dynamic a) {
   return out;
 }
 
+// #314: `anim_modes` - hangi animasyon yollari acik. Sunucu alani
+// gondermiyorsa deger TURDEN turetilir (dokuman §3c): insan turlerinde
+// manken/Mixamo + i2v, hayvan/makinede yalniz i2v (manken insansi).
+List<String> _parseAnimModes(dynamic v, String kind) {
+  if (v is List) {
+    final out = v.map((e) => '$e').where((e) => e.isNotEmpty).toList();
+    if (out.isNotEmpty) return out;
+  }
+  return CharacterFlowService.defaultAnimModes(kind);
+}
+
 // #306: yon id -> secilmis mi. Sunucu bool ya da rel yol gonderebilir.
 Map<String, bool> _parseDirs(dynamic v) => {
       for (final e in ((v as Map?) ?? const {}).entries)
@@ -155,6 +166,15 @@ class PipelineState {
 class CharacterItem {
   final String name;
   final String klass;
+  /// #314: karakter turu - `female` (varsayilan) | `male` | `animal` |
+  /// `machine`. Sunucu alani gondermiyorsa `female` sayilir (dokuman §3c).
+  final String kind;
+  /// #314: prompt'larda kullanilan ozne ("woman", "man", "dog", "robot").
+  /// Sunucu gondermiyorsa bos - ekran tur etiketine duser.
+  final String subject;
+  /// #314: acik animasyon yollari - `i2v` ve/veya `mixamo`. `mixamo` yoksa
+  /// manken/Mixamo dugmeleri gizlenir (hayvan/makine).
+  final List<String> animModes;
   /// #306: kart gorseli = base'in SOUTH karesi (`base/base.png`). Eski
   /// sunucuda `look_thumb` gelirse o kullanilir - liste yine cizilir.
   final String southThumb;
@@ -184,6 +204,9 @@ class CharacterItem {
   const CharacterItem({
     required this.name,
     required this.klass,
+    this.kind = 'female',                       // #314
+    this.subject = '',                          // #314
+    this.animModes = const ['i2v', 'mixamo'],   // #314
     this.southThumb = '',
     this.portraitThumb = '',
     this.portraits = const [],
@@ -208,9 +231,15 @@ class CharacterItem {
     // Portre adaylari: liste gelmezse sayidan portrait/portrait_NN.png turetilir.
     final portreRaw = j['portraits'] ?? j['portrait_candidates'];
     final skinRaw = j['skins'];
+    // #314: tur alani yoksa (eski sunucu / eski character.json) `female`.
+    final tur = '${j['kind'] ?? ''}'.trim();
+    final kind = tur.isEmpty ? 'female' : tur;
     return CharacterItem(
       name: '${j['name']}',
       klass: '${j['class'] ?? j['klass'] ?? ''}',
+      kind: kind,                                          // #314
+      subject: '${j['subject'] ?? ''}',                    // #314
+      animModes: _parseAnimModes(j['anim_modes'], kind),   // #314
       // #306: south_thumb = base; look_thumb yalniz eski sunucu icin okunur.
       southThumb: '${j['south_thumb'] ?? j['base'] ?? j['base_thumb'] ?? j['look_thumb'] ?? j['look'] ?? ''}',
       portraitThumb: '${j['portrait_thumb'] ?? j['portrait'] ?? ''}',
@@ -255,6 +284,12 @@ class CharacterItem {
   /// #306: skin sayaci - sunucu `base`i de listeledigi icin en az 1.
   int get skinCount => skins.isEmpty ? 1 : skins.length;
 
+  /// #314: turun ekranda gorunen adi (Kadin / Erkek / Hayvan / Makine).
+  String get kindTitle => CharacterFlowService.kindLabel(kind);
+
+  /// #314: manken/Mixamo yolu bu turde acik mi (hayvan/makine: hayir).
+  bool get mixamoOn => animModes.contains('mixamo');
+
   /// Sprite'i cikmis klip x yon sayisi / toplam.
   (int, int) get spriteProgress {
     var ok = 0, total = 0;
@@ -277,24 +312,51 @@ class OutfitItem {
   final String prompt;
   final String created;              // ISO
   final String rel;                  // `_outfits/<slug>.png`
+  /// #311: png henuz yoksa (kuyrukta ya da basarisiz) false.
+  final bool ready;
+  /// #313 gardirop v2: kategori kimligi - `set` (tum takim), `top`, `bottom`,
+  /// `shoes`, `socks`, `hat`, `headgear`, `accessory`, `weapon`, `other`.
+  /// Kategorisi olmayan ESKI kayit `set` sayilir (dokuman §3b).
+  final String category;
+  /// #314: kiyafet turu - `female` (varsayilan) | `male` | `animal` |
+  /// `machine`. Gardirop tur icinde kilitlidir: bir karaktere yalniz kendi
+  /// turunun kiyafetleri giydirilir (dokuman §3c). Turu olmayan ESKI kayit
+  /// `female` sayilir.
+  final String kind;
   const OutfitItem({
     required this.slug,
     required this.name,
     this.prompt = '',
     this.created = '',
     this.rel = '',
+    this.ready = true,
+    this.category = 'set',
+    this.kind = 'female',
   });
 
   factory OutfitItem.fromJson(Map<String, dynamic> j) {
     final slug = '${j['slug'] ?? j['name'] ?? ''}';
+    // #313: sunucu alani henuz gondermiyorsa (eski surum) `set`e duser.
+    final kat = '${j['category'] ?? ''}'.trim();
+    // #314: tur alani yoksa (eski kayit / eski sunucu) `female`.
+    final tur = '${j['kind'] ?? ''}'.trim();
     return OutfitItem(
       slug: slug,
       name: '${j['name'] ?? slug}',
       prompt: '${j['prompt'] ?? ''}',
       created: '${j['created'] ?? j['created_at'] ?? ''}',
       rel: '${j['rel'] ?? '_outfits/$slug.png'}',
+      ready: j['ready'] != false,
+      category: kat.isEmpty ? 'set' : kat,
+      kind: tur.isEmpty ? 'female' : tur,      // #314
     );
   }
+
+  /// #313: kategorinin ekranda gorunen kisa adi (bilinmeyen id oldugu gibi).
+  String get categoryLabel => CharacterFlowService.categoryLabel(category);
+
+  /// #314: turun ekranda gorunen adi.
+  String get kindLabel => CharacterFlowService.kindLabel(kind);
 }
 
 /// #306: bir skin - kiyafet. `base` de bir skindir (slug `base`, yonleri
@@ -313,6 +375,10 @@ class SkinItem {
   final Map<String, List<String>> dirCandidates;
   final Map<String, Map<String, ClipDirState>> anims;
   final int rev;
+  /// #313: skin bir SET yerine parca kombinasyonundan da uretilebilir -
+  /// `skin.json.pieces` = uygulanan kiyafet slug'lari (kategori sirasiyla).
+  /// Sunucu gondermiyorsa bos kalir (eski skinler).
+  final List<String> pieces;
 
   const SkinItem({
     required this.slug,
@@ -326,6 +392,7 @@ class SkinItem {
     this.dirCandidates = const {},
     this.anims = const {},
     this.rev = 0,
+    this.pieces = const [],
   });
 
   factory SkinItem.fromJson(Map<String, dynamic> j) {
@@ -346,6 +413,13 @@ class SkinItem {
           _parseDirCandidates(j, base ? 'base/dirs' : 'skins/$slug/dirs'),
       anims: _parseAnims(j['anims']),
       rev: (j['rev'] is num) ? (j['rev'] as num).toInt() : 0,
+      // #313: parca listesi - duz slug ya da {slug} sozlugu gelebilir.
+      pieces: j['pieces'] is List
+          ? (j['pieces'] as List)
+              .map((e) => e is Map ? '${e['slug'] ?? ''}' : '$e')
+              .where((e) => e.isNotEmpty)
+              .toList()
+          : const <String>[],
     );
   }
 
@@ -587,6 +661,87 @@ class CharacterFlowService {
   };
   static String shortOf(String id) =>
       _compassShort[id] ?? id.toUpperCase();
+
+  // ------------------------------------------------------ #314 karakter turu
+  /// Karakter turleri (dokuman §3c). Varsayilan `female`; sunucu `KIND_PROFILES`
+  /// ile ayni id'leri kullanir. Sunucu tur listesi gonderirse (templates
+  /// ucundaki `kinds`) o kullanilir, yoksa bu sabit liste.
+  static const characterKinds = <Map<String, String>>[
+    {'id': 'female', 'label': 'Kadin'},
+    {'id': 'male', 'label': 'Erkek'},
+    {'id': 'animal', 'label': 'Hayvan'},
+    {'id': 'machine', 'label': 'Makine'},
+  ];
+
+  static const _kindLabels = {
+    'female': 'Kadin', 'male': 'Erkek', 'animal': 'Hayvan', 'machine': 'Makine',
+  };
+
+  /// #314: tur id -> gorunen ad (bilinmeyen id oldugu gibi doner).
+  static String kindLabel(String id) => _kindLabels[id] ?? id;
+
+  /// #314: insan turleri - manken/Mixamo, hayalet manken kiyafeti ve Hot
+  /// modifier yalniz bunlarda anlamlidir.
+  static bool isHumanKind(String kind) => kind == 'female' || kind == 'male';
+
+  /// #314: insan olmayan turlerin sinif listesi (dokuman §3c). Insan turleri
+  /// icin sinif kaynagi `assets/karakter_secenekler.json`dir
+  /// (`CharacterProfiles.classes()`), burada tekrarlanmaz.
+  static const kindClasses = <String, List<String>>{
+    'animal': ['pet', 'mount', 'beast'],
+    'machine': ['drone', 'mech', 'turret'],
+  };
+
+  /// #314: turun sinif listesi - insan turlerinde BOS doner (cagiran taraf
+  /// profil dosyasindaki listeyi kullanir).
+  static List<String> classesFor(String kind) =>
+      kindClasses[kind] ?? const <String>[];
+
+  /// #314: sunucu `anim_modes` gondermezse turun varsayilan yollari.
+  static List<String> defaultAnimModes(String kind) =>
+      isHumanKind(kind) ? const ['i2v', 'mixamo'] : const ['i2v'];
+
+  /// #314: Hot modifier yalniz insan turlerinin GIYSI kategorilerinde acik.
+  static bool hotAllowed(String kind, String category) =>
+      isHumanKind(kind) && hotCategories.contains(category);
+
+  // ------------------------------------------------ #313 gardirop kategorileri
+  /// Sunucu `outfits/templates` ucunda `categories` gondermezse kullanilan
+  /// sabit sira (dokuman §3b). `other` serit ciplerinde gosterilmez ama
+  /// sunucudan gelirse etiketi vardir.
+  static const defaultOutfitCategories = <Map<String, String>>[
+    {'id': 'set', 'label': 'Set'},
+    {'id': 'top', 'label': 'Ust'},
+    {'id': 'bottom', 'label': 'Alt'},
+    {'id': 'shoes', 'label': 'Ayakkabi'},
+    {'id': 'socks', 'label': 'Corap'},
+    {'id': 'hat', 'label': 'Sapka'},
+    {'id': 'headgear', 'label': 'Kafalik'},
+    {'id': 'accessory', 'label': 'Aksesuar'},
+    {'id': 'weapon', 'label': 'Silah'},
+  ];
+
+  /// #313: skin birlestiricide TEK secimli kategoriler (sira = giydirme sirasi).
+  static const singlePieceCategories = <String>[
+    'top', 'bottom', 'socks', 'shoes', 'hat', 'headgear',
+  ];
+
+  /// #313: coklu secimli kategoriler.
+  static const multiPieceCategories = <String>['accessory', 'weapon'];
+
+  /// #313: Hot modifier YALNIZ giysi kategorilerinde anlamlidir (§3b).
+  static const hotCategories = <String>{
+    'set', 'top', 'bottom', 'shoes', 'socks', 'hat',
+  };
+
+  static const _categoryLabels = {
+    'set': 'Set', 'top': 'Ust', 'bottom': 'Alt', 'shoes': 'Ayakkabi',
+    'socks': 'Corap', 'hat': 'Sapka', 'headgear': 'Kafalik',
+    'accessory': 'Aksesuar', 'weapon': 'Silah', 'other': 'Diger',
+  };
+
+  /// #313: kategori id -> gorunen ad (bilinmeyen id oldugu gibi doner).
+  static String categoryLabel(String id) => _categoryLabels[id] ?? id;
 
   static Map<String, String> get _headers => {
         'Content-Type': 'application/json',
@@ -882,15 +1037,19 @@ class CharacterFlowService {
   ///     secilmez; kullanici adayi "Base yap" ile secince hat baslar.
   ///   - Ikisi de yoksa bos karakter acilir.
   /// Op doner (aday isi ya da pipeline).
+  /// #314: `kind` = karakter turu (`female` varsayilan). Sunucu prompt'lari,
+  /// notr base setini ve animasyon yollarini bu alandan secer.
   static Future<String> create({
     required String name,
     required String klass,
     String prompt = '',
     String jobId = '',
+    String kind = 'female',
   }) async {
     final d = await _post('/api/character/flow/create', {
       'name': name,
       'class': klass,
+      'kind': kind,                     // #314
       if (prompt.isNotEmpty) 'prompt': prompt,
       if (jobId.isNotEmpty) 'job_id': jobId,
     });
@@ -955,8 +1114,15 @@ class CharacterFlowService {
 
   // ------------------------------------------------------ kiyafetler (#306)
   /// Kiyafet kutuphanesi - KARAKTERDEN BAGIMSIZ (`<root>/_outfits/`).
-  static Future<List<OutfitItem>> outfits() async {
-    final d = await _getAny('/api/character/flow/outfits');
+  /// #313: `category` bos = hepsi; dolu ise sunucu suzer (eski sunucu alani
+  /// yok sayar, o zaman suzme istemcide yapilir).
+  /// #314: `kind` bos = hepsi; dolu ise sunucu tura gore suzer (eski sunucu
+  /// alani yok sayar, o zaman suzme istemcide yapilir).
+  static Future<List<OutfitItem>> outfits(
+      {String category = '', String kind = ''}) async {
+    final d = await _getAny('/api/character/flow/outfits'
+        '?category=${Uri.encodeQueryComponent(category)}'
+        '&kind=${Uri.encodeQueryComponent(kind)}');
     return _rows(d, const ['outfits', 'items'])
         .map(OutfitItem.fromJson)
         .where((o) => o.slug.isNotEmpty)
@@ -969,9 +1135,110 @@ class CharacterFlowService {
       '?slug=${Uri.encodeQueryComponent(slug)}&size=$size${v > 0 ? '&v=$v' : ''}';
 
   /// Yeni kiyafet uretir (hayalet manken uzerinde onden urun fotografi) - op.
-  static Future<String> outfitCreate(String name, String prompt) async =>
-      '${(await _post('/api/character/flow/outfits/create',
-          {'name': name, 'prompt': prompt}))['op'] ?? ''}';
+  /// #312: hazir sablonlar (id, label, group, prompt); uc yoksa bos liste.
+  /// #313: sunucu `{categories, templates (category alanli), styles}` doner;
+  /// eski sunucu yalniz `templates` gonderirse kategoriler sabit listeye
+  /// duser ve sablonlar `set` sayilir.
+  /// #314: `kind` sorguya eklenir (sunucu sablonlari tura gore suzer) ve cevap
+  /// `kinds` tasiyorsa tur listesi oradan gelir; her sablon `kind` alanini
+  /// tasir (yoksa `female`) - eski sunucuda suzme istemcide yapilir.
+  static Future<
+      ({
+        List<Map<String, String>> categories,
+        List<Map<String, String>> templates,
+        List<Map<String, String>> kinds,
+        List<String> styles,
+      })> outfitTemplates({String kind = ''}) async {
+    try {
+      final d = await _get('/api/character/flow/outfits/templates'
+          '?kind=${Uri.encodeQueryComponent(kind)}');
+      final rawT = d['templates'];
+      final rawC = d['categories'];
+      final rawK = d['kinds'];
+      final rawS = d['styles'];
+      final templates = rawT is! List
+          ? const <Map<String, String>>[]
+          : [
+              for (final e in rawT)
+                if (e is Map)
+                  {
+                    'id': '${e['id'] ?? ''}',
+                    'label': '${e['label'] ?? e['id'] ?? ''}',
+                    'group': '${e['group'] ?? ''}',
+                    'prompt': '${e['prompt'] ?? ''}',
+                    // #313: kategorisi olmayan sablon = set (eski sunucu).
+                    'category': '${e['category'] ?? ''}'.trim().isEmpty
+                        ? 'set'
+                        : '${e['category']}',
+                    // #314: turu olmayan sablon = female (eski sunucu).
+                    'kind': '${e['kind'] ?? ''}'.trim().isEmpty
+                        ? 'female'
+                        : '${e['kind']}',
+                  }
+            ];
+      final categories = rawC is! List
+          ? defaultOutfitCategories
+          : [
+              for (final e in rawC)
+                if (e is Map && '${e['id'] ?? ''}'.isNotEmpty)
+                  {
+                    'id': '${e['id']}',
+                    'label': '${e['label'] ?? categoryLabel('${e['id']}')}',
+                  }
+                else if (e is String && e.isNotEmpty)
+                  {'id': e, 'label': categoryLabel(e)}
+            ];
+      // #314: sunucu tur listesi gonderirse o kullanilir, yoksa sabit liste.
+      final kinds = rawK is! List
+          ? characterKinds
+          : [
+              for (final e in rawK)
+                if (e is Map && '${e['id'] ?? ''}'.isNotEmpty)
+                  {
+                    'id': '${e['id']}',
+                    'label': '${e['label'] ?? kindLabel('${e['id']}')}',
+                  }
+                else if (e is String && e.isNotEmpty)
+                  {'id': e, 'label': kindLabel(e)}
+            ];
+      return (
+        categories:
+            categories.isEmpty ? defaultOutfitCategories : categories,
+        templates: templates,
+        kinds: kinds.isEmpty ? characterKinds : kinds,
+        styles: rawS is List
+            ? rawS.map((e) => '$e').where((e) => e.isNotEmpty).toList()
+            : const <String>[],
+      );
+    } catch (_) {
+      return (
+        categories: defaultOutfitCategories,
+        templates: const <Map<String, String>>[],
+        kinds: characterKinds,
+        styles: const <String>[],
+      );
+    }
+  }
+
+  /// #312: style '' | 'hot' (seksi sablon), template = sablon id'si (opsiyonel;
+  /// sablon secildiyse ad ve prompt bos birakilabilir).
+  /// #313: `category` = gardirop kategorisi; sablon secildiyse sunucu
+  /// kategoriyi sablondan alir.
+  /// #314: `kind` = kiyafetin turu (varsayilan `female`); uretim prompt'u
+  /// (hayalet manken / hayvan kostumu / robot montaj kiti) buna gore secilir.
+  static Future<String> outfitCreate(String name, String prompt,
+          {String style = '',
+          String template = '',
+          String category = '',
+          String kind = 'female'}) async =>
+      '${(await _post('/api/character/flow/outfits/create', {
+        'name': name,
+        'prompt': prompt,
+        'style': style,
+        'template': template,
+        'category': category,
+        'kind': kind,
+      }))['op'] ?? ''}';
 
   /// Kiyafeti kisa bir duzeltme cumlesiyle duzenler (edit_qwen) - op.
   static Future<String> outfitEdit(String slug, String prompt) async =>
@@ -982,13 +1249,28 @@ class CharacterFlowService {
       '/api/character/flow/outfit?slug=${Uri.encodeQueryComponent(slug)}',
       {'slug': slug});
 
-  /// #306: skin uret = KIYAFET SEC + karakterin base'i. Skin slug'i kiyafet
-  /// slug'idir; sunucu South'u giydirir, sonra 7 yonu (op doner, 1 + 7 is).
+  /// #306/#313: skin uret = SET ve/veya PARCA kombinasyonu + karakterin base'i.
+  ///   `outfit`   set kiyafetin slug'i (bos birakilabilir)
+  ///   `pieces`   ust/alt/corap/ayakkabi/sapka/kafalik/aksesuar/silah slug'lari
+  ///              (sunucu kategori sirasiyla sirayla giydirir)
+  ///   `skinName` skin adi; bos ise slug set ya da parcalardan turetilir
+  /// Op doner: 1 (set) + parca sayisi + 7 yon.
   static Future<({String slug, String op})> skinCreate(
-      String name, String outfitSlug) async {
-    final d = await _post('/api/character/flow/skins/create',
-        {'name': name, 'outfit': outfitSlug});
-    return (slug: '${d['slug'] ?? outfitSlug}', op: '${d['op'] ?? ''}');
+    String name, {
+    String skinName = '',
+    String outfit = '',
+    List<String> pieces = const [],
+  }) async {
+    final d = await _post('/api/character/flow/skins/create', {
+      'name': name,
+      'skin_name': skinName,
+      'outfit': outfit,
+      'pieces': pieces,
+    });
+    return (
+      slug: '${d['slug'] ?? (outfit.isNotEmpty ? outfit : skinName)}',
+      op: '${d['op'] ?? ''}'
+    );
   }
 
   /// #306: skinin secili yonlerini yeniden giydirir (aday uretir) - op doner.
@@ -1093,6 +1375,11 @@ class CharacterFlowService {
 
   /// Bir yonun secili gorselini ve adaylarini siler.
   /// #306: `skin` bos = base yonu (`base/dirs/`), doluysa o skinin yonu.
+  /// #310: candidates/ altindaki bir base adayini siler.
+  static Future<void> deleteCandidate(
+          {required String name, required String file}) =>
+      _delete('/api/character/flow/candidate', {'name': name, 'file': file});
+
   static Future<void> deleteDir(
           {required String name, required String dir, String skin = ''}) =>
       _delete('/api/character/flow/dir',

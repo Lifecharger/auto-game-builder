@@ -96,6 +96,80 @@ birçok karaktere giydirilebilir, kullanıcı kıyafetleri saklar.
   `skin=""` → base (`anims/`), doluysa `skins/<slug>/anims/`. Wan referansı = o skinin yön görseli. `list[].anims` base'i, `skins[].anims`
   her skini özetler.
 
+
+## 3b. Gardırop v2 — kategoriler ve parça kombinasyonu (AGB #312-#313)
+
+Kullanıcı: "kıyafet kısmını kategorilendirelim: üst, alt, çorap, aksesuar, ayakkabı, set, silah, şapka, kafalık… birkaç parçayı
+birlikte seçme (üste tişört, alta etek), set üretimi de olsun set olmayan da". Hot modifier ve şablonlar #312'de eklendi.
+
+**Kütüphane kaydı** `_outfits/<slug>.json`: `{slug, name, prompt, style: ""|"hot", template, category, created}`.
+Kategoriler (sabit id'ler): `set, top, bottom, shoes, socks, accessory, hat, headgear, weapon, other`. Kategorisi olmayan eski kayıt = `set`.
+- Üretim prompt'u kategoriye göre: giysi/ayakkabı/çorap/şapka → "a <parça>, displayed on an invisible ghost mannequin, front view,
+  centered, plain light gray seamless background, product photo"; `weapon`/`accessory`/`headgear` → "a <parça>, product photo, centered,
+  plain solid light gray seamless background, no person, no mannequin". Hot modifier yalnız giysi kategorilerine eklenir.
+- `OUTFIT_TEMPLATES` her şablona `category` alır; yeni şablonlar: **top** (tişört, crop top, bluz, korse, askılı, kazak, ceket),
+  **bottom** (mini etek, jean, şort, tayt, uzun etek, deri pantolon), **shoes** (topuklu, çizme, spor ayakkabı, diz üstü çizme),
+  **socks** (jartiyerli çorap, diz altı çorap, file çorap), **hat** (cadı şapkası, taç, tiara, bere, şapka), **headgear** (tavşan kulağı,
+  kedi kulağı, boynuz, hale, saç bandı), **accessory** (kolye, gözlük, eldiven, kanat, pelerin, atkı, kemer, küpe), **weapon** (kılıç,
+  büyük kılıç, hançer, asa, yay, mızrak, balta, kalkan, tabanca, tüfek, orak, çekiç). Mevcut günlük/fantastik/etkinlik şablonları = `set`.
+- `GET /outfits?category=` (boş = hepsi) ve `GET /outfits/templates` → `{"categories": [{id,label}], "templates": [{id,label,group,
+  category,prompt}], "styles": [...]}`; `POST /outfits/create {name, prompt, style, template, category}` (şablon seçildiyse kategori
+  şablondan gelir).
+
+**Skin üret = set VEYA parça kombinasyonu (+ base).** `POST /skins/create {name, skin_name?, outfit?: <set slug>, pieces?: [slug…]}`
+→ `{"slug","op"}`; slug = `skin_name` slug'ı, yoksa set slug'ı, o da yoksa parçalardan türetilir (`top_x+bottom_y`).
+- Op adımları (hepsi kuyrukta, otomatik kabul): South = base; `outfit` varsa önce set giydirilir (iki-görselli, §3); sonra `pieces`
+  kategori sırasıyla **sırayla** uygulanır: top → bottom → socks → shoes → hat → headgear → accessory(ler) → weapon(lar); her parça bir
+  iki-görselli düzenleme (girdi 1 = o anki South, girdi 2 = parça görseli) ve kategoriye özel prompt:
+  giysi: "Put the <kategori adı> from the second image on the woman in the first image; keep her face, hair, skin, body, pose,
+  framing, background and all her other clothing exactly; only add/replace that garment." · hat/headgear: "…on her head…" ·
+  accessory: "…wear the accessory from the second image…" · weapon: "…hold the weapon from the second image in her hand(s) in a
+  natural ready grip; keep pose otherwise…". Ardından 7 yön giydirme (§3.2: base yönü + nihai South). Op `total` = adım sayısı + 7.
+- `skin.json`: `{slug, name, outfit, pieces: [...], created}`; `GET /skins` satırları `outfit` ve `pieces` taşır.
+- ✎ Düzenle / ↻ Yeniden üret skin yönlerinde aynen; ayrıca South'u tek parçayla yeniden giydirmek için `POST /skins/dirs` `dirs: ["front"]`.
+
+**Uygulama / stüdyo:** Kıyafetler şeridi kategori çipleriyle süzülür (Hepsi · Set · Üst · Alt · Ayakkabı · Çorap · Şapka · Kafalık ·
+Aksesuar · Silah); "Kıyafet üret" penceresinde kategori seçimi + o kategorinin şablonları + prompt + Hot. **"Skin üret"** bir
+**birleştirici** açar: skin adı; "Set" satırı (bir set seç ya da boş); kategori satırları (top/bottom/shoes/socks/hat/headgear tek
+seçim, accessory/weapon çoklu); en altta özet ("base + set X + tişört + etek + kılıç") ve Üret → `skinCreate(name, skinName, outfit,
+pieces)` → snack "Sıraya eklendi (N iş)".
+
+
+## 3c. Karakter türü — Female (varsayılan) · Male · Animal · Machine (AGB #314)
+
+Kullanıcı: "Yeni karakter derken Female, Male, Animal, Machine desek ve ona göre üretsek? Oyunda köpek lazım olursa gibi. Female
+varsayılan. Kıyafet üretimi de her kategorinin (türün) kendi içinde olsun."
+
+**Veri:** `character.json.kind ∈ {female, male, animal, machine}` (yoksa `female`). `create {name, class, kind, prompt|job_id}`;
+`list` satırları `kind` taşır. Kütüphane kökü aynı; tür klasör değil alan.
+
+**Prompt'lar türe göre** (sunucu `KIND_PROFILES[kind]`, tek yerde):
+| | female | male | animal | machine |
+|---|---|---|---|---|
+| özne | "woman" | "man" | kullanıcının kimlik prompt'undaki hayvan ("dog", "wolf"…) yoksa "animal" | "robot" |
+| base nötr set | siyah bikini (mevcut) | siyah boxer, çıplak gövde | giysisiz, doğal tüy/deri, dört ayak üstünde ya da doğal duruş | çıplak gövde/şasi, ek zırh ve boya yok |
+| KEEP kilidi | "same woman: face, hair, skin, body" | "same man: face, hair, beard, skin, body" | "same animal: species, fur pattern, colours, body shape" | "same robot: chassis shape, panels, joints, colours" |
+| portre | baş-omuz vesikalık | aynı | baş yakın plan (kafa + boyun) | kafa/sensör ünitesi yakın plan |
+| yönler | mevcut PROMPTS (özne ve zamir `{subject}`/`{pron}` ile üretilir) | aynı | "the {animal}"; profil/arka açıklamaları aynı mantık | "the robot" |
+| hikaye | mevcut | mevcut | "hayvan karakter: tür, huy, sahibi/rolü" | "makine: model, işlev, yapımcısı" |
+| animasyon | manken + Wan + i2v | aynı | yalnız i2v (manken/Mixamo insansı) — Mixamo düğmeleri gizli | yalnız i2v (insansı mech ise kullanıcı açar) |
+Kural: `feedback_no_minors_no_chibi` her türde geçerli (yetişkin insan; hayvan/makine için çocuksu/chibi yok).
+
+**Gardırop türe göre:** kıyafet kaydında `kind` alanı (yoksa `female`); `GET /outfits?kind=&category=`; `POST /outfits/create` +`kind`.
+Üretim prompt'u: female/male → hayalet manken (male için "male ghost mannequin"); animal → "pet costume / harness / collar / bandana /
+cape sized for a <animal>, displayed on an invisible animal mannequin, product photo"; machine → "attachment kit for a robot: armor
+plating / paint scheme / weapon mount / antenna / jetpack, product photo, no robot". Şablonlar `kind` alır: mevcutlar female;
+**male** (tişört-jean, takım elbise, deri ceket, şövalye zırhı, büyücü cübbesi, okçu, barbar, Santa, korsan, polis, itfaiyeci, doktor…),
+**animal** (tasma, koşum, bandana, pelerin, şapka, Santa kostümü, süper kahraman pelerini, zırh, eyer, kanat), **machine** (zırh plakası,
+boya kiti, silah montajı, anten, jetpack, kalkan jeneratörü, LED şeridi). Hot modifier yalnız female/male giysilerinde.
+Skin birleştirici karakterin türüne göre süzer; giydirme prompt'ları özneyi türden alır ("Put the harness from the second image on the
+dog in the first image…").
+
+**Uygulama / stüdyo:** "Yeni karakter" (ve Üretilenler'den "Karakter yap") penceresinde **Tür** seçimi (Kadın · Erkek · Hayvan · Makine),
+varsayılan Kadın; sınıf listesi türe göre (hayvan: pet/mount/beast; makine: drone/mech/turret; insan: mevcut). Karakter kartı ve detay
+başlığında tür rozeti. Kıyafetler şeridi ve "Kıyafet üret" penceresi karakterin türüne kilitli (tür seçici gösterir, varsayılan karakterin
+türü). 3 Skinler'de animasyon düğmeleri türe göre (animal/machine: yalnız i2v).
+
 ## 4. Uygulama (Flutter, `app/lib/screens/character_flow_screen.dart` + servis)
 
 Detay sekmeleri: **1 Karakter · 2 Yön · 3 Skinler**.

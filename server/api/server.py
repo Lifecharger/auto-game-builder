@@ -6176,6 +6176,7 @@ class CharacterCreateRequest(BaseModel):
     job_id: str = ""
     file: str = ""
     prompt: str = ""              # #305: kimlik prompt'u (job_id/file yoksa zorunlu)
+    kind: str = ""                # #314: female (vars.) | male | animal | machine
     model_config = {"populate_by_name": True}
 
 
@@ -6213,16 +6214,25 @@ class CharacterEditRequest(BaseModel):
 
 
 class CharacterSkinCreateRequest(BaseModel):
-    """#305: skin = kutuphanedeki KIYAFET + karakterin base'i (South + 7 yon)."""
+    """#305: skin = kutuphanedeki KIYAFET + karakterin base'i (South + 7 yon).
+
+    #313: set YERINE ya da SETIN USTUNE parca kombinasyonu da verilebilir.
+    Eski `{name, outfit}` govdesi aynen calisir (pieces bos kalir).
+    """
     name: str
-    outfit: str = ""              # kiyafet slug'i (skin slug'i da bu olur)
-    skin_name: str = ""           # gorunen ad (bos = kiyafetin adi)
+    outfit: str = ""              # set kiyafet slug'i (bos birakilabilir)
+    skin_name: str = ""           # gorunen ad / skin slug'i (bos = set adi)
+    pieces: list[str] = []        # #313: parca slug'lari (kategori sirasiyla uygulanir)
 
 
 class CharacterOutfitCreateRequest(BaseModel):
     """#305: kiyafet kutuphanesi - hayalet manken urun fotografi."""
     name: str
     prompt: str
+    style: str = ""              # #312: '' | 'hot' (yalniz female/male giysisinde)
+    template: str = ""           # #312: sablon id'si (outfits/templates)
+    category: str = ""           # #313: set|top|bottom|shoes|socks|hat|headgear|accessory|weapon|other
+    kind: str = ""               # #314: female (vars.) | male | animal | machine
 
 
 class CharacterOutfitEditRequest(BaseModel):
@@ -6317,8 +6327,15 @@ def character_flow_dirs_list():
     return {"dirs": _flow_call(_char().dirs_list), "paddings": _flow_call(_char().paddings)}
 
 
+@app.get("/api/character/flow/kinds")
+def character_flow_kinds():
+    """#314: karakter turleri - [{id,label}] (female varsayilan)."""
+    return {"kinds": _flow_call(_char().kinds)}
+
+
 @app.get("/api/character/flow/list")
 def character_flow_list():
+    """#305 satirlari; #314: her satir `kind`, `subject` ve `anim_modes` tasir."""
     return _flow_call(_char().list_characters)
 
 
@@ -6326,8 +6343,11 @@ def character_flow_list():
 def character_flow_create(body: CharacterCreateRequest):
     """#305: klasor + OTOMATIK HAT. job_id/file verilirse o gorsel dogrudan base
     olur, yoksa prompt (kimlik) ile n=1 base adayi uretilir; ardindan portre,
-    hikaye ve 7 yon otomatik kabul edilerek kosar. Donen "op" Sira'da izlenir."""
-    return _flow_call(_char().create, body.name, body.cls, body.job_id, body.file, body.prompt)
+    hikaye ve 7 yon otomatik kabul edilerek kosar. Donen "op" Sira'da izlenir.
+    #314: `kind` (female|male|animal|machine, bos = female) karaktere yazilir;
+    butun istemler (base/yon/portre/hikaye/giydirme) o turden uretilir."""
+    return _flow_call(_char().create, body.name, body.cls, body.job_id, body.file, body.prompt,
+                      body.kind)
 
 
 @app.post("/api/character/flow/stage")
@@ -6361,35 +6381,58 @@ def character_flow_edit(body: CharacterEditRequest):
 
 @app.get("/api/character/flow/skins")
 def character_flow_skins(name: str):
-    """#305: karakterin skinleri - ilk eleman her zaman `base`."""
+    """#305: karakterin skinleri - ilk eleman her zaman `base`.
+    #314: satirlar `kind` + `anim_modes` tasir (animal/machine: yalniz i2v)."""
     return _flow_call(_char().skins, name)
 
 
 @app.post("/api/character/flow/skins/create")
 def character_flow_skin_create(body: CharacterSkinCreateRequest):
-    """#305: op kind char-skin (1 + 7): kiyafeti base'e giydirir (iki gorselli
-    duzenleme), sonra 7 yonu giydirilmis South ile giydirir. Skin slug = kiyafet slug."""
-    return _flow_call(_char().create_skin, body.name, body.outfit, body.skin_name)
+    """#305/#313: op kind char-skin (adim sayisi + 7): South = base; set varsa once
+    o giydirilir, sonra parcalar kategori sirasiyla (top -> bottom -> socks -> shoes
+    -> hat -> headgear -> accessory -> weapon) tek tek eklenir; en son 7 yon
+    giydirilmis South'tan uretilir. Skin slug = skin_name > set slug'i > parcalar."""
+    return _flow_call(_char().create_skin, body.name, skin_name=body.skin_name,
+                      outfit=body.outfit, pieces=body.pieces)
 
 
 # ------------------------------------------------- #305 kiyafet kutuphanesi
 # Karakterden BAGIMSIZ: <character.root>/_outfits/<slug>.png + <slug>.json.
 @app.get("/api/character/flow/outfits")
-def character_flow_outfits():
-    """#305: kutuphanedeki kiyafetler."""
-    return _flow_call(_char().outfits)
+def character_flow_outfits(category: str = "", kind: str = ""):
+    """#305: kutuphanedeki kiyafetler. #313: `category` bos = hepsi.
+    #314: `kind` bos = hepsi; dolu ise yalniz o turun kiyafetleri."""
+    return _flow_call(_char().outfits, category, kind)
+
+
+@app.get("/api/character/flow/outfits/templates")
+def character_flow_outfit_templates(kind: str = ""):
+    """#312/#313: kategoriler + hazir sablonlar (set/top/bottom/... ) + modifier'lar.
+    #314: `kind` sablonlari suzer; yanit ayrica `kinds` (tur listesi) tasir."""
+    return _flow_call(_char().outfit_templates, kind)
 
 
 @app.post("/api/character/flow/outfits/create")
 def character_flow_outfit_create(body: CharacterOutfitCreateRequest):
-    """#305: op kind char-outfit (1 is) - image_zimage, mode 'free', 832x1472."""
-    return _flow_call(_char().create_outfit, body.name, body.prompt)
+    """#305: op kind char-outfit (1 is) - image_zimage, mode 'free', 832x1472.
+    #313: istem kategoriye gore kurulur; sablon secildiyse kategori sablondan gelir.
+    #314: istem ayrica TURE gore kurulur (male hayalet manken, animal hayvan
+    mankeni, machine mankensiz ek donanim); sablon secildiyse tur de sablondan."""
+    return _flow_call(_char().create_outfit, body.name, body.prompt, body.style, body.template,
+                      body.category, body.kind)
 
 
 @app.post("/api/character/flow/outfits/edit")
 def character_flow_outfit_edit(body: CharacterOutfitEditRequest):
     """#305: kiyafeti kisa bir cumleyle duzeltir (edit_qwen, otomatik kabul)."""
     return _flow_call(_char().edit_outfit, body.slug, body.prompt)
+
+
+@app.delete("/api/character/flow/candidate")
+async def character_flow_candidate_delete(request: Request, name: str = "", file: str = ""):
+    """#310: bir base adayini (candidates/<dosya>) siler -> {"deleted": 1}."""
+    b = await _json_body(request)
+    return _flow_call(_char().delete_candidate, name or b.get("name", ""), file or b.get("file", ""))
 
 
 @app.delete("/api/character/flow/outfit")
@@ -6468,14 +6511,16 @@ def character_flow_mixamo(q: str = "", limit: int = 100, offset: int = 0):
 
 @app.post("/api/character/flow/manken")
 def character_flow_manken(body: CharacterMankenRequest):
-    """op: Blender manken videolari (CPU - gpu seridi ALMAZ)."""
+    """op: Blender manken videolari (CPU - gpu seridi ALMAZ).
+    #314: animal/machine turunde 400 (manken insansi iskelet ister)."""
     return {"op": _flow_call(_char().render_manken, body.name, body.clips, body.dirs, body.skin)}
 
 
 @app.post("/api/character/flow/animate")
 def character_flow_animate(body: CharacterAnimateRequest):
     """op: her klip icin n YENI surum. mode=mixamo (Wan Animate 2, gpu seridi)
-    ya da mode=i2v (comfy_gen video hatti)."""
+    ya da mode=i2v (comfy_gen video hatti).
+    #314: animal/machine turunde mixamo/manken 400 doner - yalniz i2v."""
     return {"op": _flow_call(_char().animate, body.name, body.dir, body.clips, body.n,
                              body.mode, body.prompt, body.clip, body.engine, body.padding,
                              body.skin)}

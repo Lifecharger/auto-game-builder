@@ -25,13 +25,25 @@ except ImportError:
 W, H = 832, 1472
 
 # MODES["character"]["prompt2"] ile AYNI cumle - fon her iki uctan da ayni.
-STUDIO = ("{} standing straight facing the camera, neutral relaxed pose, arms at her sides, full body from "
-          "head to feet with empty space above and below, " + C.BG_CLAUSE +
-          ", photorealistic, sharp focus, 85mm")
+# #314: cumle artik TURE gore kurulabiliyor (erkek/hayvan/makine icin "arms at
+# her sides" ve "full body from head to feet" yanlis). Varsayilanlar female'dir
+# ve STUDIO eski metinle BIREBIR AYNI kalir.
+def studio(stance: str = "standing straight facing the camera",
+           arms: str = "arms at her sides",
+           body: str = "full body from head to feet") -> str:
+    """#314: Karakter Modu studyo sablonu ({} = kimlik + set govdesi)."""
+    return ("{} " + stance + ", neutral relaxed pose, " + arms + ", " + body +
+            " with empty space above and below, " + C.BG_CLAUSE +
+            ", photorealistic, sharp focus, 85mm")
+
+
+STUDIO = studio()
 NEG = ("anime, cartoon, illustration, drawing, painting, 3d render, cgi, child, teen, minor, "
        "deformed, disfigured, extra limbs, extra fingers, bad hands, bad anatomy, "
        "watermark, text, logo, cluttered background, props, furniture, cropped feet, cropped head")
 
+# #314: base'in notr seti artik KIND_PROFILES[<tur>]["neutral"] (sunucu, tek
+# kaynak); asagidaki "neutral" female degeridir ve onunla ayni metindir.
 SETS = {"neutral": "wearing a simple plain black bikini",
         "costume": ""}          # costume = --outfit ile gelir
 
@@ -47,11 +59,13 @@ def submit(prompt: str, seed: int) -> str:
 
 
 def generate(dest, identity: str, outfit: str = "", kind: str = "costume", n: int = 5,
-             log=print) -> list[str]:
+             log=print, studio_tmpl: str = "") -> list[str]:
+    """`kind` burada SET adidir (neutral/costume), karakter turu DEGIL (#314).
+    `studio_tmpl` verilirse (tur bazli sablon) STUDIO yerine o kullanilir."""
     dest = Path(dest)
     dest.mkdir(parents=True, exist_ok=True)
     body = ", ".join(x for x in (identity.strip(" ,"), (outfit or SETS.get(kind, "")).strip(" ,")) if x)
-    prompt = STUDIO.format(body)
+    prompt = (studio_tmpl or STUDIO).format(body)
     jobs = []
     for i in range(1, max(1, n) + 1):
         seed = random.randint(1, 2 ** 31)

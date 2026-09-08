@@ -130,6 +130,274 @@ _VER_RE = re.compile(r"^v\d{2,3}$")
 _SLUG_RE = re.compile(r"^[a-z0-9_]{1,40}$")
 
 
+# ------------------------------------------------------- #314 KARAKTER TURU
+# Tasarim: design/karakter_hatti_v2.md 3c. Tur TEK YERDE (KIND_PROFILES)
+# tanimlanir; base, yon, portre, hikaye, giydirme ve duzenleme istemlerinin
+# hepsi buradaki jetonlarla uretilir.
+#
+# ALTIN KURAL: female render'i eski (tur oncesi) metinlerle BIREBIR AYNI olmak
+# zorunda - bu yuzden asagidaki sablonlarin female cikti metni degistirilemez.
+# Jetonlar:
+#   subject  ozne ("woman" / "man" / hayvan turu / "robot")
+#   subj/Subj/poss/Poss/obj  zamirler (she/She/her/Her/her)
+#   garb     "uzerindeki" ("outfit" / "body" / "chassis")
+#   pose     durus cumlesi   arms  base uretiminde kol/bacak cumlesi
+#   stance   base uretiminde durus  body  base uretiminde kadraj
+#   parts    kimlik parcalari ("face, hair, skin, body")
+#   parts2   yon giydirmede kimlik parcalari ("body, face, hair")
+#   identity KEEP kimlik kilidi     neg_id  negatifteki kimlik kacagi
+#   hands    silah tutan uzuv       neutral base'in notr set cumlesi
+DEFAULT_KIND = "female"
+KIND_LABELS = (("female", "Kadin"), ("male", "Erkek"),
+               ("animal", "Hayvan"), ("machine", "Makine"))
+
+# #314: hayvan turu kimlik prompt'undan cikarilir. Once irk takma adlari
+# (retriever -> dog), sonra dogrudan tur sozcukleri taranir; bulunmazsa "animal".
+ANIMAL_ALIASES = {
+    "retriever": "dog", "labrador": "dog", "husky": "dog", "corgi": "dog",
+    "poodle": "dog", "terrier": "dog", "bulldog": "dog", "shepherd": "dog",
+    "dachshund": "dog", "beagle": "dog", "chihuahua": "dog", "pug": "dog",
+    "doberman": "dog", "rottweiler": "dog", "hound": "dog", "puppy": "dog",
+    "kitten": "cat", "siamese": "cat", "persian": "cat", "tabby": "cat",
+    "pony": "horse", "stallion": "horse", "mare": "horse", "foal": "horse",
+    "raven": "crow", "hawk": "eagle", "falcon": "eagle",
+}
+ANIMAL_WORDS = (
+    "dog", "cat", "wolf", "fox", "horse", "dragon", "bear", "lion", "tiger",
+    "panther", "leopard", "cheetah", "lynx", "rabbit", "deer", "elk", "boar",
+    "bull", "cow", "goat", "sheep", "pig", "donkey", "camel", "elephant",
+    "rhino", "hippo", "giraffe", "zebra", "monkey", "ape", "gorilla",
+    "eagle", "owl", "crow", "raven", "parrot", "penguin", "chicken", "duck",
+    "snake", "lizard", "crocodile", "turtle", "frog", "spider", "scorpion",
+    "shark", "whale", "dolphin", "fish", "octopus", "crab", "bat", "rat",
+    "mouse", "squirrel", "otter", "badger", "weasel", "ferret", "hedgehog",
+    "raccoon", "hyena", "jackal", "coyote", "moose", "bison", "buffalo",
+)
+
+
+def animal_subject(text: str) -> str:
+    """#314: kimlik prompt'undaki hayvan turu ("a golden retriever dog" -> dog).
+
+    Sozcukler sirayla taranir; ilk eslesen tur (ya da irk takma adinin turu)
+    ozne olur. Hicbiri yoksa genel "animal" doner.
+    """
+    for w in re.findall(r"[a-z]+", (text or "").lower()):
+        w = w[:-1] if (w.endswith("s") and w[:-1] in ANIMAL_WORDS) else w
+        if w in ANIMAL_ALIASES:
+            return ANIMAL_ALIASES[w]
+        if w in ANIMAL_WORDS:
+            return w
+    return "animal"
+
+
+KIND_PROFILES = {
+    "female": {
+        "id": "female", "label": "Kadin",
+        "subject": "woman", "subj": "she", "Subj": "She", "poss": "her",
+        "Poss": "Her", "obj": "her", "garb": "outfit",
+        "stance": "standing straight facing the camera",
+        "arms": "arms at her sides",
+        "body": "full body from head to feet",
+        "pose": "standing pose with arms relaxed",
+        "frame": "full body from head to feet",
+        "parts": "face, hair, skin, body",
+        "parts2": "body, face, hair",
+        "identity": "same face, same hair, same skin, same body proportions",
+        "neg_id": "different face, different hair colour, different outfit",
+        "hands": "her hand or hands",
+        # base notr set cumlesi = karakter_adaylari.SETS["neutral"] (ayni metin)
+        "neutral": "wearing a simple plain black bikini",
+        "neg_extra": "",
+        "portrait": ("Re-frame to a PASSPORT-STYLE HEAD-AND-SHOULDERS PORTRAIT of the exact same {subject}: "
+                     "same face, same hair, same skin, same makeup, same outfit collar. {Poss} WHOLE head is "
+                     "visible with a little empty space above {poss} hair, {poss} chin and neck are fully "
+                     "visible, the top of {poss} shoulders at the bottom of the frame, face centered, {subj} "
+                     "looks straight at the camera. Keep the plain solid flat uniform light gray seamless "
+                     "studio background, no shadow, even soft lighting. Photorealistic, sharp focus, "
+                     "85mm portrait lens."),
+        "story": "",
+        "mannequin": "an invisible ghost mannequin",
+        # #314 gardirop: bos = mevcut (female) varsayilanlari kullan
+        "prop_categories": (), "nouns": {}, "outfit_neg": "", "outfit_neg_prop": "",
+        "anim_modes": ("i2v", "mixamo"),
+    },
+    "male": {
+        "id": "male", "label": "Erkek",
+        "subject": "man", "subj": "he", "Subj": "He", "poss": "his",
+        "Poss": "His", "obj": "him", "garb": "outfit",
+        "stance": "standing straight facing the camera",
+        "arms": "arms at his sides",
+        "body": "full body from head to feet",
+        "pose": "standing pose with arms relaxed",
+        "frame": "full body from head to feet",
+        "parts": "face, hair, beard, skin, body",
+        "parts2": "body, face, hair, beard",
+        "identity": "same face, same hair, same beard, same skin, same body proportions",
+        "neg_id": "different face, different hair colour, different outfit",
+        "hands": "his hand or hands",
+        "neutral": "wearing plain black boxer briefs, bare torso",
+        "neg_extra": "",
+        "portrait": ("Re-frame to a PASSPORT-STYLE HEAD-AND-SHOULDERS PORTRAIT of the exact same {subject}: "
+                     "same face, same hair, same beard, same skin, same outfit collar. {Poss} WHOLE head is "
+                     "visible with a little empty space above {poss} hair, {poss} chin and neck are fully "
+                     "visible, the top of {poss} shoulders at the bottom of the frame, face centered, {subj} "
+                     "looks straight at the camera. Keep the plain solid flat uniform light gray seamless "
+                     "studio background, no shadow, even soft lighting. Photorealistic, sharp focus, "
+                     "85mm portrait lens."),
+        "story": "",
+        "mannequin": "an invisible male ghost mannequin",
+        # #314 gardirop: parcalar female ile ayni, manken erkek
+        "prop_categories": (), "nouns": {}, "outfit_neg": "", "outfit_neg_prop": "",
+        "anim_modes": ("i2v", "mixamo"),
+    },
+    "animal": {
+        "id": "animal", "label": "Hayvan",
+        "subject": "animal", "subj": "it", "Subj": "It", "poss": "its",
+        "Poss": "Its", "obj": "it", "garb": "body",
+        "stance": "standing naturally facing the camera",
+        "arms": "all four legs visible",
+        "body": "the whole animal from nose to tail",
+        "pose": "natural standing pose",
+        "frame": "the whole animal from head to tail",
+        "parts": "head, fur, markings, body",
+        "parts2": "body, head, fur",
+        "identity": "same species, same fur pattern, same colours, same body shape",
+        "neg_id": "different species, different fur colour, different markings",
+        "hands": "its mouth or its harness",
+        "neutral": "no clothing and no accessories, natural fur or skin",
+        # feedback_no_minors_no_chibi: hayvanda da cocuksu/chibi yok
+        "neg_extra": "chibi, cute cartoon mascot, plush toy, baby animal, human, humanoid",
+        "portrait": ("Re-frame to a CLOSE-UP HEAD-AND-NECK PORTRAIT of the exact same {subject}: same head "
+                     "shape, same fur pattern, same colours, same markings. {Poss} WHOLE head is visible with "
+                     "a little empty space above {poss} ears, {poss} muzzle and neck are fully visible, the "
+                     "top of {poss} shoulders at the bottom of the frame, head centered, {subj} looks "
+                     "straight at the camera. Keep the plain solid flat uniform light gray seamless studio "
+                     "background, no shadow, even soft lighting. Photorealistic, sharp focus, "
+                     "85mm portrait lens."),
+        "story": ("Bu bir HAYVAN karakter: turunu, huyunu, sahibini ya da oyundaki gorevini anlat; "
+                  "insan gibi konusturma, insan yasi/kokeni yazma."),
+        "mannequin": "an invisible animal mannequin",
+        # #314 gardirop: tasma/kosum/pelerin de HAYVAN mankeni uzerinde durur;
+        # yalniz silah mankensiz urun fotografidir.
+        "prop_categories": ("weapon",),
+        "nouns": {"set": "a complete pet costume",
+                  "top": "a pet vest",
+                  "bottom": "a pair of pet leg wraps",
+                  "shoes": "a set of pet booties",
+                  "socks": "a set of pet leg socks",
+                  "hat": "a pet hat",
+                  "headgear": "a pet head accessory",
+                  "accessory": "a pet accessory (collar, harness, bandana, cape or saddle)",
+                  "weapon": "a weapon",
+                  "other": "a pet item"},
+        "outfit_neg": "live animal, real pet, person, face, hands, text, watermark",
+        "outfit_neg_prop": "live animal, real pet, person, face, hands, body, mannequin, text, watermark",
+        "anim_modes": ("i2v",),
+    },
+    "machine": {
+        "id": "machine", "label": "Makine",
+        "subject": "robot", "subj": "it", "Subj": "It", "poss": "its",
+        "Poss": "Its", "obj": "it", "garb": "chassis",
+        "stance": "standing straight facing the camera",
+        "arms": "arms or manipulators at its sides",
+        "body": "the whole robot from head to feet",
+        "pose": "standing pose",
+        "frame": "the whole robot from head to feet",
+        "parts": "head, panels, colours, body",
+        "parts2": "body, head, panels",
+        "identity": "same chassis shape, same panels, same joints, same colours",
+        "neg_id": "different chassis, different colours, different panels",
+        "hands": "its manipulator or hand",
+        "neutral": "bare chassis, no extra armour and no additional paint",
+        "neg_extra": "chibi, cute toy mascot, plush, organic skin, human face",
+        "portrait": ("Re-frame to a CLOSE-UP PORTRAIT of the head and sensor unit of the exact same "
+                     "{subject}: same chassis shape, same panels, same joints, same colours. {Poss} WHOLE "
+                     "head unit is visible with a little empty space above it, {poss} neck joint is fully "
+                     "visible, the top of {poss} shoulders at the bottom of the frame, head centered, the "
+                     "main sensor faces the camera. Keep the plain solid flat uniform light gray seamless "
+                     "studio background, no shadow, even soft lighting. Photorealistic, sharp focus, "
+                     "85mm portrait lens."),
+        "story": ("Bu bir MAKINE karakter: modelini, islevini, yapimcisini ve calisma bicimini anlat; "
+                  "insan bedeni ve insan yasi yok."),
+        # makine kiyafeti = ek donanim: manken yok, duz urun fotografi
+        "mannequin": "",
+        # #314 gardirop: makine kiyafeti = EK DONANIM; manken yok, robot yok.
+        "prop_categories": ("set", "top", "bottom", "shoes", "socks", "hat",
+                            "headgear", "accessory", "weapon", "other"),
+        "nouns": {"set": "a complete attachment kit for a robot (armor plating and paint scheme)",
+                  "top": "a torso armor plate attachment for a robot",
+                  "bottom": "a leg armor attachment for a robot",
+                  "shoes": "a pair of foot thruster attachments for a robot",
+                  "socks": "a pair of joint sleeve attachments for a robot",
+                  "hat": "a head module attachment for a robot",
+                  "headgear": "an antenna or sensor attachment for a robot",
+                  "accessory": "an attachment for a robot (jetpack, shield generator or LED strip)",
+                  "weapon": "a weapon mount attachment for a robot",
+                  "other": "an attachment part for a robot"},
+        "outfit_neg": "robot, person, face, hands, body, mannequin, text, watermark",
+        "outfit_neg_prop": "robot, person, face, hands, body, mannequin, text, watermark",
+        "anim_modes": ("i2v",),
+    },
+}
+KIND_IDS = tuple(k for k, _ in KIND_LABELS)
+
+
+def kinds() -> list[dict]:
+    """#314: tur listesi - istemci bu listeyi kaynak alir."""
+    return [{"id": i, "label": l} for i, l in KIND_LABELS]
+
+
+def kind_id(kind: str = "") -> str:
+    """#314: tur dogrulama - bos ise female, bilinmeyen ise hata (400)."""
+    k = (kind or "").strip().lower()
+    if not k:
+        return DEFAULT_KIND
+    if k not in KIND_IDS:
+        raise ValueError("bilinmeyen karakter turu: %s" % kind)
+    return k
+
+
+def kind_profile(kind: str = "", subject: str = "") -> dict:
+    """#314: turun profili; `subject` verilirse ozne onunla degistirilir."""
+    p = dict(KIND_PROFILES[kind_id(kind)])
+    if (subject or "").strip():
+        p["subject"] = subject.strip()
+    return p
+
+
+def _tok(kind: str = "", subject: str = "") -> dict:
+    """#314: sablon jetonlari (profilin yalniz metin alanlari)."""
+    return {k: v for k, v in kind_profile(kind, subject).items() if isinstance(v, str)}
+
+
+def render_kind(tmpl: str, kind: str = "", subject: str = "") -> str:
+    """#314: bir istem sablonunu turun jetonlariyla doldurur."""
+    return (tmpl or "").format(**_tok(kind, subject))
+
+
+def anim_modes(kind: str = "") -> list[str]:
+    """#314: turun desteklenen animasyon kipleri (animal/machine: yalniz i2v)."""
+    return list(KIND_PROFILES[kind_id(kind)]["anim_modes"])
+
+
+def kind_of(m: dict) -> str:
+    """#314: character.json'daki tur - eksikse female (geriye uyumluluk)."""
+    k = ((m or {}).get("kind") or "").strip().lower()
+    return k if k in KIND_IDS else DEFAULT_KIND
+
+
+def subject_of(m: dict) -> str:
+    """#314: karakterin oznesi - kayitli `subject`, yoksa turden/prompt'tan."""
+    k = kind_of(m)
+    s = ((m or {}).get("subject") or "").strip()
+    if s:
+        return s
+    if k == "animal":
+        p = (m or {}).get("prompt") or {}
+        return animal_subject(p.get("prompt") or p.get("combined") or "")
+    return KIND_PROFILES[k]["subject"]
+
+
 # ------------------------------------------------------------------ ayarlar
 def _setting(key: str, default: str = "") -> str:
     try:
@@ -162,7 +430,10 @@ def profiles() -> dict:
     yol = os.environ.get("CHARACTER_OPTIONS_FILE", "").strip() or _setting("character.options_file") \
         or os.path.join(_ROOT, "server", "config", "character_options.json")
     out = {"profiles": {}, "presets": {}, "source": yol, "root": root(),
-           "dirs": dirs_list(), "paddings": paddings(), "error": ""}
+           "dirs": dirs_list(), "paddings": paddings(),
+           "kinds": kinds(),                                  # #314
+           "anim_modes": {k: anim_modes(k) for k in KIND_IDS},  # #314
+           "error": ""}
     try:
         with open(yol, encoding="utf-8") as fh:
             out["profiles"] = json.load(fh)
@@ -390,6 +661,8 @@ def _migrate(d: str, m: dict) -> tuple[dict, list[str]]:
         m["class"] = _sinif_tahmin(d)
     m.setdefault("name", os.path.basename(d))
     m.setdefault("created", datetime.now().isoformat(timespec="seconds"))
+    m["kind"] = kind_of(m)                    # #314: eski karakterler = female
+    m.setdefault("subject", subject_of(m))
     yapilan.append("layout 2")
     return m, yapilan
 
@@ -410,6 +683,9 @@ def _infer(d: str, m: dict) -> dict:
             print("[character_flow] %s tasinamadi: %s" % (d, e))
         return m
     m.setdefault("name", os.path.basename(d))
+    m["kind"] = kind_of(m)                    # #314: eksikse female
+    if not (m.get("subject") or "").strip():  # #314: ozne (hayvanda tur adi)
+        m["subject"] = subject_of(m)
     if not m.get("base") or not os.path.isfile(os.path.join(d, m["base"])):
         m["base"] = BASE_REL if os.path.isfile(os.path.join(d, BASE_REL)) else ""
     if not m.get("portrait") or not os.path.isfile(os.path.join(d, m["portrait"])):
@@ -426,6 +702,22 @@ def meta(name: str) -> dict:
 
 def _save_meta(name: str, m: dict) -> None:
     _write_json(os.path.join(char_dir(name), "character.json"), m)
+
+
+def char_kind(name: str) -> tuple[str, str]:
+    """#314: karakterin (tur, ozne) ikilisi - butun istemler bundan uretilir."""
+    m = meta(name)
+    return kind_of(m), subject_of(m)
+
+
+def _ensure_kind(name: str) -> tuple[str, str]:
+    """#314: tur/ozne character.json'da yoksa yazar (create/pick aninda)."""
+    m = meta(name)
+    k, ozne = kind_of(m), subject_of(m)
+    if m.get("kind") != k or (m.get("subject") or "") != ozne:
+        m["kind"], m["subject"] = k, ozne
+        _save_meta(name, m)
+    return k, ozne
 
 
 def settings(name: str, padding=None, sprite_canvas=None) -> dict:
@@ -564,6 +856,10 @@ def list_characters() -> list[dict]:
         rows.append({
             "name": name,
             "class": m.get("class") or "",
+            # #314: karakter turu, oznesi ve desteklenen animasyon kipleri
+            "kind": kind_of(m),
+            "subject": subject_of(m),
+            "anim_modes": anim_modes(kind_of(m)),
             "layout": int(m.get("layout") or LAYOUT),
             "base": m.get("base") or "",
             # #305: kart gorseli = base'in South'u ("look"/"look_thumb" KALDIRILDI)
@@ -639,7 +935,8 @@ def _job_image(job_id: str) -> str:
     return f
 
 
-def create(name: str, cls: str = "", job_id: str = "", file: str = "", prompt: str = "") -> dict:
+def create(name: str, cls: str = "", job_id: str = "", file: str = "", prompt: str = "",
+           kind: str = "") -> dict:
     """#305: klasor agaci + character.json + card.md + sinif preseti.
 
     BASE'I KULLANICI SECER; otomasyon secim aninda baslar:
@@ -649,20 +946,30 @@ def create(name: str, cls: str = "", job_id: str = "", file: str = "", prompt: s
         Karakter Modu, neutral set); OTOMATIK SECILMEZ, kullanici "Base yap"
         (pick kind="base") deyince hat baslar.
       * ikisi de yoksa    - bos karakter; kullanici sonra aday ekler.
+
+    #314: `kind` (female|male|animal|machine, bos = female) character.json'a
+    yazilir; hayvanda ozne kimlik prompt'undan cikarilir ("a golden retriever
+    dog" -> "dog") ve `subject` olarak saklanir - butun istemler ondan uretilir.
     """
     name = _safe_name(name)
+    tur = kind_id(kind)                                   # #314
     d = os.path.join(root(), name)
     if os.path.isdir(d):
         raise ValueError("bu isimde karakter zaten var: %s" % name)
     src = _job_image(job_id) if job_id else (file if file and os.path.isfile(file) else "")
     kimlik = (prompt or "").strip()
+    pr = _prompt_of(job_id) if job_id else {"prompt": kimlik, "prompt2": "",
+                                            "combined": kimlik, "negative": "", "seed": None}
+    # #314: hayvan oznesi kimlik prompt'undan; diger turlerde profilin oznesi
+    ozne = (animal_subject(pr.get("prompt") or pr.get("combined") or "") if tur == "animal"
+            else KIND_PROFILES[tur]["subject"])
     for sub in ("candidates", BASE_DIRS, "portrait", SKINS, "anims"):
         os.makedirs(os.path.join(d, sub), exist_ok=True)
     m = {"name": name, "class": (cls or "").strip(), "layout": LAYOUT,
+         "kind": tur, "subject": ozne,                    # #314
          "created": datetime.now().isoformat(timespec="seconds"),
          "base": "", "portrait": "", "padding": 0.0,
-         "prompt": _prompt_of(job_id) if job_id else {"prompt": kimlik, "prompt2": "",
-                                                      "combined": kimlik, "negative": "", "seed": None},
+         "prompt": pr,
          "pipeline": {"status": "idle", "op": "", "step": "", "started": "", "finished": "", "error": ""}}
     _save_meta(name, m)
     with open(os.path.join(d, "card.md"), "w", encoding="utf-8") as fh:
@@ -681,6 +988,7 @@ def create(name: str, cls: str = "", job_id: str = "", file: str = "", prompt: s
     elif kimlik:
         op = generate_base(name, 1)      # tek aday, OTOMATIK SECILMEZ
     return {"name": name, "dir": d, "base": meta(name).get("base") or "",
+            "kind": tur, "subject": ozne,                 # #314
             "preset": bool(p), "op": op, "steps": steps}
 
 
@@ -781,6 +1089,20 @@ def _base_degisti(name: str) -> None:
         _save_proposals(name, rows)
 
 
+def delete_candidate(name: str, file: str) -> dict:
+    """#310: candidates/ altindaki bir base adayini siler (kabul edilmis
+    gorsellere dokunmaz)."""
+    d = char_dir(name)
+    rel = (file or "").replace("\\", "/").strip("/")
+    if not rel.startswith("candidates/") or "/" in rel[len("candidates/"):]:
+        raise ValueError("yalniz candidates/ altindaki adaylar silinebilir")
+    p = _inside(d, os.path.join(d, rel))
+    if not os.path.isfile(p):
+        raise ValueError("aday yok: %s" % rel)
+    os.remove(p)
+    return {"name": name, "deleted": 1, "file": rel}
+
+
 def pick(name: str, file: str, kind: str = "base") -> dict:
     """kind: base | portrait | dir:<yon> | skin:<slug>:<yon>  (#305).
 
@@ -795,6 +1117,7 @@ def pick(name: str, file: str, kind: str = "base") -> dict:
         raise ValueError("look kaldirildi - base sec")
     if kind == "base":
         rel = _accept_base(name, src)
+        _ensure_kind(name)                     # #314: tur/ozne character.json'a yazilir
         _base_degisti(name)
         op = run_pipeline(name, list(PIPELINE_STEPS))
     elif kind == "portrait":
@@ -863,11 +1186,33 @@ def _serbest_ad(dest_dir: str, kalip: str) -> str:
     return os.path.join(dest_dir, kalip % k)
 
 
+def _is_sil(jid: str, tasindi: bool = False) -> None:
+    """#314: comfy_gen is kaydini siler.
+
+    `tasindi=True` ise isin cikti dosyasi zaten KESILIP kutuphaneye tasinmistir;
+    dosyaya dokunulmaz (yalniz kayit ve onizleme silinir). Boylece hicbir yolda
+    "once sil sonra kopyala" olmaz (#311 hatasi).
+    """
+    try:
+        G.delete_job(jid, remove_file=not tasindi)
+    except Exception:
+        pass
+    if tasindi:
+        try:
+            t = G._thumb_path(jid)
+            if t and os.path.isfile(t):
+                os.remove(t)
+        except Exception:
+            pass
+
+
 def _yerlestirici(dest_dir: str, kalip: str):
-    """#299: bir isin ciktisini bos numarali dosyaya kopyalayan islev doner."""
+    """#299: bir isin ciktisini bos numarali dosyaya TASIYAN islev doner.
+    #314: kopyala-sonra-sil yerine KES (shutil.move) - ayni dosya iki yerde
+    durmaz ve cikti hicbir zaman yerlestirilmeden silinmez."""
     def yerlestir(src: str) -> str:
         p = _serbest_ad(dest_dir, kalip)
-        shutil.copy(src, p)
+        shutil.move(src, p)
         return os.path.basename(p)
     return yerlestir
 
@@ -894,9 +1239,11 @@ def _topla(op_id: str, isler: list, timeout: int = 3 * 3600) -> None:
     """#299: kuyruga birakilan comfy_gen islerini sirayla bekler ve yerlestirir."""
     for i, (jid, etiket, yerlestir) in enumerate(isler, 1):
         _op(op_id, message="%d/%d  %s" % (i, len(isler), etiket))
+        tasindi = False
         try:
             src = _await_job(jid, op_id, "%d/%d %s" % (i, len(isler), etiket), timeout)
-            ad = yerlestir(src)
+            ad = yerlestir(src)                      # #314: yerlestirme = KES
+            tasindi = not os.path.isfile(src)        # placer tasidiysa dosya gitti
         except Exception as e:                       # iptal/hata = basarisiz
             with _ops_lock:
                 _ops[op_id]["failed"] += 1
@@ -905,10 +1252,8 @@ def _topla(op_id: str, isler: list, timeout: int = 3 * 3600) -> None:
             with _ops_lock:
                 _ops[op_id]["ok"] += 1
             _op(op_id, done=i, log="%s -> %s" % (etiket, ad))
-        try:
-            G.delete_job(jid)                        # ara cikti galeride kalmasin
-        except Exception:
-            pass
+        # ara cikti galeride kalmasin; tasindiysa DOSYAYA DOKUNULMAZ (#314)
+        _is_sil(jid, tasindi)
     _op(op_id, message="bitti")
 
 
@@ -942,6 +1287,7 @@ def generate_dirs(name: str, dirs: list[str], n: int = 2, skin: str = "") -> str
     if not hedef:
         raise ValueError("yon secilmedi (front base'in kendisidir; base/portrait tek basina gonderilir)")
     _c, _mk, _sf, _wa, yon_uret = _tools()
+    tur, ozne = char_kind(name)                       # #314
     n = max(1, min(8, int(n or 1)))
     dr = dirs_root(d, BASE_SKIN)
     os.makedirs(dr, exist_ok=True)
@@ -954,7 +1300,7 @@ def generate_dirs(name: str, dirs: list[str], n: int = 2, skin: str = "") -> str
             for i in range(1, n + 1):
                 etiket = "%s_%02d" % (y, i)
                 try:
-                    job = _yon_job(name, base, y, yon_uret)
+                    job = _yon_job(name, base, y, yon_uret, tur, ozne)      # #314
                 except Exception as e:
                     with _ops_lock:
                         _ops[op_id]["failed"] += 1
@@ -967,58 +1313,436 @@ def generate_dirs(name: str, dirs: list[str], n: int = 2, skin: str = "") -> str
     return _kuyruk_op("char-dirs", len(hedef) * n, uret)
 
 
-def _yon_job(name: str, base: str, y: str, yon_uret) -> dict:
+def _yon_job(name: str, base: str, y: str, yon_uret, kind: str = "", subject: str = "") -> dict:
     """#305: tek yon adayi icin comfy_gen isi.
 
     mode="free": Karakter Modu sablonu (CHARACTER_PROMPT2) ve 832x1472
     zorlamasi bir DUZENLEME isine girmesin - grafik yon_uret.submit ile
     birebir ayni kalsin.
+    #314: istem/KEEP/negatif yon_uret.render(<tur profili>) ile turden uretilir;
+    female render'i eski metinle birebir aynidir.
     """
-    return G.submit("edit_qwen", "%s %s" % (yon_uret.PROMPTS[y], yon_uret.KEEP),
-                    negative=yon_uret.NEG, seed=random.randint(1, 2 ** 31),
+    R = yon_uret.render(kind_profile(kind, subject))
+    return G.submit("edit_qwen", "%s %s" % (R["prompts"][y], R["keep"]),
+                    negative=R["neg"], seed=random.randint(1, 2 ** 31),
                     turbo=True, image_path=base, mode="free",
                     client="flow", category=name)
 
 
 # #305: portre artik "vesikalik" - sikica bas-omuz, cikti ustten KARE kirpilir.
-PORTRAIT_PROMPT = ("Crop and re-frame to a TIGHT HEAD-AND-SHOULDERS PASSPORT-STYLE PORTRAIT of the exact same "
-                   "woman: same face, same hair, same skin, same makeup, same outfit collar. Her head fills the "
-                   "top of the frame, she looks straight at the camera. Keep the plain solid flat uniform light "
-                   "gray seamless studio background, no shadow, even soft lighting. Photorealistic, sharp focus, "
-                   "85mm portrait lens.")
+# #308: cene kesiliyordu - bas kadraji doldurmasin: sac ustunde bosluk, cene ve
+# boyun gorunur, omuz basi altta. Kare kirpma da ustten %78 alir (_square_top).
+# #314: metin artik TURE gore uretilir (KIND_PROFILES[<tur>]["portrait"]);
+# asagidaki sabit female render'idir ve eski metinle BIREBIR AYNIDIR.
+def portrait_prompt(kind: str = "", subject: str = "") -> str:
+    """#314: turun vesikalik/yakin plan portre istemi."""
+    return render_kind(kind_profile(kind, subject)["portrait"], kind, subject)
+
+
+PORTRAIT_PROMPT = portrait_prompt(DEFAULT_KIND)
 
 # #305: kimlik/poz/fon kilidi - Duzenle ucunda kullanicinin cumlesine eklenir.
-EDIT_KEEP = ("Keep the exact same woman: same face, same hair, same skin, same body proportions, the same pose, "
-             "the same camera angle and framing, and the same plain solid flat uniform light gray seamless studio "
-             "background with no shadow. Change nothing else. Photorealistic.")
+# #314: ozne ve kimlik parcalari turden gelir.
+EDIT_KEEP_TMPL = ("Keep the exact same {subject}: {identity}, the same pose, "
+                  "the same camera angle and framing, and the same plain solid flat uniform light gray seamless "
+                  "studio background with no shadow. Change nothing else. Photorealistic.")
+
+
+def edit_keep(kind: str = "", subject: str = "") -> str:
+    """#314: Duzenle ucundaki kimlik/poz/fon kilidi."""
+    return render_kind(EDIT_KEEP_TMPL, kind, subject)
+
+
+EDIT_KEEP = edit_keep(DEFAULT_KIND)
 
 # #305: kiyafet kutuphanesi istemleri (hayalet manken urun fotografi)
+# #313: artik KATEGORIYE gore kurulur - giysi/ayakkabi/corap/sapka hayalet manken
+# uzerinde, silah/aksesuar/kafalik ise mankensiz duz urun fotografi olarak uretilir.
 OUTFIT_PROMPT = ("{}, a complete outfit displayed on an invisible ghost mannequin, front view, centered, "
                  "plain solid flat uniform light gray seamless studio background, product photo, "
                  "photorealistic, sharp focus")
 OUTFIT_NEG = "person, face, hands, text, watermark"
+# #313: mankensiz (prop) kategorilerde manken de negatife girer
+OUTFIT_NEG_PROP = "person, face, hands, body, mannequin, text, watermark"
+
+# #313: kategori kimlikleri SABIT; kutuphane kaydinda `category` alani tutulur.
+# Kategorisi olmayan eski kayit = "set" (geriye uyumluluk, DEFAULT_CATEGORY).
+OUTFIT_CATEGORIES = (
+    ("set",       "Set"),
+    ("top",       "Ust"),
+    ("bottom",    "Alt"),
+    ("shoes",     "Ayakkabi"),
+    ("socks",     "Corap"),
+    ("hat",       "Sapka"),
+    ("headgear",  "Kafalik"),
+    ("accessory", "Aksesuar"),
+    ("weapon",    "Silah"),
+    ("other",     "Diger"),
+)
+OUTFIT_CATEGORY_IDS = tuple(c for c, _ in OUTFIT_CATEGORIES)
+OUTFIT_CATEGORY_LABELS = dict(OUTFIT_CATEGORIES)
+DEFAULT_CATEGORY = "set"
+# #313: uretim istemindeki parca adi (ghost mannequin cumlesinin oznesi)
+OUTFIT_NOUNS = {
+    "set":       "a complete outfit",
+    "top":       "a single top garment",
+    "bottom":    "a single bottom garment",
+    "shoes":     "a pair of shoes",
+    "socks":     "a pair of socks",
+    "hat":       "a hat",
+    "headgear":  "a head accessory",
+    "accessory": "an accessory",
+    "weapon":    "a weapon",
+    "other":     "an item",
+}
+# #313: mankensiz uretilen kategoriler (esya/prop); geri kalan hepsi hayalet manken.
+OUTFIT_PROP_CATEGORIES = ("weapon", "accessory", "headgear")
+# #313: Hot modifier YALNIZ giysi kategorilerine eklenir (silah/aksesuar/kafalikta anlamsiz).
+OUTFIT_HOT_CATEGORIES = ("set", "top", "bottom", "shoes", "socks", "hat")
+# #314: manken cumlesi TURDEN gelir (KIND_PROFILES[<tur>]["mannequin"]):
+# female "an invisible ghost mannequin", male "an invisible male ghost mannequin",
+# animal "an invisible animal mannequin", machine yok (hep mankensiz urun fotografi).
+OUTFIT_GHOST_TMPL = ("{p}, {n} displayed on {mnq}, front view, centered, "
+                     "plain solid flat uniform light gray seamless studio background, product photo, "
+                     "photorealistic, sharp focus")
+OUTFIT_PROP_TMPL = ("{p}, {n}, product photo, centered, plain solid flat uniform light gray seamless "
+                    "studio background, no person, no mannequin, photorealistic, sharp focus")
+
+
+def outfit_prop_categories(kind: str = "") -> tuple:
+    """#314: o turde MANKENSIZ uretilen kategoriler (female = eski liste)."""
+    return tuple(KIND_PROFILES[kind_id(kind)].get("prop_categories") or ()) or OUTFIT_PROP_CATEGORIES
+
+
+def outfit_noun(category: str, kind: str = "") -> str:
+    """#314: uretim istemindeki parca adi - turun kendi adlari, yoksa female."""
+    c = category if category in OUTFIT_CATEGORY_IDS else DEFAULT_CATEGORY
+    ozel = KIND_PROFILES[kind_id(kind)].get("nouns") or {}
+    return ozel.get(c) or OUTFIT_NOUNS.get(c, OUTFIT_NOUNS[DEFAULT_CATEGORY])
+
+
+def outfit_category(c: str) -> str:
+    """#313: kategori dogrulama - bos ise 'set', bilinmeyen ise hata."""
+    c = (c or "").strip().lower()
+    if not c:
+        return DEFAULT_CATEGORY
+    if c not in OUTFIT_CATEGORY_IDS:
+        raise ValueError("bilinmeyen kiyafet kategorisi: %s" % c)
+    return c
+
+
+def outfit_prompt(prompt: str, category: str = DEFAULT_CATEGORY, kind: str = "") -> str:
+    """#313: kategoriye gore uretim istemi (manken / mankensiz).
+    #314: manken cumlesi ve parca adi TURE gore secilir; makinede hep mankensiz."""
+    c = category if category in OUTFIT_CATEGORY_IDS else DEFAULT_CATEGORY
+    prof = KIND_PROFILES[kind_id(kind)]
+    mnq = prof.get("mannequin") or ""
+    prop = (c in outfit_prop_categories(kind)) or not mnq
+    tmpl = OUTFIT_PROP_TMPL if prop else OUTFIT_GHOST_TMPL
+    return tmpl.format(p=prompt, n=outfit_noun(c, kind), mnq=mnq)
+
+
+def outfit_negative(category: str = DEFAULT_CATEGORY, kind: str = "") -> str:
+    """#313: mankensiz kategorilerde manken de negatife girer.
+    #314: turun kendi negatifi varsa o kullanilir (female = eski metin)."""
+    prof = KIND_PROFILES[kind_id(kind)]
+    prop = (category in outfit_prop_categories(kind)) or not (prof.get("mannequin") or "")
+    if prop:
+        return prof.get("outfit_neg_prop") or OUTFIT_NEG_PROP
+    return prof.get("outfit_neg") or OUTFIT_NEG
+# #312: "Hot" modifier - seksi kiyafet sablonu (yetiskin kadin kiyafeti; ciplaklik yok,
+# kural: feedback_no_minors_no_chibi / hot negatiflerine nude eklenmez).
+OUTFIT_STYLES = {
+    "hot": ("revealing sexy skimpy design, form-fitting, bare midriff, deep plunging neckline, "
+            "high-cut, thigh-high slit, sheer accents, glamorous adult woman's outfit"),
+}
+# #312: hazir kiyafet sablonlari - id, etiket, grup, prompt.
+# #313: her sablona KATEGORI eklendi -> (id, etiket, grup, kategori, prompt).
+# Eski (gunluk/fantastik/etkinlik) sablonlarin hepsi "set"tir; parca sablonlarinda
+# grup = kategori kimligi. Kullanicinin kendi prompt'u sablonun arkasina virgulle
+# eklenir; ad bos birakilirsa etiket ad olur.
+# #314: liste artik TURE gore bolundu - asagidaki female sablonlari DEGISMEDI;
+# male/animal/machine kumeleri altta eklenir (bkz. _TPL_MALE / _TPL_ANIMAL /
+# _TPL_MACHINE). Satir bicimi: (id, etiket, grup, kategori, prompt).
+_TPL_FEMALE = [
+    # gunluk (set)
+    ("tshirt_jeans",  "Tisort + jean",        "gunluk",   "set", "casual fitted white t-shirt and blue denim jeans"),
+    ("skirt_top",     "Etek + ust",           "gunluk",   "set", "short pleated mini skirt with a fitted crop top"),
+    ("dress",         "Elbise",               "gunluk",   "set", "elegant fitted evening dress"),
+    ("summer_dress",  "Yazlik elbise",        "gunluk",   "set", "light floral summer dress with thin straps"),
+    ("bikini",        "Bikini",               "gunluk",   "set", "two-piece bikini swimsuit"),
+    ("sportswear",    "Spor",                 "gunluk",   "set", "sports bra and high-waisted leggings athletic set"),
+    ("office",        "Ofis",                 "gunluk",   "set", "fitted office blazer, silk blouse and pencil skirt"),
+    ("leather",       "Deri ceket",           "gunluk",   "set", "black leather biker jacket, tank top and skinny jeans"),
+    ("gown",          "Gece elbisesi",        "gunluk",   "set", "long silk evening gown with a high slit"),
+    # fantastik (set)
+    ("knight",        "Sovalye zirhi",        "fantastik", "set", "polished steel plate armour with a tabard and gauntlets"),
+    ("mage",          "Buyucu cubbesi",       "fantastik", "set", "flowing mage robe with arcane embroidery and a hood"),
+    ("archer",        "Okcu derisi",          "fantastik", "set", "green leather ranger outfit with hood, bracers and quiver straps"),
+    ("rogue",         "Haydut",               "fantastik", "set", "dark leather assassin outfit with belts, straps and hidden blades"),
+    ("priestess",     "Rahibe",               "fantastik", "set", "white and gold ceremonial priestess gown"),
+    ("barbarian",     "Barbar",               "fantastik", "set", "fur and leather barbarian outfit with bone ornaments"),
+    ("elf",           "Elf ipegi",            "fantastik", "set", "elven silk gown with leaf motifs and silver embroidery"),
+    ("witch",         "Cadi",                 "fantastik", "set", "black witch dress with corset and a pointed hat"),
+    ("valkyrie",      "Valkyrie",             "fantastik", "set", "winged valkyrie armour with a feathered cloak"),
+    ("pirate",        "Korsan",               "fantastik", "set", "pirate captain outfit with tricorn hat, corset and boots"),
+    # etkinlik (set)
+    ("valentine",     "Sevgililer Gunu",      "etkinlik", "set", "red heart-themed Valentine's outfit with lace and ribbons"),
+    ("santa",         "Santa / Noel",         "etkinlik", "set", "red Santa Claus themed outfit with white fur trim and a Santa hat"),
+    ("halloween",     "Cadilar Bayrami",      "etkinlik", "set", "Halloween costume, dark gothic vampire dress"),
+    ("easter",        "Paskalya",             "etkinlik", "set", "pastel Easter bunny themed outfit with bunny ears"),
+    ("new_year",      "Yilbasi partisi",      "etkinlik", "set", "sparkling sequin New Year party dress"),
+    ("beach",         "Plaj",                 "etkinlik", "set", "summer beach outfit with a sarong and a straw hat"),
+    ("bride",         "Gelin",                "etkinlik", "set", "white lace wedding dress with a veil"),
+    ("cheerleader",   "Ponpon kiz",           "etkinlik", "set", "cheerleader uniform with a pleated skirt and pom-poms"),
+    ("nurse",         "Hemsire",              "etkinlik", "set", "nurse costume with a white dress and cap"),
+    ("maid",          "Hizmetci",             "etkinlik", "set", "black and white maid costume with an apron"),
+    ("police",        "Polis",                "etkinlik", "set", "police officer uniform costume with a cap"),
+    ("oktoberfest",   "Oktoberfest",          "etkinlik", "set", "Bavarian dirndl dress with a laced bodice"),
+    # #313 ust (top)
+    ("top_tshirt",    "Tisort",               "top", "top", "a fitted plain cotton t-shirt"),
+    ("top_crop",      "Crop top",             "top", "top", "a short fitted crop top"),
+    ("top_blouse",    "Bluz",                 "top", "top", "a silk button-up blouse"),
+    ("top_corset",    "Korse",                "top", "top", "a laced corset bustier top"),
+    ("top_tank",      "Askili",               "top", "top", "a thin-strap tank top"),
+    ("top_sweater",   "Kazak",                "top", "top", "a soft oversized knit sweater"),
+    ("top_jacket",    "Ceket",                "top", "top", "a fitted cropped jacket"),
+    # #313 alt (bottom)
+    ("bottom_mini_skirt",    "Mini etek",     "bottom", "bottom", "a short pleated mini skirt"),
+    ("bottom_jeans",         "Jean",          "bottom", "bottom", "blue denim skinny jeans"),
+    ("bottom_shorts",        "Sort",          "bottom", "bottom", "high-waisted denim shorts"),
+    ("bottom_leggings",      "Tayt",          "bottom", "bottom", "high-waisted athletic leggings"),
+    ("bottom_long_skirt",    "Uzun etek",     "bottom", "bottom", "a long flowing maxi skirt"),
+    ("bottom_leather_pants", "Deri pantolon", "bottom", "bottom", "tight black leather pants"),
+    # #313 ayakkabi (shoes)
+    ("shoes_heels",       "Topuklu",          "shoes", "shoes", "a pair of high-heeled stiletto shoes"),
+    ("shoes_boots",       "Cizme",            "shoes", "shoes", "a pair of leather ankle boots"),
+    ("shoes_sneakers",    "Spor ayakkabi",    "shoes", "shoes", "a pair of white sneakers"),
+    ("shoes_thigh_boots", "Diz ustu cizme",   "shoes", "shoes", "a pair of thigh-high heeled boots"),
+    # #313 corap (socks)
+    ("socks_garter",  "Jartiyerli corap",     "socks", "socks", "a pair of thigh-high stockings with garter straps"),
+    ("socks_knee",    "Diz alti corap",       "socks", "socks", "a pair of knee-high socks"),
+    ("socks_fishnet", "File corap",           "socks", "socks", "a pair of fishnet stockings"),
+    # #313 sapka (hat)
+    ("hat_witch", "Cadi sapkasi",             "hat", "hat", "a tall pointed black witch hat"),
+    ("hat_crown", "Tac",                      "hat", "hat", "a golden royal crown with gemstones"),
+    ("hat_tiara", "Tiara",                    "hat", "hat", "a delicate jewelled silver tiara"),
+    ("hat_beret", "Bere",                     "hat", "hat", "a soft wool beret"),
+    ("hat_cap",   "Sapka",                    "hat", "hat", "a baseball cap"),
+    # #313 kafalik (headgear)
+    ("head_bunny", "Tavsan kulagi",           "headgear", "headgear", "a pair of bunny ears on a headband"),
+    ("head_cat",   "Kedi kulagi",             "headgear", "headgear", "a pair of cat ears on a headband"),
+    ("head_horns", "Boynuz",                  "headgear", "headgear", "a pair of curved demon horns on a headband"),
+    ("head_halo",  "Hale",                    "headgear", "headgear", "a glowing golden halo ring"),
+    ("head_band",  "Sac bandi",               "headgear", "headgear", "a decorative hair band"),
+    # #313 aksesuar (accessory)
+    ("acc_necklace",  "Kolye",                "accessory", "accessory", "an elegant pendant necklace"),
+    ("acc_glasses",   "Gozluk",               "accessory", "accessory", "a pair of glasses"),
+    ("acc_gloves",    "Eldiven",              "accessory", "accessory", "a pair of long opera gloves"),
+    ("acc_wings",     "Kanat",                "accessory", "accessory", "a pair of large feathered wings"),
+    ("acc_cape",      "Pelerin",              "accessory", "accessory", "a flowing hooded cape"),
+    ("acc_scarf",     "Atki",                 "accessory", "accessory", "a knitted scarf"),
+    ("acc_belt",      "Kemer",                "accessory", "accessory", "a leather belt with an ornate buckle"),
+    ("acc_earrings",  "Kupe",                 "accessory", "accessory", "a pair of drop earrings"),
+    # #313 silah (weapon)
+    ("wpn_sword",      "Kilic",               "weapon", "weapon", "a steel longsword"),
+    ("wpn_greatsword", "Buyuk kilic",         "weapon", "weapon", "a massive two-handed greatsword"),
+    ("wpn_dagger",     "Hancer",              "weapon", "weapon", "an ornate curved dagger"),
+    ("wpn_staff",      "Asa",                 "weapon", "weapon", "a wooden magic staff with a glowing crystal"),
+    ("wpn_bow",        "Yay",                 "weapon", "weapon", "a recurve bow"),
+    ("wpn_spear",      "Mizrak",              "weapon", "weapon", "a long steel spear"),
+    ("wpn_axe",        "Balta",               "weapon", "weapon", "a heavy double-bladed battle axe"),
+    ("wpn_shield",     "Kalkan",              "weapon", "weapon", "a round metal shield with engravings"),
+    ("wpn_pistol",     "Tabanca",             "weapon", "weapon", "a semi-automatic pistol"),
+    ("wpn_rifle",      "Tufek",               "weapon", "weapon", "a modern assault rifle"),
+    ("wpn_scythe",     "Orak",                "weapon", "weapon", "a large curved war scythe"),
+    ("wpn_hammer",     "Cekic",               "weapon", "weapon", "a huge two-handed war hammer"),
+]
+
+# #314 ERKEK sablonlari (setler + birkac parca; etiketler Turkce, promptlar Ingilizce)
+_TPL_MALE = [
+    ("m_tshirt_jeans", "Tisort + jean",     "gunluk",    "set", "casual fitted white t-shirt and blue denim jeans, men's outfit"),
+    ("m_suit",         "Takim elbise",      "gunluk",    "set", "tailored dark three-piece business suit with a tie, men's outfit"),
+    ("m_leather",      "Deri ceket",        "gunluk",    "set", "black leather biker jacket, plain tee and dark jeans, men's outfit"),
+    ("m_hoodie",       "Kapusonlu",         "gunluk",    "set", "grey hoodie with cargo pants and sneakers, men's outfit"),
+    ("m_sportswear",   "Spor",              "gunluk",    "set", "athletic training top and shorts, men's sportswear"),
+    ("m_knight",       "Sovalye zirhi",     "fantastik", "set", "polished steel plate armour with a tabard and gauntlets, men's armour"),
+    ("m_mage",         "Buyucu cubbesi",    "fantastik", "set", "flowing mage robe with arcane embroidery and a hood, men's outfit"),
+    ("m_archer",       "Okcu derisi",       "fantastik", "set", "green leather ranger outfit with hood, bracers and quiver straps, men's outfit"),
+    ("m_barbarian",    "Barbar",            "fantastik", "set", "fur and leather barbarian outfit with bone ornaments, men's outfit"),
+    ("m_pirate",       "Korsan",            "fantastik", "set", "pirate captain outfit with tricorn hat, coat and boots, men's outfit"),
+    ("m_santa",        "Santa / Noel",      "etkinlik",  "set", "red Santa Claus suit with white fur trim, belt and a Santa hat"),
+    ("m_police",       "Polis",             "etkinlik",  "set", "police officer uniform with a cap and duty belt, men's uniform"),
+    ("m_firefighter",  "Itfaiyeci",         "etkinlik",  "set", "firefighter turnout gear with reflective stripes and a helmet"),
+    ("m_doctor",       "Doktor",            "etkinlik",  "set", "white doctor's coat over a shirt and tie, with a stethoscope"),
+    ("m_top_tshirt",   "Tisort",            "top",       "top", "a fitted plain cotton men's t-shirt"),
+    ("m_top_shirt",    "Gomlek",            "top",       "top", "a button-up men's dress shirt"),
+    ("m_top_jacket",   "Ceket",             "top",       "top", "a men's fitted jacket"),
+    ("m_bottom_jeans", "Jean",              "bottom",    "bottom", "men's blue denim jeans"),
+    ("m_bottom_cargo", "Kargo pantolon",    "bottom",    "bottom", "men's cargo trousers"),
+    ("m_shoes_boots",  "Bot",               "shoes",     "shoes", "a pair of men's leather boots"),
+    ("m_shoes_sneak",  "Spor ayakkabi",     "shoes",     "shoes", "a pair of men's white sneakers"),
+    ("m_hat_cap",      "Sapka",             "hat",       "hat", "a men's baseball cap"),
+    ("m_acc_cape",     "Pelerin",           "accessory", "accessory", "a flowing hooded cape"),
+    ("m_acc_gloves",   "Eldiven",           "accessory", "accessory", "a pair of leather gloves"),
+    ("m_wpn_sword",    "Kilic",             "weapon",    "weapon", "a steel longsword"),
+    ("m_wpn_axe",      "Balta",             "weapon",    "weapon", "a heavy double-bladed battle axe"),
+    ("m_wpn_bow",      "Yay",               "weapon",    "weapon", "a recurve bow"),
+    ("m_wpn_rifle",    "Tufek",             "weapon",    "weapon", "a modern assault rifle"),
+]
+
+# #314 HAYVAN sablonlari (tasma/kosum/bandana/pelerin/sapka/kostum/zirh/eyer/kanat)
+_TPL_ANIMAL = [
+    ("a_collar",     "Tasma",              "pet", "accessory", "a leather pet collar with a name tag"),
+    ("a_harness",    "Kosum",              "pet", "accessory", "a padded pet harness with straps and buckles"),
+    ("a_bandana",    "Bandana",            "pet", "accessory", "a folded pet bandana neckerchief"),
+    ("a_cape",       "Pelerin",            "pet", "accessory", "a small pet cape with a clasp"),
+    ("a_hero_cape",  "Super kahraman pelerini", "pet", "accessory", "a red superhero cape sized for a pet"),
+    ("a_saddle",     "Eyer",               "pet", "accessory", "a leather riding saddle with stirrups"),
+    ("a_wings",      "Kanat",              "pet", "accessory", "a pair of strap-on feathered wings for a pet"),
+    ("a_hat",        "Sapka",              "pet", "hat", "a small pet hat with a chin strap"),
+    ("a_santa",      "Santa kostumu",      "pet", "set", "a red Santa Claus pet costume with white fur trim"),
+    ("a_armor",      "Zirh",               "pet", "set", "a set of steel barding armour plates for an animal"),
+]
+
+# #314 MAKINE sablonlari (ek donanim; robot cizdirilmez)
+_TPL_MACHINE = [
+    ("r_armor",   "Zirh plakasi",      "kit", "set",       "a set of armour plating panels for a robot chassis"),
+    ("r_paint",   "Boya kiti",         "kit", "set",       "a paint scheme kit with painted panel samples for a robot"),
+    ("r_weapon",  "Silah montaji",     "kit", "weapon",    "a shoulder weapon mount with a cannon for a robot"),
+    ("r_antenna", "Anten",             "kit", "headgear",  "a sensor antenna array module for a robot head"),
+    ("r_jetpack", "Jetpack",           "kit", "accessory", "a back-mounted jetpack thruster module"),
+    ("r_shield",  "Kalkan jeneratoru", "kit", "accessory", "an arm-mounted shield generator module"),
+    ("r_led",     "LED seridi",        "kit", "accessory", "a strip of glowing LED light modules"),
+]
+
+
+def _tpl_rows(kind: str, rows: list) -> list[dict]:
+    """#314: (id, etiket, grup, kategori, prompt) -> sozluk + tur alani."""
+    return [{"id": i, "label": l, "group": g, "category": c, "kind": kind, "prompt": pr}
+            for i, l, g, c, pr in rows]
+
+
+# #313/#314: tum sablonlar tek listede; her satir `kind` tasir (eskiler female).
+OUTFIT_TEMPLATES = (_tpl_rows("female", _TPL_FEMALE) + _tpl_rows("male", _TPL_MALE)
+                    + _tpl_rows("animal", _TPL_ANIMAL) + _tpl_rows("machine", _TPL_MACHINE))
+OUTFIT_TEMPLATE_MAP = {t["id"]: t for t in OUTFIT_TEMPLATES}
+
+
+def outfit_templates(kind: str = "") -> dict:
+    """#312/#313: GET /outfits/templates - kategoriler + sablonlar + modifier'lar.
+    #314: `kind` doluysa yalniz o turun sablonlari doner; yanit `kinds` tasir."""
+    k = kind_id(kind) if (kind or "").strip() else ""
+    rows = [t for t in OUTFIT_TEMPLATES if not k or t["kind"] == k]
+    return {"categories": [{"id": i, "label": l} for i, l in OUTFIT_CATEGORIES],
+            "kinds": kinds(),                                   # #314
+            "kind": k,
+            "templates": [dict(t) for t in rows],
+            "styles": [{"id": "hot", "label": "Hot"}]}
 OUTFIT_W, OUTFIT_H = 832, 1472
 
 # #305: giydirme istemleri - ikisi de IKI GORSELLI gorevde kullanilir.
-# Gorsel 1 = giydirilecek kadin (cikti geometrisi bundan gelir), Gorsel 2 = kiyafet.
-DRESS_SOUTH_PROMPT = ("Dress the woman in the first image in the outfit shown in the second image. "
-                      "Keep her face, hair, skin, body, standing pose, framing and background exactly; "
-                      "only the clothing changes.")
-DRESS_DIR_PROMPT = ("Put the outfit worn by the woman in the second image onto the woman in the first image. "
-                    "Keep the first image's pose, camera angle, body, face, hair and background exactly; "
+# Gorsel 1 = giydirilecek karakter (cikti geometrisi bundan gelir), Gorsel 2 = kiyafet.
+# #314: ozne ve zamirler TURDEN gelir; asagidaki sabitler female render'idir
+# (eski metinlerle birebir ayni).
+DRESS_SOUTH_TMPL = ("Dress the {subject} in the first image in the outfit shown in the second image. "
+                    "Keep {poss} {parts}, standing pose, framing and background exactly; "
                     "only the clothing changes.")
+DRESS_DIR_TMPL = ("Put the outfit worn by the {subject} in the second image onto the {subject} in the first image. "
+                  "Keep the first image's pose, camera angle, {parts2} and background exactly; "
+                  "only the clothing changes.")
+
+# #313: PARCA giydirme istemleri - Gorsel 1 = o anki South, Gorsel 2 = parca gorseli.
+# Her parca bir onceki adimin ciktisinin ustune eklenir, bu yuzden "all her other
+# clothing exactly" cumlesi sart (yoksa model onceki parcayi siliyor).
+_KEEP_REST_TMPL = ("keep {poss} {parts}, standing pose, framing, background and all {poss} other "
+                   "clothing and items exactly")
+_PIECE_TMPL = {
+    "set":       "Dress the {subject} in the first image in the complete outfit shown in the second image; "
+                 "%s; only that outfit changes.",
+    "top":       "Put the top garment from the second image on the {subject} in the first image; "
+                 "%s; only add or replace that garment.",
+    "bottom":    "Put the bottom garment from the second image on the {subject} in the first image; "
+                 "%s; only add or replace that garment.",
+    "socks":     "Put the socks from the second image on the legs of the {subject} in the first image; "
+                 "%s; only add or replace that garment.",
+    "shoes":     "Put the shoes from the second image on the feet of the {subject} in the first image; "
+                 "%s; only add or replace that garment.",
+    "hat":       "Put the hat from the second image on the head of the {subject} in the first image; "
+                 "%s; only add or replace that headwear.",
+    "headgear":  "Put the head accessory from the second image on the head of the {subject} in the first image; "
+                 "%s; only add that head accessory.",
+    "accessory": "Make the {subject} in the first image wear the accessory from the second image; "
+                 "%s; only add that accessory.",
+    "weapon":    "Make the {subject} in the first image hold the weapon from the second image in {hands} "
+                 "in a natural ready grip; %s; only add the weapon.",
+    "other":     "Add the item from the second image to the {subject} in the first image; "
+                 "%s; only add that item.",
+}
+# #313: parcalarin uygulanma SIRASI (kategori sirasi) - once giysi, sonra takilar.
+PIECE_ORDER = ("set", "top", "bottom", "socks", "shoes", "hat", "headgear", "accessory", "weapon", "other")
+
+
+def dress_south(kind: str = "", subject: str = "") -> str:
+    """#314: SET giydirme istemi (Gorsel 1 = karakter, Gorsel 2 = kiyafet)."""
+    return render_kind(DRESS_SOUTH_TMPL, kind, subject)
+
+
+def dress_dir(kind: str = "", subject: str = "") -> str:
+    """#314: yon giydirme istemi (Gorsel 1 = base yonu, Gorsel 2 = giydirilmis South)."""
+    return render_kind(DRESS_DIR_TMPL, kind, subject)
+
+
+def piece_prompt(category: str, kind: str = "", subject: str = "") -> str:
+    """#313: parcanin kategorisine ozel giydirme istemi. #314: ozne turden."""
+    tmpl = _PIECE_TMPL.get(category or "", _PIECE_TMPL["other"])
+    return render_kind(tmpl % render_kind(_KEEP_REST_TMPL, kind, subject), kind, subject)
+
+
+def dress_pieces(kind: str = "", subject: str = "") -> dict:
+    """#314: turun butun parca istemleri (istemci/dogrulama icin)."""
+    return {c: piece_prompt(c, kind, subject) for c in _PIECE_TMPL}
+
+
+# geriye uyumluluk: modul sabitleri female render'idir (#314)
+DRESS_SOUTH_PROMPT = dress_south(DEFAULT_KIND)
+DRESS_DIR_PROMPT = dress_dir(DEFAULT_KIND)
+_KEEP_REST = render_kind(_KEEP_REST_TMPL, DEFAULT_KIND)
+DRESS_PIECE_PROMPTS = dress_pieces(DEFAULT_KIND)
+
+
+PORTRAIT_TOP_FRAC = 0.78     # #308: karenin kapsadigi ust yukseklik orani
 
 
 def _square_top(src: str, dest: str) -> str:
-    """#305: vesikalik icin USTTEN kare kirpma (genislik x genislik)."""
-    from PIL import Image
+    """#305/#308: vesikalik icin USTTEN kare kirpma.
+
+    Qwen ciktisi 9:16 dikeydir (orn. 752x1344); genislik kadar kare alinca
+    yuksekligin yalniz %56'si giriyor ve cene kesiliyordu (#308). Simdi kare
+    kenari = min(genislik, %78 yukseklik) degil, DOGRUDAN %78 yukseklik: kare
+    genislikten buyukse iki yan, fonun duz gri rengiyle (kose ortalamasi)
+    doldurulur. Fon zaten duz oldugu icin dolgu gorunmez.
+    """
+    from PIL import Image, ImageOps
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     with Image.open(src) as f:
         im = f.convert("RGB")
         w, h = im.size
-        k = min(w, h)
-        x = (w - k) // 2                 # yatay ortala, dikey USTTEN
-        im.crop((x, 0, x + k, k)).save(dest)
+        k = int(round(h * PORTRAIT_TOP_FRAC))
+        if k <= w:
+            x = (w - k) // 2
+            im.crop((x, 0, x + k, k)).save(dest)
+            return dest
+        # kose renk ortalamasi = fon
+        px = im.load()
+        pts = [(i, j) for i in (2, 6, 10) for j in (2, 6, 10)] +               [(w - 1 - i, j) for i in (2, 6, 10) for j in (2, 6, 10)]
+        r = sum(px[p][0] for p in pts) // len(pts)
+        g = sum(px[p][1] for p in pts) // len(pts)
+        b = sum(px[p][2] for p in pts) // len(pts)
+        pad = (k - w + 1) // 2
+        genis = ImageOps.expand(im, border=(pad, 0, pad, 0), fill=(r, g, b))
+        x = (genis.size[0] - k) // 2
+        genis.crop((x, 0, x + k, k)).save(dest)
     return dest
 
 
@@ -1039,16 +1763,24 @@ def generate_base(name: str, n: int = 1) -> str:
     cand = os.path.join(d, "candidates")
     os.makedirs(cand, exist_ok=True)
     kind = "neutral"
-    # KA.generate'in govdesi: kimlik + setin kiyafeti. KA.STUDIO sablonu ile
-    # G.MODES["character"]["prompt2"] ayni cumledir - sarmalamayi comfy_gen yapar.
-    govde = ", ".join(x for x in (kimlik.strip(" ,"), KA.SETS[kind].strip(" ,")) if x)
+    tur, ozne = char_kind(name)                                 # #314
+    prof = kind_profile(tur, ozne)
+    # KA.generate'in govdesi: kimlik + setin NOTR kiyafeti (#314: tur profilinden;
+    # female'de KA.SETS["neutral"] ile ayni metin).
+    govde = ", ".join(x for x in (kimlik.strip(" ,"), prof["neutral"].strip(" ,")) if x)
+    # #314: female'de prompt2 BOS birakilir - comfy_gen Karakter Modu sablonunu
+    # (CHARACTER_PROMPT2) aynen uygular, yani eski davranis degismez. Diger
+    # turlerde o sablon "arms at her sides / full body from head to feet" dedigi
+    # icin studyo cumlesi burada turden kurulur (KA.studio).
+    prompt2 = "" if tur == DEFAULT_KIND else KA.studio(prof["stance"], prof["arms"], prof["body"])
+    negatif = KA.NEG + ((", " + prof["neg_extra"]) if prof.get("neg_extra") else "")
 
     def uret(op_id):
         isler = []
         for i in range(1, n + 1):
             etiket = "%s_%02d" % (kind, i)
             try:
-                job = G.submit("image_zimage", govde, negative=KA.NEG,
+                job = G.submit("image_zimage", govde, prompt2=prompt2, negative=negatif,
                                width=KA.W, height=KA.H, seed=random.randint(1, 2 ** 31),
                                mode="character", client="flow", category=name)
             except Exception as e:
@@ -1063,9 +1795,11 @@ def generate_base(name: str, n: int = 1) -> str:
     return _kuyruk_op("char-base", n, uret)
 
 
-def _portre_job(name: str, base: str, yon_uret) -> dict:
-    """#305: tek portre isi (base'ten, Qwen Edit)."""
-    return G.submit("edit_qwen", PORTRAIT_PROMPT, negative=yon_uret.NEG,
+def _portre_job(name: str, base: str, yon_uret, kind: str = "", subject: str = "") -> dict:
+    """#305: tek portre isi (base'ten, Qwen Edit).
+    #314: portre istemi ve negatif TURDEN gelir (hayvan/makine icin yakin plan)."""
+    R = yon_uret.render(kind_profile(kind, subject))
+    return G.submit("edit_qwen", portrait_prompt(kind, subject), negative=R["neg"],
                     seed=random.randint(1, 2 ** 31), turbo=True,
                     image_path=base, mode="free", client="flow", category=name)
 
@@ -1085,6 +1819,7 @@ def generate_portrait(name: str, n: int = 2) -> str:
     d = char_dir(name)
     base = base_image(name)
     _c, _mk, _sf, _wa, yon_uret = _tools()
+    tur, ozne = char_kind(name)                       # #314
     dest = os.path.join(d, "portrait")
     os.makedirs(dest, exist_ok=True)
     n = max(1, min(8, int(n or 1)))
@@ -1094,13 +1829,25 @@ def generate_portrait(name: str, n: int = 2) -> str:
         for i in range(1, n + 1):
             etiket = "portre %d" % i
             try:
-                job = _portre_job(name, base, yon_uret)
+                job = _portre_job(name, base, yon_uret, tur, ozne)      # #314
             except Exception as e:
                 with _ops_lock:
                     _ops[op_id]["failed"] += 1
                 _op(op_id, log="%s kuyruga girmedi: %s" % (etiket, str(e)[:200]))
                 continue
-            isler.append((job["id"], etiket, _portre_yerlestir(dest)))
+            yer = _portre_yerlestir(dest)
+            if n == 1:
+                # #309: tek aday = otomatik kabul (kural: tek adaysa secici yok);
+                # portrait.png dolar, ust kutuda hemen gorunur.
+                def yer_kabul(src, _yer=yer):
+                    ad = _yer(src)
+                    try:
+                        pick(name, "portrait/" + ad, "portrait")
+                    except Exception as e:
+                        _op(op_id, log="portre kabul edilemedi: %s" % str(e)[:120])
+                    return ad
+                yer = yer_kabul
+            isler.append((job["id"], etiket, yer))
             _op(op_id, log="%s kuyrukta (%s)" % (etiket, job["id"][:8]))
         return isler
 
@@ -1108,16 +1855,44 @@ def generate_portrait(name: str, n: int = 2) -> str:
 
 
 # ------------------------------------------------- #305 otomatik hat + skinler
-def _bekle(op_id: str, job: dict, etiket: str, timeout: int = 3 * 3600) -> str:
-    """#305: tek comfy_gen isini bekler, ciktisini doner, is kaydini siler."""
-    jid = job["id"]
+def _tmp_dir() -> str:
+    """#311: is ciktilarinin gecici kopyalari; 1 saatten eski dosyalar silinir."""
+    d = os.path.join(root(), "_tmp")
+    os.makedirs(d, exist_ok=True)
+    esik = time.time() - 3600
     try:
-        return _await_job(jid, op_id, etiket, timeout)
+        for a in os.listdir(d):
+            fp = os.path.join(d, a)
+            try:
+                if os.path.isfile(fp) and os.path.getmtime(fp) < esik:
+                    os.remove(fp)
+            except OSError:
+                pass
+    except OSError:
+        pass
+    return d
+
+
+def _bekle(op_id: str, job: dict, etiket: str, timeout: int = 3 * 3600) -> str:
+    """#305: tek comfy_gen isini bekler, ciktisini doner, is kaydini siler.
+
+    #311: delete_job ciktiyi da siliyordu ve cagiran kopyalamaya kalkinca
+    "dosya yok" aliyordu (kiyafet/skin/duzenle akislari).
+    #314: cikti artik KOPYALANMIYOR, KESILIYOR: dosya generated/ altindan
+    <root>/_tmp/ icine TASINIR, sonra is kaydi remove_file=False ile silinir -
+    yani dosya hicbir anda "silinmis ama yerlestirilmemis" olmaz. Donen yol
+    gecici dosyadir; cagiran onu hedefe kopyalar/cevirir (_tmp saatte temizlenir).
+    """
+    jid = job["id"]
+    tmp = ""
+    try:
+        src = _await_job(jid, op_id, etiket, timeout)
+        tmp = os.path.join(_tmp_dir(), "%s_%s%s" % (jid[:8], uuid.uuid4().hex[:6],
+                                                    os.path.splitext(src)[1] or ".png"))
+        shutil.move(src, tmp)                        # KES (kopyalama yok)
+        return tmp
     finally:
-        try:
-            G.delete_job(jid)                        # ara cikti galeride kalmasin
-        except Exception:
-            pass
+        _is_sil(jid, bool(tmp))                      # tasindiysa dosyaya dokunma
 
 
 def _adim_sonu(op_id: str, i: int, ok: bool, mesaj: str) -> None:
@@ -1130,7 +1905,14 @@ def run_pipeline(name: str, steps: list[str] | None = None) -> str:
     """#305: otomatik hat (op kind `char-pipeline`) - BASE SECILDIKTEN SONRA.
 
     Adimlar: portrait (1) / story (1) / dirs (7x1); hepsi otomatik kabul edilir,
-    onay yok. Butun ComfyUI isleri comfy_gen kuyrugunda tek tek koser (#299).
+    onay yok.
+
+    #314: BAGIMSIZ ComfyUI isleri (portre + 7 yon; hepsi yalniz base'e bagli)
+    op basinda TEK SEFERDE kuyruga birakilir - kullanici Sira ekraninda 8 isi
+    birden gorur (eskiden her is bir oncekinin bitmesini bekledigi icin sirada
+    tek is gorunuyor, "hicbir sey olmuyor" saniliyordu). Ciktilar yine SIRAYLA
+    toplanir (_bekle); Ollama'li hikaye adimi isler kuyruktayken koser.
+    Skin uretimi SIRALI kalir (her parca bir oncekinin South'una biner).
     """
     d = char_dir(name)
     secili = [s for s in (steps or PIPELINE_STEPS) if s in PIPELINE_STEPS]
@@ -1144,16 +1926,43 @@ def run_pipeline(name: str, steps: list[str] | None = None) -> str:
 
     def calis():
         _c, _mk, _sf, _wa, yon_uret = _tools()
+        tur, ozne = char_kind(name)                      # #314
+        yonler = [x for x in DIR_IDS if x != "front"]
         i = 0
         try:
+            # --- 0 BAGIMSIZ ISLERI KUYRUGA BIRAK (#314): portre + 7 yon
+            base = base_image(name) if ("portrait" in secili or "dirs" in secili) else ""
+            portre_is, portre_hata = None, ""
+            if "portrait" in secili:
+                try:
+                    portre_is = _portre_job(name, base, yon_uret, tur, ozne)
+                    _op(op_id, log="portre kuyrukta (%s)" % portre_is["id"][:8])
+                except Exception as e:
+                    portre_hata = str(e)[:200]
+            yon_isler = []
+            if "dirs" in secili:
+                dr = dirs_root(d, BASE_SKIN)
+                os.makedirs(dr, exist_ok=True)
+                if not os.path.isfile(os.path.join(dr, "front.png")):
+                    shutil.copy(base, os.path.join(dr, "front.png"))
+                for y in yonler:
+                    try:
+                        job = _yon_job(name, base, y, yon_uret, tur, ozne)
+                        yon_isler.append((y, job, ""))
+                        _op(op_id, log="yon %s kuyrukta (%s)" % (y, job["id"][:8]))
+                    except Exception as e:
+                        yon_isler.append((y, None, str(e)[:200]))
+            kuyruk = (1 if portre_is else 0) + len([1 for _y, j, _e in yon_isler if j])
+            _op(op_id, message="%d is kuyruga girdi (toplam %d adim)" % (kuyruk, total))
             # --- 1 portre (1 adet, ustten kare) -> otomatik kabul
             if "portrait" in secili:
                 i += 1
                 _set_pipeline(name, step="portrait")
                 _op(op_id, message="%d/%d portre" % (i, total))
                 try:
-                    base = base_image(name)
-                    src = _bekle(op_id, _portre_job(name, base, yon_uret), "portre")
+                    if not portre_is:
+                        raise ValueError(portre_hata or "portre isi kuyruga girmedi")
+                    src = _bekle(op_id, portre_is, "portre")
                     aday = _serbest_ad(os.path.join(d, "portrait"), "portrait_%02d.png")
                     _square_top(src, aday)
                     pick(name, _rel(d, aday), "portrait")
@@ -1162,6 +1971,7 @@ def run_pipeline(name: str, steps: list[str] | None = None) -> str:
                 else:
                     _adim_sonu(op_id, i, True, "portre -> %s" % PORTRAIT_REL)
             # --- 2 hikaye (Ollama, 1 oneri) -> otomatik kabul
+            #     ComfyUI isleri kuyrukta beklerken koser (ayri motor).
             if "story" in secili:
                 i += 1
                 _set_pipeline(name, step="story")
@@ -1174,19 +1984,17 @@ def run_pipeline(name: str, steps: list[str] | None = None) -> str:
                     _adim_sonu(op_id, i, False, "hikaye: %s" % str(e)[:200])
                 else:
                     _adim_sonu(op_id, i, True, "hikaye -> kart (oneri %s KABUL)" % pid)
-            # --- 3 yedi yon (her biri 1 aday) -> otomatik kabul
+            # --- 3 yedi yon (her biri 1 aday, isler ZATEN kuyrukta) -> otomatik kabul
             if "dirs" in secili:
                 _set_pipeline(name, step="dirs")
-                base = base_image(name)
                 dr = dirs_root(d, BASE_SKIN)
-                os.makedirs(dr, exist_ok=True)
-                if not os.path.isfile(os.path.join(dr, "front.png")):
-                    shutil.copy(base, os.path.join(dr, "front.png"))
-                for y in [x for x in DIR_IDS if x != "front"]:
+                for y, job, hata in yon_isler:
                     i += 1
                     _op(op_id, message="%d/%d yon %s" % (i, total, y))
                     try:
-                        src = _bekle(op_id, _yon_job(name, base, y, yon_uret), "yon %s" % y)
+                        if not job:
+                            raise ValueError(hata or "yon isi kuyruga girmedi")
+                        src = _bekle(op_id, job, "yon %s" % y)
                         _convert(src, os.path.join(dr, "%s.png" % y))
                     except Exception as e:
                         _adim_sonu(op_id, i, False, "%s: %s" % (y, str(e)[:200]))
@@ -1247,12 +2055,14 @@ def edit(name: str, target: str, prompt: str) -> str:
         raise ValueError("duzeltme cumlesi bos")
     src, rel, yedek = _edit_target(name, target)
     _c, _mk, _sf, _wa, yon_uret = _tools()
+    tur, ozne = char_kind(name)                            # #314
+    R = yon_uret.render(kind_profile(tur, ozne))
     op_id = _op_new("char-edit", 1)
 
     def calis():
         _op(op_id, message="duzenle: %s" % target)
         try:
-            job = G.submit("edit_qwen", "%s %s" % (prompt, EDIT_KEEP), negative=yon_uret.NEG,
+            job = G.submit("edit_qwen", "%s %s" % (prompt, edit_keep(tur, ozne)), negative=R["neg"],
                            seed=random.randint(1, 2 ** 31), turbo=True, image_path=src,
                            mode="free", client="flow", category=name)
             out = _bekle(op_id, job, "duzenle %s" % target)
@@ -1305,29 +2115,93 @@ def outfit_path(slug: str) -> str:
     return os.path.join(outfits_dir(), s + ".png")
 
 
-def outfits() -> dict:
-    """#305: GET /outfits - kutuphanedeki kiyafetler."""
+def outfit_meta(slug: str) -> dict:
+    """#313: kutuphane kaydi - kategorisi olmayan eski kayit "set" sayilir."""
+    s = _slug(slug)
+    j = _read_json(os.path.join(outfits_dir(), s + ".json"))
+    j["slug"] = s
+    j["category"] = j.get("category") or DEFAULT_CATEGORY
+    j["kind"] = kind_of(j)                      # #314: eski kayit = female
+    j["ready"] = os.path.isfile(os.path.join(outfits_dir(), s + ".png"))
+    return j
+
+
+def outfits(category: str = "", kind: str = "") -> dict:
+    """#305: GET /outfits - kutuphanedeki kiyafetler.
+
+    #313: `category` doluysa yalniz o kategori doner (bos = hepsi).
+    #314: `kind` doluysa yalniz o turun kiyafetleri doner (tur alani olmayan
+    eski kiyafetler female sayilir).
+    """
+    kat = (category or "").strip().lower()
+    if kat and kat not in OUTFIT_CATEGORY_IDS:
+        raise ValueError("bilinmeyen kiyafet kategorisi: %s" % category)
+    tur = kind_id(kind) if (kind or "").strip() else ""          # #314
     d = outfits_dir()
     rows = []
-    for a in sorted(os.listdir(d) if os.path.isdir(d) else []):
-        if not a.lower().endswith(".png"):
-            continue
-        slug = a[:-4]
+    adlar = sorted(os.listdir(d) if os.path.isdir(d) else [])
+    pngler = {a[:-4] for a in adlar if a.lower().endswith(".png")}
+    # #311: kuyrukta/basarisiz kiyafetler (json var, png yok) de listelenir -
+    # kullanici "urettim ama gorunmuyor" demesin; ready=False ile gelir.
+    sluglar = sorted(pngler | {a[:-5] for a in adlar if a.lower().endswith(".json")})
+    for slug in sluglar:
         j = _read_json(os.path.join(d, slug + ".json"))
+        hazir = slug in pngler
+        # #313: kategorisi olmayan eski kayit = "set"
+        kat_j = (j.get("category") or DEFAULT_CATEGORY).strip().lower()
+        if kat_j not in OUTFIT_CATEGORY_IDS:
+            kat_j = DEFAULT_CATEGORY
+        if kat and kat_j != kat:
+            continue
+        tur_j = kind_of(j)                                      # #314
+        if tur and tur_j != tur:
+            continue
         rows.append({"slug": slug, "name": j.get("name") or slug, "prompt": j.get("prompt") or "",
-                     "created": j.get("created") or "", "rel": "%s/%s" % (OUTFITS, a)})
-    return {"outfits": rows, "dir": d}
+                     "style": j.get("style") or "", "template": j.get("template") or "",
+                     "category": kat_j, "kind": tur_j,          # #314
+                     "created": j.get("created") or "", "ready": hazir,
+                     "rel": ("%s/%s.png" % (OUTFITS, slug)) if hazir else ""})
+    return {"outfits": rows, "dir": d, "category": kat, "kind": tur}
 
 
-def create_outfit(name: str, prompt: str) -> dict:
-    """#305: op kind `char-outfit` (1 is) - hayalet manken uzerinde kiyafet gorseli.
+def create_outfit(name: str, prompt: str, style: str = "", template: str = "",
+                  category: str = "", kind: str = "") -> dict:
+    """#305: op kind `char-outfit` (1 is) - kutuphaneye tek bir kiyafet/parca gorseli.
 
     Karakter Modu DEGIL, mode "free": sablon insan figuru istiyor, burada
     yalniz kiyafet var.
+    #313: `category` (set/top/bottom/...) istemi belirler - giysi kategorileri
+    hayalet manken uzerinde, silah/aksesuar/kafalik mankensiz urun fotografi.
+    Sablon secildiyse KATEGORI SABLONDAN gelir.
+    #314: `kind` (female|male|animal|machine) kayda yazilir ve uretim istemini
+    belirler: female/male hayalet manken, animal hayvan mankeni, machine
+    mankensiz ek donanim. Sablon secildiyse TUR de sablondan gelir.
     """
     prompt = (prompt or "").strip()
+    template = (template or "").strip().lower()
+    if template and template not in OUTFIT_TEMPLATE_MAP:
+        raise ValueError("bilinmeyen kiyafet sablonu: %s" % template)
+    kat = outfit_category(category)                             # #313
+    tur = kind_id(kind)                                         # #314
+    if template:
+        # #312: sablon + kullanicinin eki; ad bossa sablon etiketi
+        # #313: sablonun kategorisi kullanicinin secimini EZER
+        tpl = OUTFIT_TEMPLATE_MAP[template]
+        prompt = ", ".join(x for x in (tpl["prompt"], prompt) if x)
+        name = (name or "").strip() or tpl["label"]
+        kat = tpl["category"]
+        tur = tpl["kind"]                                       # #314
     if not prompt:
-        raise ValueError("kiyafet prompt'u gerekiyor")
+        raise ValueError("kiyafet prompt'u gerekiyor (ya da bir sablon sec)")
+    style = (style or "").strip().lower()
+    if style and style not in OUTFIT_STYLES:
+        raise ValueError("bilinmeyen kiyafet stili: %s" % style)
+    if style and (kat not in OUTFIT_HOT_CATEGORIES or tur not in ("female", "male")):
+        # #313: Hot modifier yalniz giysi kategorilerinde anlamli - sessizce dusurulur
+        # #314: ve yalniz female/male giysisinde (hayvan/makine kitinde anlamsiz)
+        style = ""
+    if style:
+        prompt = "%s, %s" % (prompt, OUTFIT_STYLES[style])      # #312 modifier
     slug = _slug(name or prompt)
     if not _SLUG_RE.match(slug):
         raise ValueError("gecersiz kiyafet adi: %s" % name)
@@ -1336,13 +2210,17 @@ def create_outfit(name: str, prompt: str) -> dict:
         raise ValueError("bu kiyafet zaten var: %s" % slug)
     _write_json(os.path.join(d, slug + ".json"),
                 {"slug": slug, "name": (name or slug).strip(), "prompt": prompt,
+                 "style": style, "template": template, "category": kat,   # #313
+                 "kind": tur,                                             # #314
                  "created": datetime.now().isoformat(timespec="seconds")})
     op_id = _op_new("char-outfit", 1)
 
     def calis():
-        _op(op_id, message="kiyafet: %s" % slug)
+        _op(op_id, message="kiyafet: %s (%s/%s)" % (slug, tur, kat))
         try:
-            job = G.submit("image_zimage", OUTFIT_PROMPT.format(prompt), negative=OUTFIT_NEG,
+            # #313: istem ve negatif kategoriye gore kurulur (#314: + ture gore)
+            job = G.submit("image_zimage", outfit_prompt(prompt, kat, tur),
+                           negative=outfit_negative(kat, tur),
                            width=OUTFIT_W, height=OUTFIT_H, seed=random.randint(1, 2 ** 31),
                            mode="free", client="flow", category=OUTFITS)
             out = _bekle(op_id, job, "kiyafet %s" % slug)
@@ -1354,11 +2232,13 @@ def create_outfit(name: str, prompt: str) -> dict:
             raise
         with _ops_lock:
             _ops[op_id]["ok"] += 1
-            _ops[op_id]["result"] = {"slug": slug, "rel": "%s/%s.png" % (OUTFITS, slug)}
+            _ops[op_id]["result"] = {"slug": slug, "category": kat,      # #313
+                                     "kind": tur,                        # #314
+                                     "rel": "%s/%s.png" % (OUTFITS, slug)}
         _op(op_id, done=1, log="%s hazir" % slug, message="bitti")
 
     _run(op_id, calis)
-    return {"slug": slug, "op": op_id}
+    return {"slug": slug, "op": op_id, "kind": tur, "category": kat}   # #314
 
 
 def edit_outfit(slug: str, prompt: str) -> dict:
@@ -1369,14 +2249,23 @@ def edit_outfit(slug: str, prompt: str) -> dict:
     src = outfit_path(slug)
     if not os.path.isfile(src):
         raise ValueError("kiyafet yok: %s" % slug)
+    om = outfit_meta(slug)
+    kat = om.get("category") or DEFAULT_CATEGORY                     # #313
+    tur = kind_of(om)                                                # #314
+    mnq = KIND_PROFILES[tur].get("mannequin") or ""
+    # #313: mankensiz kategoride "ghost mannequin" cumlesi manken cizdiriyordu
+    # #314: manken cumlesi turden gelir (makinede hep mankensiz)
+    koru = ("Keep it a product photo of the item alone, no person and no mannequin, same plain light "
+            "gray background." if (kat in outfit_prop_categories(tur) or not mnq) else
+            "Keep it a product photo of the outfit alone on %s, same plain "
+            "light gray background." % mnq)
     op_id = _op_new("char-outfit", 1)
 
     def calis():
         _op(op_id, message="kiyafet duzenle: %s" % _slug(slug))
         try:
-            job = G.submit("edit_qwen", "%s Keep it a product photo of the outfit alone on an invisible "
-                                        "ghost mannequin, same plain light gray background." % prompt,
-                           negative=OUTFIT_NEG, seed=random.randint(1, 2 ** 31), turbo=True,
+            job = G.submit("edit_qwen", "%s %s" % (prompt, koru),
+                           negative=outfit_negative(kat, tur), seed=random.randint(1, 2 ** 31), turbo=True,
                            image_path=src, mode="free", client="flow", category=OUTFITS)
             out = _bekle(op_id, job, "kiyafet duzenle")
             _convert(out, src)
@@ -1414,13 +2303,18 @@ def outfit_thumb(slug: str, size: int = 360) -> str | None:
 
 # ------------------------------------------------------------- #305 skinler
 def skins(name: str) -> dict:
-    """#305: karakterin skinleri; ILK ELEMAN her zaman `base`."""
+    """#305: karakterin skinleri; ILK ELEMAN her zaman `base`.
+    #314: her satir karakterin turune gore `anim_modes` tasir (animal/machine:
+    yalniz i2v - uygulamada Mixamo/manken dugmeleri gizlenir)."""
     d = char_dir(name)
     m = meta(name)
+    tur = kind_of(m)                                    # #314
+    kipler = anim_modes(tur)
     out = []
     for r in _skin_rows(d):
         slug = r["slug"]
         kabul, aday, dosya = _dir_state(d, slug)
+        parcalar = []                                   # #313: skinin parca slug'lari
         if slug == BASE_SKIN:
             south, outfit_rel, outfit = m.get("base") or "", "", ""
         else:
@@ -1428,13 +2322,18 @@ def skins(name: str) -> dict:
             outfit_rel = outfit_rel if os.path.isfile(os.path.join(d, outfit_rel)) else ""
             fr = "%s/%s/dirs/front.png" % (SKINS, slug)
             south = fr if os.path.isfile(os.path.join(d, fr)) else outfit_rel
-            # #305: skin slug'i kiyafet slug'idir; satirda kutuphanedeki kiyafet
-            # SLUG'i doner (tasinmis eski skinlerde kiyafet yok -> "").
-            outfit = _read_json(os.path.join(d, SKINS, slug, "skin.json")).get("outfit") or ""
-        out.append(dict(r, south=south, outfit=outfit, outfit_rel=outfit_rel, dirs=kabul,
+            # #305: satirda kutuphanedeki kiyafet SLUG'i doner (tasinmis eski
+            # skinlerde kiyafet yok -> ""). #313: parca kombinasyonu da doner.
+            sj = _read_json(os.path.join(d, SKINS, slug, "skin.json"))
+            outfit = sj.get("outfit") or ""
+            parcalar = [str(p) for p in (sj.get("pieces") or [])]
+        out.append(dict(r, south=south, outfit=outfit, pieces=parcalar,
+                        outfit_rel=outfit_rel, dirs=kabul,
+                        kind=tur, anim_modes=kipler,            # #314
                         dir_candidates=aday, dir_files=dosya,
                         anims=_anim_state(d, slug), rev=_rev_of(d, m, slug)))
-    return {"name": name, "skins": out}
+    return {"name": name, "skins": out, "kind": tur, "subject": subject_of(m),
+            "anim_modes": kipler}
 
 
 def _skin_dir(name: str, skin: str, create: bool = False) -> str:
@@ -1450,60 +2349,143 @@ def _skin_dir(name: str, skin: str, create: bool = False) -> str:
     return sd
 
 
-def create_skin(name: str, outfit: str, skin_name: str = "") -> dict:
-    """#305: SKIN = KIYAFET + BASE. op kind `char-skin` (total 1 + 7).
+def _piece_rows(pieces, kind: str = "") -> list[dict]:
+    """#313: parca slug'larini dogrular ve KATEGORI SIRASINA dizer.
 
-    1) South giydirme: IKI GORSELLI gorev - Gorsel 1 = base/base.png (giydirilecek
-       kadin, cikti geometrisi bundan gelir), Gorsel 2 = _outfits/<slug>.png ->
-       skins/<slug>/dirs/front.png (otomatik kabul) + outfit.png (kopya).
-    2) 7 yon giydirme (sirayla): Gorsel 1 = base/dirs/<yon>.png, Gorsel 2 =
-       giydirilmis South (dirs/front.png) -> dirs/<yon>.png otomatik kabul.
-    Skin slug'i kiyafet slug'idir: ayni kiyafet tek skin (yeniden uretmek icin sil).
+    Sira: set -> top -> bottom -> socks -> shoes -> hat -> headgear ->
+    accessory(ler) -> weapon(lar) -> other. Ayni kategoride birden cok parca
+    varsa kullanicinin verdigi sira korunur (kararli siralama).
+    Bilinmeyen slug -> hata; gorseli hazir olmayan parca -> hata (400).
+    #314: `kind` verilirse parcanin turu karakterin turuyle ayni olmali (400).
+    """
+    tur = kind_id(kind) if (kind or "").strip() else ""
+    d = outfits_dir()
+    rows, gorulen = [], set()
+    for i, p in enumerate(pieces or []):
+        s = _slug(p)
+        if not _SLUG_RE.match(s or ""):
+            raise ValueError("gecersiz parca: %s" % p)
+        if s in gorulen:
+            continue                                    # ayni parca iki kez secilmis
+        gorulen.add(s)
+        png = os.path.join(d, s + ".png")
+        if not os.path.isfile(png):
+            if os.path.isfile(os.path.join(d, s + ".json")):
+                raise ValueError("'%s' parcasinin gorseli hazir degil - once uretimi bitsin" % s)
+            raise ValueError("kutuphanede boyle bir parca yok: %s" % s)
+        m = outfit_meta(s)
+        kat = (m.get("category") or DEFAULT_CATEGORY).strip().lower()
+        if kat not in OUTFIT_CATEGORY_IDS:
+            kat = DEFAULT_CATEGORY
+        tur_p = kind_of(m)                                       # #314
+        if tur and tur_p != tur:
+            raise ValueError("'%s' parcasi %s turu icin - bu karakter %s turunde"
+                             % (s, KIND_PROFILES[tur_p]["label"], KIND_PROFILES[tur]["label"]))
+        rows.append({"slug": s, "name": m.get("name") or s, "category": kat,
+                     "kind": tur_p, "png": png, "sira": i})
+    rows.sort(key=lambda r: (PIECE_ORDER.index(r["category"]) if r["category"] in PIECE_ORDER
+                            else len(PIECE_ORDER), r["sira"]))
+    return rows
+
+
+def create_skin(name: str, skin_name: str = "", outfit: str = "", pieces=None) -> dict:
+    """#305/#313: SKIN = (SET ve/veya PARCALAR) + BASE. op kind `char-skin`.
+
+    1) South: kaynak base/base.png. `outfit` (set) verildiyse once o giydirilir
+       (IKI GORSELLI gorev, Gorsel 1 = o anki South, Gorsel 2 = kiyafet gorseli).
+    2) #313: `pieces` kategori sirasiyla SIRAYLA uygulanir; her parca yine iki
+       gorselli bir duzenleme (Gorsel 1 = o anki South, Gorsel 2 = parca gorseli)
+       ve kategoriye ozel istem (DRESS_PIECE_PROMPTS). Her adim front.png'yi
+       gunceller, bir sonraki adimin girdisi olur.
+    3) Nihai South'tan 7 yon giydirme: Gorsel 1 = base/dirs/<yon>.png, Gorsel 2 =
+       giydirilmis South -> dirs/<yon>.png otomatik kabul.
+    Op total = adim sayisi + 7. Skin slug'i: skin_name > set slug'i > parcalardan
+    turetilir ("top_x+bottom_y"); ayni slug tek skin (yeniden uretmek icin sil).
     """
     d = char_dir(name)
     base = base_image(name)
-    slug = _slug(outfit)
+    tur, ozne = char_kind(name)                                 # #314
+    set_slug, ok = "", {}
+    kiyafet = ""
+    if (outfit or "").strip():
+        set_slug = _slug(outfit)
+        if not _SLUG_RE.match(set_slug or ""):
+            raise ValueError("gecersiz kiyafet: %s" % outfit)
+        kiyafet = outfit_path(set_slug)
+        if not os.path.isfile(kiyafet):
+            if os.path.isfile(os.path.splitext(kiyafet)[0] + ".json"):
+                raise ValueError("'%s' kiyafetinin gorseli hazir degil - once uretimi bitsin" % set_slug)
+            raise ValueError("kutuphanede boyle bir kiyafet yok: %s" % set_slug)
+        ok = outfit_meta(set_slug)
+        if kind_of(ok) != tur:                                  # #314
+            raise ValueError("'%s' kiyafeti %s turu icin - bu karakter %s turunde"
+                             % (set_slug, KIND_PROFILES[kind_of(ok)]["label"],
+                                KIND_PROFILES[tur]["label"]))
+    prc = _piece_rows(pieces, tur)                              # #313/#314
+    if not set_slug and not prc:
+        raise ValueError("kiyafet (set) ya da en az bir parca sec")
+    # #313: slug - skin adi > set slug'i > parcalardan turetme
+    slug = _slug(skin_name) if (skin_name or "").strip() else ""
+    if not slug:
+        slug = set_slug or _slug("+".join(r["slug"] for r in prc))
     if not _SLUG_RE.match(slug or ""):
-        raise ValueError("kiyafet secilmedi")
-    kiyafet = outfit_path(slug)
-    if not os.path.isfile(kiyafet):
-        raise ValueError("kutuphanede boyle bir kiyafet yok: %s" % slug)
+        raise ValueError("gecersiz skin adi: %s" % (skin_name or outfit))
     if slug == BASE_SKIN:
         raise ValueError("'base' ayrilmis bir skin adidir")
     if os.path.isdir(os.path.join(d, SKINS, slug)):
         raise ValueError("bu skin zaten var: %s (once sil)" % slug)
-    ok = _read_json(os.path.splitext(kiyafet)[0] + ".json")
+    # #313: gorunen ad - kullanicinin adi > setin adi > parca adlari
+    ad = (skin_name or "").strip() or (ok.get("name") or "").strip() \
+        or " + ".join(r["name"] for r in prc) or slug
     sd = _skin_dir(name, slug, create=True)
+    parca_sluglari = [r["slug"] for r in prc]
     _write_json(os.path.join(sd, "skin.json"),
-                {"slug": slug, "name": (skin_name or ok.get("name") or slug).strip(),
-                 "outfit": slug, "prompt": ok.get("prompt") or "",
+                {"slug": slug, "name": ad, "outfit": set_slug,
+                 "pieces": parca_sluglari,                       # #313
+                 "kind": tur,                                    # #314
+                 "prompt": ok.get("prompt") or "",
                  "created": datetime.now().isoformat(timespec="seconds")})
     dr = os.path.join(sd, "dirs")
     front = os.path.join(dr, "front.png")
-    op_id = _op_new("char-skin", 8)
+    # #313: South adimlari - once set (varsa), sonra parcalar kategori sirasiyla
+    adimlar = []
+    if set_slug:
+        adimlar.append(("set %s" % set_slug, kiyafet, dress_south(tur, ozne)))    # #314
+    for r in prc:
+        adimlar.append(("%s %s" % (r["category"], r["slug"]), r["png"],
+                        piece_prompt(r["category"], tur, ozne)))                  # #314
+    yonler = [x for x in DIR_IDS if x != "front"]
+    toplam = len(adimlar) + len(yonler)
+    op_id = _op_new("char-skin", toplam)
 
     def calis():
-        i = 1
-        _op(op_id, message="1/8 South giydirme")
-        try:
-            job = _giydir_job(name, base, kiyafet, DRESS_SOUTH_PROMPT)
-            out = _bekle(op_id, job, "South giydirme")
-            _convert(out, front)
-            _convert(out, os.path.join(sd, "outfit.png"))
-        except Exception as e:
-            _adim_sonu(op_id, i, False, "South: %s" % str(e)[:220])
-            _op(op_id, message="bitti")
-            return
-        _adim_sonu(op_id, i, True, "South -> skins/%s/dirs/front.png" % slug)
-        for y in [x for x in DIR_IDS if x != "front"]:
+        i = 0
+        kaynak = base                       # ilk girdi base; sonra o anki South
+        for etiket, png, pr in adimlar:
             i += 1
-            _op(op_id, message="%d/8 giydirme %s" % (i, y))
+            _op(op_id, message="%d/%d South: %s" % (i, toplam, etiket))
+            try:
+                out = _bekle(op_id, _giydir_job(name, kaynak, png, pr), "South %s" % etiket)
+                _convert(out, front)
+            except Exception as e:
+                _adim_sonu(op_id, i, False, "South %s: %s" % (etiket, str(e)[:220]))
+                _op(op_id, message="bitti")
+                return
+            kaynak = front                  # sonraki parca bunun ustune biner
+            _adim_sonu(op_id, i, True, "%s -> skins/%s/dirs/front.png" % (etiket, slug))
+        try:
+            _convert(front, os.path.join(sd, "outfit.png"))      # kiyafet referansi = nihai South
+        except Exception:
+            pass
+        for y in yonler:
+            i += 1
+            _op(op_id, message="%d/%d giydirme %s" % (i, toplam, y))
             try:
                 hedef = os.path.join(dirs_root(d, BASE_SKIN), "%s.png" % y)
                 if not os.path.isfile(hedef):
                     raise ValueError("base'in '%s' yonu yok - once base yonlerini uret" % y)
-                out = _bekle(op_id, _giydir_job(name, hedef, front, DRESS_DIR_PROMPT),
-                             "giydirme %s" % y)
+                out = _bekle(op_id, _giydir_job(name, hedef, front, dress_dir(tur, ozne)),
+                             "giydirme %s" % y)                                   # #314
                 _convert(out, os.path.join(dr, "%s.png" % y))
             except Exception as e:
                 _adim_sonu(op_id, i, False, "%s: %s" % (y, str(e)[:220]))
@@ -1512,7 +2494,8 @@ def create_skin(name: str, outfit: str, skin_name: str = "") -> dict:
         _op(op_id, message="bitti")
 
     _run(op_id, calis)
-    return {"name": name, "slug": slug, "op": op_id}
+    return {"name": name, "slug": slug, "op": op_id, "steps": len(adimlar), "total": toplam,
+            "outfit": set_slug, "pieces": parca_sluglari, "kind": tur}       # #314
 
 
 def _giydir_job(name: str, hedef: str, kiyafet: str, prompt: str) -> dict:
@@ -1539,6 +2522,7 @@ def generate_skin_dirs(name: str, skin: str, dirs: list[str], n: int = 1) -> str
     d = char_dir(name)
     sd = _skin_dir(name, skin)
     slug = skin_slug(skin)
+    tur, ozne = char_kind(name)                                  # #314
     hedef = [y for y in (dirs or []) if y in DIR_IDS and y != "front"]
     if not hedef:
         raise ValueError("yon secilmedi (front kiyafetin kendisidir)")
@@ -1557,7 +2541,7 @@ def generate_skin_dirs(name: str, skin: str, dirs: list[str], n: int = 1) -> str
                 etiket = "%s/%s_%02d" % (slug, y, i)
                 try:
                     job = _giydir_job(name, os.path.join(dirs_root(d, BASE_SKIN), "%s.png" % y),
-                                      ref, DRESS_DIR_PROMPT)
+                                      ref, dress_dir(tur, ozne))          # #314
                 except Exception as e:
                     with _ops_lock:
                         _ops[op_id]["failed"] += 1
@@ -1723,7 +2707,9 @@ def _padding_of(name: str, padding) -> float:
 def render_manken(name: str, clips: list[str], dirs: list[str], skin: str = "") -> str:
     """op: Blender manken videolari. #299: CPU isi olsa da seridi ALIR -
     kullanicinin kurali "istisnasiz her is siraya girer, ust uste binmesin".
-    #305: `skin` bos = base (anims/), doluysa skins/<slug>/anims/."""
+    #305: `skin` bos = base (anims/), doluysa skins/<slug>/anims/.
+    #314: manken insansi iskelettir - animal/machine turunde 400."""
+    _kip_dogrula(name, "mixamo")                   # #314
     d = char_dir(name)
     ak = anims_root(d, skin)
     cfg = anims(name)
@@ -1786,6 +2772,21 @@ def _manken_render(manken, cfg: dict, tanim: dict, clip: str, clip_dir: str,
     return out
 
 
+def _kip_dogrula(name: str, mode: str) -> str:
+    """#314: animasyon kipi turle uyumlu mu? Degilse ValueError (HTTP 400).
+
+    manken/Mixamo hatti insansi bir iskelet (Blender manken + Wan Animate 2)
+    kullanir; hayvan ve makine karakterlerde yalniz saf i2v anlamlidir.
+    """
+    kip = (mode or "").strip().lower() or "mixamo"
+    kip = "mixamo" if kip in ("manken", "mixamo") else kip
+    tur = kind_of(meta(name))
+    if kip not in anim_modes(tur):
+        raise ValueError("%s turunde Mixamo/manken animasyonu yok - yalniz i2v "
+                         "(insansi iskelet gerektiriyor)" % KIND_PROFILES[tur]["label"])
+    return kip
+
+
 def animate(name: str, y: str, clips: list[str] | None = None, n: int = 1, mode: str = "mixamo",
             prompt: str = "", clip: str = "", engine: str = "", padding=None, skin: str = "") -> str:
     """op: her klip icin n YENI surum (vNN).
@@ -1793,11 +2794,13 @@ def animate(name: str, y: str, clips: list[str] | None = None, n: int = 1, mode:
     mode="mixamo"  Blender manken -> Wan Animate 2 (gpu_lane, tek tek)
     mode="i2v"     yonun kabul edilen gorselinden saf i2v (comfy_gen kuyrugu;
                    o kuyruk seridi kendisi alir, burada ALINMAZ - kilitlenir)
+    #314: manken/Mixamo INSANSI iskelet ister - animal/machine turunde 400.
     #305: animasyon SKIN uzerinde yapilir - `skin` bos = base skini (anims/),
     doluysa skins/<slug>/anims/ ve Wan referansi o skinin yon gorselidir.
     """
     if y not in ALL_DIRS:
         raise ValueError("bilinmeyen yon: %s" % y)
+    _kip_dogrula(name, mode)                       # #314: animal/machine -> yalniz i2v
     ref = _ref_image(name, y, skin)                # kabul edilmemis yon animasyona giremez
     d = char_dir(name)
     ak = anims_root(d, skin)                       # #305
@@ -2242,8 +3245,12 @@ def _enrich_text(name: str, timeout: int = 300, op_id: str = "") -> dict:
     m = meta(name)
     cur = card(name)["card"]
     url, model = JF._ollama_cfg()
+    # #314: hayvan/makine karakterde karta tur yonergesi eklenir (female/male
+    # icin ipucu bostur, istem eski metinle birebir ayni kalir).
+    ipucu = render_kind(KIND_PROFILES[kind_of(m)].get("story") or "", kind_of(m), subject_of(m))
+    tmpl = ENRICH_PROMPT + (("\n\n" + ipucu) if ipucu else "")
     body = {"model": model, "stream": False, "keep_alive": "5m",
-            "messages": [{"role": "user", "content": ENRICH_PROMPT.format(
+            "messages": [{"role": "user", "content": tmpl.format(
                 name=name, cls=m.get("class") or "-",
                 prompt=((m.get("prompt") or {}).get("combined") or (m.get("prompt") or {}).get("prompt") or "-")[:900],
                 card=cur or "(bos)")}]}

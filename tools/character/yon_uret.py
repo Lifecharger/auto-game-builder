@@ -25,37 +25,68 @@ try:
 except ImportError:
     import common as C
 
-KEEP = ("Keep the exact same woman: same face, same hair, same skin, same body proportions, the exact same outfit "
-        "and accessories, same standing pose with arms relaxed, same framing (full body from head to feet), "
-        "same " + C.BG_CLAUSE + ". Photorealistic.")
+# #314: metinler artik SABLON - ozne/zamir jetonlari karakterin turunden gelir
+# (sunucu: server/core/character_flow.KIND_PROFILES, tek kaynak). Asagidaki
+# FEMALE jetonlari yalniz komut satiri kullanimi ve geriye uyumluluk icindir;
+# render(profil) ile uretilen female metni ESKI metinle BIREBIR AYNIDIR.
+FEMALE = {
+    "subject": "woman", "subj": "she", "Subj": "She", "poss": "her", "Poss": "Her",
+    "obj": "her", "garb": "outfit", "pose": "standing pose with arms relaxed",
+    "frame": "full body from head to feet",
+    "identity": "same face, same hair, same skin, same body proportions",
+    "neg_id": "different face, different hair colour, different outfit",
+}
+
+KEEP_TMPL = ("Keep the exact same {subject}: {identity}, the exact same {garb} "
+             "and accessories, same {pose}, same framing ({frame}), "
+             "same " + C.BG_CLAUSE + ". Photorealistic.")
 
 # Yon -> kamera cumlesi. 3/4 yonlerde hem kamera hem govde acisi soylenir.
 # #304: kamera GUNEYDE, pusula: E = resmin SAG kenarina bakar, W = SOL kenara.
 # Eski metinler celiskiliydi ("sag yanindan goster" + "sol kenara bakiyor") ve
 # model iki cumleden birini rastgele seciyordu - East hep farkli cikiyordu.
 # Her yonde hem hangi yani gordugumuz hem de hangi kenara baktigi soylenir.
-PROMPTS = {
-    "front_right": ("Rotate the camera to a THREE-QUARTER VIEW from her FRONT-RIGHT: she is turned 45 degrees "
-                    "toward the RIGHT edge of the image, her right shoulder is closer to the camera, we still see "
-                    "most of her face and the front of her outfit. She faces toward the right edge of the image."),
-    "right":       ("Rotate the camera to show her from her RIGHT SIDE in a strict 90 degree side profile view: "
-                    "we see her right side, her nose points to the RIGHT edge of the image, she faces the right edge."),
-    "back_right":  ("Rotate the camera to a THREE-QUARTER VIEW from her BACK-RIGHT: she is turned 135 degrees away "
-                    "toward the RIGHT edge of the image, we mostly see her back and the right side of her body, "
-                    "only a sliver of her cheek on the right."),
-    "back":        ("Rotate the camera to show her from BEHIND in a strict back view, we see the back of her head, "
-                    "her back and the back of her outfit."),
-    "back_left":   ("Rotate the camera to a THREE-QUARTER VIEW from her BACK-LEFT: she is turned 135 degrees away "
-                    "toward the LEFT edge of the image, we mostly see her back and the left side of her body, "
-                    "only a sliver of her cheek on the left."),
-    "left":        ("Rotate the camera to show her from her LEFT SIDE in a strict 90 degree side profile view: "
-                    "we see her left side, her nose points to the LEFT edge of the image, she faces the left edge."),
-    "front_left":  ("Rotate the camera to a THREE-QUARTER VIEW from her FRONT-LEFT: she is turned 45 degrees "
-                    "toward the LEFT edge of the image, her left shoulder is closer to the camera, we still see "
-                    "most of her face and the front of her outfit. She faces toward the left edge of the image."),
+PROMPT_TMPL = {
+    "front_right": ("Rotate the camera to a THREE-QUARTER VIEW from {poss} FRONT-RIGHT: {subj} is turned 45 degrees "
+                    "toward the RIGHT edge of the image, {poss} right shoulder is closer to the camera, we still see "
+                    "most of {poss} face and the front of {poss} {garb}. {Subj} faces toward the right edge of the image."),
+    "right":       ("Rotate the camera to show {obj} from {poss} RIGHT SIDE in a strict 90 degree side profile view: "
+                    "we see {poss} right side, {poss} nose points to the RIGHT edge of the image, {subj} faces the right edge."),
+    "back_right":  ("Rotate the camera to a THREE-QUARTER VIEW from {poss} BACK-RIGHT: {subj} is turned 135 degrees away "
+                    "toward the RIGHT edge of the image, we mostly see {poss} back and the right side of {poss} body, "
+                    "only a sliver of {poss} cheek on the right."),
+    "back":        ("Rotate the camera to show {obj} from BEHIND in a strict back view, we see the back of {poss} head, "
+                    "{poss} back and the back of {poss} {garb}."),
+    "back_left":   ("Rotate the camera to a THREE-QUARTER VIEW from {poss} BACK-LEFT: {subj} is turned 135 degrees away "
+                    "toward the LEFT edge of the image, we mostly see {poss} back and the left side of {poss} body, "
+                    "only a sliver of {poss} cheek on the left."),
+    "left":        ("Rotate the camera to show {obj} from {poss} LEFT SIDE in a strict 90 degree side profile view: "
+                    "we see {poss} left side, {poss} nose points to the LEFT edge of the image, {subj} faces the left edge."),
+    "front_left":  ("Rotate the camera to a THREE-QUARTER VIEW from {poss} FRONT-LEFT: {subj} is turned 45 degrees "
+                    "toward the LEFT edge of the image, {poss} left shoulder is closer to the camera, we still see "
+                    "most of {poss} face and the front of {poss} {garb}. {Subj} faces toward the left edge of the image."),
 }
-NEG = ("anime, cartoon, illustration, 3d render, deformed, extra limbs, bad hands, bad anatomy, watermark, text, "
-       "different face, different hair colour, different outfit, cropped head, cropped feet, front view")
+NEG_TMPL = ("anime, cartoon, illustration, 3d render, deformed, extra limbs, bad hands, bad anatomy, watermark, text, "
+            "{neg_id}, cropped head, cropped feet, front view")
+
+
+def render(kind_profile: dict | None = None) -> dict:
+    """#314: sablonlari bir tur profiliyle doldurur.
+
+    kind_profile = character_flow.KIND_PROFILES[<tur>] (ya da ondan turetilmis
+    ozne degistirilmis kopya). Eksik alanlar FEMALE'den tamamlanir, yani
+    render() (bos cagri) eski female metinlerini aynen verir.
+    """
+    t = dict(FEMALE)
+    t.update({k: v for k, v in (kind_profile or {}).items() if isinstance(v, str) and v})
+    return {"prompts": {k: v.format(**t) for k, v in PROMPT_TMPL.items()},
+            "keep": KEEP_TMPL.format(**t), "neg": NEG_TMPL.format(**t)}
+
+
+_FEMALE_RENDER = render()
+PROMPTS = _FEMALE_RENDER["prompts"]      # geriye uyumluluk (female render'i)
+KEEP = _FEMALE_RENDER["keep"]
+NEG = _FEMALE_RENDER["neg"]
 
 
 def submit(image_name: str, prompt: str, seed: int) -> str:
