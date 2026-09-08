@@ -619,22 +619,57 @@ def _batch(rating: str, item_ids: list[str], kind: str, label: str, needs_gpu: b
     return op_id
 
 
+# #320: asama govdeleri tek ogelik yardimcilar - hem manuel dugmeler (A/B)
+# hem de "Insa et" (eksik asamayi kendisi kosar) ayni kodu kullanir.
+def _objects_one(jpg, log, kid_cbn, use_ollama, durum=None):
+    """Asama A (tek oge): nesne listesi -> <stem>.work/objects.json."""
+    w = _work_dir(jpg)
+    os.makedirs(w, exist_ok=True)
+    if use_ollama and durum is not None and not durum.get("freed"):
+        G.free_comfy()
+        durum["freed"] = True
+    found = kid_cbn.discover_concepts(Path(jpg))
+    with open(os.path.join(w, "objects.json"), "w", encoding="utf-8") as fh:
+        json.dump({"things": found, "agent": "ollama" if use_ollama else "claude",
+                   "at": datetime.now().isoformat(timespec="seconds")}, fh, ensure_ascii=False, indent=1)
+    return "%d nesne: %s" % (len(found), ", ".join(found[:8]))
+
+
+def _sam_one(rating, jpg, log, kid_cbn, hot_cbn):
+    """Asama B (tek oge): SAM3 maskeleri -> masks.npz (+ hot'ta source_2x.png)."""
+    base = hot_cbn.CONCEPTS_HOT if rating == "hot" else kid_cbn.CONCEPTS["kid"]
+    w = _work_dir(jpg)
+    os.makedirs(w, exist_ok=True)
+    found = []
+    try:
+        with open(os.path.join(w, "objects.json"), encoding="utf-8") as fh:
+            found = (json.load(fh) or {}).get("things") or []
+    except Exception:
+        pass
+    # Nesne listesi varsa SAM'e yalniz onu + birkac zemin sozcugu sor:
+    # profil listesindeki alakasiz kavramlar (boat, house, road...) SAM'de
+    # koca sahte maskeler uretiyor. Liste yoksa profil listesi yedek.
+    concepts = list(dict.fromkeys(found + ["background", "sky", "ground"])) if found else list(base)
+    log("SAM3 %d kavram" % len(concepts))
+    masks = kid_cbn.segment(Path(jpg), concepts)
+    kid_cbn.save_masks(os.path.join(w, "masks.npz"), masks)
+    if rating == "hot":
+        # boyanacak resim: ESRGAN x2 (uzun kenar 2560) - GPU seridi zaten bizde
+        up = os.path.join(w, "source_2x.png")
+        if not os.path.isfile(up):
+            log("x2 buyutme")
+            hot_cbn.upscale(Path(jpg), Path(up))
+    return "%d maske" % len(masks)
+
+
 def stage_objects(rating: str, item_ids: list[str]) -> str:
     """Asama A: nesne listesi (yerel VLM / Claude) -> <stem>.work/objects.json."""
     kid_cbn, _hot = _pipeline_modules()
     use_ollama = kid_cbn.ollama_ready()
+    durum = {"freed": False}
 
     def fn(jpg, log):
-        w = _work_dir(jpg)
-        os.makedirs(w, exist_ok=True)
-        if use_ollama and not getattr(fn, "_freed", False):
-            G.free_comfy()
-            fn._freed = True
-        found = kid_cbn.discover_concepts(Path(jpg))
-        with open(os.path.join(w, "objects.json"), "w", encoding="utf-8") as fh:
-            json.dump({"things": found, "agent": "ollama" if use_ollama else "claude",
-                       "at": datetime.now().isoformat(timespec="seconds")}, fh, ensure_ascii=False, indent=1)
-        return "%d nesne: %s" % (len(found), ", ".join(found[:8]))
+        return _objects_one(jpg, log, kid_cbn, use_ollama, durum)
 
     def wrapped(jpg, log):
         return fn(jpg, log)
@@ -659,31 +694,9 @@ def stage_sam(rating: str, item_ids: list[str]) -> str:
     """Asama B: SAM3 maskeleri -> <stem>.work/masks.npz. Kavramlar objects.json
     + profil listesi; SAM checkpoint'i ComfyUI'de parti boyunca yuklu kalir."""
     kid_cbn, hot_cbn = _pipeline_modules()
-    base = hot_cbn.CONCEPTS_HOT if rating == "hot" else kid_cbn.CONCEPTS["kid"]
 
     def fn(jpg, log):
-        w = _work_dir(jpg)
-        os.makedirs(w, exist_ok=True)
-        found = []
-        try:
-            with open(os.path.join(w, "objects.json"), encoding="utf-8") as fh:
-                found = (json.load(fh) or {}).get("things") or []
-        except Exception:
-            pass
-        # Nesne listesi varsa SAM'e yalniz onu + birkac zemin sozcugu sor:
-        # profil listesindeki alakasiz kavramlar (boat, house, road...) SAM'de
-        # koca sahte maskeler uretiyor. Liste yoksa profil listesi yedek.
-        concepts = list(dict.fromkeys(found + ["background", "sky", "ground"])) if found else list(base)
-        log("SAM3 %d kavram" % len(concepts))
-        masks = kid_cbn.segment(Path(jpg), concepts)
-        kid_cbn.save_masks(os.path.join(w, "masks.npz"), masks)
-        if rating == "hot":
-            # boyanacak resim: ESRGAN x2 (uzun kenar 2560) - GPU seridi zaten bizde
-            up = os.path.join(w, "source_2x.png")
-            if not os.path.isfile(up):
-                log("x2 buyutme")
-                hot_cbn.upscale(Path(jpg), Path(up))
-        return "%d maske" % len(masks)
+        return _sam_one(rating, jpg, log, kid_cbn, hot_cbn)
 
     return _batch(rating, item_ids, "cbn-sam", "SAM", True, fn)
 
@@ -799,17 +812,24 @@ def _build_from_work(rating: str, jpg: str, work: str, dest: str, log) -> dict:
 
 
 def build(rating: str, item_ids: list[str], collection: str) -> str:
-    """Asama D: bolgele + varlik yaz. SAM (ve hot'ta cizgi) asamalari onceden
-    yapilmis olmali. #299: agir CPU partisi oldugu icin seridi ALIR."""
+    """Asama D: bolgele + varlik yaz. #320: A/B/C yapilmamissa insa onlari
+    kendisi kosar (tam otomatik); manuel dugmeler on izleme/ince ayar icindir.
+    #299: parti seridi ALIR."""
     coll = resolve_collection(rating, collection)
     p = paths(rating)
     op_id = _op_new("cbn-build", len(item_ids))
 
     def calis():
         # #299: bolgeleme agir bir CPU partisidir - GPU isiyle ust uste binmesin.
-        with gpu_lane.hold("cbn insa (%d)" % len(item_ids), kind="cpu",
+        # #320: eksik A/B (ve C) asamalari da bu bilet altinda kosar (SAM/AnyLine
+        # GPU kullanir) - kullanici yalniz "Insa et" der, gerisi otomatik.
+        with gpu_lane.hold("cbn insa (%d)" % len(item_ids), kind="cbn",
                            op_id=op_id, total=len(item_ids)):
             _build_loop(rating, coll, p, item_ids, op_id)
+        try:
+            _pipeline_modules()[0].ollama_unload()     # #320: A adimi Ollama kullandiysa
+        except Exception:
+            pass
         _op(op_id, message="bitti")
 
     _run(op_id, calis)
@@ -817,6 +837,9 @@ def build(rating: str, item_ids: list[str], collection: str) -> str:
 
 
 def _build_loop(rating, coll, p, item_ids, op_id):
+    kid_cbn, hot_cbn = _pipeline_modules()
+    use_ollama = None                      # #320: ilk ihtiyacta bakilir
+    durum = {"freed": False}
     if True:
         for i, iid in enumerate(item_ids, 1):
             jpg = item_path(rating, "incoming", iid, "image")
@@ -833,6 +856,17 @@ def _build_loop(rating, coll, p, item_ids, op_id):
             def log(m, _i=i, _n=n):
                 _op(op_id, message="insa %d/%d  %s/%d: %s" % (_i, len(item_ids), coll, _n, m))
             try:
+                # #320: TAM OTOMATIK - eksik asamalar sirayla: A nesneler, B SAM
+                # (+x2), C cizgi (_build_from_work icinde), D bolgeleme.
+                if not os.path.isfile(os.path.join(work, "objects.json")):
+                    if use_ollama is None:
+                        use_ollama = kid_cbn.ollama_ready()
+                    log("A) nesneler")
+                    _objects_one(jpg, log, kid_cbn, use_ollama, durum)
+                if not os.path.isfile(os.path.join(work, "masks.npz")) or (
+                        rating == "hot" and not os.path.isfile(os.path.join(work, "source_2x.png"))):
+                    log("B) SAM")
+                    _sam_one(rating, jpg, log, kid_cbn, hot_cbn)
                 data = _build_from_work(rating, jpg, work, dest, log)
             except Exception as e:
                 shutil.rmtree(dest, ignore_errors=True)
