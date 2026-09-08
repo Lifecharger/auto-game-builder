@@ -73,15 +73,17 @@ UPSCALE_MODEL = setting("character.upscale_model", "CHARACTER_UPSCALE_MODEL", "4
 # SAGINA dogru donerek. Azimut manken kamerasinin karakterin kendi ileri
 # yonune gore acisidir (mixamo_manken_render --azimuth).
 # character_flow.DIRS bunu aynen disa acar; uygulama /flow/dirs_list ile alir.
+# #301: gorunen adlar PUSULA - kameraya bakan durus South, arka North, sag East,
+# sol West. Klasor kimlikleri (front/left/...) diskte degismez.
 DIRS = (
-    ("front",       "On",         0),
-    ("front_right", "On-sag",    45),
-    ("right",       "Sag",       90),
-    ("back_right",  "Arka-sag", 135),
-    ("back",        "Arka",     180),
-    ("back_left",   "Arka-sol", 225),
-    ("left",        "Sol",      270),
-    ("front_left",  "On-sol",   315),
+    ("front",       "S South",       0),
+    ("front_right", "SE South-East",45),
+    ("right",       "E East",       90),
+    ("back_right",  "NE North-East",135),
+    ("back",        "N North",     180),
+    ("back_left",   "NW North-West",225),
+    ("left",        "W West",      270),
+    ("front_left",  "SW South-West",315),
 )
 DIR_ORDER = tuple(d[0] for d in DIRS)
 DIRECTIONS = {d[0]: d[2] for d in DIRS}      # yon -> azimut

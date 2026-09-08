@@ -33,7 +33,7 @@ class CharacterDir {
         (j['azimuth'] ?? 0) as int,
       );
 
-  /// Rozet metni - F, FR, R, BR, B, BL, L, FL.
+  /// Rozet metni - S, SE, E, NE, N, NW, W, SW (#301 pusula).
   String get short =>
       CharacterFlowService.shortOf(id);
 }
@@ -376,30 +376,24 @@ class CharacterFlowService {
 
   /// Sunucu `dirs_list` vermezse kullanilan sabit sira (design/karakter_modu.md).
   static const defaultDirs = <CharacterDir>[
-    CharacterDir('front', 'On', 0),
-    CharacterDir('front_right', 'On-Sag', 45),
-    CharacterDir('right', 'Sag', 90),
-    CharacterDir('back_right', 'Arka-Sag', 135),
-    CharacterDir('back', 'Arka', 180),
-    CharacterDir('back_left', 'Arka-Sol', 225),
-    CharacterDir('left', 'Sol', 270),
-    CharacterDir('front_left', 'On-Sol', 315),
+    // #301: pusula adlari - kameraya bakan = South, arka = North.
+    CharacterDir('front', 'S South', 0),
+    CharacterDir('front_right', 'SE South-East', 45),
+    CharacterDir('right', 'E East', 90),
+    CharacterDir('back_right', 'NE North-East', 135),
+    CharacterDir('back', 'N North', 180),
+    CharacterDir('back_left', 'NW North-West', 225),
+    CharacterDir('left', 'W West', 270),
+    CharacterDir('front_left', 'SW South-West', 315),
   ];
 
-  static const _shorts = <String, String>{
-    'front': 'F',
-    'front_right': 'FR',
-    'right': 'R',
-    'back_right': 'BR',
-    'back': 'B',
-    'back_left': 'BL',
-    'left': 'L',
-    'front_left': 'FL',
+  // #301: kisa rozet = pusula kodu (S, SE, E, NE, N, NW, W, SW).
+  static const _compassShort = {
+    'front': 'S', 'front_right': 'SE', 'right': 'E', 'back_right': 'NE',
+    'back': 'N', 'back_left': 'NW', 'left': 'W', 'front_left': 'SW',
   };
-
   static String shortOf(String id) =>
-      _shorts[id] ??
-      id.split('_').map((p) => p.isEmpty ? '' : p[0].toUpperCase()).join();
+      _compassShort[id] ?? id.toUpperCase();
 
   static Map<String, String> get _headers => {
         'Content-Type': 'application/json',

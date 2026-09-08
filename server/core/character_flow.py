@@ -61,15 +61,17 @@ DEFAULT_ROOT = r"C:\Reusable Assets\Realistic Women"
 
 # 8 YON - TEK TANIM YERI (rev2). Saat yonunde, karakterin SAGINA dogru.
 # Azimut = manken kamerasinin karakterin kendi ileri yonune gore acisi.
+# #301: gorunen adlar PUSULA (tools/character/common.DIRS ile ayni): kameraya
+# bakan durus South, arka North, sag East, sol West. Kimlikler diskte degismez.
 DIRS = (
-    {"id": "front",       "label": "On",       "azimuth": 0},
-    {"id": "front_right", "label": "On-sag",   "azimuth": 45},
-    {"id": "right",       "label": "Sag",      "azimuth": 90},
-    {"id": "back_right",  "label": "Arka-sag", "azimuth": 135},
-    {"id": "back",        "label": "Arka",     "azimuth": 180},
-    {"id": "back_left",   "label": "Arka-sol", "azimuth": 225},
-    {"id": "left",        "label": "Sol",      "azimuth": 270},
-    {"id": "front_left",  "label": "On-sol",   "azimuth": 315},
+    {"id": "front",       "label": "S South",       "azimuth": 0},
+    {"id": "front_right", "label": "SE South-East", "azimuth": 45},
+    {"id": "right",       "label": "E East",        "azimuth": 90},
+    {"id": "back_right",  "label": "NE North-East", "azimuth": 135},
+    {"id": "back",        "label": "N North",       "azimuth": 180},
+    {"id": "back_left",   "label": "NW North-West", "azimuth": 225},
+    {"id": "left",        "label": "W West",        "azimuth": 270},
+    {"id": "front_left",  "label": "SW South-West", "azimuth": 315},
 )
 DIR_IDS = tuple(d["id"] for d in DIRS)
 DIR_AZ = {d["id"]: d["azimuth"] for d in DIRS}

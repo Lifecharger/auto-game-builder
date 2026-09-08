@@ -237,10 +237,11 @@ class _CharacterFlowScreenState extends State<CharacterFlowScreen> {
 /// 8 yonu pusula duzeninde (3x3, orta hucre serbest) dizer. Sunucu listede
 /// tanimadigimiz bir yon gonderirse izgaranin altina eklenir - hicbir yon
 /// gozden kaybolmasin.
+// #301: gercek pusula dizilimi - North ustte, South (kameraya bakan) altta.
 const _compassGrid = [
-  ['front_left', 'front', 'front_right'],
-  ['left', '', 'right'],
-  ['back_left', 'back', 'back_right'],
+  ['back_left', 'back', 'back_right'],      // NW  N  NE
+  ['left', '', 'right'],                    // W  BASE E
+  ['front_left', 'front', 'front_right'],   // SW  S  SE
 ];
 
 Widget dirCompass(
@@ -1296,7 +1297,7 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
         const Text(
           'Tek dokunus o yonun animasyon ekranini acar, basili tutma buyutur. '
           'Ikonlar: anim uret (AI i2v), Mixamo ile uret, yalniz bunu yeniden '
-          'uret, sil. front = kabul edilen gorunusun kendisi.',
+          'uret, sil. S (South) = kameraya bakan durus, kabul edilen gorunusun kendisi.',
           style: TextStyle(fontSize: 11, color: Colors.grey),
         ),
       ],
@@ -1363,7 +1364,7 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
             ? null
             : CharacterFlowService.thumbUrl(_name, adaylar.last, size: 600));
     return _ThumbCell(
-        label: '${d.short} ${d.label}',
+        label: d.label,
         url: url,
         accepted: kabul,
         dimmed: !kabul && adaylar.isNotEmpty,
@@ -1377,7 +1378,7 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
         onAnim: () => _openAnim(d.id, 'i2v'),
         onMixamo: () => _openAnim(d.id, 'mixamo'),
         onRefresh: d.id == 'front'
-            ? () => _snack('front gorunusun kendisidir - 1. sekmeden secilir')
+            ? () => _snack('S (South) gorunusun kendisidir - 1. sekmeden secilir')
             : () => _run(
                 '${d.label} uretimi',
                 () => CharacterFlowService.dirs(
@@ -1505,7 +1506,7 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
                 ),
               const SizedBox(height: 8),
               if (d.id == 'front')
-                const Text('front kabul edilen gorunusun kendisidir.',
+                const Text('S (South) kabul edilen gorunusun kendisidir - kameraya bakan durus.',
                     style: TextStyle(fontSize: 12, color: Colors.grey))
               else if (adaylar.isEmpty)
                 const Text('Aday yok - yenile ikonuyla uret.',
