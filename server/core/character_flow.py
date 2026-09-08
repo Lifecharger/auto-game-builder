@@ -18,11 +18,17 @@ Kutuphane duzeni (`character.root`, varsayilan C:/Reusable Assets/Realistic Wome
         frames/  anim.webp  sheet.png  sprite.json         yalniz kabul edilenden
 
 Uzun isler arka planda calisir ve jigsaw/cbn ile AYNI op defterini kullanir
-(istemci /op/{id} ile izler). GPU isteyen asamalar (yon uretimi, portre,
-Wan Animate 2, SAM3) gpu_lane'den TEK parti halinde gecer; manken (Blender)
-ve webp paketleme CPU isidir, seridi almaz. Saf i2v yolu comfy_gen'in kendi
-kuyruguna girer - o kuyruk zaten seridi kendisi alir, burada tekrar alinmaz
-(yoksa kilitlenir).
+(istemci /op/{id} ile izler).
+
+#299 - HER IS SIRAYA GIRER:
+  * Aday uretimi (yon / base / portre) ve saf i2v artik comfy_gen'in TEK
+    kuyruguna is birakir: her aday AYRI bir is kaydidir, telefondaki Sira
+    ekraninda gorunur, tasinabilir ve iptal edilebilir. Bu ops gpu_lane'i
+    KENDISI ALMAZ - comfy_gen dispatcher'i her isi kendi bileti ile calistirir
+    (yoksa kilitlenir).
+  * ComfyUI disinda kalan agir asamalar (Blender manken, Wan Animate 2, SAM3
+    sprite, Ollama kart/prompt) gpu_lane'den TEK parti halinde gecer; manken
+    CPU isidir ama yine de seridi alir ki GPU isiyle ust uste binmesin.
 
 Araclar tools/character/ altinda kutuphane gibi cagrilir (CBN'de kid_cbn gibi).
 """
@@ -30,12 +36,15 @@ from __future__ import annotations
 
 import json
 import os
+import random
 import re
 import shutil
 import subprocess
 import sys
+import threading
 import time
 import urllib.request
+import uuid
 from datetime import datetime
 
 from . import comfy_gen as G
@@ -339,6 +348,7 @@ def list_characters() -> list[dict]:
             "portraits": _portrait_files(d),   # #296: portre adaylari (rel)
             "sprite_canvas": int(m.get("sprite_canvas") or 640),
             "card": os.path.isfile(os.path.join(d, "card.md")),
+            "proposals": len(_proposal_rows(d)),   # #299: bekleyen kart onerisi
             "mtime": int(os.stat(d).st_mtime),
         })
     return rows
@@ -544,11 +554,74 @@ def delete_dir(name: str, y: str) -> dict:
 
 
 # ------------------------------------------------------------------ 2  yon
+# #299: yon / base / portre adaylari artik comfy_gen'in TEK kuyruguna girer.
+# Her aday AYRI bir is kaydidir; Sira ekraninda gorunur, sirasi degistirilebilir
+# ve iptal edilebilir. Op yalniz ciktilari toplar - gpu_lane BURADA ALINMAZ,
+# comfy_gen dispatcher'i her isi kendi bileti ile calistirir (yoksa kilitlenir).
+def _serbest_ad(dest_dir: str, kalip: str) -> str:
+    """#299: 'left_%02d.png' kalibi icin bos numarayi bulur (ustune yazmaz)."""
+    os.makedirs(dest_dir, exist_ok=True)
+    k = 1
+    while os.path.isfile(os.path.join(dest_dir, kalip % k)):
+        k += 1
+    return os.path.join(dest_dir, kalip % k)
+
+
+def _yerlestirici(dest_dir: str, kalip: str):
+    """#299: bir isin ciktisini bos numarali dosyaya kopyalayan islev doner."""
+    def yerlestir(src: str) -> str:
+        p = _serbest_ad(dest_dir, kalip)
+        shutil.copy(src, p)
+        return os.path.basename(p)
+    return yerlestir
+
+
+def _kuyruk_op(kind: str, total: int, uret) -> str:
+    """#299: op ac, arka planda comfy_gen'e isleri birak, ciktilari topla.
+
+    uret(op_id) -> [(job_id, etiket, yerlestir)] listesi doner. Isler SIRAYLA
+    beklenir; biten isin ciktisi yerlestir() ile kutuphaneye kopyalanir ve is
+    galeriyi doldurmasin diye silinir (jigsaw gozcusuyle ayni kural).
+    """
+    op_id = _op_new(kind, total)
+
+    def calis():
+        isler = uret(op_id)
+        _op(op_id, total=len(isler), message="%d is kuyruga girdi" % len(isler))
+        _topla(op_id, isler)
+
+    _run(op_id, calis)
+    return op_id
+
+
+def _topla(op_id: str, isler: list, timeout: int = 3 * 3600) -> None:
+    """#299: kuyruga birakilan comfy_gen islerini sirayla bekler ve yerlestirir."""
+    for i, (jid, etiket, yerlestir) in enumerate(isler, 1):
+        _op(op_id, message="%d/%d  %s" % (i, len(isler), etiket))
+        try:
+            src = _await_job(jid, op_id, "%d/%d %s" % (i, len(isler), etiket), timeout)
+            ad = yerlestir(src)
+        except Exception as e:                       # iptal/hata = basarisiz
+            with _ops_lock:
+                _ops[op_id]["failed"] += 1
+            _op(op_id, done=i, log="%s: %s" % (etiket, str(e)[:200]))
+        else:
+            with _ops_lock:
+                _ops[op_id]["ok"] += 1
+            _op(op_id, done=i, log="%s -> %s" % (etiket, ad))
+        try:
+            G.delete_job(jid)                        # ara cikti galeride kalmasin
+        except Exception:
+            pass
+    _op(op_id, message="bitti")
+
+
 def generate_dirs(name: str, dirs: list[str], n: int = 2) -> str:
-    """op: secili yonlerin adaylarini uretir (Qwen Image Edit, gpu_lane).
+    """op: secili yonlerin adaylarini uretir (Qwen Image Edit, comfy_gen kuyrugu).
 
     rev3: "yenile" ikonu BASE ve PORTRE altinda da var -> dirs ["base"] yeni
-    kimlik adaylari (Z-Image), ["portrait"] portre adaylari uretir."""
+    kimlik adaylari (Z-Image), ["portrait"] portre adaylari uretir.
+    #299: her (yon, aday) ciftine bir comfy_gen isi acilir."""
     d = char_dir(name)
     m = meta(name)
     istek = list(dirs or [])
@@ -563,27 +636,35 @@ def generate_dirs(name: str, dirs: list[str], n: int = 2) -> str:
     if not hedef:
         raise ValueError("yon secilmedi (front look'tan gelir; base/portrait tek basina gonderilir)")
     _c, _mk, _sf, _wa, yon_uret = _tools()
-    op_id = _op_new("char-dirs", len(hedef))
+    n = max(1, min(8, int(n or 1)))
+    ta = os.path.join(d, "turnaround")
+    os.makedirs(ta, exist_ok=True)
+    if not os.path.isfile(os.path.join(ta, "front.png")):
+        shutil.copy(look, os.path.join(ta, "front.png"))   # yon_uret.generate ile ayni
 
-    def calis():
-        with gpu_lane.hold("karakter yon: %s (%d)" % (name, len(hedef)), kind="character"):
-            for i, y in enumerate(hedef, 1):
-                _op(op_id, message="yon %d/%d  %s" % (i, len(hedef), y))
+    def uret(op_id):
+        isler = []
+        for y in hedef:
+            for i in range(1, n + 1):
+                etiket = "%s_%02d" % (y, i)
+                # mode="free": Karakter Modu sablonu (CHARACTER_PROMPT2) ve
+                # 832x1472 zorlamasi bir DUZENLEME isine girmesin - grafik
+                # yon_uret.submit ile birebir ayni kalsin.
                 try:
-                    res = yon_uret.generate(look, os.path.join(d, "turnaround"), [y], n,
-                                            log=lambda s, _i=i: _op(op_id, message="%s: %s" % (y, s)))
+                    job = G.submit("edit_qwen", "%s %s" % (yon_uret.PROMPTS[y], yon_uret.KEEP),
+                                   negative=yon_uret.NEG, seed=random.randint(1, 2 ** 31),
+                                   turbo=True, image_path=look, mode="free",
+                                   client="flow", category=name)
                 except Exception as e:
                     with _ops_lock:
                         _ops[op_id]["failed"] += 1
-                    _op(op_id, done=i, log="%s: %s" % (y, str(e)[:200]))
+                    _op(op_id, log="%s kuyruga girmedi: %s" % (etiket, str(e)[:200]))
                     continue
-                with _ops_lock:
-                    _ops[op_id]["ok"] += 1
-                _op(op_id, done=i, log="%s: %d aday" % (y, len(res.get(y) or [])))
-        _op(op_id, message="bitti")
+                isler.append((job["id"], etiket, _yerlestirici(ta, y + "_%02d.png")))
+                _op(op_id, log="%s kuyrukta (%s)" % (etiket, job["id"][:8]))
+        return isler
 
-    _run(op_id, calis)
-    return op_id
+    return _kuyruk_op("char-dirs", len(hedef) * n, uret)
 
 
 PORTRAIT_PROMPT = ("Crop and re-frame to a HEAD AND SHOULDERS PORTRAIT of the exact same woman: same face, "
@@ -593,8 +674,10 @@ PORTRAIT_PROMPT = ("Crop and re-frame to a HEAD AND SHOULDERS PORTRAIT of the ex
 
 
 def generate_base(name: str, n: int = 3) -> str:
-    """op: karakterin kimlik prompt'undan YENI aday gorseller (Z-Image, gpu_lane).
-    Adaylar candidates/ altina duser; kullanici 'Base yap' ile birini secer."""
+    """op: karakterin kimlik prompt'undan YENI aday gorseller (Z-Image).
+    Adaylar candidates/ altina duser; kullanici 'Base yap' ile birini secer.
+    #299: her aday ayri bir comfy_gen isidir (Karakter Modu = mode 'character',
+    sablon/negatif/olcu karakter_adaylari.generate ile birebir ayni)."""
     d = char_dir(name)
     m = meta(name)
     kimlik = ((m.get("prompt") or {}).get("prompt") or "").strip()
@@ -604,68 +687,64 @@ def generate_base(name: str, n: int = 3) -> str:
     _c, _mk, _sf, _wa, _yu = _tools()
     from character import karakter_adaylari as KA  # noqa: WPS433
     n = max(1, min(8, int(n or 1)))
-    op_id = _op_new("char-base", n)
+    cand = os.path.join(d, "candidates")
+    os.makedirs(cand, exist_ok=True)
+    kind = "neutral"
+    # KA.generate'in govdesi: kimlik + setin kiyafeti. KA.STUDIO sablonu ile
+    # G.MODES["character"]["prompt2"] ayni cumledir - sarmalamayi comfy_gen yapar.
+    govde = ", ".join(x for x in (kimlik.strip(" ,"), KA.SETS[kind].strip(" ,")) if x)
 
-    def calis():
-        with gpu_lane.hold("karakter base: %s (%d)" % (name, n), kind="character"):
+    def uret(op_id):
+        isler = []
+        for i in range(1, n + 1):
+            etiket = "%s_%02d" % (kind, i)
             try:
-                out = KA.generate(os.path.join(d, "candidates"), kimlik, "", "neutral", n,
-                                  log=lambda s: _op(op_id, message="base: %s" % s))
+                job = G.submit("image_zimage", govde, negative=KA.NEG,
+                               width=KA.W, height=KA.H, seed=random.randint(1, 2 ** 31),
+                               mode="character", client="flow", category=name)
             except Exception as e:
                 with _ops_lock:
-                    _ops[op_id]["failed"] += n
-                _op(op_id, done=n, log=str(e)[:220])
-                return
-            with _ops_lock:
-                _ops[op_id]["ok"] += len(out)
-                _ops[op_id]["failed"] += max(0, n - len(out))
-            _op(op_id, done=n, log="%d aday: %s" % (len(out), ", ".join(out)))
-        _op(op_id, message="bitti")
+                    _ops[op_id]["failed"] += 1
+                _op(op_id, log="%s kuyruga girmedi: %s" % (etiket, str(e)[:200]))
+                continue
+            isler.append((job["id"], etiket, _yerlestirici(cand, kind + "_%02d.png")))
+            _op(op_id, log="%s kuyrukta (%s)" % (etiket, job["id"][:8]))
+        return isler
 
-    _run(op_id, calis)
-    return op_id
+    return _kuyruk_op("char-base", n, uret)
 
 
 def generate_portrait(name: str, n: int = 2) -> str:
-    """op: look'tan bas-omuz portre adaylari (Qwen Edit, gpu_lane)."""
+    """op: look'tan bas-omuz portre adaylari (Qwen Edit).
+    #299: her portre ayri bir comfy_gen isidir."""
     d = char_dir(name)
     m = meta(name)
     look = os.path.join(d, m.get("look") or "")
     if not os.path.isfile(look):
         raise ValueError("once bir gorunus (look) sec")
-    common, _mk, _sf, _wa, yon_uret = _tools()
+    _c, _mk, _sf, _wa, yon_uret = _tools()
     dest = os.path.join(d, "portrait")
     os.makedirs(dest, exist_ok=True)
     n = max(1, min(8, int(n or 1)))
-    op_id = _op_new("char-portrait", n)
 
-    def calis():
-        import random
-        with gpu_lane.hold("karakter portre: %s (%d)" % (name, n), kind="character"):
-            img = common.stage_input(look, "chpor")
-            jobs = []
-            for i in range(n):
-                seed = random.randint(1, 2 ** 31)
-                jobs.append((i, yon_uret.submit(img, PORTRAIT_PROMPT, seed), seed))
-            for i, pid, seed in jobs:
-                try:
-                    files = common.outputs(common.wait(pid, 1800), ("images",))
-                except Exception as e:
-                    with _ops_lock:
-                        _ops[op_id]["failed"] += 1
-                    _op(op_id, done=i + 1, log="portre %d: %s" % (i + 1, str(e)[:180]))
-                    continue
-                k = 1
-                while os.path.isfile(os.path.join(dest, "portrait_%02d.png" % k)):
-                    k += 1
-                shutil.copy(str(files[0]), os.path.join(dest, "portrait_%02d.png" % k))
+    def uret(op_id):
+        isler = []
+        for i in range(1, n + 1):
+            etiket = "portre %d" % i
+            try:
+                job = G.submit("edit_qwen", PORTRAIT_PROMPT, negative=yon_uret.NEG,
+                               seed=random.randint(1, 2 ** 31), turbo=True,
+                               image_path=look, mode="free", client="flow", category=name)
+            except Exception as e:
                 with _ops_lock:
-                    _ops[op_id]["ok"] += 1
-                _op(op_id, done=i + 1, log="portrait_%02d.png (seed %d)" % (k, seed))
-        _op(op_id, message="bitti")
+                    _ops[op_id]["failed"] += 1
+                _op(op_id, log="%s kuyruga girmedi: %s" % (etiket, str(e)[:200]))
+                continue
+            isler.append((job["id"], etiket, _yerlestirici(dest, "portrait_%02d.png")))
+            _op(op_id, log="%s kuyrukta (%s)" % (etiket, job["id"][:8]))
+        return isler
 
-    _run(op_id, calis)
-    return op_id
+    return _kuyruk_op("char-portrait", n, uret)
 
 
 # rev7: SAM'e silahi da sor. Ana kavram "kadin + tuttugu silah" olur; ayrica
@@ -806,7 +885,8 @@ def _padding_of(name: str, padding) -> float:
 
 
 def render_manken(name: str, clips: list[str], dirs: list[str]) -> str:
-    """op: Blender manken videolari (CPU - gpu_lane ALMAZ)."""
+    """op: Blender manken videolari. #299: CPU isi olsa da seridi ALIR -
+    kullanicinin kurali "istisnasiz her is siraya girer, ust uste binmesin"."""
     d = char_dir(name)
     cfg = anims(name)
     tanim = cfg.get("clips") or {}
@@ -819,21 +899,24 @@ def render_manken(name: str, clips: list[str], dirs: list[str]) -> str:
     op_id = _op_new("char-manken", len(isler))
 
     def calis():
-        for i, (y, c) in enumerate(isler, 1):
-            cd = os.path.join(d, "anims", y, c)
-            os.makedirs(cd, exist_ok=True)
-            _op(op_id, message="manken %d/%d  %s/%s" % (i, len(isler), y, c))
-            try:
-                _manken_render(manken, cfg, tanim, c, cd, DIR_AZ.get(y, 0),
-                               log=lambda s, _y=y, _c=c: _op(op_id, message="%s/%s: %s" % (_y, _c, s)))
-            except Exception as e:
+        # #299: Blender render'i GPU isiyle ust uste binmesin diye tek serit.
+        with gpu_lane.hold("karakter manken: %s (%d)" % (name, len(isler)), kind="cpu",
+                           op_id=op_id, total=len(isler)):
+            for i, (y, c) in enumerate(isler, 1):
+                cd = os.path.join(d, "anims", y, c)
+                os.makedirs(cd, exist_ok=True)
+                _op(op_id, message="manken %d/%d  %s/%s" % (i, len(isler), y, c))
+                try:
+                    _manken_render(manken, cfg, tanim, c, cd, DIR_AZ.get(y, 0),
+                                   log=lambda s, _y=y, _c=c: _op(op_id, message="%s/%s: %s" % (_y, _c, s)))
+                except Exception as e:
+                    with _ops_lock:
+                        _ops[op_id]["failed"] += 1
+                    _op(op_id, done=i, log="%s/%s: %s" % (y, c, str(e)[:200]))
+                    continue
                 with _ops_lock:
-                    _ops[op_id]["failed"] += 1
-                _op(op_id, done=i, log="%s/%s: %s" % (y, c, str(e)[:200]))
-                continue
-            with _ops_lock:
-                _ops[op_id]["ok"] += 1
-            _op(op_id, done=i, log="%s/%s manken hazir" % (y, c))
+                    _ops[op_id]["ok"] += 1
+                _op(op_id, done=i, log="%s/%s manken hazir" % (y, c))
         _op(op_id, message="bitti")
 
     _run(op_id, calis)
@@ -898,7 +981,9 @@ def _animate_mixamo(name, y, d, ref, cfg, tanim, clips, n, padding) -> str:
     op_id = _op_new("char-animate", len(isler))
 
     def calis():
-        with gpu_lane.hold("karakter animasyon: %s/%s (%d)" % (name, y, len(isler)), kind="character"):
+        # #299: parti TEK bilet - icindeki ComfyUI grafikleri arka arkaya kosar.
+        with gpu_lane.hold("karakter animasyon: %s/%s (%d)" % (name, y, len(isler)),
+                           kind="character", op_id=op_id, total=len(isler)):
             for i, (c, _k) in enumerate(isler, 1):
                 cd = os.path.join(d, "anims", y, c)
                 os.makedirs(cd, exist_ok=True)
@@ -957,7 +1042,8 @@ def _animate_i2v(name, y, d, ref, isler, prompt, engine, padding) -> str:
                 _pad_edge(ref, pad_ref, padding)
                 job = G.submit(task, prompt or "the character performs a short looping motion",
                                prompt2=md["motion2"], negative=md["negative"],
-                               image_path=pad_ref, mode="character", client="character")
+                               image_path=pad_ref, mode="character",
+                               client="flow", category=name)   # #299: Sira kartinda karakter adi
                 out = _await_job(job["id"], op_id, "%s/%s %s" % (y, c, v))
                 shutil.copy(out, os.path.join(vd, "wan.mp4"))
                 _write_json(os.path.join(vd, "wan.json"), {
@@ -1090,7 +1176,8 @@ def sprites(name: str, y: str, clips: list[str] | None = None) -> str:
     op_id = _op_new("char-sprites", len(rows))
 
     def calis():
-        with gpu_lane.hold("karakter sprite: %s/%s (%d)" % (name, y, len(rows)), kind="character"):
+        with gpu_lane.hold("karakter sprite: %s/%s (%d)" % (name, y, len(rows)),
+                           kind="character", op_id=op_id, total=len(rows)):   # #299
             for i, r in enumerate(rows, 1):
                 cd = os.path.join(d, "anims", y, r["clip"])
                 wan = os.path.join(cd, r["accepted"], "wan.mp4")
@@ -1202,35 +1289,103 @@ Ayni Markdown yapisini KORU (ayni basliklar, ayni madde adlari). Bos ya da kisa 
 Hikaye 3-5 cumle olsun, klise olmasin. YALNIZ kartin son halini dondur, aciklama yazma."""
 
 
-def enrich_card(name: str, timeout: int = 300) -> str:
-    """#297: op doner - Ollama cagrisi ARKA PLANDA kosar. Senkron cagri tunelde
-    100 sn'de kesiliyordu, oneri istemciye hic ulasmiyordu (#298: onay penceresi
-    bu yuzden acilmiyordu). Sonuc op kaydinin 'result' alanina yazilir; istemci
-    /op/{id} ile bekler, metni onaylayip PUT card ile kaydeder."""
+# ------------------------------------------------- kart onerileri (#299)
+# #299: Ollama onerileri artik pop-up ile gelmiyor. Her oneri
+# <karakter>/card_proposals.json icinde durur; kullanici listeden birini secip
+# kabul eder (card.md'ye yazilir) ya da siler.
+PROPOSALS_FILE = "card_proposals.json"
+_prop_lock = threading.Lock()
+
+
+def _proposal_rows(d: str) -> list:
+    """#299: bir karakter KLASORUNDEKI oneriler (list_characters de kullanir)."""
+    rows = _read_json(os.path.join(d, PROPOSALS_FILE), [])
+    return [r for r in rows if isinstance(r, dict)] if isinstance(rows, list) else []
+
+
+def _proposals(name: str) -> list:
+    return _proposal_rows(char_dir(name))
+
+
+def _save_proposals(name: str, rows: list) -> None:
+    _write_json(os.path.join(char_dir(name), PROPOSALS_FILE), rows)   # tmp + replace
+
+
+def _add_proposal(name: str, text: str, model: str = "") -> str:
+    with _prop_lock:
+        rows = _proposals(name)
+        pid = uuid.uuid4().hex[:12]
+        rows.append({"id": pid, "created": datetime.now().isoformat(timespec="seconds"),
+                     "model": model or "", "card": text or "", "accepted": False})
+        _save_proposals(name, rows)
+    return pid
+
+
+def card_proposals(name: str) -> dict:
+    """#299: kayitli oneriler - en yenisi basta."""
+    return {"name": name, "proposals": list(reversed(_proposals(name)))}
+
+
+def accept_proposal(name: str, pid: str) -> dict:
+    """#299: oneriyi card.md'ye yazar; yalniz o oneri accepted=true kalir."""
+    with _prop_lock:
+        rows = _proposals(name)
+        hit = next((r for r in rows if r.get("id") == pid), None)
+        if hit is None:
+            raise ValueError("oneri yok: %s" % pid)
+        save_card(name, hit.get("card") or "")
+        for r in rows:
+            r["accepted"] = (r.get("id") == pid)
+        _save_proposals(name, rows)
+    return {"name": name, "id": pid, "card": hit.get("card") or ""}
+
+
+def delete_proposal(name: str, pid: str) -> dict:
+    with _prop_lock:
+        rows = _proposals(name)
+        kalan = [r for r in rows if r.get("id") != pid]
+        if len(kalan) != len(rows):
+            _save_proposals(name, kalan)
+    return {"deleted": len(rows) - len(kalan)}
+
+
+def enrich_card(name: str, n: int = 2, timeout: int = 300) -> str:
+    """#297/#299: op doner - Ollama ARKA PLANDA n oneri yazar (tunel 100 sn'de
+    kesmesin). Oneriler pop-up ile DEGIL, card_proposals.json'a yazilarak
+    saklanir; istemci listeden secip kabul eder. Op sonucu {"proposals":[id]}."""
     char_dir(name)                                  # karakter yoksa hemen 400
     if not JF.ollama_ready():
         raise ValueError("Ollama calismiyor (yerel gemma3 gerekiyor)")
-    op_id = _op_new("char-enrich", 1)
+    n = max(1, min(5, int(n or 1)))
+    op_id = _op_new("char-enrich", n)
 
     def calis():
-        _op(op_id, message="Ollama kart metnini yaziyor")
-        try:
-            res = _enrich_text(name, timeout)
-        except Exception as e:
+        ids = []
+        for i in range(1, n + 1):
+            _op(op_id, message="Ollama kart onerisi %d/%d" % (i, n))
+            try:
+                res = _enrich_text(name, timeout, op_id=op_id)
+            except Exception as e:
+                with _ops_lock:
+                    _ops[op_id]["failed"] += 1
+                _op(op_id, done=i, log=str(e)[:220])
+                continue
+            pid = _add_proposal(name, res.get("card") or "", res.get("model") or "")
+            ids.append(pid)
             with _ops_lock:
-                _ops[op_id]["failed"] += 1
-            _op(op_id, done=1, log=str(e)[:220])
-            raise                                   # _run status='error' + message
+                _ops[op_id]["ok"] += 1
+            _op(op_id, done=i, log="oneri %s (%d karakter)" % (pid, len(res.get("card") or "")))
         with _ops_lock:
-            _ops[op_id]["ok"] += 1
-            _ops[op_id]["result"] = res             # op_status dict(o) ile doner
-        _op(op_id, done=1, message="bitti")
+            _ops[op_id]["result"] = {"proposals": ids}   # op_status dict(o) ile doner
+        if not ids:
+            raise RuntimeError("hicbir oneri uretilemedi")
+        _op(op_id, message="bitti")
 
     _run(op_id, calis)
     return op_id
 
 
-def _enrich_text(name: str, timeout: int = 300) -> dict:
+def _enrich_text(name: str, timeout: int = 300, op_id: str = "") -> dict:
     """Kart metnini Ollama'ya yazdirir (diske YAZMAZ)."""
     if not JF.ollama_ready():
         raise ValueError("Ollama calismiyor (yerel gemma3 gerekiyor)")
@@ -1242,7 +1397,7 @@ def _enrich_text(name: str, timeout: int = 300) -> dict:
                 name=name, cls=m.get("class") or "-",
                 prompt=((m.get("prompt") or {}).get("combined") or (m.get("prompt") or {}).get("prompt") or "-")[:900],
                 card=cur or "(bos)")}]}
-    with gpu_lane.hold("karakter kart: %s" % name, kind="character"):
+    with gpu_lane.hold("karakter kart: %s" % name, kind="character", op_id=op_id):
         req = urllib.request.Request(url + "/api/chat", data=json.dumps(body).encode(),
                                      headers={"Content-Type": "application/json"})
         try:
@@ -1332,7 +1487,12 @@ def expand_prompt(name: str, y: str = "", text: str = "", mode: str = "i2v") -> 
     def calis():
         _op(op_id, message="Ollama %s onerisi yaziyor" % (mode or "i2v"))
         try:
-            res = _expand_prompt_sync(name, y, text, mode)
+            # #299: Ollama da GPU kullanir - seridi almadan kosmayacak.
+            with gpu_lane.hold("karakter prompt: %s" % name, kind="character", op_id=op_id):
+                try:
+                    res = _expand_prompt_sync(name, y, text, mode)
+                finally:
+                    JF.ollama_unload()
         except Exception as e:
             with _ops_lock:
                 _ops[op_id]["failed"] += 1
@@ -1348,7 +1508,7 @@ def expand_prompt(name: str, y: str = "", text: str = "", mode: str = "i2v") -> 
 
 
 def _expand_prompt_sync(name: str, y: str = "", text: str = "", mode: str = "i2v") -> dict:
-    """rev8: kisa istegi Ollama ile genisletir. gpu seridi ALMAZ."""
+    """rev8: kisa istegi Ollama ile genisletir. #299: seridi CAGIRAN alir."""
     m = meta(name)
     cfg = anims(name)
     if mode == "mixamo":

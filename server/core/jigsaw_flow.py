@@ -496,13 +496,15 @@ class _tag_batch:
     ComfyUI'nin modellerini bosalt, bitince Ollama modelini birak. Bulut
     etiketleyiciler (Gemini/Claude) GPU'ya dokunmaz, serit gerekmez."""
 
-    def __init__(self, agent: str, n: int):
+    def __init__(self, agent: str, n: int, op_id: str = ""):
         self.agent, self.n, self._cm = agent, n, None
+        self.op_id = op_id or ""                     # #299: Sira ekrani ilerleme icin
 
     def __enter__(self):
         if self.agent == "Ollama":
             from . import gpu_lane
-            self._cm = gpu_lane.hold("etiketleme (%d)" % self.n, kind="tag")
+            self._cm = gpu_lane.hold("etiketleme (%d)" % self.n, kind="tag",
+                                     op_id=self.op_id, total=self.n)
             self._cm.__enter__()
             G.free_comfy()
         return self
@@ -563,7 +565,7 @@ def stage_jobs(job_ids: list[str], rating: str, agent: str = "Gemini") -> str:
     def calis():
         os.makedirs(incoming, exist_ok=True)
         tum = G.list_jobs(limit=1000)
-        with _tag_batch(agent, len(job_ids)):
+        with _tag_batch(agent, len(job_ids), op_id):        # #299
             _stage_loop(job_ids, rating, agent, incoming, tum, op_id)
         _op(op_id, message="bitti")
 
@@ -647,7 +649,7 @@ def retag(rating: str, item_ids: list[str], agent: str = "Gemini",
     agent = resolve_agent(agent)
 
     def calis():
-        with _tag_batch(agent, len(item_ids)):
+        with _tag_batch(agent, len(item_ids), op_id):       # #299
             _retag_loop(item_ids, rating, stage, agent, ip, op_id)
         _op(op_id, message="bitti")
 
@@ -807,38 +809,42 @@ def accept(rating: str, item_ids: list[str], collection: str) -> str:
     op_id = _op_new("accept", len(item_ids))
 
     def calis():
+        from . import gpu_lane
         os.makedirs(hedef_dir, exist_ok=True)
-        for i, iid in enumerate(item_ids, 1):
-            jpg = item_path(rating, "incoming", iid, "image")
-            if not jpg:
-                _op(op_id, done=i, log="%s: bulunamadi" % iid)
-                with _ops_lock:
-                    _ops[op_id]["failed"] += 1
-                continue
-            n = next_number(rating, coll)
-            stem = os.path.splitext(jpg)[0]
-            try:
-                shutil.move(jpg, os.path.join(hedef_dir, "%d.jpg" % n))
-            except Exception as e:
-                with _ops_lock:
-                    _ops[op_id]["failed"] += 1
-                _op(op_id, done=i, log="%s tasinamadi: %s" % (iid, e))
-                continue
+        # #299: webp kodlamasi (ffmpeg) agir bir CPU partisidir - tek serit.
+        with gpu_lane.hold("kabul + webp (%d)" % len(item_ids), kind="cpu",
+                           op_id=op_id, total=len(item_ids)):
+            for i, iid in enumerate(item_ids, 1):
+                jpg = item_path(rating, "incoming", iid, "image")
+                if not jpg:
+                    _op(op_id, done=i, log="%s: bulunamadi" % iid)
+                    with _ops_lock:
+                        _ops[op_id]["failed"] += 1
+                    continue
+                n = next_number(rating, coll)
+                stem = os.path.splitext(jpg)[0]
+                try:
+                    shutil.move(jpg, os.path.join(hedef_dir, "%d.jpg" % n))
+                except Exception as e:
+                    with _ops_lock:
+                        _ops[op_id]["failed"] += 1
+                    _op(op_id, done=i, log="%s tasinamadi: %s" % (iid, e))
+                    continue
 
-            mp4 = stem + ".mp4"
-            if os.path.isfile(mp4):
-                shutil.move(mp4, os.path.join(hedef_dir, "%d.mp4" % n))
-                ok, err = G._encode_webp(os.path.join(hedef_dir, "%d.mp4" % n),
-                                         os.path.join(hedef_dir, "%d.webp" % n))
-                if not ok:
-                    _op(op_id, log="%d.webp uretilemedi: %s" % (n, err[:120]))
-            js = stem + ".json"
-            if os.path.isfile(js):
-                shutil.move(js, os.path.join(hedef_dir, "%d.json" % n))
-            with _ops_lock:
-                _ops[op_id]["ok"] += 1
-            _op(op_id, done=i, message="%s -> %s/%d" % (iid, coll, n),
-                log="%s -> %s/%d" % (iid, coll, n))
+                mp4 = stem + ".mp4"
+                if os.path.isfile(mp4):
+                    shutil.move(mp4, os.path.join(hedef_dir, "%d.mp4" % n))
+                    ok, err = G._encode_webp(os.path.join(hedef_dir, "%d.mp4" % n),
+                                             os.path.join(hedef_dir, "%d.webp" % n))
+                    if not ok:
+                        _op(op_id, log="%d.webp uretilemedi: %s" % (n, err[:120]))
+                js = stem + ".json"
+                if os.path.isfile(js):
+                    shutil.move(js, os.path.join(hedef_dir, "%d.json" % n))
+                with _ops_lock:
+                    _ops[op_id]["ok"] += 1
+                _op(op_id, done=i, message="%s -> %s/%d" % (iid, coll, n),
+                    log="%s -> %s/%d" % (iid, coll, n))
 
     _run(op_id, calis)
     return op_id
@@ -1031,7 +1037,7 @@ def make_music(rating: str, collections: list[str], tags: str = "",
                 _op(op_id, done=i, log="%s atlandi (muzigi zaten var)" % c)
                 continue
             _op(op_id, message="%s icin muzik uretiliyor (%d/%d)" % (c, i, len(collections)))
-            yol, err = MZ.generate(d, c, tags=tags, seconds=seconds,
+            yol, err = MZ.generate(d, c, tags=tags, seconds=seconds, op_id=op_id,   # #299
                                    log=lambda s, c=c: _op(op_id, log="%s: %s" % (c, s)))
             with _ops_lock:
                 _ops[op_id]["ok" if yol else "failed"] += 1
@@ -1139,16 +1145,20 @@ def webp_missing(rating: str, collection: str = "") -> str:
     op_id = _op_new("webp", len(eksik))
 
     def calis():
-        for i, oge in enumerate(eksik, 1):
-            jpg = item_path(rating, "staging", oge["id"], "image")
-            if not jpg:
-                continue
-            stem = os.path.splitext(jpg)[0]
-            ok, err = G._encode_webp(stem + ".mp4", stem + ".webp")
-            with _ops_lock:
-                _ops[op_id]["ok" if ok else "failed"] += 1
-            _op(op_id, done=i, log=("+ %s.webp" % oge["stem"]) if ok
-                else ("%s: %s" % (oge["stem"], err[:120])))
+        from . import gpu_lane
+        # #299: ffmpeg webp partisi de siraya girer (CPU serit bileti).
+        with gpu_lane.hold("webp (%d)" % len(eksik), kind="cpu",
+                           op_id=op_id, total=len(eksik)):
+            for i, oge in enumerate(eksik, 1):
+                jpg = item_path(rating, "staging", oge["id"], "image")
+                if not jpg:
+                    continue
+                stem = os.path.splitext(jpg)[0]
+                ok, err = G._encode_webp(stem + ".mp4", stem + ".webp")
+                with _ops_lock:
+                    _ops[op_id]["ok" if ok else "failed"] += 1
+                _op(op_id, done=i, log=("+ %s.webp" % oge["stem"]) if ok
+                    else ("%s: %s" % (oge["stem"], err[:120])))
 
     _run(op_id, calis)
     return op_id

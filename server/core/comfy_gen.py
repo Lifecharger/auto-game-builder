@@ -965,7 +965,8 @@ def _dispatcher() -> None:
         try:
             if args:
                 from . import gpu_lane
-                with gpu_lane.hold("uretim: %s" % job["task"], kind="comfy"):
+                # #299: bilet isin id'sini tasir - Sira ekrani ilerlemeyi eslestirir.
+                with gpu_lane.hold("uretim: %s" % job["task"], kind="comfy", job_id=job_id):
                     _run_job(job_id, job["task"], args)
         except Exception as e:  # noqa: BLE001 - dispatcher asla olmemeli
             print("[comfy_gen] dispatcher hatasi: %s" % e)

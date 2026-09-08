@@ -6016,6 +6016,17 @@ def gpu_queue():
     return gpu_lane.status()
 
 
+@app.get("/api/queue")
+def unified_queue():
+    """#299: TEK Sira ekrani. Serit biletleri (op ilerlemesi eklenmis) +
+    comfy_gen kuyrugunda bekleyen isler tek govdede:
+    {"running": bilet|null, "waiting": [bilet], "comfy_pending": [is],
+     "depth": int, "recent": [bilet]}. Bilet: {id,kind,label,op_id,job_id,
+     total,queued_at,...,"op":{done,total,message,...}|null,"job":{...}|null}."""
+    from core import queue_view
+    return queue_view.snapshot()
+
+
 @app.get("/api/cbn/profiles")
 def cbn_profiles():
     return _flow_call(_cbn().profiles)
@@ -6238,6 +6249,17 @@ class CharacterSettingsRequest(BaseModel):
     sprite_canvas: int | None = None
 
 
+class CharacterEnrichRequest(BaseModel):
+    """#299: kart zenginlestirme - n oneri uretilir, oneriler diske yazilir."""
+    name: str
+    n: int = 2
+
+
+class CharacterProposalRequest(BaseModel):
+    name: str
+    id: str
+
+
 @app.get("/api/character/profiles")
 def character_profiles():
     """Dropdown profilleri + sinif presetleri + kutuphane koku + 8 yon."""
@@ -6393,12 +6415,31 @@ def character_flow_settings(body: CharacterSettingsRequest):
 
 
 @app.post("/api/character/flow/card/enrich")
-def character_flow_card_enrich(body: CharacterCardRequest):
-    """#297: op doner ({"op": id}) - Ollama arka planda kosar, tunel 100 sn'de
-    kesmesin. Onerilen metin op kaydinin "result" alanindadir
-    ({"card","model","current"}); istemci /op/{id} ile bekler, onaylayinca
-    PUT card ile kaydeder (diske BURADA yazilmaz)."""
-    return {"op": _flow_call(_char().enrich_card, body.name)}
+def character_flow_card_enrich(body: CharacterEnrichRequest):
+    """#297/#299: op doner ({"op": id}) - Ollama arka planda n oneri yazar.
+    Oneriler ARTIK POP-UP ILE GELMIYOR: her biri card_proposals.json'a duser,
+    op sonucu {"proposals": [id]}. Istemci listeden secip accept eder."""
+    return {"op": _flow_call(_char().enrich_card, body.name, body.n)}
+
+
+@app.get("/api/character/flow/card/proposals")
+def character_flow_card_proposals(name: str):
+    """#299: {"name", "proposals": [{id, created, model, card, accepted}]} -
+    en yenisi basta."""
+    return _flow_call(_char().card_proposals, name)
+
+
+@app.post("/api/character/flow/card/proposals/accept")
+def character_flow_card_proposal_accept(body: CharacterProposalRequest):
+    """#299: oneriyi card.md'ye yazar -> {"name", "id", "card"}."""
+    return _flow_call(_char().accept_proposal, body.name, body.id)
+
+
+@app.delete("/api/character/flow/card/proposal")
+async def character_flow_card_proposal_delete(request: Request, name: str = "", id: str = ""):
+    """#299: oneriyi siler -> {"deleted": 0|1}."""
+    b = await _json_body(request)
+    return _flow_call(_char().delete_proposal, name or b.get("name", ""), id or b.get("id", ""))
 
 
 class CharacterExpandRequest(BaseModel):

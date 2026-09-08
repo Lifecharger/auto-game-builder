@@ -70,6 +70,8 @@ class CharacterItem {
   final Map<String, List<String>> dirCandidates;
   /// character.json'daki yastiklama varsayilani (0 .. 0.3).
   final double padding;
+  /// #299: bekleyen hikaye onerisi sayisi (card_proposals.json).
+  final int proposals;
 
   const CharacterItem({
     required this.name,
@@ -84,6 +86,7 @@ class CharacterItem {
     this.candidates = const [],
     this.dirCandidates = const {},
     this.padding = 0,
+    this.proposals = 0,
   });
 
   factory CharacterItem.fromJson(Map<String, dynamic> j) {
@@ -149,6 +152,11 @@ class CharacterItem {
       candidates: list,
       dirCandidates: dirCand,
       padding: ((j['padding'] as num?) ?? 0).toDouble().clamp(0.0, 0.3),
+      // #299: sunucu sayi yerine liste gonderirse uzunlugu alinir, hic
+      // gondermiyorsa 0.
+      proposals: j['proposals'] is num
+          ? (j['proposals'] as num).toInt()
+          : (j['proposals'] is List ? (j['proposals'] as List).length : 0),
     );
   }
 
@@ -172,6 +180,68 @@ class CharacterItem {
     if (e is String) return e;
     if (e is Map) return '${e['rel'] ?? e['file'] ?? e['name'] ?? ''}';
     return '';
+  }
+}
+
+/// #299: card.md icin bekleyen bir Ollama onerisi. Oneriler sunucuda
+/// `card_proposals.json`da durur; kullanici birini kabul edene kadar card.md
+/// degismez (eskiden onay penceresiyle sorulurdu).
+class CardProposal {
+  final String id;
+  final String created;   // ISO
+  final String model;     // orn. gemma3:12b
+  final String card;      // markdown
+  final bool accepted;
+  const CardProposal({
+    required this.id,
+    required this.created,
+    required this.model,
+    required this.card,
+    required this.accepted,
+  });
+
+  factory CardProposal.fromJson(Map<String, dynamic> j) => CardProposal(
+        id: '${j['id'] ?? ''}',
+        created: '${j['created'] ?? j['created_at'] ?? ''}',
+        model: '${j['model'] ?? ''}',
+        card: '${j['card'] ?? j['text'] ?? j['md'] ?? ''}',
+        accepted: j['accepted'] == true,
+      );
+
+  /// Baslikta gosterilen kisa tarih - `dd.MM HH:mm` (yerel saat).
+  String get whenLabel {
+    final t = DateTime.tryParse(created)?.toLocal();
+    if (t == null) return created;
+    String p(int v) => v.toString().padLeft(2, '0');
+    return '${p(t.day)}.${p(t.month)} ${p(t.hour)}:${p(t.minute)}';
+  }
+
+  /// Kapali kartta gosterilen ozet: "Hikaye" maddesinin ilk satiri, yoksa
+  /// baslik olmayan ilk satir.
+  String get headline {
+    final satirlar = card
+        .split('\n')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+    final temizle = RegExp(r'^[#\-*>\s]+');
+    var bekle = false;            // "Hikaye" basligi gorundu, govde sonraki satir
+    for (final s in satirlar) {
+      final d = s.replaceFirst(temizle, '').trim();
+      if (d.isEmpty) continue;
+      if (bekle) return d;
+      if (d.toLowerCase().startsWith('hikaye')) {
+        final k = d.indexOf(':');
+        final t = k >= 0 ? d.substring(k + 1).trim() : '';
+        if (t.isNotEmpty) return t;
+        bekle = true;
+      }
+    }
+    for (final s in satirlar) {
+      final d = s.replaceFirst(temizle, '').trim();
+      if (d.isNotEmpty) return d;
+    }
+    return '(bos metin)';
   }
 }
 
@@ -661,23 +731,35 @@ class CharacterFlowService {
   static Future<String> portrait({required String name, required int n}) async =>
       '${(await _post('/api/character/flow/portrait', {'name': name, 'n': n}))['op']}';
 
-  /// card.md'yi yerel Ollama ile zenginlestirir. Onerilen metni DONER -
-  /// kaydetmez; kullanici onaylayinca `saveCard` yazar.
-  /// #297/#298: sunucu {"op": id} doner ve Ollama arka planda kosar; metin
-  /// beklenmeden donmedigi icin onay penceresi hic acilmiyordu. Burada op
-  /// bitene kadar beklenir, hata durumunda sunucunun mesaji atilir.
-  static Future<String> enrichCard(String name) async {
-    var d = await _post('/api/character/flow/card/enrich', {'name': name});
-    final opId = '${d['op'] ?? ''}';
-    if (opId.isNotEmpty) {
-      d = await _awaitOp(opId, hata: 'Kart zenginlestirilemedi');
-    }
-    for (final k in ['card', 'text', 'md', 'content', 'proposal']) {
-      final v = d[k];
-      if (v is String && v.isNotEmpty) return v;
-    }
-    throw Exception('Ollama bos cevap dondu');
+  /// card.md icin n oneri uretir (yerel Ollama). #299: artik metin beklenmez -
+  /// OP KIMLIGI doner, oneriler sunucuda `card_proposals.json`a yazilir ve
+  /// ekranda listelenir; kart yalniz `acceptProposal` ile degisir.
+  static Future<String> enrichCard(String name, {int n = 2}) async =>
+      '${(await _post('/api/character/flow/card/enrich',
+          {'name': name, 'n': n}))['op']}';
+
+  /// #299: bekleyen oneriler (yeniden eskiye).
+  static Future<List<CardProposal>> cardProposals(String name) async {
+    final d = await _getAny(
+        '/api/character/flow/card/proposals?name=${Uri.encodeQueryComponent(name)}');
+    return _rows(d, const ['proposals', 'items'])
+        .map(CardProposal.fromJson)
+        .where((p) => p.id.isNotEmpty)
+        .toList();
   }
+
+  /// #299: oneriyi kabul eder - sunucu card.md'yi yazar, yeni metni doner.
+  static Future<String> acceptProposal(String name, String id) async {
+    final d = await _post(
+        '/api/character/flow/card/proposals/accept', {'name': name, 'id': id});
+    return '${d['card'] ?? ''}';
+  }
+
+  /// #299: oneriyi siler (card.md'ye dokunmaz).
+  static Future<void> deleteProposal(String name, String id) => _delete(
+      '/api/character/flow/card/proposal?name=${Uri.encodeQueryComponent(name)}'
+      '&id=${Uri.encodeQueryComponent(id)}',
+      const {});
 
   /// Bir klibin o yondeki butun surumlerini siler.
   static Future<void> deleteClip(

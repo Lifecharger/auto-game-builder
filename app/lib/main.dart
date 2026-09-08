@@ -8,6 +8,7 @@ import 'services/app_state.dart';
 import 'services/auth_service.dart';
 import 'services/cache_service.dart';
 import 'services/event_service.dart';
+import 'services/generate_service.dart' show QueueService;
 import 'services/locale_service.dart';
 import 'services/mode_service.dart';
 import 'services/theme_service.dart';
@@ -351,24 +352,36 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
         onTap: _switchTab,
         type: BottomNavigationBarType.fixed,
         items: _assetMode
-            ? const [
-                BottomNavigationBarItem(
+            ? [
+                const BottomNavigationBarItem(
                   icon: Icon(Icons.auto_awesome),
                   label: 'Uretim',
                 ),
                 BottomNavigationBarItem(
-                  icon: Icon(Icons.playlist_play),
+                  // #299: butun isler tek sunucu sirasina girer - rozet
+                  // sirada kac is oldugunu gosterir (dinleyen varken 5 sn'de
+                  // bir sorulur, Asset Mod disinda ag trafigi olmaz).
+                  icon: ValueListenableBuilder<int>(
+                    valueListenable: QueueService.depth,
+                    builder: (_, derinlik, child) => Badge(
+                      isLabelVisible: derinlik > 0,
+                      label: Text('$derinlik',
+                          style: const TextStyle(fontSize: 10)),
+                      child: child,
+                    ),
+                    child: const Icon(Icons.playlist_play),
+                  ),
                   label: 'Sira',
                 ),
-                BottomNavigationBarItem(
+                const BottomNavigationBarItem(
                   icon: Icon(Icons.photo_library),
                   label: 'Uretilenler',
                 ),
-                BottomNavigationBarItem(
+                const BottomNavigationBarItem(
                   icon: Icon(Icons.conveyor_belt),
                   label: 'Hat',
                 ),
-                BottomNavigationBarItem(
+                const BottomNavigationBarItem(
                   icon: Icon(Icons.settings),
                   label: 'Ayarlar',
                 ),

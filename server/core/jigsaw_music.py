@@ -119,7 +119,7 @@ def next_music_path(coll_dir: str, coll: str) -> str:
 
 
 def generate(coll_dir: str, coll: str, tags: str = "", seconds: float = SANIYE,
-             seed: int | None = None, timeout: int = 1800,
+             seed: int | None = None, timeout: int = 1800, op_id: str = "",
              log=lambda s: None) -> tuple[str | None, str]:
     """Bir koleksiyon icin mp3 uretir. Doner: (yol, hata)."""
     ok, hata = model_ready()
@@ -132,7 +132,7 @@ def generate(coll_dir: str, coll: str, tags: str = "", seconds: float = SANIYE,
     seed = seed if seed is not None else random.randint(1, 2 ** 31)
     log("tags: %s" % tags[:150])
     from . import gpu_lane
-    with gpu_lane.hold("muzik: %s" % coll, kind="music"):
+    with gpu_lane.hold("muzik: %s" % coll, kind="music", op_id=op_id):   # #299
         return _generate_locked(coll_dir, coll, tags, seconds, seed, timeout, log)
 
 

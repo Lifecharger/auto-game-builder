@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import 'api_service.dart';
@@ -465,5 +467,165 @@ class GenerateService {
       written: ((d['written'] ?? []) as List).map((e) => e.toString()).toList(),
       warnings: ((d['warnings'] ?? []) as List).map((e) => e.toString()).toList(),
     );
+  }
+}
+
+// --------------------------------------------------------------------- #299
+// Birlesik sira: comfy uretimi, karakter isleri, etiketleme, CBN, muzik...
+// hepsi sunucuda TEK sirali kuyruga girer. Kullanici artik is bittiginde
+// hangi ekranda oldugunu dert etmez - Sira sekmesi her seyi gosterir.
+
+/// Kuyruktaki tek bir is. Sunucu alan gondermezse hepsi bos/0 kalir.
+class QueueTicket {
+  const QueueTicket({
+    required this.id,
+    required this.label,
+    required this.kind,
+    this.queuedAt = '',
+    this.startedAt = '',
+    this.runningSeconds = 0,
+    this.waitedSeconds = 0,
+    this.opId = '',
+    this.jobId = '',
+    this.total = 0,
+    this.done = 0,
+    this.message = '',
+  });
+
+  final String id;
+  final String label;
+  /// comfy | character | tag | cbn | music | cpu | gpu
+  final String kind;
+  final String queuedAt;
+  final String startedAt;
+  final double runningSeconds;
+  final double waitedSeconds;
+  final String opId;      // akis op'u varsa (karakter/CBN/etiket/muzik)
+  final String jobId;     // comfy isi varsa
+  final int total;
+  final int done;
+  final String message;
+
+  static double _d(dynamic v) => (v is num) ? v.toDouble() : 0;
+
+  factory QueueTicket.fromJson(Map<String, dynamic> j) => QueueTicket(
+        id: '${j['id'] ?? ''}',
+        label: '${j['label'] ?? ''}',
+        kind: '${j['kind'] ?? ''}',
+        queuedAt: '${j['queued_at'] ?? ''}',
+        startedAt: '${j['started_at'] ?? ''}',
+        runningSeconds: _d(j['running_seconds']),
+        waitedSeconds: _d(j['waited_seconds']),
+        opId: '${j['op_id'] ?? ''}',
+        jobId: '${j['job_id'] ?? ''}',
+        total: (j['total'] is num) ? (j['total'] as num).toInt() : 0,
+        done: (j['done'] is num) ? (j['done'] as num).toInt() : 0,
+        message: '${j['message'] ?? ''}',
+      );
+
+  /// Op ilerlemesi (yoksa null - belirsiz cubuk).
+  double? get progress =>
+      total > 0 ? (done / total).clamp(0, 1).toDouble() : null;
+
+  /// Calisiyorsa gecen sure, bekliyorsa bekleme suresi.
+  String get elapsedLabel {
+    final sn = (runningSeconds > 0 ? runningSeconds : waitedSeconds).round();
+    if (sn <= 0) return '';
+    if (sn < 60) return '$sn sn';
+    final dk = sn ~/ 60;
+    if (dk < 60) return '$dk dk ${(sn % 60).toString().padLeft(2, '0')} sn';
+    return '${dk ~/ 60} sa ${(dk % 60).toString().padLeft(2, '0')} dk';
+  }
+}
+
+/// `/api/queue` cevabi: calisan is + bekleyenler + comfy is kartlari.
+class UnifiedQueue {
+  const UnifiedQueue({
+    this.running,
+    required this.waiting,
+    required this.comfyPending,
+    required this.depth,
+  });
+
+  final QueueTicket? running;
+  final List<QueueTicket> waiting;
+  /// Comfy tarafinin bekleyen isleri - tasima/iptal bunlar uzerinden yapilir.
+  final List<GenerateJob> comfyPending;
+  final int depth;
+
+  bool get isEmpty =>
+      running == null && waiting.isEmpty && comfyPending.isEmpty;
+
+  static List<Map<String, dynamic>> _list(dynamic v) => v is List
+      ? v.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList()
+      : const [];
+
+  factory UnifiedQueue.fromJson(Map<String, dynamic> j) => UnifiedQueue(
+        running: j['running'] is Map
+            ? QueueTicket.fromJson(Map<String, dynamic>.from(j['running'] as Map))
+            : null,
+        waiting: _list(j['waiting']).map(QueueTicket.fromJson).toList(),
+        comfyPending: _list(j['comfy_pending']).map(GenerateJob.fromJson).toList(),
+        depth: (j['depth'] is num) ? (j['depth'] as num).toInt() : 0,
+      );
+}
+
+/// Birlesik sirayi okur ve alt sekmedeki rozeti besler.
+class QueueService {
+  /// `/api/queue`. Eski sunucuda uc yoksa (404) NULL doner - cagiran eski
+  /// `/api/generate/queue` ucuna duser, ekran calismaya devam eder.
+  static Future<UnifiedQueue?> unified() async {
+    final r = await http
+        .get(Uri.parse('${ApiService.baseUrl}/api/queue'),
+            headers: GenerateService._headers)
+        .timeout(GenerateService._timeout);
+    if (r.statusCode == 404) return null;
+    if (r.statusCode != 200) GenerateService._fail(r, 'Sira okunamadi');
+    return UnifiedQueue.fromJson(
+        jsonDecode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>);
+  }
+
+  /// Alt sekmedeki rozet. Dinleyen oldugu surece 5 sn'de bir sorar - Sira
+  /// sekmesi gorunmuyorsa ag trafigi yoktur.
+  static final QueueDepthNotifier depth = QueueDepthNotifier._();
+}
+
+class QueueDepthNotifier extends ValueNotifier<int> {
+  QueueDepthNotifier._() : super(0);
+
+  Timer? _timer;
+
+  @override
+  void addListener(VoidCallback listener) {
+    super.addListener(listener);
+    if (_timer != null) return;
+    _timer = Timer.periodic(const Duration(seconds: 5), (_) => refresh());
+    refresh();
+  }
+
+  @override
+  void removeListener(VoidCallback listener) {
+    super.removeListener(listener);
+    if (!hasListeners) {
+      _timer?.cancel();
+      _timer = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _timer = null;
+    super.dispose();
+  }
+
+  Future<void> refresh() async {
+    try {
+      final u = await QueueService.unified();
+      final d = u?.depth ?? (await GenerateService.queue()).depth;
+      if (d != value) value = d;
+    } catch (_) {
+      // sunucu kapali / tunel yok - rozet oldugu gibi kalir
+    }
   }
 }

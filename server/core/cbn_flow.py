@@ -325,9 +325,22 @@ def stage_jobs(job_ids: list[str], rating: str, agent: str = "Gemini") -> str:
     etiketler; basarili isler galeriden silinir."""
     incoming = paths(rating)["incoming"]
     op_id = _op_new("cbn-stage", len(job_ids))
+    agent = JF.resolve_agent(agent)      # #299: Gemini yoksa Ollama/Claude
 
     def calis():
         os.makedirs(incoming, exist_ok=True)
+        # #299: Ollama ile etiketlenecekse parti GPU seridinden gecer
+        # (jigsaw_flow.stage_jobs ile ayni kural - eskiden serit alinmiyordu).
+        with JF._tag_batch(agent, len(job_ids), op_id):
+            _stage_loop(job_ids, rating, agent, incoming, op_id)
+        _op(op_id, message="bitti")
+
+    _run(op_id, calis)
+    return op_id
+
+
+def _stage_loop(job_ids, rating, agent, incoming, op_id):
+    if True:
         for i, jid in enumerate(job_ids, 1):
             j = G.get_job(jid)
             src = G.job_file(jid) if j else None
@@ -363,10 +376,6 @@ def stage_jobs(job_ids: list[str], rating: str, agent: str = "Gemini") -> str:
                 G.delete_job(jid)
             except Exception:
                 pass
-        _op(op_id, message="bitti")
-
-    _run(op_id, calis)
-    return op_id
 
 
 def retag(rating: str, item_ids: list[str], agent: str = "Gemini") -> str:
@@ -424,7 +433,8 @@ def _batch(rating: str, item_ids: list[str], kind: str, label: str, needs_gpu: b
                     _ops[op_id]["ok"] += 1
                 _op(op_id, done=i, log="%s %s" % (iid[:8], bilgi))
         if needs_gpu:
-            with gpu_lane.hold("%s (%d)" % (label, len(item_ids)), kind="cbn"):
+            with gpu_lane.hold("%s (%d)" % (label, len(item_ids)), kind="cbn",
+                               op_id=op_id, total=len(item_ids)):        # #299
                 run()
         else:
             run()
@@ -584,13 +594,25 @@ def _build_from_work(rating: str, jpg: str, work: str, dest: str, log) -> dict:
 
 
 def build(rating: str, item_ids: list[str], collection: str) -> str:
-    """Asama D: bolgele + varlik yaz (CPU; GPU seridi gerekmez). SAM (ve hot'ta
-    cizgi) asamalari onceden yapilmis olmali."""
+    """Asama D: bolgele + varlik yaz. SAM (ve hot'ta cizgi) asamalari onceden
+    yapilmis olmali. #299: agir CPU partisi oldugu icin seridi ALIR."""
     coll = resolve_collection(rating, collection)
     p = paths(rating)
     op_id = _op_new("cbn-build", len(item_ids))
 
     def calis():
+        # #299: bolgeleme agir bir CPU partisidir - GPU isiyle ust uste binmesin.
+        with gpu_lane.hold("cbn insa (%d)" % len(item_ids), kind="cpu",
+                           op_id=op_id, total=len(item_ids)):
+            _build_loop(rating, coll, p, item_ids, op_id)
+        _op(op_id, message="bitti")
+
+    _run(op_id, calis)
+    return op_id
+
+
+def _build_loop(rating, coll, p, item_ids, op_id):
+    if True:
         for i, iid in enumerate(item_ids, 1):
             jpg = item_path(rating, "incoming", iid, "image")
             if not jpg:
@@ -640,10 +662,6 @@ def build(rating: str, item_ids: list[str], collection: str) -> str:
                 _ops[op_id]["ok"] += 1
             _op(op_id, done=i, log="%s -> %s/%d  %s bolge, %s renk, %s" % (
                 iid[:8], coll, n, m.get("regions"), m.get("colors"), m.get("verdict", "").upper()))
-        _op(op_id, message="bitti")
-
-    _run(op_id, calis)
-    return op_id
 
 
 # ------------------------------------------------------------------ 3 -> 4

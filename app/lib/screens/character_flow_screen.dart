@@ -533,6 +533,8 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
 
   // 1 Karakter
   String? _candidate;
+  /// #299: card.md icin bekleyen Ollama onerileri - pop-up yerine liste.
+  List<CardProposal> _proposals = [];
 
   // 2 Yon
   int _dirCount = 2;
@@ -603,6 +605,9 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
           _candidate = null;
         }
       });
+      // #299: oneriler de her tazelemede yenilenir (enrich op'u bitince
+      // _watch zaten _load cagirir).
+      await _loadProposals();
       if (_animDir != null) await _loadClips(_animDir!);
     } catch (e) {
       if (!mounted) return;
@@ -610,6 +615,18 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
         _error = e.toString().replaceFirst('Exception: ', '');
         _loading = false;
       });
+    }
+  }
+
+  /// #299: bekleyen hikaye onerilerini ceker. Eski sunucuda uc yoksa bolum
+  /// bos kalir - akis bozulmaz.
+  Future<void> _loadProposals() async {
+    try {
+      final p = await CharacterFlowService.cardProposals(_name);
+      if (!mounted) return;
+      setState(() => _proposals = p);
+    } catch (_) {
+      // sunucu ucu yok / gecici hata - liste oldugu gibi kalir
     }
   }
 
@@ -663,11 +680,16 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
   }
 
-  Future<void> _run(String ad, Future<String> Function() f) async {
+  /// #299: is artik tek sunucu sirasina girer. Kullanici bu ekranda beklemek
+  /// zorunda degil - snack Sira sekmesine yollar, ust cubuk yine doner.
+  /// `adet` biliniyorsa kac is sirayaya girdigi yazilir.
+  Future<void> _run(String ad, Future<String> Function() f, {int adet = 0}) async {
     try {
       final op = await f();
       _watch(op);
-      _snack('$ad basladi - ilerleme ustte');
+      _snack(adet > 0
+          ? '$ad siraya eklendi ($adet is) - Sira sekmesinden izle'
+          : '$ad siraya eklendi - Sira sekmesinden izle');
     } catch (e) {
       _snack(e.toString().replaceFirst('Exception: ', ''));
     }
@@ -803,10 +825,14 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
           ],
         ),
         const SizedBox(height: 4),
+        // #299: oneri artik pop-up degil - asagidaki listeye duser.
         const Text(
-            'Zenginlestirme yerel Ollama ile calisir; onerilen metni '
-            'onaylamadan kart degismez.',
+            'Zenginlestirme yerel Ollama ile calisir; oneriler asagida '
+            'listelenir, birini kabul edince kart degisir.',
             style: TextStyle(fontSize: 11, color: Colors.grey)),
+        // #299: "Hikaye onerileri" bolumu - zenginlestir dugmesinin hemen alti.
+        const SizedBox(height: 12),
+        _proposalsSection(),
         // #295: yastiklama secici buradan kaldirildi - asil yeri 3 Animasyon
         // sekmesindeki uretim panelleri (uretimden HEMEN once sorulur).
         const SizedBox(height: 14),
@@ -868,6 +894,108 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
     );
   }
 
+  // ------------------------------------------------- #299 hikaye onerileri
+  /// Ollama onerileri listesi. Her oneri acilir bir kart: baslikta tarih,
+  /// model ve hikayenin ilk satiri; icinde tam metin + Kabul et / Sil.
+  Widget _proposalsSection() => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+              _proposals.isEmpty
+                  ? 'Hikaye onerileri'
+                  : 'Hikaye onerileri (${_proposals.length})',
+              style: const TextStyle(
+                  fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+          const SizedBox(height: 6),
+          if (_proposals.isEmpty)
+            const Text('Oneri yok - Hikayeyi zenginlestir ile 2 oneri uretilir.',
+                style: TextStyle(fontSize: 12, color: Colors.grey))
+          else
+            for (final p in _proposals) ...[
+              _proposalCard(p),
+              const SizedBox(height: 8),
+            ],
+        ],
+      );
+
+  Widget _proposalCard(CardProposal p) => Card(
+        margin: EdgeInsets.zero,
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 12),
+          childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+          title: Text(p.headline,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 13)),
+          subtitle: Row(
+            children: [
+              Expanded(
+                child: Text(
+                    '${p.whenLabel}${p.model.isEmpty ? "" : "  -  ${p.model}"}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 11, color: Colors.grey)),
+              ),
+              if (p.accepted)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Text('Kabul edildi',
+                      style: TextStyle(fontSize: 10, color: Colors.green)),
+                ),
+            ],
+          ),
+          children: [
+            SelectableText(p.card, style: const TextStyle(fontSize: 12)),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: p.accepted ? null : () => _acceptProposal(p),
+                    icon: const Icon(Icons.check, size: 18),
+                    label: const Text('Kabul et'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _deleteProposal(p),
+                    icon: Icon(Icons.delete_outline,
+                        size: 18, color: AppColors.error),
+                    label: Text('Sil',
+                        style: TextStyle(color: AppColors.error)),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+
+  Future<void> _acceptProposal(CardProposal p) async {
+    try {
+      await CharacterFlowService.acceptProposal(_name, p.id);
+      _snack('Kart kaydedildi');
+      await _load();          // karakter + oneri listesi tazelenir
+    } catch (e) {
+      _snack(e.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
+  Future<void> _deleteProposal(CardProposal p) async {
+    try {
+      await CharacterFlowService.deleteProposal(_name, p.id);
+      await _loadProposals();
+    } catch (e) {
+      _snack(e.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
   Widget _portraitRow(CharacterItem it) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -885,7 +1013,8 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
                 child: OutlinedButton.icon(
                   onPressed: () => _run(
                       'Portre uretimi',
-                      () => CharacterFlowService.portrait(name: _name, n: _dirCount)),
+                      () => CharacterFlowService.portrait(name: _name, n: _dirCount),
+                      adet: _dirCount),
                   icon: const Icon(Icons.face_retouching_natural, size: 18),
                   label: Text('Portre uret ($_dirCount)',
                       maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -1040,23 +1169,11 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
     await _cardDialog('card.md', metin);
   }
 
-  /// Ollama onerisini gosterir; kullanici onaylarsa card.md'ye yazar.
-  Future<void> _enrichCard() async {
-    _snack('Ollama calisiyor...');
-    String oneri;
-    try {
-      oneri = await CharacterFlowService.enrichCard(_name);
-    } catch (e) {
-      _snack(e.toString().replaceFirst('Exception: ', ''));
-      return;
-    }
-    if (!mounted) return;
-    if (oneri.isEmpty) {
-      _snack('Sunucudan oneri gelmedi');
-      return;
-    }
-    await _cardDialog('Ollama onerisi - onayla', oneri);
-  }
+  /// #299: 2 oneri uretir. Pop-up YOKTUR - is sunucu sirasina girer, op
+  /// cubugu ustte doner, biten oneriler asagidaki listeye duser.
+  Future<void> _enrichCard() =>
+      _run('Hikaye onerisi', () => CharacterFlowService.enrichCard(_name, n: 2),
+          adet: 2);
 
   Future<void> _cardDialog(String baslik, String metin) async {
     final ctl = TextEditingController(text: metin);
@@ -1126,7 +1243,8 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
                   () => CharacterFlowService.dirs(
                       name: _name,
                       dirs: eksik.map((d) => d.id).toList(),
-                      n: _dirCount)),
+                      n: _dirCount),
+                  adet: eksik.length * _dirCount),
           icon: const Icon(Icons.blur_circular, size: 18),
           label: Text(eksik.isEmpty
               ? 'Butun yonler secili'
@@ -1225,7 +1343,8 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
             : () => _run(
                 '${d.label} uretimi',
                 () => CharacterFlowService.dirs(
-                    name: _name, dirs: [d.id], n: _dirCount)),
+                    name: _name, dirs: [d.id], n: _dirCount),
+                adet: _dirCount),
         onDelete: () => _deleteDir(d.id, d.label),
       );
 
@@ -1244,7 +1363,8 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
         onRefresh: () => _run(
             'Base uretimi',
             () => CharacterFlowService.dirs(
-                name: _name, dirs: [_baseDir], n: _dirCount)),
+                name: _name, dirs: [_baseDir], n: _dirCount),
+            adet: _dirCount),
         onDelete: () => _deleteDir(_baseDir, 'Base'),
       );
 
@@ -1262,7 +1382,8 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
         onAnim: () => _openAnim(_portraitDir, 'i2v'),
         onMixamo: () => _openAnim(_portraitDir, 'mixamo'),
         onRefresh: () => _run('Portre uretimi',
-            () => CharacterFlowService.portrait(name: _name, n: _dirCount)),
+            () => CharacterFlowService.portrait(name: _name, n: _dirCount),
+            adet: _dirCount),
         onDelete: () => _deleteDir(_portraitDir, 'Portre'),
       );
 
@@ -1602,7 +1723,8 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
                             clip: _i2vClip.text.trim(),
                             n: _animCount,
                             padding: _padding,
-                          ));
+                          ),
+                      adet: _animCount);
                 },
                 icon: const Icon(Icons.movie_filter_outlined, size: 18),
                 label: Text('Uret ($_animCount surum)'),
@@ -1734,7 +1856,8 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
                               clips: _mixSel.toList(),
                               n: _animCount,
                               padding: _padding,
-                            )),
+                            ),
+                        adet: _mixSel.length * _animCount),
                 icon: const Icon(Icons.accessibility_new, size: 18),
                 label: Text('Uret (${_mixSel.length} klip x $_animCount)'),
                 style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(44)),
@@ -1977,7 +2100,8 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
       );
 
   void _sprite(String dir, String clip) => _run('Sprite',
-      () => CharacterFlowService.sprites(name: _name, dir: dir, clips: [clip]));
+      () => CharacterFlowService.sprites(name: _name, dir: dir, clips: [clip]),
+      adet: 1);
 
   /// Videoyu oynatir - yol sunucudan gelen rel'dir (istemci yol uydurmaz).
   void _playVideo(String rel, String baslik) {
@@ -2123,7 +2247,8 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
                             prompt: _animMode == 'i2v' ? _i2vPrompt.text.trim() : '',
                             n: _animCount,
                             padding: _padding,
-                          ));
+                          ),
+                      adet: _animCount);
                 },
                 icon: const Icon(Icons.add, size: 18),
                 label: Text('+ Uret ($_animCount)'),

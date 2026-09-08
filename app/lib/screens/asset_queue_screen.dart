@@ -8,9 +8,12 @@ import '../theme.dart';
 
 /// Asset Mod - Sira ekrani.
 ///
-/// Tum emirler sunucuda tek sirali bir kuyruga girer. Burasi o kuyrugu
-/// gosterir: calisan is yuzdesiyle, bekleyenler sira numarasiyla. Bekleyenler
-/// tasinabilir veya iptal edilebilir.
+/// #299: BUTUN isler (comfy uretimi, karakter yon/animasyon/sprite/hikaye,
+/// etiketleme, CBN, muzik) sunucuda TEK sirali kuyruga girer ve burada
+/// izlenir - kullanici isi baslattigi ekranda beklemek zorunda degildir.
+/// Duzen: "Su an" (calisan is + ilerleme), "Bekleyen" (sira), sonra comfy
+/// uretim kartlari (tasima/iptal). Eski sunucuda `/api/queue` yoksa ekran
+/// otomatik olarak eski `/api/generate/queue` ucuna duser.
 class AssetQueueScreen extends StatefulWidget {
   const AssetQueueScreen({super.key});
 
@@ -20,8 +23,26 @@ class AssetQueueScreen extends StatefulWidget {
 
 class _AssetQueueScreenState extends State<AssetQueueScreen> {
   QueueState? _q;
+  /// #299: birlesik sira - `/api/queue` varsa bu doludur.
+  UnifiedQueue? _u;
+  /// Sunucu birlesik ucu bilmiyorsa bir daha denenmez (eski sunucu).
+  bool _unifiedOff = false;
   String? _error;
   Timer? _timer;
+
+  /// #299: is turu -> ikon + ekran adi.
+  static const _kinds = <String, (IconData, String)>{
+    'comfy': (Icons.auto_awesome, 'Uretim'),
+    'character': (Icons.person_outline, 'Karakter'),
+    'tag': (Icons.sell_outlined, 'Etiket'),
+    'cbn': (Icons.format_paint_outlined, 'CBN'),
+    'music': (Icons.music_note, 'Muzik'),
+    'cpu': (Icons.memory, 'CPU'),
+    'gpu': (Icons.developer_board, 'GPU'),
+  };
+
+  static (IconData, String) _kindOf(String k) =>
+      _kinds[k] ?? (Icons.play_circle_outline, k.isEmpty ? 'Is' : k);
 
   @override
   void initState() {
@@ -36,12 +57,27 @@ class _AssetQueueScreenState extends State<AssetQueueScreen> {
     super.dispose();
   }
 
+  /// #299: once birlesik sira denenir; sunucu bilmiyorsa eski uca dusulur.
   Future<void> _load({bool silent = false}) async {
     try {
+      if (!_unifiedOff) {
+        final u = await QueueService.unified();
+        if (u != null) {
+          if (!mounted) return;
+          setState(() {
+            _u = u;
+            _q = null;
+            _error = null;
+          });
+          return;
+        }
+        _unifiedOff = true;
+      }
       final q = await GenerateService.queue();
       if (!mounted) return;
       setState(() {
         _q = q;
+        _u = null;
         _error = null;
       });
     } catch (e) {
@@ -79,8 +115,14 @@ class _AssetQueueScreenState extends State<AssetQueueScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final u = _u;
     final q = _q;
-    final items = q?.all ?? [];
+    // Eski sunucu yolu: calisan + bekleyen tek liste.
+    final eski = q?.all ?? const <GenerateJob>[];
+    final bos = u != null ? u.isEmpty : eski.isEmpty;
+    // "Bekleyenleri iptal et" yalniz comfy kuyrugunu bosaltir.
+    final temizlenebilir =
+        u != null ? u.comfyPending.isNotEmpty : eski.length > 1;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Sira'),
@@ -90,7 +132,7 @@ class _AssetQueueScreenState extends State<AssetQueueScreen> {
             tooltip: 'Code Mod',
             onPressed: () => ModeService.set(false),
           ),
-          if (items.length > 1)
+          if (temizlenebilir)
             IconButton(
               icon: const Icon(Icons.playlist_remove),
               tooltip: 'Bekleyenleri iptal et',
@@ -99,11 +141,11 @@ class _AssetQueueScreenState extends State<AssetQueueScreen> {
           IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
         ],
       ),
-      body: _error != null && q == null
+      body: _error != null && u == null && q == null
           ? _errorView()
           : RefreshIndicator(
               onRefresh: _load,
-              child: items.isEmpty
+              child: bos
                   ? ListView(
                       children: [
                         SizedBox(height: MediaQuery.of(context).size.height * 0.25),
@@ -121,15 +163,155 @@ class _AssetQueueScreenState extends State<AssetQueueScreen> {
                         ),
                       ],
                     )
-                  : ListView.builder(
+                  : ListView(
                       padding: const EdgeInsets.all(12),
-                      itemCount: items.length + 1,
-                      itemBuilder: (_, i) {
-                        if (i == 0) return _header(q!);
-                        return _card(items[i - 1], items.length - 1);
-                      },
+                      children: _rows(u, q),
                     ),
             ),
+    );
+  }
+
+  /// #299: ekranin govdesi. Birlesik sira varsa "Su an" / "Bekleyen" /
+  /// "Uretim isleri"; yoksa eski duz is listesi.
+  List<Widget> _rows(UnifiedQueue? u, QueueState? q) {
+    final out = <Widget>[];
+    if (u != null) {
+      out.add(_uHeader(u));
+      final r = u.running;
+      if (r != null) {
+        out.add(_section('Su an'));
+        out.add(_ticketCard(r, running: true));
+      }
+      if (u.waiting.isNotEmpty) {
+        out.add(_section('Bekleyen (${u.waiting.length})'));
+        for (var i = 0; i < u.waiting.length; i++) {
+          out.add(_ticketCard(u.waiting[i], running: false, sira: i + 1));
+        }
+      }
+      if (u.comfyPending.isNotEmpty) {
+        out.add(_section('Uretim isleri (${u.comfyPending.length})'));
+        for (final j in u.comfyPending) {
+          out.add(_card(j, u.comfyPending.length));
+        }
+      }
+      return out;
+    }
+    if (q != null) {
+      out.add(_header(q));
+      final items = q.all;
+      for (final j in items) {
+        out.add(_card(j, items.length - 1));
+      }
+    }
+    return out;
+  }
+
+  Widget _section(String baslik) => Padding(
+        padding: const EdgeInsets.only(top: 2, bottom: 6),
+        child: Text(baslik,
+            style: const TextStyle(
+                fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+      );
+
+  /// #299: birlesik sira basligi - toplam is sayisi.
+  Widget _uHeader(UnifiedQueue u) => Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Row(
+          children: [
+            Icon(Icons.circle,
+                size: 9,
+                color: u.running != null ? AppColors.success : Colors.grey),
+            const SizedBox(width: 8),
+            const Text('Tek sira - butun isler',
+                style: TextStyle(fontSize: 12, color: Colors.grey)),
+            const Spacer(),
+            Text('${u.depth} is',
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+          ],
+        ),
+      );
+
+  /// #299: kuyruktaki tek is. Calisan iste ilerleme cubugu ve mesaj gorunur,
+  /// bekleyende sira numarasi ve bekleme suresi.
+  Widget _ticketCard(QueueTicket t, {required bool running, int? sira}) {
+    final (ikon, tur) = _kindOf(t.kind);
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(
+          color: running ? AppColors.accent : Colors.transparent,
+          width: running ? 1.4 : 0,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(13),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 28,
+                  height: 28,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: running ? AppColors.accent : Colors.white10,
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  child: running
+                      ? Icon(ikon, size: 16, color: Colors.white)
+                      : Text('${sira ?? ''}',
+                          style: const TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.bold)),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(t.label.isEmpty ? tur : t.label,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontSize: 13, fontWeight: FontWeight.w600)),
+                ),
+                if (!running) ...[
+                  Icon(ikon, size: 13, color: Colors.grey),
+                  const SizedBox(width: 4),
+                ],
+                Text(tur, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+              ],
+            ),
+            if (t.message.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(t.message,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 12)),
+            ],
+            if (running) ...[
+              const SizedBox(height: 10),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(value: t.progress, minHeight: 5),
+              ),
+            ],
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                if (t.total > 0)
+                  Text('${t.done}/${t.total}',
+                      style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                const Spacer(),
+                if (t.elapsedLabel.isNotEmpty)
+                  Text(
+                      running
+                          ? 'gecen ${t.elapsedLabel}'
+                          : 'bekliyor ${t.elapsedLabel}',
+                      style: const TextStyle(fontSize: 10, color: Colors.grey)),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -184,9 +366,28 @@ class _AssetQueueScreenState extends State<AssetQueueScreen> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(j.task,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                           fontSize: 13, fontWeight: FontWeight.w600)),
                 ),
+                // #299: kategori (karakter isleri icin karakter adi) - hangi
+                // isin kime ait oldugu kuyrukta ayirt edilsin.
+                if (j.category.isNotEmpty) ...[
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.white10,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(j.category,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                  ),
+                  const SizedBox(width: 6),
+                ],
                 Text(
                   running ? (j.node.isEmpty ? 'calisiyor' : j.node) : 'bekliyor',
                   style: const TextStyle(fontSize: 11, color: Colors.grey),
