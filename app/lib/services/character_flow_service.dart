@@ -9,13 +9,14 @@ import 'jigsaw_flow_service.dart' show FlowOp;
 
 /// Karakter hattinin istemcisi - `/api/character/flow/*`.
 ///
-/// Jigsaw/CBN'in kabul-etiket-push kalibi DEGILDIR. Uc asamalidir:
-///   1 Karakter    Uretim'de "Karakter Modu" ile aday uret, birini kabul et,
-///                 isim ver -> kutuphanede karakter klasoru acilir.
-///   2 Yon         Kabul edilen gorunusten 8 yon (Qwen Image Edit); front
-///                 gorunusun kendisidir, kalan 7 yon icin aday secilir.
-///   3 Animasyon   Yon -> klip -> sinirsiz surum (v01, v02...). Tek surum
-///                 kabul edilir, sprite yalniz kabul edilenden cikar.
+/// Jigsaw/CBN'in kabul-etiket-push kalibi DEGILDIR. #306 (karakter hatti v2):
+///   1 Karakter    "Karakter olustur" otomatik hatti baslatir: base adaylari ->
+///                 portre -> hikaye -> 7 yon, hepsi onaysiz. Kullanici sonra
+///                 base'i degistirir, portre/hikaye adaylarindan secer.
+///   2 Yon         BASE'in 8 yonu (`base/dirs/`). Burada animasyon YOKTUR.
+///   3 Skinler     Skin = kiyafet. `base` de bir skindir. Her skinin kendi 8
+///                 yonu ve animasyonlari vardir; animasyon skin ustunde yapilir
+///                 (yon -> klip -> sinirsiz surum, tek kabul, sprite).
 ///
 /// Uzun isler sunucuda arka planda kosar, `op()` ile izlenir (CBN ekranindaki
 /// ilerleme cubugunun aynisi).
@@ -52,16 +53,117 @@ class ClipDirState {
       );
 }
 
+// #306: sunucudan gelen rel yol - duz metin ya da {rel|file|name} olabilir.
+String _relOf(dynamic e) {
+  if (e is String) return e;
+  if (e is Map) return '${e['rel'] ?? e['file'] ?? e['name'] ?? ''}';
+  return '';
+}
+
+// #306: `anims` ozeti (klip -> yon -> durum) - hem karakter hem skin kullanir.
+Map<String, Map<String, ClipDirState>> _parseAnims(dynamic a) {
+  final out = <String, Map<String, ClipDirState>>{};
+  if (a is Map) {
+    a.forEach((clip, byDir) {
+      if (byDir is Map) {
+        out['$clip'] = {
+          for (final e in byDir.entries)
+            '${e.key}': e.value is Map
+                ? ClipDirState.fromJson(Map<String, dynamic>.from(e.value as Map))
+                : const ClipDirState(),
+        };
+      }
+    });
+  }
+  return out;
+}
+
+// #306: yon id -> secilmis mi. Sunucu bool ya da rel yol gonderebilir.
+Map<String, bool> _parseDirs(dynamic v) => {
+      for (final e in ((v as Map?) ?? const {}).entries)
+        '${e.key}':
+            e.value == true || (e.value is String && '${e.value}'.isNotEmpty),
+    };
+
+// #306: yon id -> kabul edilen dosyanin rel yolu (`dir_files`). Sunucu
+// gondermiyorsa bos kalir, ekran kutuphane kuralina duser.
+Map<String, String> _parseDirFiles(dynamic v) {
+  final out = <String, String>{};
+  if (v is Map) {
+    v.forEach((k, e) {
+      final rel = _relOf(e);
+      if (rel.isNotEmpty) out['$k'] = rel;
+    });
+  }
+  return out;
+}
+
+// #306: yon adaylari. Sunucu liste ya da SAYI gonderebilir; sayi gelirse
+// dosya adlari kutuphane kuralindan turetilir (`<kok>/<yon>_NN.png`).
+Map<String, List<String>> _parseDirCandidates(
+    Map<String, dynamic> j, String kok) {
+  final out = <String, List<String>>{};
+  for (final key in ['dir_candidates', 'turnaround', 'turnaround_candidates']) {
+    final t = j[key];
+    if (t is Map) {
+      t.forEach((dir, v) {
+        if (v is List) {
+          out['$dir'] = v.map(_relOf).where((e) => e.isNotEmpty).toList();
+        } else if (v is int && v > 0) {
+          out['$dir'] = [
+            for (var i = 1; i <= v; i++)
+              '$kok/${dir}_${i.toString().padLeft(2, '0')}.png',
+          ];
+        }
+      });
+      if (out.isNotEmpty) break;
+    }
+  }
+  return out;
+}
+
+/// #306: `character.json.pipeline` - "karakter olustur" dedikten sonra base,
+/// portre, hikaye ve yonleri kendiliginden kuran otomatik hat.
+class PipelineState {
+  final String status;   // idle | running | done | error
+  final String step;     // suren adimin adi
+  final String op;       // izlenecek op kimligi
+  final int done;
+  final int total;
+  const PipelineState({
+    this.status = '',
+    this.step = '',
+    this.op = '',
+    this.done = 0,
+    this.total = 0,
+  });
+
+  factory PipelineState.fromJson(Map<String, dynamic> j) => PipelineState(
+        status: '${j['status'] ?? ''}',
+        step: '${j['step'] ?? j['message'] ?? ''}',
+        op: '${j['op'] ?? ''}',
+        done: (j['done'] is num) ? (j['done'] as num).toInt() : 0,
+        total: (j['total'] is num) ? (j['total'] as num).toInt() : 0,
+      );
+
+  bool get running => status == 'running';
+  double? get progress =>
+      total > 0 ? (done / total).clamp(0, 1).toDouble() : null;
+}
+
 /// Kutuphanedeki bir karakter.
 class CharacterItem {
   final String name;
   final String klass;
-  final String lookThumb;              // rel yol, bos olabilir
-  final String baseThumb;              // notr kimlik karesi (rel), bos olabilir
-  final String portraitThumb;          // bas-omuz portre (rel), bos olabilir
+  /// #306: kart gorseli = base'in SOUTH karesi (`base/base.png`). Eski
+  /// sunucuda `look_thumb` gelirse o kullanilir - liste yine cizilir.
+  final String southThumb;
+  final String portraitThumb;          // KARE vesikalik (rel), bos olabilir
   /// Portre adaylari (rel). Sunucu gondermiyorsa bos kalir.
   final List<String> portraits;
-  final Map<String, bool> dirs;        // yon id -> secilmis mi
+  final Map<String, bool> dirs;        // yon id -> secilmis mi (base'in yonleri)
+  /// #306: yon id -> kabul edilen dosyanin rel yolu (`dir_files`).
+  final Map<String, String> dirFiles;
   final Map<String, Map<String, ClipDirState>> anims;  // klip -> yon -> durum
   final int candidateCount;
   /// Aday dosyalari (rel). Sunucu yalniz sayi gonderiyorsa bos kalir.
@@ -72,21 +174,30 @@ class CharacterItem {
   final double padding;
   /// #299: bekleyen hikaye onerisi sayisi (card_proposals.json).
   final int proposals;
+  /// #302: sabit adli gorsellerin surumu (ms) - URL onbellegini asar.
+  final int rev;
+  /// #306: otomatik hattin durumu. Sunucu gondermiyorsa bos (idle) kalir.
+  final PipelineState pipeline;
+  /// #306: skin slug'lari (ilk eleman `base`).
+  final List<String> skins;
 
   const CharacterItem({
     required this.name,
     required this.klass,
-    required this.lookThumb,
-    this.baseThumb = '',
+    this.southThumb = '',
     this.portraitThumb = '',
     this.portraits = const [],
     required this.dirs,
+    this.dirFiles = const {},
     required this.anims,
     required this.candidateCount,
     this.candidates = const [],
     this.dirCandidates = const {},
     this.padding = 0,
     this.proposals = 0,
+    this.rev = 0,
+    this.pipeline = const PipelineState(),
+    this.skins = const [],
   });
 
   factory CharacterItem.fromJson(Map<String, dynamic> j) {
@@ -94,46 +205,14 @@ class CharacterItem {
     final list = raw is List
         ? raw.map(_relOf).where((e) => e.isNotEmpty).toList()
         : const <String>[];
-    final anims = <String, Map<String, ClipDirState>>{};
-    final a = j['anims'];
-    if (a is Map) {
-      a.forEach((clip, byDir) {
-        if (byDir is Map) {
-          anims['$clip'] = {
-            for (final e in byDir.entries)
-              '${e.key}': e.value is Map
-                  ? ClipDirState.fromJson(Map<String, dynamic>.from(e.value as Map))
-                  : const ClipDirState(),
-          };
-        }
-      });
-    }
-    // Sunucu yon adaylarini SAYI olarak gonderir (dir_candidates: {yon: n});
-    // dosya adlari kutuphane kuralindan gelir: turnaround/<yon>_NN.png.
-    final dirCand = <String, List<String>>{};
-    for (final key in ['dir_candidates', 'turnaround', 'turnaround_candidates']) {
-      final t = j[key];
-      if (t is Map) {
-        t.forEach((dir, v) {
-          if (v is List) {
-            dirCand['$dir'] = v.map(_relOf).where((e) => e.isNotEmpty).toList();
-          } else if (v is int && v > 0) {
-            dirCand['$dir'] = [
-              for (var i = 1; i <= v; i++)
-                'turnaround/${dir}_${i.toString().padLeft(2, '0')}.png',
-            ];
-          }
-        });
-        if (dirCand.isNotEmpty) break;
-      }
-    }
     // Portre adaylari: liste gelmezse sayidan portrait/portrait_NN.png turetilir.
     final portreRaw = j['portraits'] ?? j['portrait_candidates'];
+    final skinRaw = j['skins'];
     return CharacterItem(
       name: '${j['name']}',
       klass: '${j['class'] ?? j['klass'] ?? ''}',
-      lookThumb: '${j['look_thumb'] ?? j['look'] ?? ''}',
-      baseThumb: '${j['base_thumb'] ?? j['base'] ?? ''}',
+      // #306: south_thumb = base; look_thumb yalniz eski sunucu icin okunur.
+      southThumb: '${j['south_thumb'] ?? j['base'] ?? j['base_thumb'] ?? j['look_thumb'] ?? j['look'] ?? ''}',
       portraitThumb: '${j['portrait_thumb'] ?? j['portrait'] ?? ''}',
       portraits: portreRaw is List
           ? portreRaw.map(_relOf).where((e) => e.isNotEmpty).toList()
@@ -143,26 +222,38 @@ class CharacterItem {
                     'portrait/portrait_${i.toString().padLeft(2, '0')}.png',
                 ]
               : const [],
-      dirs: {
-        for (final e in ((j['dirs'] as Map?) ?? const {}).entries)
-          '${e.key}': e.value == true || (e.value is String && '${e.value}'.isNotEmpty),
-      },
-      anims: anims,
+      dirs: _parseDirs(j['dirs']),
+      dirFiles: _parseDirFiles(j['dir_files']),
+      anims: _parseAnims(j['anims']),
       candidateCount: raw is int ? raw : list.length,
       candidates: list,
-      dirCandidates: dirCand,
+      // #306: base yonleri artik base/dirs/ altinda.
+      dirCandidates: _parseDirCandidates(j, 'base/dirs'),
       padding: ((j['padding'] as num?) ?? 0).toDouble().clamp(0.0, 0.3),
       // #299: sunucu sayi yerine liste gonderirse uzunlugu alinir, hic
       // gondermiyorsa 0.
       proposals: j['proposals'] is num
           ? (j['proposals'] as num).toInt()
           : (j['proposals'] is List ? (j['proposals'] as List).length : 0),
+      rev: (j['rev'] is num) ? (j['rev'] as num).toInt() : 0,
+      pipeline: j['pipeline'] is Map
+          ? PipelineState.fromJson(Map<String, dynamic>.from(j['pipeline'] as Map))
+          : const PipelineState(),
+      skins: skinRaw is List
+          ? skinRaw
+              .map((e) => e is Map ? '${e['slug'] ?? ''}' : '$e')
+              .where((e) => e.isNotEmpty)
+              .toList()
+          : const [],
     );
   }
 
   /// Kac yon secilmis.
   int dirsDone(List<CharacterDir> all) =>
       all.where((d) => dirs[d.id] == true).length;
+
+  /// #306: skin sayaci - sunucu `base`i de listeledigi icin en az 1.
+  int get skinCount => skins.isEmpty ? 1 : skins.length;
 
   /// Sprite'i cikmis klip x yon sayisi / toplam.
   (int, int) get spriteProgress {
@@ -175,11 +266,110 @@ class CharacterItem {
     }
     return (ok, total);
   }
+}
 
-  static String _relOf(dynamic e) {
-    if (e is String) return e;
-    if (e is Map) return '${e['rel'] ?? e['file'] ?? e['name'] ?? ''}';
-    return '';
+/// #306: kiyafet kutuphanesi ogesi - KARAKTERDEN BAGIMSIZ. `<root>/_outfits/`
+/// altinda durur, ayni kiyafet bircok karaktere giydirilebilir. Skin = kiyafet
+/// + karakterin base'i, skin slug'i kiyafet slug'idir.
+class OutfitItem {
+  final String slug;
+  final String name;
+  final String prompt;
+  final String created;              // ISO
+  final String rel;                  // `_outfits/<slug>.png`
+  const OutfitItem({
+    required this.slug,
+    required this.name,
+    this.prompt = '',
+    this.created = '',
+    this.rel = '',
+  });
+
+  factory OutfitItem.fromJson(Map<String, dynamic> j) {
+    final slug = '${j['slug'] ?? j['name'] ?? ''}';
+    return OutfitItem(
+      slug: slug,
+      name: '${j['name'] ?? slug}',
+      prompt: '${j['prompt'] ?? ''}',
+      created: '${j['created'] ?? j['created_at'] ?? ''}',
+      rel: '${j['rel'] ?? '_outfits/$slug.png'}',
+    );
+  }
+}
+
+/// #306: bir skin - kiyafet. `base` de bir skindir (slug `base`, yonleri
+/// `base/dirs/`, animasyonlari `anims/`). Diger skinler `skins/<slug>/` ve
+/// slug'lari kiyafet slug'idir.
+class SkinItem {
+  final String slug;
+  final String name;
+  final String prompt;               // kiyafet tarifi
+  final String south;                // South (front) gorselinin rel yolu
+  /// Kaynak kiyafetin slug'i (base icin bos).
+  final String outfitSlug;
+  final String outfit;               // kiyafet referansi (rel)
+  final Map<String, bool> dirs;      // yon id -> giydirilmis mi
+  final Map<String, String> dirFiles;
+  final Map<String, List<String>> dirCandidates;
+  final Map<String, Map<String, ClipDirState>> anims;
+  final int rev;
+
+  const SkinItem({
+    required this.slug,
+    required this.name,
+    this.prompt = '',
+    this.south = '',
+    this.outfitSlug = '',
+    this.outfit = '',
+    this.dirs = const {},
+    this.dirFiles = const {},
+    this.dirCandidates = const {},
+    this.anims = const {},
+    this.rev = 0,
+  });
+
+  factory SkinItem.fromJson(Map<String, dynamic> j) {
+    final slug = '${j['slug'] ?? j['name'] ?? ''}';
+    final base = slug.isEmpty || slug == 'base';
+    return SkinItem(
+      slug: slug,
+      name: '${j['name'] ?? slug}',
+      prompt: '${j['prompt'] ?? ''}',
+      south: '${j['south'] ?? j['south_thumb'] ?? j['front'] ?? ''}',
+      // #306: sunucu `outfit` alaninda kiyafet SLUG'ini gonderir; eski surumde
+      // rel yol gelebilir - ikisi de tasinir.
+      outfitSlug: base ? '' : '${j['outfit'] ?? ''}'.split('/').last.replaceAll('.png', ''),
+      outfit: '${j['outfit_rel'] ?? j['outfit'] ?? ''}',
+      dirs: _parseDirs(j['dirs']),
+      dirFiles: _parseDirFiles(j['dir_files']),
+      dirCandidates:
+          _parseDirCandidates(j, base ? 'base/dirs' : 'skins/$slug/dirs'),
+      anims: _parseAnims(j['anims']),
+      rev: (j['rev'] is num) ? (j['rev'] as num).toInt() : 0,
+    );
+  }
+
+  bool get isBase => slug.isEmpty || slug == 'base';
+
+  /// Animasyon uclarina gonderilen `skin` degeri - base icin BOS (anims/).
+  String get animSkin => isBase ? '' : slug;
+
+  int dirsDone(List<CharacterDir> all) =>
+      all.where((d) => dirs[d.id] == true).length;
+
+  /// Kac klip tanimli (yon farketmeksizin).
+  int get clipCount => anims.length;
+
+  /// Wan videosu cikmis klip x yon / toplam.
+  (int, int) get animProgress {
+    var ok = 0, total = 0;
+    for (final byDir in anims.values) {
+      for (final s in byDir.values) {
+        total++;
+        if (s.wan) ok++;
+      }
+    }
+    return (ok, total);
   }
 }
 
@@ -298,15 +488,17 @@ class CharacterVersion {
       );
 
   /// Oynatilacak dosya: wan varsa o, yoksa manken.
-  String relFor(String dir, String clip) {
+  /// #306: `skin` bos = base kumesi (`anims/`), doluysa `skins/<slug>/anims/`.
+  String relFor(String dir, String clip, {String skin = ''}) {
     if (hasWan) {
       return relWan.isNotEmpty
           ? relWan
-          : CharacterFlowService.versionVideoRel(dir, clip, v);
+          : CharacterFlowService.versionVideoRel(dir, clip, v, skin: skin);
     }
     return relManken.isNotEmpty
         ? relManken
-        : CharacterFlowService.versionVideoRel(dir, clip, v, manken: true);
+        : CharacterFlowService.versionVideoRel(dir, clip, v,
+            manken: true, skin: skin);
   }
 }
 
@@ -350,16 +542,17 @@ class CharacterClip {
         pose: '${j['pose'] ?? ''}',
       );
 
-  /// anim.webp yolu - sunucu vermezse kutuphane kuralindan.
-  String webpRel(String d) =>
-      relWebp.isNotEmpty ? relWebp : CharacterFlowService.spriteRel(d, clip);
+  /// anim.webp yolu - sunucu vermezse kutuphane kuralindan (#306: skin kokü).
+  String webpRel(String d, {String skin = ''}) => relWebp.isNotEmpty
+      ? relWebp
+      : CharacterFlowService.spriteRel(d, clip, skin: skin);
 
   /// Kabul edilen surumun videosu - sunucu vermezse kutuphane kuralindan.
-  String acceptedRel(String d) => relAcceptedWan.isNotEmpty
+  String acceptedRel(String d, {String skin = ''}) => relAcceptedWan.isNotEmpty
       ? relAcceptedWan
       : (accepted.isEmpty
           ? ''
-          : CharacterFlowService.versionVideoRel(d, clip, accepted));
+          : CharacterFlowService.versionVideoRel(d, clip, accepted, skin: skin));
 }
 
 /// rev8: yerel Ollama kapaliyken sunucu 503 doner - sihirli degnek pasiflesir,
@@ -509,11 +702,13 @@ class CharacterFlowService {
     return null;
   }
 
-  /// Bir yonun klipleri ve surumleri.
-  static Future<List<CharacterClip>> animsOf(String name, String dir) async {
+  /// Bir yonun klipleri ve surumleri. #306: `skin` bos = base kumesi.
+  static Future<List<CharacterClip>> animsOf(String name, String dir,
+      {String skin = ''}) async {
     final rows = _rows(await _getAny(
         '/api/character/flow/anims_of?name=${Uri.encodeQueryComponent(name)}'
-        '&dir=${Uri.encodeQueryComponent(dir)}'));
+        '&dir=${Uri.encodeQueryComponent(dir)}'
+        '&skin=${Uri.encodeQueryComponent(skin)}'));
     return rows.map(CharacterClip.fromJson).toList();
   }
 
@@ -593,12 +788,18 @@ class CharacterFlowService {
     required String dir,
     required String text,
     required String mode,
+    String skin = '',                    // #306: skin baglami
   }) async {
     final r = await http
         .post(Uri.parse('${ApiService.baseUrl}/api/character/flow/prompt/expand'),
             headers: _headers,
-            body: json.encode(
-                {'name': name, 'dir': dir, 'text': text, 'mode': mode}))
+            body: json.encode({
+              'name': name,
+              'dir': dir,
+              'skin': skin,
+              'text': text,
+              'mode': mode,
+            }))
         .timeout(_timeout);
     if (r.statusCode == 503) throw const OllamaOffException();
     if (r.statusCode != 200) _fail(r, 'Genisletme basarisiz');
@@ -640,32 +841,80 @@ class CharacterFlowService {
       _put('/api/character/flow/settings', {'name': name, 'padding': padding});
 
   // -------------------------------------------------------------- dosya
-  static String thumbUrl(String name, String rel, {int size = 360}) =>
+  // #302: v = karakterin rev'i; secim degisince URL degisir, onbellek asilir.
+  static String thumbUrl(String name, String rel, {int size = 360, int v = 0}) =>
       '${ApiService.baseUrl}/api/character/flow/thumb'
       '?name=${Uri.encodeQueryComponent(name)}'
-      '&rel=${Uri.encodeQueryComponent(rel)}&size=$size';
+      '&rel=${Uri.encodeQueryComponent(rel)}&size=$size${v > 0 ? '&v=$v' : ''}';
 
-  static String fileUrl(String name, String rel) =>
+  static String fileUrl(String name, String rel, {int v = 0}) =>
       '${ApiService.baseUrl}/api/character/flow/file'
       '?name=${Uri.encodeQueryComponent(name)}'
-      '&rel=${Uri.encodeQueryComponent(rel)}';
+      '&rel=${Uri.encodeQueryComponent(rel)}${v > 0 ? '&v=$v' : ''}';
 
   /// Kutuphane duzenindeki sabit yollar - ekran bunlari uydurmasin.
-  static String turnaroundRel(String dir) => 'turnaround/$dir.png';
+  // #306: layout 2 - base yonleri base/dirs/, skin yonleri skins/<slug>/dirs/.
+  static String baseDirRel(String dir) => 'base/dirs/$dir.png';
+  static String skinDirRel(String slug, String dir) =>
+      'skins/$slug/dirs/$dir.png';
+
+  /// Bir yonun kabul edilmis gorseli. `skin` bos ya da `base` = base yonleri.
+  static String dirRel(String skin, String dir) =>
+      (skin.isEmpty || skin == 'base') ? baseDirRel(dir) : skinDirRel(skin, dir);
+
+  /// #306: animasyon koku - base `anims/`, skin `skins/<slug>/anims/`.
+  static String animRoot(String skin) =>
+      (skin.isEmpty || skin == 'base') ? 'anims' : 'skins/$skin/anims';
+
   static String versionVideoRel(String dir, String clip, String v,
-          {bool manken = false}) =>
-      'anims/$dir/$clip/$v/${manken ? "manken" : "wan"}.mp4';
-  static String spriteRel(String dir, String clip) => 'anims/$dir/$clip/anim.webp';
-  static String sheetRel(String dir, String clip) => 'anims/$dir/$clip/sheet.png';
+          {bool manken = false, String skin = ''}) =>
+      '${animRoot(skin)}/$dir/$clip/$v/${manken ? "manken" : "wan"}.mp4';
+  static String spriteRel(String dir, String clip, {String skin = ''}) =>
+      '${animRoot(skin)}/$dir/$clip/anim.webp';
+  static String sheetRel(String dir, String clip, {String skin = ''}) =>
+      '${animRoot(skin)}/$dir/$clip/sheet.png';
 
   // ------------------------------------------------------------- yazma
-  /// Uretilenler'deki bir isten yeni karakter acar.
-  static Future<String> create(
-      {required String name, required String klass, required String jobId}) async {
-    final d = await _post('/api/character/flow/create',
-        {'name': name, 'class': klass, 'job_id': jobId});
-    return '${d['name'] ?? name}';
+  /// #306: yeni karakter acar. BASE'I KULLANICI SECER:
+  ///   - `jobId` verilirse o gorsel dogrudan base olur ve otomatik hat
+  ///     (portre -> hikaye -> 7 yon, her birinden 1 adet) hemen baslar.
+  ///   - Yalniz `prompt` verilirse SADECE 1 base adayi kuyruga girer, otomatik
+  ///     secilmez; kullanici adayi "Base yap" ile secince hat baslar.
+  ///   - Ikisi de yoksa bos karakter acilir.
+  /// Op doner (aday isi ya da pipeline).
+  static Future<String> create({
+    required String name,
+    required String klass,
+    String prompt = '',
+    String jobId = '',
+  }) async {
+    final d = await _post('/api/character/flow/create', {
+      'name': name,
+      'class': klass,
+      if (prompt.isNotEmpty) 'prompt': prompt,
+      if (jobId.isNotEmpty) 'job_id': jobId,
+    });
+    return '${d['op'] ?? ''}';
   }
+
+  /// #306 ince ayar: KABUL EDILMIS gorseli kisa bir duzeltme cumlesiyle
+  /// duzenler (edit_qwen). `target`: `base` | `portrait` | `dir:<yon>` |
+  /// `skin:<slug>:<yon>`. Sonuc sunucuda otomatik kabul edilir, eski gorsel
+  /// aday olarak saklanir (aday seciciden geri alinabilir). Op doner.
+  static Future<String> edit(
+          {required String name,
+          required String target,
+          required String prompt}) async =>
+      '${(await _post('/api/character/flow/edit',
+          {'name': name, 'target': target, 'prompt': prompt}))['op'] ?? ''}';
+
+  /// #306: portre / hikaye / yon adimlarini yeniden kosar - op doner.
+  static Future<String> pipelineRebuild(String name,
+          {List<String> steps = const []}) async =>
+      '${(await _post('/api/character/flow/pipeline/rebuild', {
+            'name': name,
+            if (steps.isNotEmpty) 'steps': steps,
+          }))['op'] ?? ''}';
 
   /// Uretilenler'deki isleri mevcut karakterin `candidates/` klasorune kopyalar.
   static Future<int> stage({required String name, required List<String> jobIds}) async {
@@ -675,24 +924,96 @@ class CharacterFlowService {
     return (d['staged'] ?? d['ok'] ?? jobIds.length) as int;
   }
 
-  /// kind: `look` | `base` | `dir:<yon>`
-  static Future<void> pick(
-          {required String name, required String file, required String kind}) =>
-      _post('/api/character/flow/pick', {'name': name, 'file': file, 'kind': kind});
+  /// kind: `base` | `portrait` | `dir:<yon>` | `skin:<slug>:<yon>`
+  /// #306: `base` secimi sunucuda portre/hikaye/yon adimlarini yeniden kosar,
+  /// bu yuzden op DONER (bos gelirse izlenecek is yok demektir). `look` kalkti.
+  static Future<String> pick(
+      {required String name, required String file, required String kind}) async {
+    final d = await _post('/api/character/flow/pick',
+        {'name': name, 'file': file, 'kind': kind});
+    return '${d['op'] ?? ''}';
+  }
 
   /// Yon adaylari uretir (Qwen Image Edit) - op doner.
+  /// #306: `dirs: ["base"]` yeni BASE adayi uretir.
   static Future<String> dirs(
-          {required String name, required List<String> dirs, required int n}) async =>
+          {required String name,
+          required List<String> dirs,
+          required int n}) async =>
       '${(await _post('/api/character/flow/dirs',
-          {'name': name, 'dirs': dirs, 'n': n}))['op']}';
+          {'name': name, 'dirs': dirs, 'n': n, 'skin': ''}))['op']}';
+
+  /// #306: skinler - `base` her zaman ilk siradadir.
+  static Future<List<SkinItem>> skins(String name) async {
+    final d = await _getAny(
+        '/api/character/flow/skins?name=${Uri.encodeQueryComponent(name)}');
+    return _rows(d, const ['skins', 'items'])
+        .map(SkinItem.fromJson)
+        .where((s) => s.slug.isNotEmpty)
+        .toList();
+  }
+
+  // ------------------------------------------------------ kiyafetler (#306)
+  /// Kiyafet kutuphanesi - KARAKTERDEN BAGIMSIZ (`<root>/_outfits/`).
+  static Future<List<OutfitItem>> outfits() async {
+    final d = await _getAny('/api/character/flow/outfits');
+    return _rows(d, const ['outfits', 'items'])
+        .map(OutfitItem.fromJson)
+        .where((o) => o.slug.isNotEmpty)
+        .toList();
+  }
+
+  /// Kiyafetin kucuk resmi. `v` (ms) duzenlemeden sonra onbellegi asar.
+  static String outfitThumbUrl(String slug, {int size = 360, int v = 0}) =>
+      '${ApiService.baseUrl}/api/character/flow/outfits/thumb'
+      '?slug=${Uri.encodeQueryComponent(slug)}&size=$size${v > 0 ? '&v=$v' : ''}';
+
+  /// Yeni kiyafet uretir (hayalet manken uzerinde onden urun fotografi) - op.
+  static Future<String> outfitCreate(String name, String prompt) async =>
+      '${(await _post('/api/character/flow/outfits/create',
+          {'name': name, 'prompt': prompt}))['op'] ?? ''}';
+
+  /// Kiyafeti kisa bir duzeltme cumlesiyle duzenler (edit_qwen) - op.
+  static Future<String> outfitEdit(String slug, String prompt) async =>
+      '${(await _post('/api/character/flow/outfits/edit',
+          {'slug': slug, 'prompt': prompt}))['op'] ?? ''}';
+
+  static Future<void> deleteOutfit(String slug) => _delete(
+      '/api/character/flow/outfit?slug=${Uri.encodeQueryComponent(slug)}',
+      {'slug': slug});
+
+  /// #306: skin uret = KIYAFET SEC + karakterin base'i. Skin slug'i kiyafet
+  /// slug'idir; sunucu South'u giydirir, sonra 7 yonu (op doner, 1 + 7 is).
+  static Future<({String slug, String op})> skinCreate(
+      String name, String outfitSlug) async {
+    final d = await _post('/api/character/flow/skins/create',
+        {'name': name, 'outfit': outfitSlug});
+    return (slug: '${d['slug'] ?? outfitSlug}', op: '${d['op'] ?? ''}');
+  }
+
+  /// #306: skinin secili yonlerini yeniden giydirir (aday uretir) - op doner.
+  static Future<String> skinDirs(
+          {required String name,
+          required String skin,
+          required List<String> dirs,
+          required int n}) async =>
+      '${(await _post('/api/character/flow/skins/dirs',
+          {'name': name, 'skin': skin, 'dirs': dirs, 'n': n}))['op']}';
+
+  /// #306: skini siler (`base` silinemez).
+  static Future<void> deleteSkin(String name, String skin) => _delete(
+      '/api/character/flow/skin?name=${Uri.encodeQueryComponent(name)}'
+      '&skin=${Uri.encodeQueryComponent(skin)}',
+      {'name': name, 'skin': skin});
 
   /// Blender manken render'i (CPU, gpu seridi almaz) - op doner.
   static Future<String> manken(
           {required String name,
           required List<String> clips,
-          required List<String> dirs}) async =>
+          required List<String> dirs,
+          String skin = ''}) async =>
       '${(await _post('/api/character/flow/manken',
-          {'name': name, 'clips': clips, 'dirs': dirs}))['op']}';
+          {'name': name, 'clips': clips, 'dirs': dirs, 'skin': skin}))['op']}';
 
   /// Animasyon uretimi - iki yol vardir (rev3):
   ///   mode 'mixamo'  Blender manken -> Wan Animate 2 (klipler arsivden secilir)
@@ -708,10 +1029,12 @@ class CharacterFlowService {
     String clip = '',
     String engine = '',
     double padding = 0,
+    String skin = '',            // #306: bos = base skini (anims/)
   }) async =>
       '${(await _post('/api/character/flow/animate', {
         'name': name,
         'dir': dir,
+        'skin': skin,
         'mode': mode,
         'n': n,
         if (clips.isNotEmpty) 'clips': clips,
@@ -755,44 +1078,63 @@ class CharacterFlowService {
       '&id=${Uri.encodeQueryComponent(id)}',
       const {});
 
-  /// Bir klibin o yondeki butun surumlerini siler.
+  /// Bir klibin o yondeki butun surumlerini siler. #306: skin baglami.
   static Future<void> deleteClip(
-          {required String name, required String dir, required String clip}) =>
+          {required String name,
+          required String dir,
+          required String clip,
+          String skin = ''}) =>
       _delete('/api/character/flow/clip',
-          {'name': name, 'dir': dir, 'clip': clip});
+          {'name': name, 'dir': dir, 'clip': clip, 'skin': skin});
 
   /// Karakteri komple siler - GERI ALINAMAZ.
   static Future<void> removeCharacter(String name) =>
       _delete('/api/character/flow/character', {'name': name});
 
   /// Bir yonun secili gorselini ve adaylarini siler.
-  static Future<void> deleteDir({required String name, required String dir}) =>
-      _delete('/api/character/flow/dir', {'name': name, 'dir': dir});
+  /// #306: `skin` bos = base yonu (`base/dirs/`), doluysa o skinin yonu.
+  static Future<void> deleteDir(
+          {required String name, required String dir, String skin = ''}) =>
+      _delete('/api/character/flow/dir',
+          {'name': name, 'dir': dir, 'skin': skin});
 
   /// Tek kabul edilen surum (yeniden kabul serbest, eski sprite silinir).
   static Future<void> accept(
           {required String name,
           required String dir,
           required String clip,
-          required String version}) =>
-      _post('/api/character/flow/accept',
-          {'name': name, 'dir': dir, 'clip': clip, 'version': version});
+          required String version,
+          String skin = ''}) =>          // #306: skin baglami
+      _post('/api/character/flow/accept', {
+        'name': name,
+        'dir': dir,
+        'clip': clip,
+        'version': version,
+        'skin': skin,
+      });
 
   static Future<void> deleteVersion(
           {required String name,
           required String dir,
           required String clip,
-          required String version}) =>
-      _delete('/api/character/flow/version',
-          {'name': name, 'dir': dir, 'clip': clip, 'version': version});
+          required String version,
+          String skin = ''}) =>          // #306: skin baglami
+      _delete('/api/character/flow/version', {
+        'name': name,
+        'dir': dir,
+        'clip': clip,
+        'version': version,
+        'skin': skin,
+      });
 
   /// Kabul edilmis surumlerden kare kare SAM3 -> anim.webp + sheet.png. Op doner.
   static Future<String> sprites(
           {required String name,
           required String dir,
-          required List<String> clips}) async =>
+          required List<String> clips,
+          String skin = ''}) async =>    // #306: skin baglami
       '${(await _post('/api/character/flow/sprites',
-          {'name': name, 'dir': dir, 'clips': clips}))['op']}';
+          {'name': name, 'dir': dir, 'clips': clips, 'skin': skin}))['op']}';
 
   static Future<FlowOp> op(String opId) async =>
       FlowOp.fromJson(await _get('/api/character/flow/op/$opId'));

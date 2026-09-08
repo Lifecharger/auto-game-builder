@@ -7,6 +7,7 @@ import '../services/cbn_flow_service.dart';
 import '../services/character_flow_service.dart';
 import '../services/jigsaw_flow_service.dart';
 import '../services/jigsaw_profiles.dart';
+import 'character_flow_screen.dart' show characterCreateDialog;  // #306
 import '../theme.dart';
 import '../services/mode_service.dart';
 import '../widgets/bottom_inset.dart';
@@ -204,8 +205,9 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
       .toList();
 
   /// Karakter Modu - "Karakter yap": secili TEK isten yeni bir karakter
-  /// klasoru acar (isim + sinif). Sunucu character.json, card.md iskeleti ve
-  /// sinif presetinden anims.json yazar.
+  /// klasoru acar (isim + sinif + istege bagli kimlik cumlesi). #306: sunucu
+  /// secili gorseli dogrudan base yapar ve otomatik hatti (portre, hikaye,
+  /// yonler) baslatir - onay sorulmaz.
   Future<void> _makeCharacter() async {
     final gorseller = _selectedImages;
     if (gorseller.isEmpty) {
@@ -216,77 +218,26 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
       _msg('Karakter tek gorselden acilir - birini sec');
       return;
     }
-    final siniflar = await CharacterProfiles.classes();
-    if (!mounted) return;
-    final ad = TextEditingController();
-    var sinif = siniflar.isNotEmpty ? siniflar.first : '';
-    final sonuc = await showDialog<(String, String)>(
-      context: context,
-      builder: (c) => StatefulBuilder(
-        builder: (c, setS) => AlertDialog(
-          // Isim alani otomatik odakli: klavye acilinca icerik tasmasin (gorev #289).
-          scrollable: true,
-          title: const Text('Karakter yap'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Secili gorsel bu karakterin ilk adayi olur. Klasor, kart ve '
-                'sinif presetinin klip seti sunucuda olusur.',
-                style: TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: ad,
-                autofocus: true,
-                decoration: const InputDecoration(
-                  labelText: 'Isim',
-                  hintText: 'orn. Freya',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 10),
-              if (siniflar.isEmpty)
-                TextField(
-                  onChanged: (v) => sinif = v,
-                  decoration: const InputDecoration(
-                    labelText: 'Sinif',
-                    hintText: 'warrior',
-                    border: OutlineInputBorder(),
-                  ),
-                )
-              else
-                DropdownButtonFormField<String>(
-                  initialValue: sinif,
-                  isExpanded: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Sinif',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: siniflar
-                      .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                      .toList(),
-                  onChanged: (v) => setS(() => sinif = v ?? sinif),
-                ),
-            ],
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(c), child: const Text('Vazgec')),
-            FilledButton(
-              onPressed: () => Navigator.pop(c, (ad.text.trim(), sinif.trim())),
-              child: const Text('Olustur'),
-            ),
-          ],
-        ),
-      ),
+    // #306: pencere Karakter hattiyla ortak (isim + sinif + kimlik cumlesi).
+    final sonuc = await characterCreateDialog(
+      context,
+      baslik: 'Karakter yap',
+      aciklama: 'Secili gorsel dogrudan base olur; portre, hikaye ve 7 yon '
+          'kendiliginden uretilir - onay sorulmaz.',
+      promptGerekli: false,
     );
-    if (sonuc == null || sonuc.$1.isEmpty) return;
+    if (sonuc == null) return;
     setState(() => _busy = true);
     try {
+      // #306: create artik otomatik hatti baslatir ve op doner - secili is
+      // dogrudan base olur, portre/hikaye/yonler kendiliginden uretilir.
       await CharacterFlowService.create(
-          name: sonuc.$1, klass: sonuc.$2, jobId: gorseller.first.id);
+          name: sonuc.name,
+          klass: sonuc.klass,
+          prompt: sonuc.prompt,
+          jobId: gorseller.first.id);
       if (!mounted) return;
-      _msg('${sonuc.$1} olusturuldu - "Hat" sekmesindeki Karakter hattinda');
+      _msg('${sonuc.name} siraya eklendi - pipeline Sira sekmesinde');
       setState(_sel.clear);
     } catch (e) {
       _msg(e.toString().replaceFirst('Exception: ', ''));

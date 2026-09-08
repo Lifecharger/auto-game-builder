@@ -30,21 +30,29 @@ KEEP = ("Keep the exact same woman: same face, same hair, same skin, same body p
         "same " + C.BG_CLAUSE + ". Photorealistic.")
 
 # Yon -> kamera cumlesi. 3/4 yonlerde hem kamera hem govde acisi soylenir.
+# #304: kamera GUNEYDE, pusula: E = resmin SAG kenarina bakar, W = SOL kenara.
+# Eski metinler celiskiliydi ("sag yanindan goster" + "sol kenara bakiyor") ve
+# model iki cumleden birini rastgele seciyordu - East hep farkli cikiyordu.
+# Her yonde hem hangi yani gordugumuz hem de hangi kenara baktigi soylenir.
 PROMPTS = {
-    "front_right": ("Rotate the camera to a THREE-QUARTER VIEW from her FRONT-RIGHT: she is turned 45 degrees, "
-                    "her right shoulder is closer to the camera, we still see most of her face and the front of her outfit."),
-    "right":       ("Rotate the camera to show her from her RIGHT SIDE in a strict 90 degree side profile view, "
-                    "facing the left edge of the image."),
-    "back_right":  ("Rotate the camera to a THREE-QUARTER VIEW from her BACK-RIGHT: she is turned 135 degrees away, "
-                    "we mostly see her back and the right side of her body, only a sliver of her cheek."),
+    "front_right": ("Rotate the camera to a THREE-QUARTER VIEW from her FRONT-RIGHT: she is turned 45 degrees "
+                    "toward the RIGHT edge of the image, her right shoulder is closer to the camera, we still see "
+                    "most of her face and the front of her outfit. She faces toward the right edge of the image."),
+    "right":       ("Rotate the camera to show her from her RIGHT SIDE in a strict 90 degree side profile view: "
+                    "we see her right side, her nose points to the RIGHT edge of the image, she faces the right edge."),
+    "back_right":  ("Rotate the camera to a THREE-QUARTER VIEW from her BACK-RIGHT: she is turned 135 degrees away "
+                    "toward the RIGHT edge of the image, we mostly see her back and the right side of her body, "
+                    "only a sliver of her cheek on the right."),
     "back":        ("Rotate the camera to show her from BEHIND in a strict back view, we see the back of her head, "
                     "her back and the back of her outfit."),
-    "back_left":   ("Rotate the camera to a THREE-QUARTER VIEW from her BACK-LEFT: she is turned 225 degrees away, "
-                    "we mostly see her back and the left side of her body, only a sliver of her cheek."),
-    "left":        ("Rotate the camera to show her from her LEFT SIDE in a strict 90 degree side profile view, "
-                    "facing the right edge of the image."),
-    "front_left":  ("Rotate the camera to a THREE-QUARTER VIEW from her FRONT-LEFT: she is turned 45 degrees the other "
-                    "way, her left shoulder is closer to the camera, we still see most of her face and the front of her outfit."),
+    "back_left":   ("Rotate the camera to a THREE-QUARTER VIEW from her BACK-LEFT: she is turned 135 degrees away "
+                    "toward the LEFT edge of the image, we mostly see her back and the left side of her body, "
+                    "only a sliver of her cheek on the left."),
+    "left":        ("Rotate the camera to show her from her LEFT SIDE in a strict 90 degree side profile view: "
+                    "we see her left side, her nose points to the LEFT edge of the image, she faces the left edge."),
+    "front_left":  ("Rotate the camera to a THREE-QUARTER VIEW from her FRONT-LEFT: she is turned 45 degrees "
+                    "toward the LEFT edge of the image, her left shoulder is closer to the camera, we still see "
+                    "most of her face and the front of her outfit. She faces toward the left edge of the image."),
 }
 NEG = ("anime, cartoon, illustration, 3d render, deformed, extra limbs, bad hands, bad anatomy, watermark, text, "
        "different face, different hair colour, different outfit, cropped head, cropped feet, front view")

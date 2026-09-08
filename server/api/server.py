@@ -6175,6 +6175,7 @@ class CharacterCreateRequest(BaseModel):
     cls: str = Field("", alias="class")
     job_id: str = ""
     file: str = ""
+    prompt: str = ""              # #305: kimlik prompt'u (job_id/file yoksa zorunlu)
     model_config = {"populate_by_name": True}
 
 
@@ -6187,13 +6188,53 @@ class CharacterStageRequest(BaseModel):
 class CharacterPickRequest(BaseModel):
     name: str
     file: str
-    kind: str = "look"            # look | base | portrait | dir:<yon>
+    # #305: "look" KALDIRILDI -> base | portrait | dir:<yon> | skin:<slug>:<yon>
+    kind: str = "base"
 
 
 class CharacterDirsRequest(BaseModel):
     name: str
     dirs: list[str] = []
     n: int = 2
+    skin: str = ""                # #305: bos = base yonleri, dolu = skin giydirme
+
+
+class CharacterPipelineRequest(BaseModel):
+    """#305: otomatik hattin secili adimlarini yeniden kosar."""
+    name: str
+    steps: list[str] = []         # bos = portrait + story + dirs
+
+
+class CharacterEditRequest(BaseModel):
+    """#305: ince ayar - kabul edilmis gorseli kisa bir cumleyle duzeltir."""
+    name: str
+    target: str                   # base | portrait | dir:<yon> | skin:<slug>:<yon>
+    prompt: str
+
+
+class CharacterSkinCreateRequest(BaseModel):
+    """#305: skin = kutuphanedeki KIYAFET + karakterin base'i (South + 7 yon)."""
+    name: str
+    outfit: str = ""              # kiyafet slug'i (skin slug'i da bu olur)
+    skin_name: str = ""           # gorunen ad (bos = kiyafetin adi)
+
+
+class CharacterOutfitCreateRequest(BaseModel):
+    """#305: kiyafet kutuphanesi - hayalet manken urun fotografi."""
+    name: str
+    prompt: str
+
+
+class CharacterOutfitEditRequest(BaseModel):
+    slug: str
+    prompt: str
+
+
+class CharacterSkinDirsRequest(BaseModel):
+    name: str
+    skin: str
+    dirs: list[str] = []
+    n: int = 1
 
 
 class CharacterPortraitRequest(BaseModel):
@@ -6210,6 +6251,7 @@ class CharacterMankenRequest(BaseModel):
     name: str
     clips: list[str] = []
     dirs: list[str] = []
+    skin: str = ""                # #305
 
 
 class CharacterAnimateRequest(BaseModel):
@@ -6222,6 +6264,7 @@ class CharacterAnimateRequest(BaseModel):
     engine: str = ""              # i2v: comfy_gen gorev id'si (bos = varsayilan)
     n: int = 1
     padding: float | None = None  # 0 | 0.1 | 0.2 | 0.3 (bos = character.json)
+    skin: str = ""                # #305: bos = base skini
 
 
 class CharacterVersionRequest(BaseModel):
@@ -6229,12 +6272,14 @@ class CharacterVersionRequest(BaseModel):
     dir: str = ""
     clip: str = ""
     version: str = ""
+    skin: str = ""                # #305
 
 
 class CharacterSpritesRequest(BaseModel):
     name: str
     dir: str
     clips: list[str] = []
+    skin: str = ""                # #305
 
 
 class CharacterCardRequest(BaseModel):
@@ -6279,7 +6324,10 @@ def character_flow_list():
 
 @app.post("/api/character/flow/create")
 def character_flow_create(body: CharacterCreateRequest):
-    return _flow_call(_char().create, body.name, body.cls, body.job_id, body.file)
+    """#305: klasor + OTOMATIK HAT. job_id/file verilirse o gorsel dogrudan base
+    olur, yoksa prompt (kimlik) ile n=1 base adayi uretilir; ardindan portre,
+    hikaye ve 7 yon otomatik kabul edilerek kosar. Donen "op" Sira'da izlenir."""
+    return _flow_call(_char().create, body.name, body.cls, body.job_id, body.file, body.prompt)
 
 
 @app.post("/api/character/flow/stage")
@@ -6292,24 +6340,113 @@ def character_flow_stage(body: CharacterStageRequest):
 
 @app.post("/api/character/flow/pick")
 def character_flow_pick(body: CharacterPickRequest):
+    """#305: kind base | portrait | dir:<yon> | skin:<slug>:<yon> ("look" -> 400).
+    base secimi 2-4. adimlari yeniden kosturur; donen sozlukte "op" bulunur."""
     return _flow_call(_char().pick, body.name, body.file, body.kind)
+
+
+@app.post("/api/character/flow/pipeline/rebuild")
+def character_flow_pipeline_rebuild(body: CharacterPipelineRequest):
+    """#305: otomatik hattin adimlarini yeniden kosar (vars. portrait+story+dirs)."""
+    return {"op": _flow_call(_char().rebuild, body.name, body.steps)}
+
+
+@app.post("/api/character/flow/edit")
+def character_flow_edit(body: CharacterEditRequest):
+    """#305: Duzenle - kabul edilmis gorseli kullanicinin cumlesiyle duzeltir
+    (edit_qwen + KEEP kimlik/poz/fon kilidi), sonuc OTOMATIK kabul edilir, eski
+    gorsel aday olarak saklanir. Base duzenlenince 2-4. adimlar yeniden KOSMAZ."""
+    return {"op": _flow_call(_char().edit, body.name, body.target, body.prompt)}
+
+
+@app.get("/api/character/flow/skins")
+def character_flow_skins(name: str):
+    """#305: karakterin skinleri - ilk eleman her zaman `base`."""
+    return _flow_call(_char().skins, name)
+
+
+@app.post("/api/character/flow/skins/create")
+def character_flow_skin_create(body: CharacterSkinCreateRequest):
+    """#305: op kind char-skin (1 + 7): kiyafeti base'e giydirir (iki gorselli
+    duzenleme), sonra 7 yonu giydirilmis South ile giydirir. Skin slug = kiyafet slug."""
+    return _flow_call(_char().create_skin, body.name, body.outfit, body.skin_name)
+
+
+# ------------------------------------------------- #305 kiyafet kutuphanesi
+# Karakterden BAGIMSIZ: <character.root>/_outfits/<slug>.png + <slug>.json.
+@app.get("/api/character/flow/outfits")
+def character_flow_outfits():
+    """#305: kutuphanedeki kiyafetler."""
+    return _flow_call(_char().outfits)
+
+
+@app.post("/api/character/flow/outfits/create")
+def character_flow_outfit_create(body: CharacterOutfitCreateRequest):
+    """#305: op kind char-outfit (1 is) - image_zimage, mode 'free', 832x1472."""
+    return _flow_call(_char().create_outfit, body.name, body.prompt)
+
+
+@app.post("/api/character/flow/outfits/edit")
+def character_flow_outfit_edit(body: CharacterOutfitEditRequest):
+    """#305: kiyafeti kisa bir cumleyle duzeltir (edit_qwen, otomatik kabul)."""
+    return _flow_call(_char().edit_outfit, body.slug, body.prompt)
+
+
+@app.delete("/api/character/flow/outfit")
+async def character_flow_outfit_delete(request: Request, slug: str = ""):
+    b = await _json_body(request)
+    return _flow_call(_char().delete_outfit, slug or b.get("slug", ""))
+
+
+@app.get("/api/character/flow/outfits/thumb")
+def character_flow_outfit_thumb(slug: str, size: int = 360):
+    t = _flow_call(_char().outfit_thumb, slug, max(64, min(1024, size)))
+    if not t:
+        raise HTTPException(404, "Onizleme yok")
+    return FileResponse(t, media_type="image/jpeg",
+                        headers={"Cache-Control": "public, max-age=604800"})
+
+
+@app.get("/api/character/flow/outfits/file")
+def character_flow_outfit_file(slug: str):
+    """#305: kiyafetin tam boy gorseli."""
+    p = _flow_call(_char().outfit_path, slug)
+    if not p or not os.path.isfile(p):
+        raise HTTPException(404, "Dosya yok")
+    return FileResponse(p, media_type="image/png", filename=os.path.basename(p),
+                        content_disposition_type="inline")
+
+
+@app.post("/api/character/flow/skins/dirs")
+def character_flow_skin_dirs(body: CharacterSkinDirsRequest):
+    """#305: secili yonleri yeniden giydirir (aday uretir)."""
+    return {"op": _flow_call(_char().generate_skin_dirs, body.name, body.skin, body.dirs, body.n)}
+
+
+@app.delete("/api/character/flow/skin")
+async def character_flow_delete_skin(request: Request, name: str = "", skin: str = ""):
+    """#305: skini komple siler (`base` silinemez)."""
+    b = await _json_body(request)
+    return _flow_call(_char().delete_skin, name or b.get("name", ""), skin or b.get("skin", ""))
 
 
 @app.post("/api/character/flow/dirs")
 def character_flow_dirs(body: CharacterDirsRequest):
-    """op: secili yonlerin adaylarini uretir (Qwen Edit, gpu seridi)."""
-    return {"op": _flow_call(_char().generate_dirs, body.name, body.dirs, body.n)}
+    """op: secili yonlerin adaylarini uretir (Qwen Edit, comfy_gen kuyrugu).
+    #305: skin dolu ise o skinin yonleri giydirilir (iki gorselli gorev)."""
+    return {"op": _flow_call(_char().generate_dirs, body.name, body.dirs, body.n, body.skin)}
 
 
 @app.delete("/api/character/flow/dir")
-async def character_flow_delete_dir(request: Request, name: str = "", dir: str = ""):
+async def character_flow_delete_dir(request: Request, name: str = "", dir: str = "", skin: str = ""):
     b = await _json_body(request)
-    return _flow_call(_char().delete_dir, name or b.get("name", ""), dir or b.get("dir", ""))
+    return _flow_call(_char().delete_dir, name or b.get("name", ""), dir or b.get("dir", ""),
+                      skin or b.get("skin", ""))
 
 
 @app.post("/api/character/flow/portrait")
 def character_flow_portrait(body: CharacterPortraitRequest):
-    """op: look'tan bas-omuz portre adaylari (Qwen Edit, gpu seridi)."""
+    """op: base'ten KARE vesikalik portre adaylari (Qwen Edit, comfy_gen kuyrugu)."""
     return {"op": _flow_call(_char().generate_portrait, body.name, body.n)}
 
 
@@ -6332,7 +6469,7 @@ def character_flow_mixamo(q: str = "", limit: int = 100, offset: int = 0):
 @app.post("/api/character/flow/manken")
 def character_flow_manken(body: CharacterMankenRequest):
     """op: Blender manken videolari (CPU - gpu seridi ALMAZ)."""
-    return {"op": _flow_call(_char().render_manken, body.name, body.clips, body.dirs)}
+    return {"op": _flow_call(_char().render_manken, body.name, body.clips, body.dirs, body.skin)}
 
 
 @app.post("/api/character/flow/animate")
@@ -6340,38 +6477,41 @@ def character_flow_animate(body: CharacterAnimateRequest):
     """op: her klip icin n YENI surum. mode=mixamo (Wan Animate 2, gpu seridi)
     ya da mode=i2v (comfy_gen video hatti)."""
     return {"op": _flow_call(_char().animate, body.name, body.dir, body.clips, body.n,
-                             body.mode, body.prompt, body.clip, body.engine, body.padding)}
+                             body.mode, body.prompt, body.clip, body.engine, body.padding,
+                             body.skin)}
 
 
 @app.get("/api/character/flow/anims_of")
-def character_flow_anims_of(name: str, dir: str):
-    return _flow_call(_char().anims_of, name, dir)
+def character_flow_anims_of(name: str, dir: str, skin: str = ""):
+    return _flow_call(_char().anims_of, name, dir, skin)
 
 
 @app.post("/api/character/flow/accept")
 def character_flow_accept(body: CharacterVersionRequest):
-    return _flow_call(_char().accept, body.name, body.dir, body.clip, body.version)
+    return _flow_call(_char().accept, body.name, body.dir, body.clip, body.version, body.skin)
 
 
 @app.delete("/api/character/flow/version")
 async def character_flow_delete_version(request: Request, name: str = "", dir: str = "",
-                                        clip: str = "", version: str = ""):
+                                        clip: str = "", version: str = "", skin: str = ""):
     b = await _json_body(request)
     return _flow_call(_char().delete_version, name or b.get("name", ""), dir or b.get("dir", ""),
-                      clip or b.get("clip", ""), version or b.get("version", ""))
+                      clip or b.get("clip", ""), version or b.get("version", ""),
+                      skin or b.get("skin", ""))
 
 
 @app.delete("/api/character/flow/clip")
-async def character_flow_delete_clip(request: Request, name: str = "", dir: str = "", clip: str = ""):
+async def character_flow_delete_clip(request: Request, name: str = "", dir: str = "", clip: str = "",
+                                    skin: str = ""):
     b = await _json_body(request)
     return _flow_call(_char().delete_clip, name or b.get("name", ""), dir or b.get("dir", ""),
-                      clip or b.get("clip", ""))
+                      clip or b.get("clip", ""), skin or b.get("skin", ""))
 
 
 @app.post("/api/character/flow/sprites")
 def character_flow_sprites(body: CharacterSpritesRequest):
     """op: kabul edilen surumlerden SAM3 kare kare kesim -> anim.webp + sheet.png."""
-    return {"op": _flow_call(_char().sprites, body.name, body.dir, body.clips)}
+    return {"op": _flow_call(_char().sprites, body.name, body.dir, body.clips, body.skin)}
 
 
 @app.get("/api/character/flow/thumb")
