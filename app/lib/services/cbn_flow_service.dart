@@ -222,9 +222,11 @@ class CbnFlowService {
   static Future<String> sam({required String rating, required List<String> ids}) async =>
       '${(await _post('/api/cbn/flow/sam', {'rating': rating, 'ids': ids}))['op']}';
 
-  /// Asama C (hot): Qwen cizgi sayfasi (parti halinde).
-  static Future<String> lineart({required String rating, required List<String> ids}) async =>
-      '${(await _post('/api/cbn/flow/lineart', {'rating': rating, 'ids': ids}))['op']}';
+  /// Asama C (hot): cizgi sayfasi (parti halinde).
+  /// #319: method = 'anyline' (varsayilan) | 'qwen'; bos = sunucu ayari.
+  static Future<String> lineart(
+          {required String rating, required List<String> ids, String method = ''}) async =>
+      '${(await _post('/api/cbn/flow/lineart', {'rating': rating, 'ids': ids, 'method': method}))['op']}';
 
   /// 2 -> 3. Secili Gelen varliklarini koleksiyona insa eder (uzun surer).
   static Future<String> build(

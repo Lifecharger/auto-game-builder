@@ -8,9 +8,11 @@ palette is large (up to 80 entries) like the reference app.
 
   1. source    a finished illustration — a pool jpg, or Z-Image in the reference
                "clean semi-realistic illustration" style (--subject).
-  2. lineart   Qwen Image Edit 2511 turns it into a coloring-page line drawing
-               (background included). Generative, but measured to sit on the
-               source's real edges within a few px.
+  2. lineart   AnyLine/MTEED (#319) traces the picture's OWN edges into a
+               coloring-page line drawing (background included) - pixel aligned,
+               no registration needed. Qwen Image Edit 2511 stays selectable
+               (generative, registered by cbn_align); SAM outlines are the
+               emergency fallback.
   3. things    the vision model lists what is in the picture, SAM 3.1 masks it
                (same object finder as Kid CBN).
   4. regions   cells enclosed by the drawn lines, split where SAM says two things
@@ -31,8 +33,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import random
-import re
 import shutil
 import subprocess
 import sys
@@ -44,9 +46,9 @@ import cv2
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from kid_cbn import (COMFY_IN, WORKFLOWS, POOL_ROOT, _converter, _saved_files, comfy_run,  # noqa: E402
+from kid_cbn import (COMFY_IN, COMFY_ROOT, WORKFLOWS, POOL_ROOT, _converter, _saved_files, comfy_run,  # noqa: E402
                      discover_concepts, segment, _kmeans, _relabel, _delta_e, slugify, _setting,
-                     order_masks_by_center, palette_by_object, segments_overlay)
+                     order_masks_by_center, palette_by_object, segments_overlay, load_masks, save_masks)
 from cbn_align import align_page, pad_for_edit, unpad_page  # noqa: E402
 
 OUT_ROOT = Path(_setting("hot_cbn.root", "HOT_CBN_ROOT",
@@ -59,9 +61,14 @@ UPSCALE_MODEL = "RealESRGAN_x4plus_anime_6B.pth"
 UPSCALE_FACTOR = 2               # asset resolution = generation x2 (long side up to 2560)
 REVEAL_MAX_SIDE = 1280           # the replay video stays phone-sized
 
+# #319: "bold clean black ink outlines, flat cel shading, minimal gradients,
+# simple uncluttered background" - kaynak ne kadar duz/konturlu olursa cizgi
+# katmani (AnyLine) ve bolgeleme o kadar temiz cikar. Ayni cumle
+# server/config/cbn_options.json -> hot.sablon icinde de var.
 STYLE_PROMPT = (
-    "{}, clean semi-realistic digital illustration, smooth cel shading with soft gradients, "
-    "crisp clean edges, glossy highlights, vivid saturated colors, detailed hair strands, "
+    "{}, clean semi-realistic digital illustration, bold clean black ink outlines, "
+    "flat cel shading, minimal gradients, crisp clean edges, glossy highlights, "
+    "vivid saturated colors, detailed hair strands, simple uncluttered background, "
     "beautiful adult woman, glamorous, high detail")
 LINEART_PROMPT = (
     "Convert this picture into a clean black-and-white line art coloring page. Draw EVERYTHING in "
@@ -76,6 +83,39 @@ CONCEPTS_HOT = ["eyes", "eyebrows", "lips", "teeth", "nose", "earring", "necklac
                 "clothing", "flower", "chair", "table", "umbrella", "cup", "car", "window", "door",
                 "wall", "tree", "palm tree", "building", "water", "sea", "sand", "grass", "cloud",
                 "mountain", "sky"]
+
+# --- #319: AnyLine (MTEED) cizgi katmani ---------------------------------
+# Kaynagin KENDI kenarlarindan cizgi cikarir - uretmez. Bu yuzden piksel
+# hizalidir (cbn_align gerekmez) ve SAM konturunun "felcli" cift-kontur/bos-yuz
+# sorunu yoktur. Agirlik: TheMistoAI/MistoLine "Anyline/MTEED.pth" (openrail++,
+# atif sart - bkz. ANYLINE_LICENSE).
+ANYLINE_REPO = "TheMistoAI/MistoLine"
+ANYLINE_FILE = "MTEED.pth"
+ANYLINE_SUBFOLDER = "Anyline"
+ANYLINE_LICENSE = "MTEED (Anyline) weights (c) TheMistoAI - openrail++"
+ANYLINE_RES = 1664              # dedektorun calisma cozunurlugu (uzun kenar); x2 kaynak once kucultulur
+ANYLINE_FACE_RES = 1024         # yuz kutusu icin ikinci gecis
+TARGET_INK_PCT = 5.0            # kisi maskesi icinde tohum (yuksek) esik yuzdesi
+OUTSIDE_INK_PCT = 2.5           # maske disinda (arka plan) daha sikici esik
+HYST_LOW_MULT = 2.4             # dusuk esik = hedefin bu kati. Duz esik cizgileri KESIK
+                                # birakiyor (hucreler birbirine akiyor); histerezis
+                                # (tohum + zayif pikselden buyume) kapali kontur verir.
+INK_FLOOR = 24                  # bu grinin altindaki hicbir piksel cizgi sayilmaz
+MIN_LINE_OBJ = 24               # bundan kucuk cizgi parcalari silinir (px)
+SPUR_MAX = 8                    # iskelette bu kadar kisa cikintilar budanir (px)
+LINE_THICK = 3                  # son cizgi kalinligi (px)
+SNAP_PX = 3                     # #319 (a): maske siniri cizgiye bu kadar yakinsa cizgiye oturur
+THIN_STRIP_PX = 4               # #319 (b): bundan ince seritler renkce en yakin komsuya katlanir
+LINE_SHARE_OK = (0.01, 0.35)    # bu araligin disinda kalan sayfa dejeneredir -> SAM konturu
+FACE_WORDS = ("face", "head", "eyes", "eyebrows", "nose", "lips", "mouth")
+PERSON_WORDS = (
+    "skin", "face", "head", "hair", "body", "torso", "neck", "shoulder", "chest", "arm", "arms",
+    "leg", "legs", "hand", "hands", "fingers", "nails", "feet", "foot", "eyes", "eyebrows", "nose",
+    "lips", "mouth", "teeth", "ear", "ears", "person", "woman", "girl", "man", "horns", "tail",
+    "dress", "top", "tank top", "crop top", "shirt", "blouse", "skirt", "shorts", "pants", "jeans",
+    "jacket", "coat", "clothing", "bikini", "swimsuit", "lingerie", "bra", "socks", "stockings",
+    "shoes", "boots", "heels", "gloves", "hat", "sunglasses", "glasses", "earring", "necklace",
+    "bracelet", "ring", "belt", "bag", "armband", "watch", "scarf", "tattoo")
 
 LINE_THRESHOLD = 150            # Qwen's page: darker than this is line
 MIN_REGION_FRAC = 0.00025       # specks below this share of the image are folded away
@@ -171,38 +211,351 @@ def qwen_lineart(src: Path, dest: Path, seed: int | None = None) -> Path:
     return dest
 
 
+# ------------------------------------------------------------- #319 anyline
+_ANYLINE_DET: dict = {}
+
+
+def _anyline_ready() -> bool:
+    """#319: bu yorumlayicida AnyLine calisir mi (torch + skimage var mi)?"""
+    try:
+        import torch  # noqa: WPS433
+        from skimage.morphology import skeletonize  # noqa: WPS433
+    except Exception:
+        return False
+    return bool(torch and skeletonize)
+
+
+def _hf_token() -> str:
+    """#319: HF jetonu - once ortam, sonra keys_dir/huggingface_token.txt.
+    Depo ACIK oldugu icin dosya yolu koda gomulmez (ayarlardan gelir)."""
+    for env in ("HF_TOKEN", "HUGGINGFACE_TOKEN", "HUGGING_FACE_HUB_TOKEN"):
+        v = os.environ.get(env, "").strip()
+        if v:
+            return v
+    kd = _setting("paths.keys_dir", "KEYS_DIR", "")
+    if kd:
+        p = Path(kd) / "huggingface_token.txt"
+        try:
+            return p.read_text(encoding="utf-8").strip()
+        except Exception:
+            pass
+    return ""
+
+
+def anyline_device(force: str = "") -> str:
+    """#319: cuda / cpu. Serit (gpu_lane) bizde degilse cagiran taraf "cpu"
+    gecebilir; CBN_ANYLINE_DEVICE ortam degiskeni de zorlar."""
+    import torch  # noqa: WPS433
+    want = (force or os.environ.get("CBN_ANYLINE_DEVICE", "")).strip().lower()
+    if want in ("cpu", "cuda"):
+        return want if (want == "cpu" or torch.cuda.is_available()) else "cpu"
+    return "cuda" if torch.cuda.is_available() else "cpu"
+
+
+def _anyline_detector(device: str):
+    """#319: vendor'daki AnylineDetector (agirlik ilk kullanimda HF'ten iner)."""
+    det = _ANYLINE_DET.get(device)
+    if det is not None:
+        return det
+    vend = str(COMFY_ROOT / "scripts" / "_vendor")
+    if vend not in sys.path:
+        sys.path.insert(0, vend)
+    tok = _hf_token()
+    if tok:
+        os.environ.setdefault("HF_TOKEN", tok)
+    from controlnet_aux.anyline import AnylineDetector  # noqa: WPS433
+    det = AnylineDetector.from_pretrained(ANYLINE_REPO, filename=ANYLINE_FILE,
+                                          subfolder=ANYLINE_SUBFOLDER).to(device)
+    _ANYLINE_DET[device] = det
+    return det
+
+
+def _anyline_map(img_bgr: np.ndarray, det, res: int) -> np.ndarray:
+    """Ham AnyLine haritasi (0..255, PARLAK = cizgi), kaynakla ayni boyutta.
+    Once uzun kenar `res`e kucultulur (x2 kaynak), sonuc LANCZOS ile geri
+    buyutulur - dedektorun kendi resize_image'i KISA kenari olcekledigi icin
+    detect_resolution kucultulmus goruntunun kisa kenaridir (yeniden buyutme
+    yok)."""
+    H, W = img_bgr.shape[:2]
+    f = res / float(max(H, W))
+    if f < 1.0:
+        small = cv2.resize(img_bgr, (max(64, int(round(W * f))), max(64, int(round(H * f)))),
+                           interpolation=cv2.INTER_AREA)
+    else:
+        small = img_bgr
+    out = det(cv2.cvtColor(small, cv2.COLOR_BGR2RGB), detect_resolution=min(small.shape[:2]),
+              output_type="np")
+    g = out[..., 0] if getattr(out, "ndim", 2) == 3 else out
+    g = np.asarray(g, dtype=np.uint8)
+    if g.shape[:2] != (H, W):
+        g = cv2.resize(g, (W, H), interpolation=cv2.INTER_LANCZOS4)
+    return g
+
+
+def _named_mask(masks, words, H: int, W: int) -> np.ndarray:
+    """Adi `words` icinde gecen maskelerin birlesimi."""
+    out = np.zeros((H, W), bool)
+    for name, m, _s in masks:
+        if str(name).strip().lower() in words:
+            out |= m
+    return out
+
+
+def _face_box(masks, H: int, W: int, pad: float = 0.25):
+    """Yuz/kafa maskesinin kutusu (yoksa goz/dudak birlesimi), `pad` kadar
+    genisletilmis. Yoksa None."""
+    for words in (("face",), ("head",), FACE_WORDS):
+        m = _named_mask(masks, set(words), H, W)
+        if m.sum() < 64:
+            continue
+        ys, xs = np.where(m)
+        y0, y1, x0, x1 = int(ys.min()), int(ys.max()) + 1, int(xs.min()), int(xs.max()) + 1
+        dy, dx = int((y1 - y0) * pad), int((x1 - x0) * pad)
+        return (max(y0 - dy, 0), min(y1 + dy, H), max(x0 - dx, 0), min(x1 + dx, W))
+    return None
+
+
+def _prune_spurs(sk: np.ndarray, max_len: int = SPUR_MAX) -> np.ndarray:
+    """Iskelet uzerindeki kisa cikintilari siler: bir ucu SERBEST, oteki ucu
+    KAVSAK olan ve `max_len` pikselden kisa dallar. Uzun acik cizgiler
+    kisalmaz (uc-piksel silen basit yontemin aksine)."""
+    k = np.ones((3, 3), np.uint8)
+    k[1, 1] = 0
+    s = sk.astype(np.uint8)
+    for _ in range(3):
+        nb = cv2.filter2D(s, -1, k, borderType=cv2.BORDER_CONSTANT)
+        on = s > 0
+        junc = on & (nb >= 3)
+        ends = on & (nb <= 1)
+        branch = on & ~junc
+        n, lab, stats, _c = cv2.connectedComponentsWithStats(branch.astype(np.uint8), 8)
+        if n <= 1:
+            break
+        has_end = np.zeros(n, bool)
+        np.logical_or.at(has_end, lab[ends & branch], True)
+        near = cv2.dilate(junc.astype(np.uint8), np.ones((3, 3), np.uint8)).astype(bool)
+        touch = np.zeros(n, bool)
+        np.logical_or.at(touch, lab[branch & near], True)
+        drop = (stats[:, cv2.CC_STAT_AREA] <= max_len) & has_end & touch
+        drop[0] = False
+        if not drop.any():
+            break
+        s[drop[lab]] = 0
+    return s.astype(bool)
+
+
+def _remove_small(mask: np.ndarray, min_px: int) -> np.ndarray:
+    """#319: min_px pikselden kucuk baglanti bilesenlerini siler (skimage'in
+    remove_small_objects'i skimage 0.26'da min_size icin uyari basiyor)."""
+    n, lab, stats, _c = cv2.connectedComponentsWithStats(mask.astype(np.uint8), 8)
+    if n <= 1:
+        return mask
+    keep = stats[:, cv2.CC_STAT_AREA] >= min_px
+    keep[0] = False
+    return keep[lab]
+
+
+def clean_lineart(ink: np.ndarray, person: np.ndarray | None = None) -> tuple[np.ndarray, dict]:
+    """#319: ham AnyLine haritasi -> temiz ikili cizgi maskesi.
+    histerezis esik (tohum yuzdesi kisi icinde TARGET_INK_PCT, disinda
+    OUTSIDE_INK_PCT; zayif esik bunun HYST_LOW_MULT kati) -> kucuk parcalari at
+    -> MORPH_CLOSE x2 -> iskelet + cikinti budama -> LINE_THICK px.
+    Histerezis sart: duz yuzdelik esik cizgiyi kesik birakiyor, hucreler
+    (connectedComponents(~line)) birbirine akiyordu."""
+    from skimage.filters import apply_hysteresis_threshold  # noqa: WPS433
+    from skimage.morphology import skeletonize  # noqa: WPS433
+
+    def esik(m, pct):
+        v = ink[m] if m is not None else ink.ravel()
+        if v.size == 0:
+            return 255.0
+        return max(float(INK_FLOOR), float(np.percentile(v, 100.0 - min(pct, 99.0))))
+
+    lo = np.zeros(ink.shape, np.float32)
+    hi = np.zeros(ink.shape, np.float32)
+    if person is not None and person.any() and not person.all():
+        zones = ((person, TARGET_INK_PCT), (~person, OUTSIDE_INK_PCT))
+    else:
+        zones = ((np.ones(ink.shape, bool), TARGET_INK_PCT),)
+    for m, pct in zones:
+        hi[m] = max(esik(m, pct), float(INK_FLOOR) * 2)
+        lo[m] = esik(m, pct * HYST_LOW_MULT)
+    line = apply_hysteresis_threshold(ink.astype(np.float32), lo, hi)
+    raw_pct = round(float(line.mean()) * 100, 2)
+    line = _remove_small(line, MIN_LINE_OBJ)
+    line = cv2.morphologyEx(line.astype(np.uint8), cv2.MORPH_CLOSE, np.ones((3, 3), np.uint8),
+                            iterations=2).astype(bool)
+    sk = _remove_small(_prune_spurs(skeletonize(line), SPUR_MAX), max(6, SPUR_MAX))
+    line = cv2.dilate(sk.astype(np.uint8),
+                      cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (LINE_THICK, LINE_THICK))).astype(bool)
+    return line, {"thr_hi": [round(float(hi[m].max()), 1) for m, _p in zones],
+                  "thr_lo": [round(float(lo[m].max()), 1) for m, _p in zones],
+                  "ink_pct_raw": raw_pct, "ink_pct": round(float(line.mean()) * 100, 2)}
+
+
+def anyline_lineart(src_path, out_path, masks=None, device: str = "") -> Path:
+    """#319: AnyLine cizgi sayfasi - beyaz zemin, siyah LINE_THICK px cizgi,
+    kaynakla PIKSEL HIZALI (build() bunu hizalamaz).
+
+    masks: kid_cbn maske listesi [(ad, bool maske, pay)] ya da masks.npz yolu.
+    Verilirse (a) yuz/kafa kutusunda ikinci bir gecis yapilir (ince yuz
+    cizgileri), (b) kisi disinda daha sikici esik kullanilir (arka plan
+    kalabaligi azalir). Yan urun: <out>'un yaninda _anyline_raw.png (ham gri).
+
+    torch/skimage bu yorumlayicida yoksa is ComfyUI venv'ine devredilir."""
+    src_path, out_path = Path(src_path), Path(out_path)
+    if not _anyline_ready():               # npz yolu oldugu gibi devredilir
+        return _anyline_via_venv(src_path, out_path, masks, device)
+    if isinstance(masks, (str, Path)):
+        masks = load_masks(masks) if Path(masks).is_file() else None
+    img = cv2.imread(str(src_path))
+    if img is None:
+        raise RuntimeError(f"cannot read {src_path}")
+    H, W = img.shape[:2]
+    dev = anyline_device(device)
+    t0 = time.time()
+    det = _anyline_detector(dev)
+    ink = _anyline_map(img, det, ANYLINE_RES)
+    masks = fit_masks(masks or [], H, W)
+    box = _face_box(masks, H, W)
+    if box:
+        y0, y1, x0, x1 = box
+        face = _anyline_map(img[y0:y1, x0:x1], det, ANYLINE_FACE_RES)
+        ink[y0:y1, x0:x1] = np.maximum(ink[y0:y1, x0:x1], face)
+    person = _named_mask(masks, set(PERSON_WORDS), H, W)
+    line, info = clean_lineart(ink, person if person.any() else None)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    cv2.imwrite(str(out_path.parent / "_anyline_raw.png"), 255 - ink)
+    cv2.imwrite(str(out_path), np.where(line, 0, 255).astype(np.uint8))
+    print(f"  anyline {dev} {W}x{H} {time.time() - t0:.0f}s face={'yes' if box else 'no'} "
+          f"person={person.mean():.0%} ink={info['ink_pct']}% -> {out_path.name}")
+    return out_path
+
+
+def _anyline_via_venv(src: Path, dest: Path, masks, device: str = "") -> Path:
+    """#319: torch ComfyUI venv'inde - AGB sunucusu (3.14) buradan cagirir."""
+    py = _setting("side_services.comfyui.python", "COMFY_PYTHON", "")
+    if not py or not Path(py).is_file():
+        raise RuntimeError("ComfyUI venv python bulunamadi (side_services.comfyui.python)")
+    args = [py, str(Path(__file__).resolve()), "--anyline", "--out", str(dest)]
+    tmp = None
+    if isinstance(masks, (str, Path)):
+        if Path(masks).is_file():
+            args += ["--masks", str(masks)]
+    elif masks:                            # bellekteki maskeler gecici npz ile gecer
+        tmp = dest.parent / f"_anyline_masks_{uuid.uuid4().hex[:8]}.npz"
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        save_masks(tmp, masks)
+        args += ["--masks", str(tmp)]
+    if device:
+        args += ["--device", device]
+    args += ["--source", str(src)]
+    try:
+        p = subprocess.run(args, capture_output=True, text=True, encoding="utf-8", errors="replace",
+                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    finally:
+        if tmp is not None:
+            tmp.unlink(missing_ok=True)
+    if p.stdout:
+        print(p.stdout.strip())
+    if p.returncode != 0 or not dest.is_file():
+        raise RuntimeError("anyline (venv) basarisiz: " + (p.stderr or p.stdout or "")[-400:])
+    return dest
+
+
 # ---------------------------------------------------------------- regions
+def _absorb_regions(lab: np.ndarray, victims: np.ndarray, lab_img: np.ndarray) -> np.ndarray:
+    """Verilen bolgeleri renkce en yakin komsuya katar (esitlikte en uzun ortak
+    sinir). Kutu-yerel, ucuz. #319: _fold_specks ve _fold_thin_strips ortak
+    kullanir - davranis degismedi, yalniz disari alindi."""
+    n = lab.max() + 1
+    areas = np.bincount(lab.ravel(), minlength=n)
+    means = np.zeros((n, 3), np.float32)
+    for c in range(3):
+        means[:, c] = np.bincount(lab.ravel(), weights=lab_img[..., c].ravel(), minlength=n) / np.maximum(areas, 1)
+    H, W = lab.shape
+    for i in victims:
+        ys, xs = np.where(lab == i)
+        if len(ys) == 0:
+            continue
+        y0, y1 = max(ys.min() - 1, 0), min(ys.max() + 2, H)
+        x0, x1 = max(xs.min() - 1, 0), min(xs.max() + 2, W)
+        win = lab[y0:y1, x0:x1]
+        me = win == i
+        ring = cv2.dilate(me.astype(np.uint8), np.ones((3, 3), np.uint8)).astype(bool) & ~me
+        neigh = win[ring]
+        neigh = neigh[neigh != i]
+        if len(neigh) == 0:
+            continue
+        cand, cnt = np.unique(neigh, return_counts=True)
+        score = cnt / cnt.max() - 0.03 * np.array([_delta_e(means[i], means[c]) for c in cand])
+        win[me] = cand[int(np.argmax(score))]
+    return lab
+
+
+def _region_widths(lab: np.ndarray, n: int) -> np.ndarray:
+    """#319: her bolgenin ic yaricapi (px) - sinirlarina en uzak pikselin
+    uzakligi. 2 * yaricap = bolgenin dar yondeki genisligi."""
+    dt = cv2.distanceTransform((~_borders(lab)).astype(np.uint8), cv2.DIST_L2, 3)
+    r = np.zeros(n, np.float32)
+    np.maximum.at(r, lab.ravel(), dt.ravel())
+    return r
+
+
+def _fold_thin_strips(labels: np.ndarray, lab_img: np.ndarray, max_w: int = THIN_STRIP_PX,
+                      rounds: int = 3) -> np.ndarray:
+    """#319 (b): `max_w` pikselden dar seritleri renkce en yakin komsuya katlar.
+    Cizgi ile maske siniri arasinda kalan sac-teli seritler alan olarak buyuk
+    olabiliyor (uzun), ama numaralanamaz/boyanamaz - onlari eritir."""
+    for _ in range(rounds):
+        _n, lab = _relabel(labels)
+        n = lab.max() + 1
+        if n <= 2:
+            return lab
+        thin = np.where(_region_widths(lab, n) * 2.0 < max_w)[0]
+        if len(thin) == 0:
+            return lab
+        labels = _absorb_regions(lab, thin, lab_img)
+    return _relabel(labels)[1]
+
+
+def _snap_seg_to_line(seg: np.ndarray, line: np.ndarray, cells: np.ndarray, px: int = SNAP_PX) -> np.ndarray:
+    """#319 (a): cizgiye `px` pikselden yakin duran SAM maske sinirlarini
+    cizginin ustune oturtur. Boylece cizgi ile maske siniri arasinda 1-3 px'lik
+    hayalet seritler olusmaz. Doldurma AYNI hucreden (cells) yapilir, yani
+    cizginin oteki yakasindan renk sizmaz."""
+    dt = cv2.distanceTransform((~line).astype(np.uint8), cv2.DIST_L2, 3)
+    band = dt <= px
+    bad = _borders(seg) & band & ~line
+    if not bad.any():
+        return seg
+    fill = cv2.dilate(bad.astype(np.uint8), np.ones((2 * px + 1, 2 * px + 1), np.uint8)).astype(bool) & band & ~line
+    if not fill.any():
+        return seg
+    # cizgi pikselleri de "bilinmeyen": onlarin bolumu (ve hucresi 0) bandin
+    # icine sizmamali - deger yalniz bandin DISINDAKI piksellerden gelir
+    unknown = fill | line
+    _d, idx = cv2.distanceTransformWithLabels(unknown.astype(np.uint8), cv2.DIST_L2, 3,
+                                              labelType=cv2.DIST_LABEL_PIXEL)
+    src = ~unknown
+    seg_flat = np.zeros(idx.max() + 1, np.int32)
+    cell_flat = np.zeros(idx.max() + 1, np.int32)
+    seg_flat[idx[src]] = seg[src]
+    cell_flat[idx[src]] = cells[src]
+    take = fill & (cell_flat[idx] == cells)
+    return np.where(take, seg_flat[idx], seg)
+
+
 def _fold_specks(labels: np.ndarray, min_px: int, lab_img: np.ndarray, rounds: int = 12) -> np.ndarray:
     """Fold regions below min_px into the neighbour with the closest colour
     (ties -> longest shared border). Bounding-box local, so cheap."""
     for _ in range(rounds):
         _n, lab = _relabel(labels)
-        n = lab.max() + 1
-        areas = np.bincount(lab.ravel(), minlength=n)
+        areas = np.bincount(lab.ravel())
         small = np.where((areas > 0) & (areas < min_px))[0]
         if len(small) == 0:
             return lab
-        means = np.zeros((n, 3), np.float32)
-        for c in range(3):
-            means[:, c] = np.bincount(lab.ravel(), weights=lab_img[..., c].ravel(), minlength=n) / np.maximum(areas, 1)
-        H, W = lab.shape
-        for i in small:
-            ys, xs = np.where(lab == i)
-            if len(ys) == 0:
-                continue
-            y0, y1 = max(ys.min() - 1, 0), min(ys.max() + 2, H)
-            x0, x1 = max(xs.min() - 1, 0), min(xs.max() + 2, W)
-            win = lab[y0:y1, x0:x1]
-            me = win == i
-            ring = cv2.dilate(me.astype(np.uint8), np.ones((3, 3), np.uint8)).astype(bool) & ~me
-            neigh = win[ring]
-            neigh = neigh[neigh != i]
-            if len(neigh) == 0:
-                continue
-            cand, cnt = np.unique(neigh, return_counts=True)
-            score = cnt / cnt.max() - 0.03 * np.array([_delta_e(means[i], means[c]) for c in cand])
-            win[me] = cand[int(np.argmax(score))]
-        labels = lab
+        labels = _absorb_regions(lab, small, lab_img)
     # whatever is still tiny after the rounds (specks walled in by other specks)
     # is handed to the nearest big region outright
     _n, lab = _relabel(labels)
@@ -244,9 +597,12 @@ def fit_masks(masks, H: int, W: int):
     return out
 
 
-def build(img_bgr: np.ndarray, line_gray, masks, min_px_override: int | None = None) -> dict:
-    """line_gray: a drawn line-art page (Qwen) or None -> outlines come from
-    the SAM segments themselves."""
+def build(img_bgr: np.ndarray, line_gray, masks, min_px_override: int | None = None,
+          aligned: bool = False) -> dict:
+    """line_gray: a line-art page (AnyLine / Qwen) or None -> outlines come from
+    the SAM segments themselves.
+    aligned=True (#319): the page is already pixel-aligned with the picture
+    (AnyLine traces the source), so the cbn_align registration is skipped."""
     H, W = img_bgr.shape[:2]
     area = H * W
     min_px = min_px_override or max(MIN_REGION_PX, int(area * MIN_REGION_FRAC))
@@ -273,15 +629,27 @@ def build(img_bgr: np.ndarray, line_gray, masks, min_px_override: int | None = N
     #    (cbn_align: affine + mesh) - Qwen's page comes back ~4 % zoomed and
     #    shifted, which put hair lines beside the hair.
     align_info = None
+    line_src = "sam"                      # #319: cizginin kaynagi (olcumlere yazilir)
     if line_gray is not None:
-        line_gray, align_info = align_page(line_gray, img_bgr, LINE_THRESHOLD)
+        line_src = "anyline" if aligned else "qwen"
+        if aligned:                     # #319: AnyLine sayfasi kaynakla piksel hizali
+            if line_gray.shape[:2] != (H, W):
+                line_gray = cv2.resize(line_gray, (W, H), interpolation=(
+                    cv2.INTER_AREA if line_gray.shape[1] > W else cv2.INTER_CUBIC))
+            align_info = {"ok": True, "skipped": "anyline"}
+        else:
+            line_gray, align_info = align_page(line_gray, img_bgr, LINE_THRESHOLD)
         line = line_gray < LINE_THRESHOLD
         line = cv2.morphologyEx(line.astype(np.uint8), cv2.MORPH_CLOSE, np.ones((3, 3), np.uint8)).astype(bool)
-        if line.mean() > 0.35:            # a "page" that is a third black is not line art
+        # #319: sayfa dejenereyse (bos ya da ucte biri siyah) SAM konturu yedek
+        if not (LINE_SHARE_OK[0] <= line.mean() <= LINE_SHARE_OK[1]):
             line = sam_outline(seg)
+            align_info = {**(align_info or {}), "fallback": "sam"}
+            line_src = "sam"
     else:
         line = sam_outline(seg)
     _n, cells = cv2.connectedComponents((~line).astype(np.uint8), connectivity=4)
+    seg = _snap_seg_to_line(seg, line, cells)          # #319 (a): sinirlari cizgiye oturt
 
     # 3) inside every (cell, segment) piece: colour clusters where the colour really changes
     piece = cells.astype(np.int64) * (len(seg_names) + 1) + (seg + 1)
@@ -322,6 +690,7 @@ def build(img_bgr: np.ndarray, line_gray, masks, min_px_override: int | None = N
     prov = cv2.medianBlur(prov.astype(np.uint16), 3).astype(np.int32)
 
     labels = _fold_specks(prov, min_px, lab_img)
+    labels = _fold_thin_strips(labels, lab_img, THIN_STRIP_PX)     # #319 (b): ince seritler
     n = labels.max() + 1
     counts = np.bincount(labels.ravel(), minlength=n).astype(np.float32)
 
@@ -347,7 +716,8 @@ def build(img_bgr: np.ndarray, line_gray, masks, min_px_override: int | None = N
                "median_region_px": int(np.median(counts)), "largest_region_share": round(float(counts.max()) / area, 3),
                "labeled_regions": int((counts >= label_min_px).sum()), "label_min_px": label_min_px,
                "segments": seg_names,
-               "line_share": round(float(line.mean()), 3), "align": align_info}
+               "line_share": round(float(line.mean()), 3), "line_source": line_src,   # #319
+               "align": align_info}
     metrics["verdict"] = ("pass" if GOOD_REGIONS[0] <= n <= GOOD_REGIONS[1] and GOOD_COLORS[0] <= len(palette) <= GOOD_COLORS[1]
                           and metrics["largest_region_share"] < 0.35 else "fail")
     return {"labels": labels, "region_color": region_color, "palette": palette, "points": points,
@@ -492,7 +862,8 @@ def reveal_video(img_bgr: np.ndarray, res: dict, page: np.ndarray, dest: Path) -
 
 
 # ------------------------------------------------------------------- main
-def run_one(source: Path | None, subject: str, aspect: str, seed: int | None = None) -> dict:
+def run_one(source: Path | None, subject: str, aspect: str, seed: int | None = None,
+            lineart: str = "anyline") -> dict:
     aspect = ASPECT_ALIASES.get(aspect, aspect)
     slug = slugify(source.stem if source else subject)
     slug = ("src_" if source else f"{aspect.replace(':', 'x')}_") + slug
@@ -511,16 +882,26 @@ def run_one(source: Path | None, subject: str, aspect: str, seed: int | None = N
     if not src.exists():
         upscale(gen, src)
     img = cv2.imread(str(src))
-    la_path = out / "_qwen_lineart.png"
-    if not la_path.exists():
-        qwen_lineart(gen, la_path)
-    la = cv2.imread(str(la_path), cv2.IMREAD_GRAYSCALE)   # build() scales + aligns it
     found = discover_concepts(gen)
     print(f"  vision model found {len(found)}: {', '.join(found[:18])}{' ...' if len(found) > 18 else ''}")
     concepts = list(dict.fromkeys(found + CONCEPTS_HOT))
     masks = segment(gen, concepts)
+    # #319: cizgi katmani. anyline = kaynagin kendi kenarlari (varsayilan, x2
+    # resim uzerinde, piksel hizali) · qwen = uretilen sayfa (hizalanir) · sam
+    # = kontur build() icinde bolum sinirlarindan.
+    la, hizali = None, False
+    if lineart == "anyline":
+        la_path = out / "_anyline_lineart.png"
+        if not la_path.exists():
+            anyline_lineart(src, la_path, masks)
+        la, hizali = cv2.imread(str(la_path), cv2.IMREAD_GRAYSCALE), True
+    elif lineart == "qwen":
+        la_path = out / "_qwen_lineart.png"
+        if not la_path.exists():
+            qwen_lineart(gen, la_path)
+        la = cv2.imread(str(la_path), cv2.IMREAD_GRAYSCALE)   # build() scales + aligns it
     t0 = time.time()
-    res = build(img, la, masks)
+    res = build(img, la, masks, aligned=hizali)
     data = write_asset(img, res, out, {"subject": subject, "source": str(source) if source else "", "aspect": aspect, "flow": "hot_cbn"})
     m = res["metrics"]
     print(f"  build {time.time() - t0:.0f}s -> {m['regions']} regions, {m['colors']} colors, min {m['min_region_px']} px, "
@@ -540,13 +921,24 @@ def main() -> int:
     ap.add_argument("--aspect", choices=list(SIZES) + list(ASPECT_ALIASES), default="2:3")
     ap.add_argument("--seed", type=int)
     ap.add_argument("--matrix", action="store_true")
+    # #319: yalniz cizgi sayfasi uret (AGB sunucusu bunu ComfyUI venv'inde cagirir)
+    ap.add_argument("--anyline", action="store_true", help="sadece AnyLine cizgi sayfasi uret")
+    ap.add_argument("--out", type=Path, help="--anyline ciktisi")
+    ap.add_argument("--masks", type=Path, help="--anyline icin masks.npz (istege bagli)")
+    ap.add_argument("--device", default="", choices=["", "cpu", "cuda"])
+    ap.add_argument("--lineart", choices=["anyline", "qwen", "sam"], default="anyline")
     a = ap.parse_args()
+    if a.anyline:
+        if not a.source or not a.out:
+            ap.error("--anyline icin --source ve --out gerekli")
+        anyline_lineart(a.source, a.out, a.masks, a.device)
+        return 0
     OUT_ROOT.mkdir(parents=True, exist_ok=True)
     jobs = [(None, s, asp) for asp, s in MATRIX] if a.matrix else [(a.source, a.subject, a.aspect)]
     results = []
     for source, subject, aspect in jobs:
         try:
-            results.append(run_one(source, subject, aspect, a.seed))
+            results.append(run_one(source, subject, aspect, a.seed, a.lineart))
         except Exception as e:
             print(f"  FAILED: {e}")
             results.append({"subject": subject, "source": str(source or ""), "error": str(e)[:300]})

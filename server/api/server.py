@@ -5578,6 +5578,7 @@ class FlowItemsRequest(BaseModel):
     collection: str = ""
     duration: int = 5
     turbo: bool = True
+    method: str = ""            # #319: CBN asama C cizgi kipi (anyline | qwen); bos = ayar
     # --- video uretimi (2. akis)
     prompt: str = ""            # bos = varligin kendi konu prompt'u
     prompt2: str = ""           # hareket sablonu; bos + rotate = hazir sablonlar
@@ -6115,10 +6116,11 @@ def cbn_flow_sam(body: FlowItemsRequest):
 
 @app.post("/api/cbn/flow/lineart")
 def cbn_flow_lineart(body: FlowItemsRequest):
-    """Asama C (hot): Qwen cizgi sayfasi (parti halinde)."""
+    """Asama C (hot): cizgi sayfasi (parti halinde).
+    #319: body.method = anyline (varsayilan) | qwen; bos = settings hot_cbn.lineart."""
     if not body.ids:
         raise HTTPException(400, "varlik secilmedi")
-    return {"op": _flow_call(_cbn().stage_lineart, body.rating, body.ids)}
+    return {"op": _flow_call(_cbn().stage_lineart, body.rating, body.ids, body.method)}
 
 
 @app.post("/api/cbn/flow/build")

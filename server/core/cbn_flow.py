@@ -7,7 +7,7 @@ Iki derece, iki farkli varlik tipi, ayni dort akis:
   3 Hazir         <kok>\\<Hot CBN | Kid CBN>\\<Koleksiyon>\\<n>\\  insa edilmis varlik
   4 Push edilmis  <kok>\\<... - Pushed>\\<Koleksiyon>\\<n>\\
 
-  hot = Hot CBN  : "reveal" - sonuc bitmis golgeli resim; Qwen Edit cizgi
+  hot = Hot CBN  : "reveal" - sonuc bitmis golgeli resim; AnyLine (#319) cizgi
                    sayfasi, Opus+SAM3 bolgeler, 80 renge kadar palet, reveal mp4
   kid = Kid CBN  : her bolge tek duz renk; Opus+SAM3 bolgeler, SVG
 
@@ -18,7 +18,7 @@ op kayit defterini paylasir - istemci /op/{id} ile izler.
 
 Varlik klasoru (3 ve 4. akis):
   source.jpg   kaynak (hot'ta oyunun "sonuc" resmi)
-  lineart.png  cizgi sayfasi (hot: Qwen; kid: bolge sinirlari)
+  lineart.png  cizgi sayfasi (hot: AnyLine (#319) ya da Qwen; kid: bolge sinirlari)
   regions.png  24-bit bolge id haritasi
   numbered.png numarali sablon
   preview.jpg  bitmis gorunum
@@ -59,8 +59,16 @@ _ID_RE = re.compile(r"^(?:[^\\/:*?\"<>|]{1,120}/)?[^\\/:*?\"<>|]{1,120}$")
 # Kullanici "İnşa et"e basmadan once bunlari GORMELI (rozet yetmiyor).
 WORK_FILES = {"objects": "objects.json", "lineart": "lineart.png",
               "masks": "masks.npz", "source_2x": "source_2x.png",
-              "segments": "segments.jpg"}
+              "segments": "segments.jpg",
+              "lineart_anyline": "lineart_anyline.png"}   # #319
 _seg_lock = threading.Lock()
+
+# #319: cizgi katmani kipleri. anyline = AnyLine/MTEED dedektoru kaynagin KENDI
+# kenarlarindan cikarir (varsayilan; piksel hizali, hizalama gerekmez) · qwen =
+# Qwen Edit'in cizdigi sayfa (cbn_align ile hizalanir) · sam = eski SAM bolum
+# konturu (yalniz yedek).
+LINE_MODES = ("anyline", "qwen", "sam")
+LINE_DEFAULT = "anyline"
 
 # kind -> varlik klasorundeki dosya adi
 FILES = {"image": "source.jpg", "source": "source.jpg", "lineart": "lineart.png",
@@ -158,6 +166,8 @@ def item_path(rating: str, stage: str, item_id: str, kind: str = "image") -> str
                 return None
             if kind == "segments":
                 return segments_view(jpg)
+            if kind == "lineart":         # #319: etkin kipin sayfasi (anyline/qwen)
+                return lineart_page(_work_dir(jpg))[0] or None
             p = os.path.join(_work_dir(jpg), WORK_FILES[kind])
             return p if os.path.isfile(p) else None
         uz = {"image": (".jpg", ".jpeg"), "source": (".jpg", ".jpeg"), "json": (".json",),
@@ -222,7 +232,7 @@ def _incoming_items(folder: str) -> list[dict]:
                     "video": False, "svg": False, "tagged": _has_tags(p),
                     "objects": os.path.isfile(os.path.join(w, "objects.json")),
                     "masks": os.path.isfile(os.path.join(w, "masks.npz")),
-                    "lineart": os.path.isfile(os.path.join(w, "lineart.png")),
+                    "lineart": bool(lineart_page(w)[0]),        # #319: etkin kipin sayfasi
                     "prompt": (meta.get("prompt") or "")[:160], "size": st.st_size,
                     "mtime": int(st.st_mtime)})
     return out
@@ -397,7 +407,7 @@ def item_meta(rating: str, stage: str, item_id: str) -> dict:
         pass
     mp = os.path.join(w, "masks.npz")
     out["has_masks"] = os.path.isfile(mp)
-    out["has_lineart"] = os.path.isfile(os.path.join(w, "lineart.png"))
+    out["has_lineart"] = bool(lineart_page(w)[0])          # #319
     if out["has_masks"]:
         try:                              # yalniz ad dizisi acilir - ucuz
             import numpy as np  # noqa: WPS433
@@ -525,6 +535,51 @@ def _work_dir(jpg: str) -> str:
     return os.path.splitext(jpg)[0] + ".work"
 
 
+# ------------------------------------------------------- #319 cizgi katmani
+def line_mode(method: str = "") -> str:
+    """Etkin cizgi kipi: cagiranin secimi, yoksa settings hot_cbn.lineart."""
+    m = (method or _setting("hot_cbn.lineart", LINE_DEFAULT)).strip().lower()
+    return m if m in LINE_MODES else LINE_DEFAULT
+
+
+def lineart_paths(work: str, method: str) -> tuple[str, str]:
+    """<work> icinde bu kip icin (sayfa, kunye) yolu. lineart.png baska bir
+    kiple (orn. Qwen) yazilmissa AnyLine sayfasi lineart_anyline.png'ye yazilir
+    - eldeki Qwen sayfasi SILINMEZ. Kunye (lineart.json) sayfayi kimin
+    urettigini tutar."""
+    ana = os.path.join(work, "lineart.png")
+    kunye = os.path.join(work, "lineart.json")
+    sahip = ""
+    try:
+        with open(kunye, encoding="utf-8") as fh:
+            sahip = str((json.load(fh) or {}).get("method") or "")
+    except Exception:
+        pass
+    if not os.path.isfile(ana) or sahip == method or (not sahip and method == "qwen"):
+        return ana, kunye
+    if method == "anyline":
+        return os.path.join(work, "lineart_anyline.png"), os.path.join(work, "lineart_anyline.json")
+    return ana, kunye
+
+
+def lineart_page(work: str, method: str = "") -> tuple[str, str]:
+    """(diskteki sayfa, onu ureten kip); yoksa ("", "")."""
+    m = line_mode(method)
+    if m != "sam":
+        p, _k = lineart_paths(work, m)
+        if os.path.isfile(p):
+            return p, m
+    return "", ""
+
+
+def _write_lineart_meta(kunye: str, method: str) -> None:
+    try:
+        with open(kunye, "w", encoding="utf-8") as fh:
+            json.dump({"method": method, "at": datetime.now().isoformat(timespec="seconds")}, fh)
+    except Exception:
+        pass
+
+
 def _batch(rating: str, item_ids: list[str], kind: str, label: str, needs_gpu: bool, fn) -> str:
     """Bir asamayi SECILI varliklarin hepsinde arka arkaya calistirir - model
     bir kez yuklenir, N gorsel islenir. GPU isteyen asamalar seridi tek bir
@@ -633,17 +688,32 @@ def stage_sam(rating: str, item_ids: list[str]) -> str:
     return _batch(rating, item_ids, "cbn-sam", "SAM", True, fn)
 
 
-def stage_lineart(rating: str, item_ids: list[str]) -> str:
-    """Asama C (yalniz hot): Qwen Edit cizgi sayfasi -> <stem>.work/lineart.png."""
+def stage_lineart(rating: str, item_ids: list[str], method: str = "") -> str:
+    """Asama C (yalniz hot): cizgi sayfasi -> <stem>.work/lineart[_anyline].png.
+    #319: kip = method ya da settings hot_cbn.lineart (varsayilan anyline).
+    Insa (D) AYNI kipi kullanir, yani telefonun C dugmesi insanin kullanacagi
+    sayfayi gosterir."""
     if rating != "hot":
         raise ValueError("cizgi sayfasi yalniz Hot CBN icin")
     _kid, hot_cbn = _pipeline_modules()
+    kip = line_mode(method)
+    if kip == "sam":
+        raise ValueError("sam kipinde ayri cizgi sayfasi yok (kontur insa sirasinda cikar)")
 
     def fn(jpg, log):
         w = _work_dir(jpg)
         os.makedirs(w, exist_ok=True)
-        hot_cbn.qwen_lineart(Path(jpg), Path(os.path.join(w, "lineart.png")))
-        return "cizgi hazir"
+        sayfa, kunye = lineart_paths(w, kip)
+        if kip == "anyline":
+            # #319: dedektor x2 resim varsa onun uzerinde calisir - insa da x2
+            # uzerinde oldugu icin sayfa piksel piksel ortusur.
+            src = os.path.join(w, "source_2x.png")
+            hot_cbn.anyline_lineart(Path(src if os.path.isfile(src) else jpg), Path(sayfa),
+                                    os.path.join(w, "masks.npz"))
+        else:
+            hot_cbn.qwen_lineart(Path(jpg), Path(sayfa))
+        _write_lineart_meta(kunye, kip)
+        return "cizgi hazir (%s)" % kip
 
     return _batch(rating, item_ids, "cbn-lineart", "cizgi", True, fn)
 
@@ -673,27 +743,32 @@ def _build_from_work(rating: str, jpg: str, work: str, dest: str, log) -> dict:
     cv2.imwrite(str(src), img)
     log("bolgeler")
     if rating == "hot":
-        # Kontur kaynagi: varsayilan SAM bolum sinirlari (kaynakla piksel-piksel
-        # hizali, yalniz nesneler arasinda); settings hot_cbn.lineart="qwen" ve
-        # cizgi asamasi yapilmissa Qwen sayfasi kullanilir (gorev #281).
-        la = None
-        lp = os.path.join(work, "lineart.png")
-        # #317: varsayilan artik QWEN cizgisi. Cizgi asamasi (C) atlanmissa insa
-        # onu kendisi uretir (serit zaten tutuluyor); yalniz settings
-        # hot_cbn.lineart="sam" denirse eski SAM konturu kullanilir.
-        kip = _setting("hot_cbn.lineart", "qwen").lower()
-        if kip != "sam" and not os.path.isfile(lp):
-            log("cizgi sayfasi (Qwen) uretiliyor")
-            try:
-                hot_cbn.qwen_lineart(_P(jpg), _P(lp))
-            except Exception as e:
-                log("Qwen cizgi uretilemedi, SAM konturuna dusuldu: %s" % str(e)[:160])
-        if kip != "sam" and os.path.isfile(lp):
-            la = cv2.imread(lp, cv2.IMREAD_GRAYSCALE)   # build() olcekler + kaynaga hizalar
-            log("bolgeler (Qwen cizgi)")
-        else:
+        # Kontur kaynagi (#319): varsayilan ANYLINE - dedektor kaynagin kendi
+        # kenarlarini cikarir, sayfa piksel hizali gelir (hizalama yok). qwen =
+        # uretilen sayfa (cbn_align hizalar), sam = eski bolum konturu, yalniz
+        # acikca istenirse ya da sayfa dejenereyse (build icindeki yedek).
+        la, hizali = None, False
+        kip = line_mode()
+        if kip != "sam":
+            lp, kunye = lineart_paths(work, kip)
+            if not os.path.isfile(lp):
+                log("cizgi sayfasi (%s) uretiliyor" % kip)
+                try:
+                    if kip == "anyline":
+                        # dedektor insa ile AYNI resim uzerinde (x2) calissin
+                        hot_cbn.anyline_lineart(_P(up), _P(lp), os.path.join(work, "masks.npz"))
+                    else:
+                        hot_cbn.qwen_lineart(_P(jpg), _P(lp))
+                    _write_lineart_meta(kunye, kip)
+                except Exception as e:
+                    log("%s cizgi uretilemedi, SAM konturuna dusuldu: %s" % (kip, str(e)[:160]))
+            if os.path.isfile(lp):
+                la = cv2.imread(lp, cv2.IMREAD_GRAYSCALE)   # build() olcekler (+ qwen'de hizalar)
+                hizali = kip == "anyline"
+                log("bolgeler (%s cizgi)" % kip)
+        if la is None:
             log("bolgeler (SAM konturu)")
-        res = hot_cbn.build(img, la, masks)
+        res = hot_cbn.build(img, la, masks, aligned=hizali)
         data = hot_cbn.write_asset(img, res, tmp, {"flow": "hot_cbn"}, reveal=True)
     else:
         res = kid_cbn.build(img, masks, "kid")

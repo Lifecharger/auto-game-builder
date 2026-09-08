@@ -90,7 +90,7 @@
     "_not": "Yerel VLM: EXIF etiketleme + CBN nesne listesi. gemma3:12b semaya sadik ve 8 sn/gorsel; qwen2.5vl:7b alternatif (sema disina cikabiliyor)."
   },
   "hot_cbn": {
-    "lineart": "sam",
-    "_not": "sam = kontur SAM bolum sinirlarindan (varsayilan, hizali); qwen = Qwen Edit cizgi sayfasi (C asamasi gerekir)"
+    "lineart": "anyline",
+    "_not": "anyline = AnyLine/MTEED dedektoru kaynagin kendi kenarlarini cikarir (VARSAYILAN, piksel hizali); qwen = Qwen Edit cizgi sayfasi (uretir, cbn_align hizalar); sam = eski SAM bolum konturu (yedek)"
   }
 }
