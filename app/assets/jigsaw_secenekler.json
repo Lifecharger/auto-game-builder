@@ -556,8 +556,8 @@
     "Renk"
    ]
   ],
-  "sablon": "a cheerful children's jigsaw puzzle illustration of {}, bright saturated colors, clean bold shapes, soft rounded forms, friendly and wholesome, simple uncluttered background, even lighting, high detail, vertical 9:16 composition",
-  "negatif": "scary, horror, gore, blood, weapon, violence, dark, gloomy, creepy, realistic photo, photorealistic, text, watermark, logo, signature, blurry, low quality, deformed, extra limbs, cluttered",
+  "sablon": "a beautiful, family-friendly artwork of {}, appealing composition, clean readable shapes, rich harmonious colors, pleasant lighting, high detail, vertical 9:16 composition",
+  "negatif": "scary, horror, gore, blood, weapon, violence, dark, gloomy, creepy, text, watermark, logo, signature, blurry, low quality, deformed, extra limbs, cluttered, jigsaw pieces, puzzle pieces, puzzle cut lines, interlocking tiles, nudity, revealing clothing, sexy, lingerie",
   "secenekler": {
    "subject": [
     "a fluffy orange kitten",
@@ -606,7 +606,37 @@
     "a unicorn",
     "a school bus",
     "a lighthouse",
-    "a treehouse"
+    "a treehouse",
+    "a majestic lion on the savanna",
+    "a wolf in a snowy forest",
+    "a white horse galloping on a beach",
+    "a tiger in the jungle",
+    "a hummingbird at a flower",
+    "a school of tropical fish on a coral reef",
+    "a snowy mountain lake at sunrise",
+    "a lavender field in Provence",
+    "a Japanese temple in autumn",
+    "a lighthouse in a storm",
+    "a Venice canal at dusk",
+    "a cozy cabin under the northern lights",
+    "a hot air balloon festival",
+    "a vintage red sports car on a coastal road",
+    "a steam locomotive crossing a viaduct",
+    "a sailing ship on the open sea",
+    "a bouquet of peonies",
+    "a bowl of ripe cherries",
+    "a rustic bakery window",
+    "a Mediterranean village with white houses",
+    "a medieval castle on a cliff",
+    "a waterfall in a rainforest",
+    "cherry blossoms over a river",
+    "a night market with lanterns",
+    "a planet with rings seen from a moon",
+    "a hot cup of coffee by a window in the rain",
+    "a dragon flying over mountains",
+    "a fairy-tale cottage in a flower garden",
+    "a knight on horseback",
+    "a city skyline at golden hour"
    ],
    "style": [
     "storybook illustration",
@@ -622,7 +652,21 @@
     "pixel art",
     "stained glass style",
     "sticker art, bold outlines",
-    "felt and fabric craft"
+    "felt and fabric craft",
+    "photorealistic photography",
+    "cinematic photo",
+    "digital painting",
+    "oil painting on canvas",
+    "impressionist painting",
+    "detailed fantasy art",
+    "anime illustration",
+    "3D render, soft global illumination",
+    "stained glass",
+    "low poly 3D",
+    "isometric illustration",
+    "ukiyo-e woodblock print",
+    "art nouveau poster",
+    "vintage travel poster"
    ],
    "location": [
     "in a sunny meadow",
@@ -678,11 +722,11 @@
    "sablonlar": [
     {
      "ad": "Sallanma",
-     "prompt": "{}, gentle bobbing motion, soft breeze in the scene, cheerful and calm, smooth camera push in, colorful children's animation"
+     "prompt": "{}, gentle bobbing motion, soft breeze in the scene, cheerful and calm, smooth camera push in, smooth pleasant animation"
     },
     {
      "ad": "Zipla",
-     "prompt": "{}, small happy hop, squash and stretch, playful timing, bright cheerful lighting, storybook animation"
+     "prompt": "{}, small happy hop, squash and stretch, playful timing, bright cheerful lighting, smooth animation"
     },
     {
      "ad": "El sallama",
@@ -694,13 +738,14 @@
     },
     {
      "ad": "Ruzgar",
-     "prompt": "{}, leaves and grass sway in a light breeze, soft parallax in the background, calm and gentle, storybook animation"
+     "prompt": "{}, leaves and grass sway in a light breeze, soft parallax in the background, calm and gentle, smooth animation"
     },
     {
      "ad": "Donus",
      "prompt": "{}, turns slowly to face the viewer with a cheerful expression, smooth rounded motion, bright saturated colors"
     }
    ]
-  }
+  },
+  "_not": "#315: Kid = tum yaslar icin hot OLMAYAN icerik (yetiskinler dahil), cocuk tarzina kilitli degil; 'jigsaw/puzzle' sozcukleri gorsele parca cizdirdigi icin sablonda yok, negatifte var."
  }
 }

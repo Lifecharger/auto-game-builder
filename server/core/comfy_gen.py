@@ -596,11 +596,21 @@ CHARACTER_NEG = ("anime, cartoon, illustration, drawing, painting, 3d render, cg
                  "watermark, text, logo, cluttered background, props, furniture, "
                  "cropped feet, cropped head, camera pan, camera zoom")
 
+# #316: Free modda da oran secici - bes oran, ~1 MP, 16'nin kati (CBN ile ayni tablo).
+FREE_ASPECTS = [
+    {"id": "9:16", "label": "9:16", "width": 720, "height": 1280},
+    {"id": "2:3", "label": "2:3", "width": 832, "height": 1248},
+    {"id": "1:1", "label": "1:1", "width": 1024, "height": 1024},
+    {"id": "3:2", "label": "3:2", "width": 1248, "height": 832},
+    {"id": "16:9", "label": "16:9", "width": 1280, "height": 720},
+]
+
 MODES = {
     "free": {
         "id": "free", "label": "Free Mod",
         "prompt2": "", "negative": "", "motion2": "",
-        "width": 0, "height": 0, "exports": False, "profiles": "", "aspects": False,
+        "width": 0, "height": 0, "exports": False, "profiles": "", "aspects": True,
+        "aspect_sizes": FREE_ASPECTS,
     },
     "jigsaw": {
         "id": "jigsaw", "label": "Jigsaw Modu",
