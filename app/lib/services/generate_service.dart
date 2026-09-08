@@ -8,6 +8,16 @@ import 'api_service.dart';
 import '../config.dart';
 
 /// Uretim kipi. Free Mod serbest uretim, Jigsaw Modu Hot Jigsaw is akisi.
+/// #323: `profiles` alani gelmeyen (eski) sunucu icin kip kimliginden
+/// secenek dosyasi anahtari - bilinmeyen kipte bos (profil yok).
+String _profilesOf(String id) => switch (id) {
+      'jigsaw' => 'jigsaw',
+      'cbn' => 'cbn',
+      'character' => 'character',
+      'card' => 'card',
+      _ => '',
+    };
+
 class GenerateMode {
   const GenerateMode({
     required this.id,
@@ -27,7 +37,7 @@ class GenerateMode {
   final String motion2;   // video gorevleri icin hareket sablonu
   final String negative;
   final bool exports;     // ciktilar bir havuza yazilabiliyor mu
-  final String profiles;  // '' | 'jigsaw' | 'cbn' - derece secenek dosyasi
+  final String profiles;  // '' | 'jigsaw' | 'cbn' | 'character' | 'card'
   final bool aspects;     // oran secici gosterilsin mi
   /// Sunucunun oran tablosu: id -> (genislik, yukseklik). Bos ise istemci
   /// kendi tablosunu kullanir.
@@ -43,7 +53,9 @@ class GenerateMode {
         motion2: (j['motion2'] ?? '') as String,
         negative: (j['negative'] ?? '') as String,
         exports: j['exports'] == true,
-        profiles: (j['profiles'] ?? (j['id'] == 'jigsaw' ? 'jigsaw' : '')) as String,
+        // #323: sunucu `profiles` gondermezse bilinen kip kimliklerinden
+        // turetilir - yeni "card" kipi de secenek dosyasini boylece bulur.
+        profiles: '${j['profiles'] ?? _profilesOf('${j['id']}')}',
         aspects: j['aspects'] == true,
         aspectSizes: {
           for (final a in (j['aspect_sizes'] as List? ?? const []))

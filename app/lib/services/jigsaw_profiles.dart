@@ -305,3 +305,38 @@ class CharacterProfiles {
   static Future<List<String>> classes() async =>
       (await load())[id]?.optionsFor('class') ?? const [];
 }
+
+/// #323 Kart kipinin profili - `assets/kart_secenekler.json` (sunucudaki
+/// `server/config/card_options.json` ile ayni dosya).
+///
+/// Karakter kipi gibi derecesi (hot/kid) YOKTUR, tek profil vardir. Alanlar
+/// tema, ten, sac, kiyafet, poz ve jesttir (design/kart_modu.md §4); jest
+/// listesi ayrica Kart hattindaki animasyon penceresinde kullanilir.
+class CardProfiles {
+  static const id = 'card';
+  static const ratings = <String, String>{id: 'Kart Modu'};
+
+  static Map<String, JigsawProfile>? _cache;
+  static String? loadError;
+
+  static Future<Map<String, JigsawProfile>> load() async {
+    if (_cache != null) return _cache!;
+    try {
+      _cache = await JigsawProfiles.loadFrom('assets/kart_secenekler.json', ratings);
+      loadError = null;
+    } catch (e) {
+      loadError = 'Kart secenek dosyasi okunamadi: $e';
+      _cache = {
+        id: const JigsawProfile(
+            id: id, label: 'Kart Modu', fields: [],
+            options: {}, template: '', negative: '')
+      };
+    }
+    return _cache!;
+  }
+
+  /// Jest listesi (idle / wink / kiss / hair / pose). Dosya okunmadiysa bos
+  /// doner ve cagiran taraf `CardFlowService.defaultGestures`'a duser.
+  static Future<List<String>> gestures() async =>
+      (await load())[id]?.optionsFor('gesture') ?? const [];
+}

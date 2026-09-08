@@ -391,10 +391,16 @@ try:  # Jigsaw dort akisli yayin hatti (r2manager boru hattinin sunucu tarafi)
     except Exception as _e3:  # noqa: BLE001
         character_flow = None
         print(f"[AutoGameBuilder] character_flow yuklenemedi: {_e3}")
+    try:  # Kart Modu (gorev #321) - Hot Card Games kart hatti, ayni op defteri
+        from core import card_flow
+    except Exception as _e4:  # noqa: BLE001
+        card_flow = None
+        print(f"[AutoGameBuilder] card_flow yuklenemedi: {_e4}")
 except Exception as _e:
     jigsaw_flow = None
     cbn_flow = None
     character_flow = None
+    card_flow = None
     print(f"[AutoGameBuilder] jigsaw_flow yuklenemedi: {_e}")
 
 try:  # AGB ile birlikte kalkan yerel servisler (ComfyUI + LAN sitesi)
@@ -6153,6 +6159,281 @@ def cbn_flow_ops():
 
 @app.get("/api/cbn/flow/op/{op_id}")
 def cbn_flow_op(op_id: str):
+    o = _flow().op_status(op_id)
+    if not o:
+        raise HTTPException(404, "islem yok")
+    return o
+
+
+# ------------------------------------------------- Kart Modu (gorev #321)
+# Hot Card Games koleksiyon kartlari. Kullanicinin dort asamasi (design/kart_modu.md
+# bolum 0): 1 Still -> 2 Video (LTX i2v) -> 3 WebP (SAM3 kesim + sheet) -> 4 Push
+# (manifest push'un ICINDE uretilir, once dosyalar sonra manifest; geri alinamaz).
+# Iki tur: card (Normal) ve dealer (Krupiye). Uzun isler arka planda, /op ile.
+def _card():
+    if card_flow is None:
+        raise HTTPException(503, "Kart akis modulu yuklenemedi")
+    return card_flow
+
+
+class CardCollectionCreateRequest(BaseModel):
+    id: str
+    name: str = ""
+    theme: str = ""
+    jokers: int = 0               # 0 | 2
+    kind: str = "card"            # card | dealer (dealer bu uctan da acilabilir)
+    style: str = "realistic"
+    gesture: str = "idle"         # #324: krupiye varsayilan jesti
+    outfit: str = ""              # #324: krupiye kiyafeti (bos = rotasyondan)
+
+
+class CardDealerCreateRequest(BaseModel):
+    """#323/#324: `id` ya da `name` ile krupiye acilir."""
+    id: str = ""
+    name: str = ""
+    theme: str = ""
+    gesture: str = "idle"
+    outfit: str = ""
+
+
+class CardStageRequest(BaseModel):
+    """Uretilenler'den bir isi rutbenin still'i yapar (rutbe bos = Gelen klasoru)."""
+    collection: str = ""
+    rank: str = ""
+    job_id: str = ""
+    file: str = ""
+    kind: str = "card"
+
+
+class CardStillsRequest(BaseModel):
+    collection: str
+    ranks: list[str] = []
+    kind: str = "card"
+    n: int = 1
+
+
+class CardEditRequest(BaseModel):
+    collection: str
+    rank: str
+    prompt: str
+    kind: str = "card"
+
+
+class CardAnimateRequest(BaseModel):
+    collection: str
+    ranks: list[str] = []
+    gesture: str = "idle"
+    kind: str = "card"
+
+
+class CardCutRequest(BaseModel):
+    collection: str
+    ranks: list[str] = []
+    mode: str = "sam"             # sam | hybrid (eski yesil Grok masterlari)
+    kind: str = "card"
+    dealers_v3: bool = False
+
+
+class CardReanimateRequest(BaseModel):
+    """Gece modu: still -> i2v -> kesim tek zincirde. collection "all" = hepsi."""
+    collection: str = "all"
+    gesture: str = "idle"
+    kind: str = "card"
+    include_dealers: bool = False
+    dealers_v3: bool = False
+
+
+class CardRecutRequest(BaseModel):
+    collection: str = "all"
+    kind: str = "card"
+    include_dealers: bool = False
+    dealers_v3: bool = False
+
+
+class CardManifestRequest(BaseModel):
+    """Kuru calisma / onizleme: manifest'i uretir ama YUKLEMEZ."""
+    dealers_v3: bool = False
+    out_dir: str = ""
+    published_only: bool = False
+
+
+class CardPushRequest(BaseModel):
+    collection: str
+    kind: str = "card"
+    ranks: list[str] = []
+    dealers_v3: bool = False
+
+
+class CardMigrateRequest(BaseModel):
+    """Grok masterlarini card.root altina KOPYALAR (kaynak silinmez)."""
+    collection: str = ""
+    include_dealers: bool = True
+    dry_run: bool = False
+
+
+@app.get("/api/card/profiles")
+def card_profiles():
+    """Dropdown profilleri (card/dealer) + turler + jestler + v3 geometrisi."""
+    return _flow_call(_card().profiles)
+
+
+@app.get("/api/card/flow/profiles")
+def card_flow_profiles():
+    return _flow_call(_card().profiles)
+
+
+@app.get("/api/card/flow/collections")
+def card_flow_collections(kind: str = ""):
+    """Koleksiyon listesi (kart + krupiye): kapak, sayaclar, asama bayraklari."""
+    return _flow_call(_card().collections, kind)
+
+
+@app.post("/api/card/flow/collections")
+def card_flow_collection_create(body: CardCollectionCreateRequest):
+    """Yeni koleksiyon: 13 (+2 joker) rutbe icin 1'er still kuyruga girer (asama 1).
+    Rutbe basina ten/sac/kiyafet/poz rotasyonu collection.json'a yazilir."""
+    if (body.kind or "card").lower() == "dealer":
+        # #324: studyo krupiyeyi de bu uctan aciyor (gesture/outfit govdede).
+        return _flow_call(_card().dealer_create, body.id, body.name, body.theme,
+                          body.gesture, body.outfit)
+    return _flow_call(_card().create, body.id, body.name, body.theme, body.jokers,
+                      body.kind, body.style)
+
+
+@app.post("/api/card/flow/dealers")
+def card_flow_dealer_create(body: CardDealerCreateRequest):
+    """Yeni krupiye: _Dealers/<ad>/ tek ogeli koleksiyon (rutbe ["main"]) + 1 still."""
+    return _flow_call(_card().dealer_create, body.id or body.name, body.name, body.theme,
+                      body.gesture, body.outfit)
+
+
+@app.get("/api/card/flow/collection")
+def card_flow_collection(id: str, kind: str = "card"):
+    """Koleksiyon detayi: her rutbenin still/video/sheet/push bayraklari + guard."""
+    return _flow_call(_card().collection, id, kind)
+
+
+@app.post("/api/card/flow/stage")
+def card_flow_stage(body: CardStageRequest):
+    """Uretilenler'deki bir isi (Kart Modu filtresi) rutbeye still olarak baglar."""
+    return _flow_call(_card().stage, body.collection, body.rank, body.job_id,
+                      body.kind, body.file)
+
+
+@app.post("/api/card/flow/stills")
+def card_flow_stills(body: CardStillsRequest):
+    """Asama 1: secili rutbeler icin still uretir, otomatik kabul eder."""
+    return {"op": _flow_call(_card().stills, body.collection, body.ranks, body.kind, body.n)}
+
+
+@app.post("/api/card/flow/edit")
+def card_flow_edit(body: CardEditRequest):
+    """Duzenle: kabul edilmis still'i kisa bir cumleyle duzeltir (edit_qwen)."""
+    return {"op": _flow_call(_card().edit, body.collection, body.rank, body.prompt, body.kind)}
+
+
+@app.post("/api/card/flow/animate")
+def card_flow_animate(body: CardAnimateRequest):
+    """Asama 2: still -> LTX-2.5 i2v 6 sn (jest + kilitli kamera), guard, otomatik kabul."""
+    return {"op": _flow_call(_card().animate, body.collection, body.ranks,
+                             body.gesture, body.kind)}
+
+
+@app.post("/api/card/flow/cut")
+def card_flow_cut(body: CardCutRequest):
+    """Asama 3: SAM3 kesim + 12x6 sheet + thumb + hi-res still (tek gpu_lane bileti)."""
+    return {"op": _flow_call(_card().cut, body.collection, body.ranks, body.mode,
+                             body.kind, body.dealers_v3)}
+
+
+@app.post("/api/card/flow/reanimate")
+def card_flow_reanimate(body: CardReanimateRequest):
+    """Gece modu: goc + eksik still + i2v + kesim tek op zincirinde (all = hepsi)."""
+    return {"op": _flow_call(_card().reanimate, body.collection, body.gesture, body.kind,
+                             body.include_dealers, body.dealers_v3)}
+
+
+@app.post("/api/card/flow/recut")
+def card_flow_recut(body: CardRecutRequest):
+    """Yedek yol: eski Grok videolarini hybrid (chroma + SAM) kiple yeniden keser."""
+    return {"op": _flow_call(_card().recut, body.collection, body.kind,
+                             body.include_dealers, body.dealers_v3)}
+
+
+@app.get("/api/card/flow/manifest")
+def card_flow_manifest_preview(kind: str = "", preview: int = 1, dealers_v3: bool = False,
+                               published_only: bool = False):
+    """#323: SALT OKUNUR onizleme - dosya yazmaz, yuklemez. Gercek yayin push icinde."""
+    res = _flow_call(_card().manifest, dealers_v3, "", published_only, True)
+    return {k: v for k, v in res.items() if k != "file"}
+
+
+@app.post("/api/card/flow/manifest")
+def card_flow_manifest(body: CardManifestRequest):
+    """Manifest onizlemesi (kuru calisma) - YUKLEMEZ. Gercek yayin push icindedir."""
+    res = _flow_call(_card().manifest, body.dealers_v3, body.out_dir, body.published_only)
+    return {k: v for k, v in res.items() if k != "manifest"}
+
+
+@app.post("/api/card/flow/push")
+def card_flow_push(body: CardPushRequest):
+    """Asama 4: once dosyalar sonra manifest, R2 hotcardgames. GERI ALINAMAZ."""
+    return {"op": _flow_call(_card().push, body.collection, body.kind, body.ranks,
+                             body.dealers_v3)}
+
+
+@app.post("/api/card/flow/migrate")
+def card_flow_migrate(body: CardMigrateRequest):
+    """Grok masterlarini card.root altina KOPYALAR (kaynak silinmez); dry_run plani verir."""
+    return _flow_call(_card().migrate, body.collection, body.include_dealers, body.dry_run)
+
+
+@app.get("/api/card/flow/thumb")
+def card_flow_thumb(collection: str = "", rank: str = "", kind: str = "still",
+                    view: str = "", type: str = "card", size: int = 360,
+                    rel: str = "", v: str = ""):
+    """Onizleme. Iki parametre kalibi da gecerlidir:
+
+      telefon (#323): ?collection=&rank=&kind=still|frame|thumb&type=card|dealer&size=&v=
+      studyo  (#324): ?collection=&rank=&view=still|video|cut|sheet|cover&type=
+      dogrudan       : ?rel=<card.root'a gore yol>
+
+    `cut`/`frame` ALFALI PNG doner (damali zemin uzerinde gosterilir), digerleri
+    onbellekli JPEG kucuk resimdir. `v` yalniz onbellek kiricidir.
+    """
+    a = _flow_call(_card().asset, collection, rank, view or kind, type, rel)
+    if not a:
+        raise HTTPException(404, "Onizleme yok")
+    onbellek = {"Cache-Control": "public, max-age=604800"}
+    if a.get("media") == "image/png" and (view or kind) in ("cut", "frame"):
+        return FileResponse(a["path"], media_type="image/png", headers=onbellek)
+    t = _flow_call(_card().thumb, a["rel"], max(64, min(1024, size)))
+    if not t:
+        raise HTTPException(404, "Onizleme yok")
+    return FileResponse(t, media_type="image/jpeg", headers=onbellek)
+
+
+@app.get("/api/card/flow/file")
+def card_flow_file(collection: str = "", rank: str = "", kind: str = "still",
+                   view: str = "", type: str = "card", rel: str = "", v: str = ""):
+    """Ham dosya: video.mp4 | sheet.webp | still.webp/png | thumb.webp (ya da ?rel=)."""
+    a = _flow_call(_card().asset, collection, rank, view or kind, type, rel)
+    if not a:
+        raise HTTPException(404, "Dosya yok")
+    p = a["path"]
+    tip = a.get("media") or GENERATED_MEDIA_TYPES.get(
+        os.path.splitext(p)[1].lower(), "application/octet-stream")
+    return FileResponse(p, media_type=tip, filename=os.path.basename(p),
+                        content_disposition_type="inline")
+
+
+@app.get("/api/card/flow/ops")
+def card_flow_ops():
+    return {"ops": _flow().ops()}
+
+
+@app.get("/api/card/flow/op/{op_id}")
+def card_flow_op(op_id: str):
     o = _flow().op_status(op_id)
     if not o:
         raise HTTPException(404, "islem yok")

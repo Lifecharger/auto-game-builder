@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../services/generate_service.dart';
+import '../services/card_flow_service.dart';
 import '../services/cbn_flow_service.dart';
 import '../services/character_flow_service.dart';
 import '../services/jigsaw_flow_service.dart';
@@ -309,6 +310,130 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
     }
   }
 
+  /// #323 Kart Modu - "Koleksiyona ekle": secili TEK isi bir koleksiyonun
+  /// (ya da krupiyenin) still'i yapar. Rutbe kullanicidan sorulur; krupiyede
+  /// rutbe yoktur, tek oge dogrudan hedeftir.
+  Future<void> _stageToCollection() async {
+    final gorseller = _selectedImages;
+    if (gorseller.isEmpty) {
+      _msg('Tamamlanmis gorsel sec');
+      return;
+    }
+    if (gorseller.length > 1) {
+      _msg('Koleksiyona tek gorsel eklenir - birini sec');
+      return;
+    }
+    List<CardCollection> koleksiyonlar;
+    List<CardDealer> krupiyeler;
+    try {
+      koleksiyonlar = await CardFlowService.collections();
+      krupiyeler = await CardFlowService.dealers();
+    } on CardNotReadyException catch (e) {
+      _msg(e.message);
+      return;
+    } catch (e) {
+      _msg(e.toString().replaceFirst('Exception: ', ''));
+      return;
+    }
+    if (!mounted) return;
+    if (koleksiyonlar.isEmpty && krupiyeler.isEmpty) {
+      _msg('Once Kart hattinda bir koleksiyon ya da krupiye olustur');
+      return;
+    }
+    // 1) hedef sec (koleksiyon ya da krupiye)
+    final hedef = await showDialog<(String, String)>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Koleksiyona ekle'),
+        content: SizedBox(
+          width: 380,
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              for (final k in koleksiyonlar)
+                ListTile(
+                  dense: true,
+                  leading: const Icon(Icons.style_outlined, size: 20),
+                  title: Text(k.name),
+                  subtitle: Text(k.theme.isEmpty ? k.id : k.theme,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 11)),
+                  onTap: () => Navigator.pop(c, ('card', k.id)),
+                ),
+              for (final d in krupiyeler)
+                ListTile(
+                  dense: true,
+                  leading: const Icon(Icons.person_outline, size: 20),
+                  title: Text(d.name),
+                  subtitle: const Text('krupiye (rutbe yok)',
+                      style: TextStyle(fontSize: 11)),
+                  onTap: () => Navigator.pop(c, ('dealer', d.id)),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(c), child: const Text('Vazgec')),
+        ],
+      ),
+    );
+    if (hedef == null || !mounted) return;
+    final (tur, id) = hedef;
+
+    // 2) rutbe sec (yalniz koleksiyonda)
+    var rank = CardFlowService.dealerRank;
+    if (tur == 'card') {
+      final k = koleksiyonlar.firstWhere((e) => e.id == id);
+      final secim = await showDialog<String>(
+        context: context,
+        builder: (c) => AlertDialog(
+          title: Text('${k.name} - rutbe sec'),
+          content: SizedBox(
+            width: 360,
+            child: Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final r in k.rankOrder)
+                  ActionChip(
+                    label: Text(r),
+                    // Dolu rutbe uzerine yazmak riskli - kullanici gorsun.
+                    avatar: k.stateOf(r).still
+                        ? const Icon(Icons.warning_amber_rounded, size: 14)
+                        : null,
+                    onPressed: () => Navigator.pop(c, r),
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(c), child: const Text('Vazgec')),
+          ],
+        ),
+      );
+      if (secim == null) return;
+      rank = secim;
+    }
+    if (!mounted) return;
+    setState(() => _busy = true);
+    try {
+      await CardFlowService.stage(
+          collection: id, rank: rank, jobId: gorseller.first.id, kind: tur);
+      if (!mounted) return;
+      _msg('Siraya eklendi (1 is) - Sira sekmesinden izle');
+      setState(_sel.clear);
+    } on CardNotReadyException catch (e) {
+      _msg(e.message);
+    } catch (e) {
+      _msg(e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   void _msg(String m) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
@@ -415,7 +540,14 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
                     tooltip: 'Adaylara ekle - mevcut karaktere kopyala',
                     onPressed: _busy ? null : _stageToCharacter,
                   ),
-                ] else if (_mode != 'free')
+                ] else if (_mode == 'card')
+                  // #323: secili is bir koleksiyonun rutbesine still olur.
+                  IconButton(
+                    icon: const Icon(Icons.style_outlined),
+                    tooltip: 'Koleksiyona ekle - rutbe sec',
+                    onPressed: _busy ? null : _stageToCollection,
+                  )
+                else if (_mode != 'free')
                   IconButton(
                     icon: const Icon(Icons.check_circle_outline),
                     tooltip: 'Kabul et - 2. akisa gonder',
@@ -451,6 +583,7 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
                     ButtonSegment(value: 'free', label: Text('Free')),
                     ButtonSegment(value: 'jigsaw', label: Text('Jigsaw')),
                     ButtonSegment(value: 'cbn', label: Text('CBN')),
+                    ButtonSegment(value: 'card', label: Text('Kart')),   // #323
                     ButtonSegment(value: 'character', label: Text('Karakter')),
                   ],
                   style: const ButtonStyle(

@@ -81,11 +81,12 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
   /// free: hayir).
   bool get _hasProfiles => _modeDef.hasProfiles;
 
-  /// Kipin derece listesi. Karakter kipinde derece yoktur - tek profil vardir,
-  /// o yuzden derece anahtari da gosterilmez.
+  /// Kipin derece listesi. Karakter ve Kart kiplerinde derece yoktur - tek
+  /// profil vardir, o yuzden derece anahtari da gosterilmez.
   Map<String, String> get _ratingsMap => switch (_modeDef.profiles) {
         'cbn' => CbnProfiles.ratings,
         'character' => CharacterProfiles.ratings,
+        'card' => CardProfiles.ratings,          // #323
         _ => JigsawProfiles.ratings,
       };
 
@@ -93,6 +94,7 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
   String? get _profileError => switch (_modeDef.profiles) {
         'cbn' => CbnProfiles.loadError,
         'character' => CharacterProfiles.loadError,
+        'card' => CardProfiles.loadError,        // #323
         _ => JigsawProfiles.loadError,
       };
 
@@ -125,7 +127,9 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
     });
     try {
       final r = await GenerateService.fetchTasks(mode: _mode);
-      // Secenek dosyasi kipe gore: jigsaw_secenekler / cbn_secenekler.
+      // Secenek dosyasi kipe gore: jigsaw / cbn / karakter / kart_secenekler.
+      // #323: sunucu yeni "card" kipini `profiles: "card"` ile gonderir;
+      // gondermezse asagidaki `_profilesKeyFor` kip kimliginden turetir.
       final pk = r.modes.isNotEmpty
           ? r.modes
               .firstWhere((m) => m.id == _mode, orElse: () => r.modes.first)
@@ -134,6 +138,7 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
       final profs = switch (pk) {
         'cbn' => await CbnProfiles.load(),
         'character' => await CharacterProfiles.load(),
+        'card' => await CardProfiles.load(),     // #323
         _ => await JigsawProfiles.load(),
       };
       List<GenerateJob> srcs = [];

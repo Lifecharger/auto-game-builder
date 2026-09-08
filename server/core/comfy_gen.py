@@ -596,6 +596,40 @@ CHARACTER_NEG = ("anime, cartoon, illustration, drawing, painting, 3d render, cg
                  "watermark, text, logo, cluttered background, props, furniture, "
                  "cropped feet, cropped head, camera pan, camera zoom")
 
+# --- kart kipi (Kart Modu, gorev #321) -----------------------------------
+# Hot Card Games koleksiyon kartlari. Metin roster.json'daki v5 formulunden
+# (style_prompts.realistic + base_prompt) turer; TEK fark fon: chroma yesil
+# YERINE karakter hattiyla ayni duz acik gri studyo fonu - kesim artik SAM3
+# ile yapiliyor (bkz. design/kart_modu.md §3), o yuzden "yesil kiyafet yasagi"
+# da kalkti. {} = 1. prompt (tema + gorunus + poz).
+CARD_BG = ("standing in front of a plain solid flat uniform light gray seamless studio "
+           "background, even studio lighting on the subject only, no shadows cast on the "
+           "background, no floor shadow, no gradient")
+CARD_STYLE = ("ultra realistic glamour photography, breathtakingly beautiful young woman in her "
+              "mid 20s, captivating gorgeous face, playful seductive smile, alluring pin-up model "
+              "look, cinematic studio lighting, 85mm lens")
+CARD_PROMPT2 = (
+    CARD_STYLE + ", {}, full body, entire figure visible head to feet including high heels, "
+    "vertical 2:3 composition, centered, " + CARD_BG + ", sharp focus"
+)
+# Krupiye (dealer) varyanti: bel ustu kadraj, kumarhane masasi, eller masada.
+CARD_DEALER_PROMPT2 = (
+    CARD_STYLE + ", {}, waist-up framing, seen from the waist up behind a casino table, "
+    "hands resting on the table, facing the camera, vertical 2:3 composition, centered, "
+    + CARD_BG + ", sharp focus"
+)
+# Video (i2v): kadraj KILITLI - sheet kesimi ancak olcek/cerceve degismezse tutar.
+CARD_MOTION2 = (
+    "{}, locked static camera, no camera movement, no zoom, no push in, no dolly, "
+    "framing never changes, same scale, the woman stays fully inside the frame at all times, "
+    "the plain light gray background stays flat and unchanged"
+)
+# Negatif: karakter hattinin listesi; "green clothing" gibi yesil kurallari YOK (#321).
+CARD_NEG = ("child, teen, minor, chibi, anime, cartoon, illustration, drawing, painting, "
+            "3d render, cgi, deformed, disfigured, extra limbs, extra fingers, bad hands, "
+            "bad anatomy, watermark, text, logo, cluttered background, furniture, "
+            "cropped head, camera pan, camera zoom")
+
 # #316: Free modda da oran secici - bes oran, ~1 MP, 16'nin kati (CBN ile ayni tablo).
 FREE_ASPECTS = [
     {"id": "9:16", "label": "9:16", "width": 720, "height": 1280},
@@ -622,6 +656,13 @@ MODES = {
         "prompt2": "", "negative": CBN_NEG, "motion2": "",
         "width": 832, "height": 1248, "exports": True, "profiles": "cbn", "aspects": True,
         "aspect_sizes": CBN_ASPECTS,
+    },
+    # #321: Kart Modu, Karakter'den ONCE gelir (FlowHub sirasi: free, jigsaw,
+    # cbn, card, character).
+    "card": {
+        "id": "card", "label": "Kart Modu",
+        "prompt2": CARD_PROMPT2, "negative": CARD_NEG, "motion2": CARD_MOTION2,
+        "width": 832, "height": 1248, "exports": True, "profiles": "card", "aspects": False,
     },
     "character": {
         "id": "character", "label": "Karakter Modu",
@@ -1215,7 +1256,7 @@ def submit(task: str, prompt: str, *, prompt2: str = "", negative: str = "",
     # talimatidir - "a breathtakingly beautiful young woman, {}" kalibina
     # sarilmasi anlamsiz olur (goruntuleyicideki Duzenle dugmesi, gorev #274).
     is_edit = need_img and not is_vid
-    if not prompt2 and mode in ("jigsaw", "character") and not is_edit:
+    if not prompt2 and mode in ("jigsaw", "character", "card") and not is_edit:   # #321
         prompt2 = md["motion2"] if is_vid else md["prompt2"]
     if not negative:
         negative = md["negative"] or (NEG_VID if is_vid else NEG_IMG)

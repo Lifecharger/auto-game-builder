@@ -1,0 +1,236 @@
+{
+ "_aciklama": "Kart Modu profil dosyasi (gorev #321). Iki profil: 'card' (Normal - tam boy 2:3 koleksiyon karti) ve 'dealer' (Krupiye - bel ustu, kumarhane masasi). 'sablon' Pozitif 2 varsayilanidir ({} = 1. prompt), 'negatif' negatif prompt, 'video_sablon' i2v hareket sablonu, 'alanlar' ekrandaki dropdown sirasi, 'secenekler' listeleri, 'jestler' i2v jest metinleri. Listeler roster.json v4/v5 cesitlilik kurallarindan turetilmistir: rutbe basina ten/sac/kiyafet/poz dondurulur. YALNIZ YETISKIN KADIN - cocuk/ergen/chibi yok. app/assets/kart_secenekler.json bu dosyanin AYNISIDIR (uygulamada cevrimdisi yedek); sunucu /api/card/profiles ile kendi dosyasini gonderirse o kazanir.",
+ "card": {
+  "alanlar": [
+   [
+    "theme",
+    "Tema"
+   ],
+   [
+    "skin",
+    "Ten"
+   ],
+   [
+    "hair",
+    "Sac"
+   ],
+   [
+    "outfit",
+    "Kiyafet"
+   ],
+   [
+    "outfit_color",
+    "Kiyafet rengi"
+   ],
+   [
+    "pose",
+    "Poz"
+   ],
+   [
+    "gesture",
+    "Jest"
+   ]
+  ],
+  "sablon": "ultra realistic glamour photography, breathtakingly beautiful young woman in her mid 20s, captivating gorgeous face, playful seductive smile, alluring pin-up model look, cinematic studio lighting, 85mm lens, {}, full body, entire figure visible head to feet including high heels, vertical 2:3 composition, centered, standing in front of a plain solid flat uniform light gray seamless studio background, even studio lighting on the subject only, no shadows cast on the background, no floor shadow, no gradient, sharp focus",
+  "negatif": "child, teen, minor, chibi, anime, cartoon, illustration, drawing, painting, 3d render, cgi, deformed, disfigured, extra limbs, extra fingers, bad hands, bad anatomy, watermark, text, logo, cluttered background, furniture, cropped head, camera pan, camera zoom, props, cropped feet, motion blur, depth of field, vignette",
+  "video_sablon": "{}, locked static camera, no camera movement, no zoom, no push in, no dolly, framing never changes, same scale, the woman stays fully inside the frame at all times, the plain light gray background stays flat and unchanged",
+  "secenekler": {
+   "theme": [
+    "gorgeous woman in sexy police costume with badge and duty belt, high heels",
+    "gorgeous Las Vegas revue showgirl in a rhinestone stage costume with a tall feather headdress and high heels",
+    "gorgeous adult vampire woman in dark gothic glamour attire, small delicate fangs in her smile, velvet and lace, high heels",
+    "gorgeous woman in a sexy futuristic nurse outfit with neon accents, heels",
+    "gorgeous woman in a sexy firefighter outfit with suspenders and a helmet, boots",
+    "gorgeous woman in a sexy flight attendant uniform with a scarf and a pillbox hat, heels",
+    "gorgeous woman in a sexy racing pit-crew suit unzipped over a top, racing boots",
+    "gorgeous woman in a sexy pirate captain outfit with a tricorn hat and boots",
+    "gorgeous woman in a sexy winter ski-lodge outfit with fur trim and boots",
+    "gorgeous woman in a sexy summer beach outfit with a sarong and heeled sandals",
+    "gorgeous woman in a sexy cyberpunk street outfit with neon trim and platform boots",
+    "gorgeous woman in a sexy medieval knight-queen outfit with polished armor pieces and boots",
+    "gorgeous woman in a sexy secret-agent tuxedo outfit with a slit skirt and heels",
+    "breathtaking woman in seductive jester-queen haute couture, playful and mischievous, heels"
+   ],
+   "skin": [
+    "porcelain pale skin",
+    "fair freckled ginger skin",
+    "sun-kissed latina skin",
+    "deep brown skin, stunning black woman",
+    "east asian beauty with clear fair skin",
+    "olive mediterranean skin",
+    "caramel skin",
+    "golden-tan skin",
+    "bronzed skin",
+    "warm brown skin",
+    "light olive skin",
+    "very pale skin",
+    "honey-toned skin"
+   ],
+   "hair": [
+    "long wavy jet-black hair",
+    "fiery red voluminous curls",
+    "platinum blonde sleek bob",
+    "chocolate brown beach waves",
+    "long straight black hair with blunt bangs",
+    "dark chestnut high ponytail",
+    "big voluminous dark curls",
+    "honey blonde long waves",
+    "ash-brown long straight hair",
+    "strawberry blonde curls",
+    "dark auburn glossy waves",
+    "silver-white long waves",
+    "brunette pixie cut"
+   ],
+   "outfit": [
+    "cropped top with deep cleavage, mini skirt, black lace thigh-high stockings",
+    "corset bodysuit with sheer fishnet tights",
+    "mini dress with a plunging neckline, sheer nude stockings",
+    "crop jacket open over a bralette, leather mini skirt",
+    "sleeveless bodice with a high-slit long skirt",
+    "crop top tied at the waist, leather mini shorts, long bare legs",
+    "tactical crop vest, utility mini skirt, long bare legs",
+    "shirt with a loose tie and cleavage, mini skirt, thigh-high garter stockings",
+    "sequin leotard with sheer tights",
+    "velvet mini dress with a lace-up front, over-knee boots",
+    "mesh bodysuit under an open floor-length lace robe, garter belt visible",
+    "pleated mini skort, knee-high leather boots",
+    "crop cardigan over a mini dress, over-knee stockings"
+   ],
+   "pose": [
+    "one hand on hip, chest forward, head tilted confidently",
+    "arms crossed under chest, weight on one hip, smirking",
+    "leaning forward slightly with hands on knees, playful look",
+    "back turned, looking over shoulder at viewer",
+    "mid-strut walking pose, one leg forward",
+    "blowing a kiss with one hand extended",
+    "both arms raised in a wide V, chin lifted",
+    "hands clasped behind her back, chin lowered, piercing stare",
+    "one hand running through her hair, hip cocked to one side",
+    "front leg extended with a pointed toe, confident smile",
+    "legs planted apart, both hands on hips, chin down looking up at the viewer",
+    "dipping into a playful curtsy, both hands lifting the skirt",
+    "one hand extended toward the viewer, beckoning with a single finger"
+   ],
+   "gesture": [
+    "idle",
+    "wink",
+    "kiss",
+    "hair",
+    "pose"
+   ],
+   "outfit_color": [
+    "navy blue",
+    "white",
+    "black",
+    "crimson red",
+    "burgundy",
+    "emerald green",
+    "royal purple",
+    "champagne gold",
+    "silver",
+    "blush pink"
+   ],
+   "dealer_gesture": [
+    "idle",
+    "shuffle",
+    "deal",
+    "wink",
+    "smile"
+   ]
+  },
+  "jestler": {
+   "idle": "subtle idle breathing, gentle hair sway, soft smile, seamless loop",
+   "wink": "playful wink at the viewer, slight head tilt, confident smirk",
+   "kiss": "blows a kiss toward the viewer, hand to lips then extends, charming smile",
+   "hair": "runs hand through hair and flips it, elegant motion",
+   "pose": "shifts weight to one hip, strikes a glamour pose"
+  }
+ },
+ "dealer": {
+  "alanlar": [
+   [
+    "theme",
+    "Tema"
+   ],
+   [
+    "skin",
+    "Ten"
+   ],
+   [
+    "hair",
+    "Sac"
+   ],
+   [
+    "outfit",
+    "Kiyafet"
+   ],
+   [
+    "pose",
+    "Poz"
+   ],
+   [
+    "gesture",
+    "Jest"
+   ]
+  ],
+  "sablon": "ultra realistic glamour photography, breathtakingly beautiful young woman in her mid 20s, captivating gorgeous face, playful seductive smile, alluring pin-up model look, cinematic studio lighting, 85mm lens, {}, waist-up framing, seen from the waist up behind a casino table, hands resting on the table, facing the camera, vertical 2:3 composition, centered, standing in front of a plain solid flat uniform light gray seamless studio background, even studio lighting on the subject only, no shadows cast on the background, no floor shadow, no gradient, sharp focus",
+  "negatif": "child, teen, minor, chibi, anime, cartoon, illustration, drawing, painting, 3d render, cgi, deformed, disfigured, extra limbs, extra fingers, bad hands, bad anatomy, watermark, text, logo, cluttered background, furniture, cropped head, camera pan, camera zoom, full body, legs visible",
+  "video_sablon": "{}, locked static camera, no camera movement, no zoom, no push in, no dolly, framing never changes, same scale, the dealer stays fully inside the frame at all times, the plain light gray background stays flat and unchanged",
+  "secenekler": {
+   "theme": [
+    "elegant casino dealer at the blackjack table",
+    "noir casino dealer in a deep red evening dress",
+    "sakura themed casino dealer with a cherry-blossom motif",
+    "high-roller VIP salon dealer in black and gold",
+    "art-deco 1920s casino dealer",
+    "neon night-club poker dealer"
+   ],
+   "skin": [
+    "porcelain pale skin",
+    "deep brown skin, stunning black woman",
+    "east asian beauty with clear fair skin",
+    "sun-kissed latina skin",
+    "olive mediterranean skin",
+    "caramel skin"
+   ],
+   "hair": [
+    "sleek long jet-black hair",
+    "platinum blonde finger-wave hair",
+    "dark chestnut high ponytail",
+    "fiery red voluminous curls",
+    "glossy black hair in a high half-up style",
+    "honey blonde long waves"
+   ],
+   "outfit": [
+    "black casino vest over a white shirt with a black bow tie, sleeves rolled",
+    "burgundy casino uniform vest with gold trim and a bow tie",
+    "deep red satin evening dress with a plunging neckline",
+    "black and gold brocade waistcoat over a fitted shirt",
+    "sakura pink silk qipao-style top with floral embroidery",
+    "midnight blue velvet blazer over a lace bodice"
+   ],
+   "pose": [
+    "hands resting flat on the table, leaning slightly forward",
+    "holding a fanned deck of cards above the table",
+    "one hand on a stack of chips, the other on the table",
+    "mid card-shuffle with both hands over the felt",
+    "sliding a card across the table toward the viewer",
+    "arms relaxed on the table edge, warm inviting smile"
+   ],
+   "gesture": [
+    "idle",
+    "shuffle",
+    "deal",
+    "wink",
+    "smile"
+   ]
+  },
+  "jestler": {
+   "idle": "subtle idle breathing, gentle head movement, soft welcoming smile, seamless loop",
+   "shuffle": "shuffles a deck of playing cards over the table with both hands, smooth expert motion",
+   "deal": "deals a playing card across the table toward the viewer, one smooth motion",
+   "wink": "playful wink at the viewer, slight head tilt, confident smirk",
+   "smile": "warm delighted smile at the viewer, small nod"
+  }
+ }
+}

@@ -1,0 +1,1847 @@
+"""Kart Modu - uretim hattinin 5. kipi (gorev #321).
+
+Hot Card Games'in koleksiyon kartlari. Grok'a bagli `Hot Card Games/tools/cardpipe`
+hattinin yerine gecer; cikti sozlesmesi (R2 kovasi `hotcardgames`, manifest semasi,
+sprite sheet geometrisi) DEGISMEZ - yalniz uretim tamamen yerellesir.
+
+Kullanicinin tanimladigi DORT ASAMA (design/kart_modu.md §0):
+
+  1 Still    koleksiyon acilinca 13 (+2 joker) rutbe icin 1'er still (image_zimage,
+             mode "card"), otomatik kabul -> <rutbe>/still.png; ✎ Duzenle / ↻ Yeniden uret
+  2 Video    still -> LTX-2.5 i2v 6 sn (video_ltx), jest promptu + kilitli kamera,
+             guard (ilk kare - still farki), otomatik kabul -> <rutbe>/video.mp4
+  3 WebP     SAM3 kesim + 12x6 sheet + thumb + hi-res still (tools/cardpipe_local/cut.py)
+  4 Push     once dosyalar sonra manifest; manifest push'un ICINDE uretilir, geri alinamaz
+
+Iki tur vardir (avatar YOK): `card` (Normal, tam boy, koleksiyon = 13 rutbe + 2 joker)
+ve `dealer` (Krupiye, bel ustu, `_Dealers/<ad>/` tek oge, rutbe yok).
+
+Kutuphane duzeni (`card.root`, vars. D:\\Asset Generation Pipeline\\Hot Card Games):
+
+  _Incoming Kart/<is>.png              Uretilenler'den rutbesiz sahnelenen still
+  <koleksiyon>/collection.json         {id, name, theme, style, kind, ranks, jokers, created}
+  <koleksiyon>/<rutbe>/still.png       secili still 832x1248 (+ adaylar still_NN.png)
+  <koleksiyon>/<rutbe>/still.webp      hi-res still 832x1248 q90 (manifest `still`)
+  <koleksiyon>/<rutbe>/video.mp4       i2v master 832x1248
+  <koleksiyon>/<rutbe>/video_grok.mp4  eski Grok masteri (goc ile KOPYALANIR, silinmez)
+  <koleksiyon>/<rutbe>/cut/            kesim kareleri (RGBA)
+  <koleksiyon>/<rutbe>/sheet.webp thumb.webp   paket
+  <koleksiyon>/<rutbe>/state.json      asama kayitlari (geometri, jest, guard, metrics)
+  <koleksiyon>/_pushed.json            R2'ye giden dosya adlari + surum eki
+  _Dealers/<ad>/...                    ayni yapi (bel ustu)
+
+v3 cozunurlugu (design/kart_modu.md "Cozunurluk"): sheet karesi 512x768 (12x6),
+thumb 640x960, hi-res still 832x1248; yayin adlari `_sheet_v3` / `_thumb_v3` /
+`_still_v3` - eski v2 girdileri manifest'te DURUR (istemciler bayti sonsuza dek
+saklar, ustune yazilmaz). Krupiye sheet'i varsayilan olarak v1 geometrisinde
+(320x480) kalir; `dealers_v3` bayragi ile 512x768'e gecer (once APK'daki gomulu
+scarlett'in yolunu degistiren uygulama surumu cikmali).
+
+#299 - HER IS SIRAYA GIRER: butun ComfyUI isleri comfy_gen'in tek kuyruguna
+birakilir (client="flow", category=<koleksiyon>), Sira ekraninda gorunur. Kesim
+gibi ComfyUI disi agir isler gpu_lane'den TEK parti halinde gecer (op_id ile).
+Uzun isler jigsaw/cbn/karakter ile AYNI op defterini kullanir (/api/card/flow/op/{id}).
+"""
+from __future__ import annotations
+
+import json
+import math
+import os
+import random
+import shutil
+import subprocess
+import sys
+import time
+from datetime import datetime
+
+from . import comfy_gen as G
+from . import gpu_lane
+from .jigsaw_flow import _op, _op_new, _ops, _ops_lock, _run, op_status, ops  # noqa: F401
+
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_TOOLS = os.path.join(_ROOT, "tools")
+_SETTINGS = os.path.join(_ROOT, "server", "config", "settings.json")
+THUMB_DIR = os.path.join(G.OUT_DIR, "_card_thumbs")
+
+DEFAULT_ROOT = r"D:\Asset Generation Pipeline\Hot Card Games"
+DEFAULT_GROK = r"C:\Projects\Hot Card Games\design\characters"
+DEFAULT_ROSTER = r"C:\Projects\Hot Card Games\tools\cardpipe\roster.json"
+DEFAULT_MANIFEST_SRC = r"C:\Projects\Hot Card Games\tools\cardpipe\out\manifest.json"
+DEFAULT_BUCKET = "hotcardgames"
+
+INCOMING = "_Incoming Kart"
+
+# --------------------------------------------------------------- sozlesme
+RANK_ORDER = ("A", "K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3", "2")
+JOKER_RANKS = ("J1", "J2")
+RARITY_BY_RANK = {"A": "epic", "K": "rare", "Q": "rare", "J": "rare"}
+DEFAULT_RARITY = "common"
+JOKER_RARITY = "legendary"
+PRICES = {"common": 400, "rare": 1200, "epic": 3000, "legendary": 8000}
+
+FPS = 12
+SECONDS = 6
+COLS = 12
+ROWS = 6                        # izgara 12x6 (#322 `grid`)
+FRAMES = FPS * SECONDS          # 72
+SUFFIX = "_v3"                  # yayin adi eki - yol degisir, ustune yazilmaz
+
+STILL_SIZE = (832, 1248)        # hi-res still + i2v master olcusu
+FRAME_V3 = (512, 768)           # sheet karesi (12x6 -> 6144x4608)
+THUMB_V3 = (640, 960)
+DEALER_FRAME_V1 = (320, 480)    # APK'da gomulu scarlett'in geometrisi
+SHEET_QUALITY = 85
+
+# --------------------------------------------------------------- turler
+KINDS = {
+    "card": {"id": "card", "label": "Normal", "folder": "", "concept": "woman",
+             "profile": "card", "ranked": True, "key": "collections"},
+    "dealer": {"id": "dealer", "label": "Krupiye", "folder": "_Dealers", "concept": "woman",
+               "profile": "dealer", "ranked": False, "key": "dealers"},
+}
+DEFAULT_KIND = "card"
+
+# Jest metinleri profil dosyasindan gelir; asagisi yedek (roster.gesture_prompts).
+FALLBACK_GESTURES = {
+    "card": {"idle": "subtle idle breathing, gentle hair sway, soft smile, seamless loop",
+             "wink": "playful wink at the viewer, slight head tilt, confident smirk",
+             "kiss": "blows a kiss toward the viewer, hand to lips then extends, charming smile",
+             "hair": "runs hand through hair and flips it, elegant motion",
+             "pose": "shifts weight to one hip, strikes a glamour pose"},
+    "dealer": {"idle": "subtle idle breathing, gentle head movement, soft welcoming smile, seamless loop",
+               "shuffle": "shuffles a deck of playing cards over the table with both hands",
+               "deal": "deals a playing card across the table toward the viewer",
+               "wink": "playful wink at the viewer, slight head tilt, confident smirk",
+               "smile": "warm delighted smile at the viewer, small nod"},
+}
+DEFAULT_GESTURE = "idle"
+MAIN = "main"          # krupiyenin tek ogesinin rutbe adi (#323 istemcisi bunu yollar)
+CUT_MODES = ("sam", "hybrid")
+
+STILL_TASK = "image_zimage"
+EDIT_TASK = "edit_qwen"
+VIDEO_TASK = "video_ltx"
+
+GUARD_THRESHOLD = 25.0          # guard_firstframe.py ile ayni esik
+
+
+# ------------------------------------------------------------------ ayarlar
+def _setting(key: str, default: str = "") -> str:
+    """settings.json'dan makineye ozel yol (depo herkese acik - yol koda gomulmez)."""
+    try:
+        with open(_SETTINGS, encoding="utf-8") as fh:
+            d = json.load(fh) or {}
+        for part in key.split("."):
+            d = (d or {}).get(part)
+        if isinstance(d, str) and d.strip():
+            return d.strip()
+    except Exception:
+        pass
+    return default
+
+
+def root() -> str:
+    return os.environ.get("CARD_ROOT", "").strip() or _setting("card.root") or DEFAULT_ROOT
+
+
+def grok_root() -> str:
+    return os.environ.get("CARD_GROK_ROOT", "").strip() or _setting("card.grok_root") or DEFAULT_GROK
+
+
+def roster_path() -> str:
+    return os.environ.get("CARD_ROSTER", "").strip() or _setting("card.roster") or DEFAULT_ROSTER
+
+
+def manifest_src() -> str:
+    """Devralinacak mevcut manifest (dealers bolumu buradan aynen tasinir)."""
+    yerel = os.path.join(root(), "manifest.json")
+    if os.path.isfile(yerel):
+        return yerel
+    return os.environ.get("CARD_MANIFEST_SRC", "").strip() or _setting("card.manifest_src") \
+        or DEFAULT_MANIFEST_SRC
+
+
+def bucket() -> str:
+    return _setting("card.bucket") or DEFAULT_BUCKET
+
+
+def _wrangler() -> str:
+    """r2manager'in config'indeki wrangler yolu (jigsaw_flow ile ayni kaynak)."""
+    try:
+        from . import jigsaw_flow as JF
+        return str(JF._cfg().WRANGLER_BIN or "")
+    except Exception:
+        return shutil.which("wrangler.cmd") or shutil.which("wrangler") or ""
+
+
+def _options_file() -> str:
+    return os.environ.get("CARD_OPTIONS_FILE", "").strip() or _setting("card.options_file") \
+        or os.path.join(_ROOT, "server", "config", "card_options.json")
+
+
+_opts_cache: tuple[float, dict] | None = None
+
+
+def _options() -> dict:
+    global _opts_cache
+    yol = _options_file()
+    try:
+        mt = os.path.getmtime(yol)
+    except OSError:
+        return {}
+    if _opts_cache and _opts_cache[0] == mt:
+        return _opts_cache[1]
+    try:
+        with open(yol, encoding="utf-8") as fh:
+            d = json.load(fh) or {}
+    except Exception:
+        d = {}
+    _opts_cache = (mt, d)
+    return d
+
+
+def profiles() -> dict:
+    """Dropdown profilleri + turler + jestler + rutbe sirasi (istemci bunu okur)."""
+    yol = _options_file()
+    out = {"profiles": {}, "source": yol, "root": root(), "error": "",
+           "kinds": kinds(), "ranks": list(RANK_ORDER), "jokers": list(JOKER_RANKS),
+           "cut_modes": list(CUT_MODES), "main": MAIN,
+           # #323: `gestures` KART jestleri, krupiyeninki ayri alanda
+           "gestures": gestures("card"), "dealer_gestures": gestures("dealer"),
+           "gestures_by_kind": {k: gestures(k) for k in KINDS},
+           "geometry": {"fps": FPS, "seconds": SECONDS, "cols": COLS, "frames": FRAMES,
+                        "still": list(STILL_SIZE), "frame": list(FRAME_V3),
+                        "thumb": list(THUMB_V3), "dealer_frame_v1": list(DEALER_FRAME_V1),
+                        "suffix": SUFFIX}}
+    try:
+        with open(yol, encoding="utf-8") as fh:
+            out["profiles"] = json.load(fh)
+    except Exception as e:
+        out["error"] = str(e)
+    return out
+
+
+def kinds() -> list[dict]:
+    return [{"id": k["id"], "label": k["label"], "ranked": k["ranked"]} for k in KINDS.values()]
+
+
+def kind_id(kind: str = "") -> str:
+    k = (kind or "").strip().lower()
+    return k if k in KINDS else DEFAULT_KIND
+
+
+def gestures(kind: str = "") -> dict:
+    """Turun jest metinleri: profil dosyasi, yoksa yedek liste."""
+    k = kind_id(kind)
+    prof = (_options().get(KINDS[k]["profile"]) or {})
+    jest = prof.get("jestler") or {}
+    return {a: b for a, b in jest.items() if isinstance(b, str)} or dict(FALLBACK_GESTURES[k])
+
+
+def _prompt2(kind: str) -> str:
+    prof = (_options().get(KINDS[kind_id(kind)]["profile"]) or {})
+    return (prof.get("sablon") or "").strip() or \
+        (G.CARD_DEALER_PROMPT2 if kind_id(kind) == "dealer" else G.CARD_PROMPT2)
+
+
+def _negative(kind: str) -> str:
+    prof = (_options().get(KINDS[kind_id(kind)]["profile"]) or {})
+    return (prof.get("negatif") or "").strip() or G.CARD_NEG
+
+
+def _motion2(kind: str) -> str:
+    prof = (_options().get(KINDS[kind_id(kind)]["profile"]) or {})
+    return (prof.get("video_sablon") or "").strip() or G.CARD_MOTION2
+
+
+# -------------------------------------------------------------------- yollar
+_BAD = '\\/:*?"<>|'
+
+
+def _safe(ad: str, alan: str = "ad") -> str:
+    ad = (ad or "").strip()
+    if not ad or len(ad) > 80 or any(c in ad for c in _BAD) or ad.startswith(".") or ".." in ad:
+        raise ValueError("gecersiz %s: %s" % (alan, ad))
+    return ad
+
+
+def _inside(base: str, p: str) -> str:
+    b, q = os.path.abspath(base), os.path.abspath(p)
+    if not (q == b or q.startswith(b + os.sep)):
+        raise ValueError("yol kutuphane disinda")
+    return q
+
+
+def col_dir(collection: str, kind: str = "", create: bool = False) -> str:
+    """Koleksiyon klasoru.
+
+    Kart: <root>/<koleksiyon>. Krupiye: <root>/_Dealers/<ad> - telefon
+    istemcisi (#323) her krupiyeyi TEK OGELI bir koleksiyon gibi gosterir
+    (rutbe listesi ["main"]), diskteki duzen de doc §2 ile ayni kalir.
+    """
+    k = kind_id(kind)
+    ad = _safe(collection, "koleksiyon")
+    if KINDS[k]["folder"]:
+        return _mk(os.path.join(root(), KINDS[k]["folder"], ad), create)
+    return _mk(os.path.join(root(), ad), create)
+
+
+def _mk(d: str, create: bool) -> str:
+    if create:
+        os.makedirs(d, exist_ok=True)
+    return d
+
+
+def rank_dir(collection: str, rank: str, kind: str = "", create: bool = False) -> str:
+    """Krupiyede rutbe yok: dosyalar dogrudan _Dealers/<ad>/ icinde durur."""
+    if kind_id(kind) == "dealer":
+        r = str(rank or MAIN).lower()
+        if r not in (MAIN, "", "idle"):
+            raise ValueError("krupiyede rutbe yok (main bekleniyordu): %s" % rank)
+        return col_dir(collection, kind, create)
+    return _mk(os.path.join(col_dir(collection, kind), _safe(str(rank).lower(), "rutbe")), create)
+
+
+def _rel(p: str) -> str:
+    """card.root'a gore yol (istemci /file ve /thumb uclarina bunu yollar)."""
+    try:
+        return os.path.relpath(p, root()).replace("\\", "/")
+    except Exception:
+        return p.replace("\\", "/")
+
+
+def file_path(rel: str) -> str | None:
+    p = _inside(root(), os.path.join(root(), (rel or "").replace("\\", "/")))
+    return p if os.path.isfile(p) else None
+
+
+VIDEO_EXT = (".mp4", ".webm", ".mov")
+
+
+def thumb(rel: str, size: int = 360) -> str | None:
+    """Onbellekli onizleme (video/webp'in ilk karesi cikarilir)."""
+    src = file_path(rel)
+    if not src:
+        return None
+    import hashlib
+    st = os.stat(src)
+    key = hashlib.sha1(("%s|%d|%d|%d" % (src, st.st_size, int(st.st_mtime), size)).encode()).hexdigest()
+    dest = os.path.join(THUMB_DIR, key + ".jpg")
+    if os.path.isfile(dest):
+        return dest
+    os.makedirs(THUMB_DIR, exist_ok=True)
+    tmp = dest + ".tmp"
+    try:
+        if os.path.splitext(src)[1].lower() in VIDEO_EXT:
+            ff = G._ffmpeg() or "ffmpeg"
+            subprocess.run([ff, "-y", "-loglevel", "error", "-i", src, "-frames:v", "1",
+                            "-vf", "scale=%d:-1" % size, tmp], check=True, timeout=300,
+                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        else:
+            from PIL import Image
+            with Image.open(src) as f:
+                f.seek(0)
+                f.thumbnail((size, size))
+                im = f.convert("RGB")
+            im.save(tmp, "JPEG", quality=84)
+        os.replace(tmp, dest)
+        return dest
+    except Exception:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        return None
+
+
+def _read_json(p: str, default=None):
+    try:
+        with open(p, encoding="utf-8") as fh:
+            return json.load(fh)
+    except Exception:
+        return default
+
+
+def _write_json(p: str, data) -> None:
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    tmp = p + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(data, fh, ensure_ascii=False, indent=1)
+    os.replace(tmp, p)
+
+
+def _serbest_ad(dest_dir: str, kalip: str) -> str:
+    """'still_%02d.png' kalibi icin bos numara (ustune YAZMAZ)."""
+    os.makedirs(dest_dir, exist_ok=True)
+    k = 1
+    while os.path.isfile(os.path.join(dest_dir, kalip % k)):
+        k += 1
+    return os.path.join(dest_dir, kalip % k)
+
+
+# ------------------------------------------------------------------ roster
+_roster_cache: tuple[float, dict] | None = None
+
+
+def roster() -> dict:
+    global _roster_cache
+    yol = roster_path()
+    try:
+        mt = os.path.getmtime(yol)
+    except OSError:
+        return {}
+    if _roster_cache and _roster_cache[0] == mt:
+        return _roster_cache[1]
+    d = _read_json(yol, {}) or {}
+    _roster_cache = (mt, d)
+    return d
+
+
+def rarity_of(rank: str, jokers: bool = False) -> str:
+    r = str(rank).upper()
+    if jokers or r in JOKER_RANKS:
+        return JOKER_RARITY
+    return RARITY_BY_RANK.get(r, DEFAULT_RARITY)
+
+
+def price_of(rarity: str) -> int:
+    prices = (roster().get("prices") or {}) or PRICES
+    return int(prices.get(rarity, PRICES.get(rarity, 0)))
+
+
+def card_id(collection: str, rank: str, kind: str = "") -> str:
+    """Kart kimligi: <koleksiyon>_<rutbe kucuk>; krupiyede sadece <ad>."""
+    if kind_id(kind) == "dealer":
+        return str(collection).lower()
+    return "%s_%s" % (collection, str(rank).lower())
+
+
+def ranks_of(kind: str, jokers: int = 0) -> list[str]:
+    if kind_id(kind) == "dealer":
+        return []
+    n = 2 if int(jokers or 0) >= 2 else (1 if int(jokers or 0) == 1 else 0)
+    return list(RANK_ORDER) + list(JOKER_RANKS[:n])
+
+
+# --------------------------------------------------- gorunum rotasyonu (v4/v5)
+def _tohum(metin: str) -> int:
+    """Sabit (surumler arasi degismeyen) tam sayi tohum - hash() rastgeledir."""
+    h = 0
+    for ch in metin or "":
+        h = (h * 131 + ord(ch)) & 0xFFFFFFFF
+    return h
+
+
+def look_for(collection: str, kind: str, rank: str, index: int) -> dict:
+    """Rutbe basina FARKLI gorunus: ten/sac/kiyafet/poz listeleri dondurulur.
+
+    cardpipe v4 kurali: bir koleksiyondaki 13 kart birbirine benzemez. Listeler
+    13 ogeli oldugu icin (offset + index) % len her eksende 13 ayri deger verir;
+    offset koleksiyon adindan turer, yani ayni koleksiyon her zaman ayni diziyi
+    uretir (yeniden uretim tekrarlanabilir).
+    """
+    prof = (_options().get(KINDS[kind_id(kind)]["profile"]) or {})
+    sec = prof.get("secenekler") or {}
+    out = {}
+    for i, alan in enumerate(("skin", "hair", "outfit", "pose")):
+        liste = [x for x in (sec.get(alan) or []) if isinstance(x, str)]
+        if not liste:
+            continue
+        off = _tohum("%s|%s" % (collection, alan)) % len(liste)
+        out[alan] = liste[(off + index) % len(liste)]
+    return out
+
+
+def look_text(theme: str, look: dict) -> str:
+    parca = [(theme or "").strip()]
+    for alan in ("skin", "hair", "outfit", "pose"):
+        if look.get(alan):
+            parca.append(look[alan].strip())
+    return ", ".join(x for x in parca if x)
+
+
+# ------------------------------------------------------------ koleksiyon.json
+def collection_meta(collection: str, kind: str = "") -> dict:
+    d = col_dir(collection, kind)
+    m = _read_json(os.path.join(d, "collection.json"), None)
+    if not isinstance(m, dict):
+        raise ValueError("koleksiyon yok: %s" % collection)
+    return m
+
+
+def _save_collection(collection: str, kind: str, m: dict) -> dict:
+    _write_json(os.path.join(col_dir(collection, kind, create=True), "collection.json"), m)
+    return m
+
+
+def state(collection: str, rank: str, kind: str = "") -> dict:
+    return _read_json(os.path.join(rank_dir(collection, rank, kind), "state.json"), {}) or {}
+
+
+def _set_state(collection: str, rank: str, kind: str, **kw) -> dict:
+    p = os.path.join(rank_dir(collection, rank, kind, create=True), "state.json")
+    s = _read_json(p, {}) or {}
+    s.update(kw)
+    s["rank"] = str(rank).upper()
+    _write_json(p, s)
+    return s
+
+
+# ------------------------------------------------------------------ listeleme
+def _rank_row(collection: str, kind: str, rank: str, pushed: dict) -> dict:
+    d = rank_dir(collection, rank, kind)
+    s = state(collection, rank, kind)
+    cid = card_id(collection, rank, kind)
+    var = lambda ad: os.path.isfile(os.path.join(d, ad))   # noqa: E731
+    sheet = s.get("sheet") or {}
+    row = {
+        "rank": str(rank).upper(), "id": cid, "dir": _rel(d),
+        "still": var("still.png"), "still_rel": _rel(os.path.join(d, "still.png")),
+        "still_webp": var("still.webp"), "still_webp_rel": _rel(os.path.join(d, "still.webp")),
+        "video": var("video.mp4"), "video_rel": _rel(os.path.join(d, "video.mp4")),
+        "grok": var("video_grok.mp4"), "grok_rel": _rel(os.path.join(d, "video_grok.mp4")),
+        "sheet": var("sheet.webp"), "sheet_rel": _rel(os.path.join(d, "sheet.webp")),
+        "thumb": var("thumb.webp"), "thumb_rel": _rel(os.path.join(d, "thumb.webp")),
+        "pushed": cid in (pushed.get("cards") or {}),
+        "gesture": (s.get("video") or {}).get("gesture") or "",
+        "guard": (s.get("video") or {}).get("guard") or None,
+        "verdict": sheet.get("verdict") or "",
+        "metrics": sheet.get("metrics") or {},
+        "rev": _rev(d),
+        "cut_mode": sheet.get("mode") or "",
+        "frameW": sheet.get("frameW") or 0, "frameH": sheet.get("frameH") or 0,
+        "frames": sheet.get("frames") or 0,
+        "candidates": [],
+    }
+    try:
+        row["candidates"] = sorted(_rel(os.path.join(d, a)) for a in os.listdir(d)
+                                   if a.startswith("still_") and a.endswith(".png"))
+    except OSError:
+        pass
+    # Asama numarasi: 0 bos, 1 still, 2 video, 3 sheet, 4 push
+    row["stage"] = 4 if row["pushed"] else (3 if row["sheet"] else
+                                            (2 if row["video"] else (1 if row["still"] else 0)))
+    return row
+
+
+def _rev(d: str) -> int:
+    """Onbellek kirici: klasordeki varliklarin en yeni degisiklik zamani (saniye).
+
+    Istemci (#323) thumb/file uclarina `v=<rev>` ekler; yol degismeden goruntu
+    tazelensin diye.
+    """
+    en = 0
+    for a in ("still.png", "still.webp", "video.mp4", "sheet.webp", "thumb.webp"):
+        try:
+            en = max(en, int(os.path.getmtime(os.path.join(d, a))))
+        except OSError:
+            pass
+    return en
+
+
+def _sec(istek, tum: list[str]) -> list[str]:
+    """Istenen rutbeleri diskteki listeye eslestirir (bos istek = hepsi)."""
+    if not istek:
+        return list(tum)
+    esle = {x.lower(): x for x in tum}
+    out = [esle[str(r).lower()] for r in istek if str(r).lower() in esle]
+    return out or list(tum)
+
+
+def pushed_of(collection: str, kind: str = "") -> dict:
+    return _read_json(os.path.join(col_dir(collection, kind), "_pushed.json"), {}) or {}
+
+
+def _collection_ranks(collection: str, kind: str) -> list[str]:
+    """Diskteki rutbeler, sozlesme sirasinda. Krupiyede tek oge: ["main"]."""
+    d = col_dir(collection, kind)
+    if kind_id(kind) == "dealer":
+        return [MAIN] if os.path.isdir(d) else []
+    try:
+        adlar = [a for a in os.listdir(d) if os.path.isdir(os.path.join(d, a))
+                 and not a.startswith("_") and a != "cut"]
+    except OSError:
+        return []
+    sira = {r.lower(): i for i, r in enumerate(list(RANK_ORDER) + list(JOKER_RANKS))}
+    return sorted(adlar, key=lambda a: (sira.get(a.lower(), 99), a))
+
+
+def dealer_names() -> list[str]:
+    """_Dealers altindaki krupiyeler (her biri kendi koleksiyonu)."""
+    d = os.path.join(root(), KINDS["dealer"]["folder"])
+    try:
+        return sorted((a for a in os.listdir(d)
+                       if os.path.isdir(os.path.join(d, a)) and not a.startswith("_")),
+                      key=str.lower)
+    except OSError:
+        return []
+
+
+def collection(collection_id: str, kind: str = "") -> dict:
+    """Koleksiyon detayi: 13 (+joker) kartin asama bayraklari."""
+    k = kind_id(kind)
+    m = collection_meta(collection_id, k)
+    pushed = pushed_of(collection_id, k)
+    ranks = _collection_ranks(collection_id, k) or \
+        [r.lower() for r in ranks_of(k, m.get("jokers", 0))]
+    cards = [_rank_row(collection_id, k, r, pushed) for r in ranks]
+    kapak = next((c for c in cards if c["rank"] == "A" and c["thumb"]), None) \
+        or next((c for c in cards if c["thumb"]), None) \
+        or next((c for c in cards if c["still"]), None)
+    # #323: istemci `ranks` haritasini okur (kart) / `state` (krupiye).
+    harita = {c["rank"]: {a: c[a] for a in ("still", "video", "sheet", "pushed",
+                                           "verdict", "rev", "gesture", "metrics")}
+              for c in cards}
+    out = {"id": m.get("id") or collection_id, "name": m.get("name") or collection_id,
+           "kind": k, "style": m.get("style") or "realistic", "theme": m.get("theme") or "",
+           "jokers": int(m.get("jokers") or 0), "created": m.get("created") or "",
+           "dir": _rel(col_dir(collection_id, k)),
+           "cover": (kapak or {}).get("thumb_rel") or (kapak or {}).get("still_rel") or "",
+           "rev": max([0] + [c["rev"] for c in cards]),
+           "ranks": harita, "cards": cards,
+           "counts": {"total": len(cards),
+                      "still": sum(1 for c in cards if c["still"]),
+                      "video": sum(1 for c in cards if c["video"]),
+                      "sheet": sum(1 for c in cards if c["sheet"]),
+                      "pushed": sum(1 for c in cards if c["pushed"]),
+                      "check": sum(1 for c in cards if c["verdict"] == "kontrol")}}
+    if k == "dealer":
+        tek = cards[0] if cards else {}
+        out["gesture"] = tek.get("gesture") or (m.get("gesture") or DEFAULT_GESTURE)
+        out["state"] = {a: tek.get(a) for a in ("still", "video", "sheet", "pushed", "verdict")}
+    return out
+
+
+def collections(kind: str = "") -> dict:
+    """Kutuphanedeki koleksiyonlar (kart) + krupiyeler. Kart detayi tasimaz."""
+    r = root()
+    os.makedirs(r, exist_ok=True)
+    out = []
+    istek = kind_id(kind) if kind else ""
+    if not istek or istek == "card":
+        try:
+            for a in sorted(os.listdir(r), key=str.lower):
+                d = os.path.join(r, a)
+                if not os.path.isdir(d) or a.startswith("_"):
+                    continue
+                if not os.path.isfile(os.path.join(d, "collection.json")):
+                    continue
+                c = collection(a, "card")
+                c.pop("cards", None)
+                out.append(c)
+        except OSError:
+            pass
+    if not istek or istek == "dealer":
+        # #323: HER KRUPIYE ayri bir satir (tek ogeli koleksiyon).
+        for ad in dealer_names():
+            try:
+                c = collection(ad, "dealer")
+            except ValueError:
+                continue
+            c.pop("cards", None)
+            out.append(c)
+    return {"root": r, "kinds": kinds(), "collections": out,
+            "incoming": _incoming_list()}
+
+
+def _incoming_list() -> list[dict]:
+    d = os.path.join(root(), INCOMING)
+    try:
+        return [{"file": a, "rel": _rel(os.path.join(d, a))}
+                for a in sorted(os.listdir(d))
+                if a.lower().endswith((".png", ".jpg", ".jpeg", ".webp"))]
+    except OSError:
+        return []
+
+
+# --------------------------------------------------------- comfy_gen kuyrugu
+def _await_job(job_id: str, op_id: str, etiket: str, timeout: int = 3 * 3600) -> str:
+    """#299: tek comfy_gen isini bekler, cikti dosyasinin yolunu doner."""
+    t0 = time.time()
+    while time.time() - t0 < timeout:
+        time.sleep(3)
+        j = G.get_job(job_id)
+        if not j:
+            raise RuntimeError("is kayboldu: %s" % job_id[:8])
+        st = j.get("status")
+        if st == "done":
+            f = G.job_file(job_id)
+            if not f:
+                raise RuntimeError("is bitti ama cikti yok")
+            return f
+        if st in ("error", "cancelled"):
+            raise RuntimeError(j.get("error") or st)
+        _op(op_id, message="%s  %s %%%d" % (etiket, st, j.get("progress") or 0))
+    raise RuntimeError("zaman asimi: %s" % etiket)
+
+
+def _is_sil(jid: str, tasindi: bool = False) -> None:
+    """Ara cikti galeride kalmasin. tasindi=True ise DOSYAYA DOKUNULMAZ (#314)."""
+    try:
+        G.delete_job(jid, remove_file=not tasindi)
+    except Exception:
+        pass
+    if tasindi:
+        try:
+            t = G._thumb_path(jid)
+            if t and os.path.isfile(t):
+                os.remove(t)
+        except Exception:
+            pass
+
+
+def _tasi(src: str, dest: str) -> str:
+    """Cikti dosyasini hedefe TASIR (kes); ustundekini adaya cevirmez."""
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    if os.path.abspath(src) == os.path.abspath(dest):
+        return dest
+    if os.path.isfile(dest):
+        os.remove(dest)
+    shutil.move(src, dest)
+    return dest
+
+
+def _to_png(src: str, dest: str) -> str:
+    """Cikti PNG degilse cevirir (Z-Image png verir, yine de garanti)."""
+    if os.path.splitext(src)[1].lower() == ".png":
+        return _tasi(src, dest)
+    from PIL import Image
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    with Image.open(src) as f:
+        f.convert("RGB").save(dest, "PNG")
+    try:
+        os.remove(src)
+    except OSError:
+        pass
+    return dest
+
+
+def _still_webp(png: str, dest: str) -> str:
+    """Hi-res still: 832x1248 WebP q90 (manifest `still` alani)."""
+    from PIL import Image
+    with Image.open(png) as f:
+        im = f.convert("RGB")
+        if im.size != STILL_SIZE:
+            im = im.resize(STILL_SIZE, Image.LANCZOS)
+        im.save(dest, "WEBP", quality=90, method=4)
+    return dest
+
+
+def _yedekle_still(d: str) -> None:
+    """Kabul edilen still degistirilmeden once aday olarak saklanir (geri alinabilsin)."""
+    p = os.path.join(d, "still.png")
+    if os.path.isfile(p):
+        shutil.copy(p, _serbest_ad(d, "still_%02d.png"))
+
+
+# ------------------------------------------------ varlik cozumleyici (#323/#324)
+# Telefon `kind=still|frame|thumb`, studyo `view=still|video|cut|sheet|cover`
+# yollar; ikisi de ayni cozumleyiciye duser. `rel=` (card.root'a gore yol) de
+# desteklenir - eski/dogrudan erisim icin.
+VIEW_ALIAS = {"still": "still", "frame": "cut", "cut": "cut", "thumb": "thumb",
+              "sheet": "sheet", "video": "video", "cover": "cover", "grok": "grok"}
+
+
+def _asset_file(d: str, view: str) -> str:
+    if view == "still":
+        for a in ("still.webp", "still.png"):
+            if os.path.isfile(os.path.join(d, a)):
+                return os.path.join(d, a)
+        return ""
+    if view == "thumb":
+        return os.path.join(d, "thumb.webp")
+    if view == "sheet":
+        return os.path.join(d, "sheet.webp")
+    if view == "video":
+        for a in ("video.mp4", "video_grok.mp4"):
+            if os.path.isfile(os.path.join(d, a)):
+                return os.path.join(d, a)
+        return ""
+    if view == "grok":
+        return os.path.join(d, "video_grok.mp4")
+    return ""
+
+
+def cut_frame(collection: str, rank: str, kind: str = "") -> str | None:
+    """Kesim onizlemesi: ILK KARE, RGBA (seffaf zemin - damali arka plan icin).
+
+    Once kesim kareleri (cut/alpha_*.png), yoksa sheet'in ilk hucresi kirpilir
+    ve `_frame0.png` olarak onbelleklenir.
+    """
+    d = rank_dir(collection, rank, kind)
+    cd = os.path.join(d, "cut")
+    try:
+        kareler = sorted(a for a in os.listdir(cd) if a.lower().endswith(".png"))
+    except OSError:
+        kareler = []
+    if kareler:
+        return os.path.join(cd, kareler[0])
+    sheet = os.path.join(d, "sheet.webp")
+    if not os.path.isfile(sheet):
+        return None
+    onbellek = os.path.join(d, "_frame0.png")
+    if os.path.isfile(onbellek) and os.path.getmtime(onbellek) >= os.path.getmtime(sheet):
+        return onbellek
+    st = (state(collection, rank, kind).get("sheet") or {})
+    fw = int(st.get("frameW") or FRAME_V3[0])
+    fh = int(st.get("frameH") or FRAME_V3[1])
+    try:
+        from PIL import Image
+        with Image.open(sheet) as f:
+            im = f.convert("RGBA").crop((0, 0, min(fw, f.width), min(fh, f.height)))
+        im.save(onbellek, "PNG")
+        return onbellek
+    except Exception:
+        return None
+
+
+def asset(collection: str, rank: str = "", view: str = "still", kind: str = "",
+          rel: str = "") -> dict | None:
+    """(koleksiyon, rutbe, gorunum) -> {path, media, rel, alpha}.
+
+    `cover` koleksiyon duzeyindedir: A rutbesinin thumb'i (yoksa ilk bulunan).
+    """
+    if rel:
+        p = file_path(rel)
+        return {"path": p, "media": _media(p), "rel": rel, "alpha": p.endswith(".png")} \
+            if p else None
+    k = kind_id(kind)
+    v = VIEW_ALIAS.get((view or "still").strip().lower(), "still")
+    if v == "cover":
+        det = collection_state(collection, k)
+        for r in det:
+            for aday in ("thumb", "still"):
+                pp = _asset_file(rank_dir(collection, r, k), aday)
+                if pp and os.path.isfile(pp):
+                    return {"path": pp, "media": _media(pp), "rel": _rel(pp),
+                            "alpha": pp.endswith((".png", ".webp"))}
+        return None
+    r = str(rank or (MAIN if k == "dealer" else "A"))
+    if v == "cut":
+        pp = cut_frame(collection, r, k)
+        return {"path": pp, "media": "image/png", "rel": _rel(pp), "alpha": True} if pp else None
+    pp = _asset_file(rank_dir(collection, r, k), v)
+    if not pp or not os.path.isfile(pp):
+        return None
+    return {"path": pp, "media": _media(pp), "rel": _rel(pp),
+            "alpha": pp.lower().endswith((".png", ".webp"))}
+
+
+def collection_state(collection: str, kind: str = "") -> list[str]:
+    """Kapak arayisinda kullanilan rutbe sirasi (A once)."""
+    rs = _collection_ranks(collection, kind)
+    return sorted(rs, key=lambda a: (0 if a.lower() == "a" else 1, a))
+
+
+_MEDIA = {".png": "image/png", ".webp": "image/webp", ".jpg": "image/jpeg",
+          ".jpeg": "image/jpeg", ".mp4": "video/mp4", ".webm": "video/webm",
+          ".json": "application/json"}
+
+
+def _media(p: str) -> str:
+    return _MEDIA.get(os.path.splitext(p or "")[1].lower(), "application/octet-stream")
+
+
+# ------------------------------------------------------------------ 1 Still
+def _still_job(collection: str, kind: str, rank: str, index: int, m: dict) -> dict:
+    """Tek rutbenin still isi (image_zimage, mode 'card')."""
+    look = (m.get("ranks") or {}).get(str(rank).upper()) or {}
+    if not look:
+        look = look_for(collection, kind, rank, index)
+    metin = look.get("prompt") or look_text(m.get("theme") or "", look)
+    return G.submit(STILL_TASK, metin, prompt2=_prompt2(kind), negative=_negative(kind),
+                    width=STILL_SIZE[0], height=STILL_SIZE[1],
+                    seed=random.randint(1, 2 ** 31), mode="card",
+                    client="flow", category=collection)
+
+
+def _kabul_still(collection: str, kind: str, rank: str, src: str, job_id: str = "") -> str:
+    d = rank_dir(collection, rank, kind, create=True)
+    _yedekle_still(d)
+    p = _to_png(src, os.path.join(d, "still.png"))
+    try:
+        _still_webp(p, os.path.join(d, "still.webp"))
+    except Exception:
+        pass
+    _set_state(collection, rank, kind,
+               still={"at": datetime.now().isoformat(timespec="seconds"), "job": job_id})
+    return p
+
+
+def stills(collection: str, ranks: list[str] | None = None, kind: str = "", n: int = 1) -> str:
+    """op `card-still`: secili rutbeler icin yeni still uretir, OTOMATIK kabul eder.
+
+    n>1 verilirse fazlalar aday olarak (still_NN.png) kalir - ilki kabul edilir.
+    """
+    k = kind_id(kind)
+    m = collection_meta(collection, k)
+    tum = _collection_ranks(collection, k) or [r.lower() for r in ranks_of(k, m.get("jokers", 0))]
+    hedef = _sec(ranks, tum)
+    n = max(1, min(4, int(n or 1)))
+    op_id = _op_new("card-still", len(hedef) * n)
+
+    def calis():
+        sira = {str(r).lower(): i for i, r in enumerate(tum)}
+        isler = []
+        for r in hedef:
+            for i in range(n):
+                etiket = "%s %s" % (collection, str(r).upper())
+                try:
+                    job = _still_job(collection, k, r, sira.get(str(r).lower(), 0) + i * 7, m)
+                except Exception as e:
+                    with _ops_lock:
+                        _ops[op_id]["failed"] += 1
+                    _op(op_id, log="%s kuyruga girmedi: %s" % (etiket, str(e)[:200]))
+                    continue
+                isler.append((job["id"], r, etiket, i == 0))
+                _op(op_id, log="%s kuyrukta (%s)" % (etiket, job["id"][:8]))
+        _op(op_id, total=len(isler), message="%d still kuyruga girdi" % len(isler))
+        for i, (jid, r, etiket, kabul) in enumerate(isler, 1):
+            _op(op_id, message="1/4 still  %d/%d  %s" % (i, len(isler), etiket))
+            tasindi = False
+            try:
+                src = _await_job(jid, op_id, etiket)
+                if kabul:
+                    yol = _kabul_still(collection, k, r, src, jid)
+                else:
+                    yol = _to_png(src, _serbest_ad(rank_dir(collection, r, k, create=True),
+                                                   "still_%02d.png"))
+                tasindi = not os.path.isfile(src)
+            except Exception as e:
+                with _ops_lock:
+                    _ops[op_id]["failed"] += 1
+                _op(op_id, done=i, log="%s: %s" % (etiket, str(e)[:200]))
+            else:
+                with _ops_lock:
+                    _ops[op_id]["ok"] += 1
+                _op(op_id, done=i, log="%s -> %s" % (etiket, _rel(yol)))
+            _is_sil(jid, tasindi)
+        _op(op_id, message="bitti")
+
+    _run(op_id, calis)
+    return op_id
+
+
+def create(collection_id: str, name: str = "", theme: str = "", jokers: int = 0,
+           kind: str = "", style: str = "realistic") -> dict:
+    """Yeni koleksiyon: klasor + collection.json + 13 (+2) rutbe icin 1'er still.
+
+    Rutbe basina gorunus rotasyonu (ten/sac/kiyafet/poz) collection.json'a yazilir,
+    boylece ↻ Yeniden uret ayni gorunusu tekrar uretir. Onay yok - stiller
+    otomatik kabul edilir (asama 1).
+    """
+    k = kind_id(kind)
+    cid = _safe(collection_id, "koleksiyon")
+    if k == "dealer":
+        raise ValueError("krupiye koleksiyonu tektir - yeni krupiye icin dealer_create kullan")
+    d = col_dir(cid, k)
+    if os.path.isfile(os.path.join(d, "collection.json")):
+        raise ValueError("koleksiyon zaten var: %s" % cid)
+    theme = (theme or "").strip()
+    if not theme:
+        raise ValueError("tema bos - koleksiyonun konusu yazilmali")
+    j = 2 if int(jokers or 0) >= 2 else 0
+    ranks = ranks_of(k, j)
+    m = {"id": cid, "name": (name or cid).strip(), "theme": theme,
+         "style": (style or "realistic").strip() or "realistic", "kind": k,
+         "jokers": j, "created": datetime.now().isoformat(timespec="seconds"),
+         "ranks": {}}
+    for i, r in enumerate(ranks):
+        look = look_for(cid, k, r, i)
+        look["prompt"] = look_text(theme, look)
+        m["ranks"][r] = look
+    _save_collection(cid, k, m)
+    for r in ranks:
+        os.makedirs(rank_dir(cid, r, k), exist_ok=True)
+    return {"collection": cid, "kind": k, "ranks": ranks,
+            "op": stills(cid, ranks, k, 1)}
+
+
+def dealer_create(dealer_id: str, name: str = "", theme: str = "",
+                  gesture: str = DEFAULT_GESTURE, outfit: str = "") -> dict:
+    """Yeni krupiye: `_Dealers/<ad>/` TEK OGELI koleksiyon (rutbe listesi ["main"]).
+
+    Uretim krupiyeye ozeldir: bel ustu kadraj, kumarhane masasi, krupiye
+    kiyafeti (card_options.json `dealer` profili).
+    """
+    ad = _safe(dealer_id or name, "krupiye").lower()
+    d = col_dir(ad, "dealer", create=True)
+    if os.path.isfile(os.path.join(d, "collection.json")):
+        raise ValueError("krupiye zaten var: %s" % ad)
+    theme = (theme or "elegant casino dealer at the blackjack table").strip()
+    look = look_for(ad, "dealer", MAIN, _tohum(ad) % 6)
+    if (outfit or "").strip():
+        look["outfit"] = outfit.strip()
+    look["prompt"] = look_text(theme, look)
+    look["gesture"] = gesture or DEFAULT_GESTURE
+    m = {"id": ad, "name": (name or ad).strip(), "kind": "dealer", "style": "realistic",
+         "theme": theme, "gesture": gesture or DEFAULT_GESTURE, "jokers": 0,
+         "created": datetime.now().isoformat(timespec="seconds"),
+         "ranks": {MAIN.upper(): look}}
+    _save_collection(ad, "dealer", m)
+    return {"collection": ad, "kind": "dealer", "dealer": ad, "ranks": [MAIN],
+            "op": stills(ad, [MAIN], "dealer", 1)}
+
+
+def stage(collection: str, rank: str = "", job_id: str = "", kind: str = "",
+          file: str = "") -> dict:
+    """Uretilenler'den bir isi kartin still'i yapar (rutbe verilmezse Gelen'e duser)."""
+    src = file.strip() if file else (G.job_file(job_id) if job_id else "")
+    if not src or not os.path.isfile(src):
+        raise ValueError("kaynak is bulunamadi veya ciktisi yok")
+    if os.path.splitext(src)[1].lower() in VIDEO_EXT:
+        raise ValueError("kaynak bir video - still gerekiyor")
+    if not rank:
+        d = os.path.join(root(), INCOMING)
+        os.makedirs(d, exist_ok=True)
+        dest = os.path.join(d, os.path.basename(src))
+        shutil.copy(src, dest)
+        return {"staged": _rel(dest), "collection": "", "rank": ""}
+    k = kind_id(kind)
+    collection_meta(collection, k)                     # koleksiyon var mi
+    d = rank_dir(collection, rank, k, create=True)
+    _yedekle_still(d)
+    from PIL import Image
+    with Image.open(src) as f:
+        f.convert("RGB").save(os.path.join(d, "still.png"), "PNG")
+    try:
+        _still_webp(os.path.join(d, "still.png"), os.path.join(d, "still.webp"))
+    except Exception:
+        pass
+    _set_state(collection, rank, k,
+               still={"at": datetime.now().isoformat(timespec="seconds"), "job": job_id or ""})
+    return {"collection": collection, "kind": k, "rank": str(rank).upper(),
+            "still": _rel(os.path.join(d, "still.png"))}
+
+
+def edit(collection: str, rank: str, prompt: str, kind: str = "") -> str:
+    """op `card-edit`: kabul edilmis still'i kisa bir cumleyle duzeltir (edit_qwen).
+
+    Sonuc OTOMATIK kabul edilir; eski still aday olarak saklanir (geri alinabilir).
+    """
+    k = kind_id(kind)
+    prompt = (prompt or "").strip()
+    if not prompt:
+        raise ValueError("duzeltme cumlesi bos")
+    d = rank_dir(collection, rank, k)
+    src = os.path.join(d, "still.png")
+    if not os.path.isfile(src):
+        raise ValueError("bu rutbenin still'i yok - once uret")
+    keep = ("Keep the exact same woman, the same face, the same outfit, the same pose, "
+            "the same framing and the same plain light gray background.")
+    op_id = _op_new("card-edit", 1)
+
+    def calis():
+        _op(op_id, message="duzenle: %s %s" % (collection, str(rank).upper()))
+        jid, tasindi = "", False
+        try:
+            job = G.submit(EDIT_TASK, "%s %s" % (prompt, keep), negative=_negative(k),
+                           seed=random.randint(1, 2 ** 31), turbo=True, image_path=src,
+                           mode="free", client="flow", category=collection)
+            jid = job["id"]
+            out = _await_job(jid, op_id, "duzenle %s" % str(rank).upper())
+            _kabul_still(collection, k, rank, out, jid)
+            tasindi = not os.path.isfile(out)
+        except Exception as e:
+            with _ops_lock:
+                _ops[op_id]["failed"] += 1
+            _op(op_id, done=1, log="duzenle: %s" % str(e)[:220])
+            if jid:
+                _is_sil(jid, tasindi)
+            raise
+        if jid:
+            _is_sil(jid, tasindi)
+        with _ops_lock:
+            _ops[op_id]["ok"] += 1
+            _ops[op_id]["result"] = {"collection": collection, "rank": str(rank).upper(),
+                                     "still": _rel(os.path.join(d, "still.png"))}
+        _op(op_id, done=1, message="bitti", log="%s -> still.png" % str(rank).upper())
+
+    _run(op_id, calis)
+    return op_id
+
+
+# ------------------------------------------------------------------ 2 Video
+def _first_frame(video: str, dest: str) -> bool:
+    ff = G._ffmpeg()
+    if not ff:
+        return False
+    try:
+        subprocess.run([ff, "-y", "-loglevel", "error", "-i", video, "-frames:v", "1", dest],
+                       check=True, timeout=300,
+                       creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        return os.path.isfile(dest)
+    except Exception:
+        return False
+
+
+def _probe_pixels(p: str, w: int = 64, h: int = 96):
+    """guard_firstframe.py ile ayni olcum: 2:3 orta kirpim -> 64x96 RGB."""
+    from PIL import Image
+    with Image.open(p) as f:
+        im = f.convert("RGB")
+    iw, ih = im.size
+    if iw * 3 > ih * 2:
+        cw, ch = int(ih * 2 / 3), ih
+    else:
+        cw, ch = iw, int(iw * 3 / 2)
+    l, t = (iw - cw) // 2, (ih - ch) // 2
+    return im.crop((l, t, l + cw, t + ch)).resize((w, h), Image.BILINEAR)
+
+
+def guard_video(still: str, video: str) -> dict:
+    """Ilk kare - still farki (yanlis kadin / reframe / zoom kaymasi).
+
+    score < 25 -> uyumlu; >= 25 -> "kontrol" rozeti (otomatik silme YOK, kullanici bakar).
+    """
+    out = {"score": None, "verdict": "ok", "note": ""}
+    if not (still and os.path.isfile(still) and video and os.path.isfile(video)):
+        out.update(verdict="kontrol", note="karsilastirma dosyasi yok")
+        return out
+    tmp = os.path.join(os.path.dirname(video), "_guard_f0.png")
+    try:
+        if not _first_frame(video, tmp):
+            out.update(verdict="kontrol", note="ilk kare cikarilamadi")
+            return out
+        a, b = _probe_pixels(still), _probe_pixels(tmp)
+        pa, pb = a.load(), b.load()
+        toplam = 0
+        for y in range(a.size[1]):
+            for x in range(a.size[0]):
+                ra, ga, ba = pa[x, y]
+                rb, gb, bb = pb[x, y]
+                toplam += abs(ra - rb) + abs(ga - gb) + abs(ba - bb)
+        skor = toplam / float(a.size[0] * a.size[1] * 3)
+        out["score"] = round(skor, 2)
+        if skor >= GUARD_THRESHOLD:
+            out.update(verdict="kontrol", note="ilk kare still'den uzak (%.1f)" % skor)
+    except Exception as e:
+        out.update(verdict="kontrol", note=str(e)[:150])
+    finally:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+    return out
+
+
+def _video_job(collection: str, kind: str, rank: str, gesture: str) -> dict:
+    """Tek rutbenin i2v isi (video_ltx, 6 sn, 832x1248, kilitli kamera)."""
+    d = rank_dir(collection, rank, kind)
+    still = os.path.join(d, "still.png")
+    if not os.path.isfile(still):
+        raise ValueError("still yok")
+    jest = gestures(kind).get(gesture) or gestures(kind).get(DEFAULT_GESTURE) or "subtle idle breathing"
+    # Olcu ACIKCA verilir: comfy_gen'in video_size_for butcesi (704x1280) 832x1248'i
+    # kucultur; iki kenar da 32'nin kati oldugu icin LTX bu olcuyu dogrudan alir.
+    return G.submit(VIDEO_TASK, jest, prompt2=_motion2(kind), negative=_negative(kind),
+                    width=STILL_SIZE[0], height=STILL_SIZE[1], duration=SECONDS,
+                    seed=random.randint(1, 2 ** 31), image_path=still, mode="card",
+                    client="flow", category=collection)
+
+
+def animate(collection: str, ranks: list[str] | None = None, gesture: str = DEFAULT_GESTURE,
+            kind: str = "") -> str:
+    """op `card-video` (asama 2): still -> LTX-2.5 i2v 6 sn, guard, otomatik kabul."""
+    k = kind_id(kind)
+    collection_meta(collection, k)
+    tum = _collection_ranks(collection, k)
+    hedef = [r for r in _sec(ranks, tum)
+             if os.path.isfile(os.path.join(rank_dir(collection, r, k), "still.png"))]
+    if not hedef:
+        raise ValueError("still'i olan rutbe yok - once asama 1")
+    op_id = _op_new("card-video", len(hedef))
+    _run(op_id, lambda: _animate_body(op_id, collection, k, hedef, gesture, "2/4 video"))
+    return op_id
+
+
+def _animate_body(op_id: str, collection: str, kind: str, hedef: list[str],
+                  gesture: str, etiket_on: str) -> list[str]:
+    """Butun i2v isleri TEK SEFERDE kuyruga birakir, ciktilari sirayla toplar.
+
+    gpu_lane BURADA ALINMAZ - comfy_gen dispatcher'i her isi kendi bileti ile
+    calistirir; serit burada tutulursa kilitlenir (#299).
+    """
+    isler = []
+    for r in hedef:
+        etiket = "%s %s" % (collection, str(r).upper())
+        try:
+            job = _video_job(collection, kind, r, gesture)
+        except Exception as e:
+            with _ops_lock:
+                _ops[op_id]["failed"] += 1
+            _op(op_id, log="%s kuyruga girmedi: %s" % (etiket, str(e)[:200]))
+            continue
+        isler.append((job["id"], r, etiket))
+        _op(op_id, log="%s i2v kuyrukta (%s)" % (etiket, job["id"][:8]))
+    _op(op_id, message="%s  %d is kuyruga girdi" % (etiket_on, len(isler)))
+    olanlar = []
+    for i, (jid, r, etiket) in enumerate(isler, 1):
+        _op(op_id, message="%s %d/%d  %s" % (etiket_on, i, len(isler), etiket))
+        tasindi = False
+        try:
+            src = _await_job(jid, op_id, etiket)
+            d = rank_dir(collection, r, kind, create=True)
+            dest = _tasi(src, os.path.join(d, "video.mp4"))
+            tasindi = not os.path.isfile(src)
+            g = guard_video(os.path.join(d, "still.png"), dest)
+            _set_state(collection, r, kind,
+                       video={"at": datetime.now().isoformat(timespec="seconds"),
+                              "job": jid, "gesture": gesture, "guard": g})
+        except Exception as e:
+            with _ops_lock:
+                _ops[op_id]["failed"] += 1
+            _op(op_id, done=i, log="%s: %s" % (etiket, str(e)[:200]))
+        else:
+            olanlar.append(r)
+            with _ops_lock:
+                _ops[op_id]["ok"] += 1
+            _op(op_id, done=i, log="%s -> video.mp4 (guard %s %s)"
+                % (etiket, g.get("verdict"), g.get("score")))
+        _is_sil(jid, tasindi)
+    return olanlar
+
+
+# ------------------------------------------------------------------ 3 WebP
+def _cut_tool():
+    """tools/cardpipe_local/cut.py'yi DOSYA YOLUNDAN yukler (gorev #322).
+
+    Duz import kullanmiyoruz: `cut` cok yaygin bir ad, ayrica paketin
+    __init__.py'si olmayabilir.
+    """
+    yol = os.path.join(_TOOLS, "cardpipe_local", "cut.py")
+    if not os.path.isfile(yol):
+        raise ValueError("kesim araci yok (gorev #322): %s" % yol)
+    import importlib.util
+    if _TOOLS not in sys.path:
+        sys.path.insert(0, _TOOLS)
+    spec = importlib.util.spec_from_file_location("cardpipe_local_cut", yol)
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules["cardpipe_local_cut"] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def frame_size(kind: str, v3: bool) -> tuple[int, int]:
+    """Sheet kare olcusu: kart hep v3; krupiye v1 (320x480) - `dealers_v3` ile 512x768."""
+    if kind_id(kind) == "dealer" and not v3:
+        return DEALER_FRAME_V1
+    return FRAME_V3
+
+
+def _cut_call(tool, video: str, out_dir: str, mode: str, concept: str,
+              frame: tuple, thumb_size: tuple, still: str = "") -> dict:
+    """#322 arayuzu: cut_video(video, out_dir, mode, concept, fps, seconds, still,
+    frame, grid, thumb_size, still_size, quality) -> {frames_dir, sheet, thumb,
+    still, metrics}.
+
+    `still` bir DOSYA YOLUDUR (olcu degil): hem ilk kare guard'inin referansi hem
+    de hi-res still.webp'in kaynagi odur. Arac bir parametreyi tanimiyorsa sessizce
+    atlanir - #322 ile paralel gelistirildigi icin imza kontrol edilir.
+    """
+    import inspect
+    kw = {"mode": mode, "concept": concept, "fps": FPS, "seconds": SECONDS,
+          "still": still or None, "frame": tuple(frame), "grid": (COLS, ROWS),
+          "thumb_size": tuple(thumb_size), "still_size": tuple(STILL_SIZE),
+          "quality": SHEET_QUALITY}
+    try:
+        sig = inspect.signature(tool.cut_video)
+        if not any(x.kind == x.VAR_KEYWORD for x in sig.parameters.values()):
+            kw = {a: b for a, b in kw.items() if a in sig.parameters}
+    except (TypeError, ValueError):
+        pass
+    res = tool.cut_video(video, out_dir, **kw)
+    return res if isinstance(res, dict) else {}
+
+
+def _cut_one(tool, collection: str, kind: str, rank: str, mode: str, v3: bool) -> dict:
+    """Tek kartin kesimi + paketi. gpu_lane cagiran tarafta TUTULUR."""
+    d = rank_dir(collection, rank, kind, create=True)
+    video = os.path.join(d, "video.mp4")
+    if mode == "hybrid" or not os.path.isfile(video):
+        grok = os.path.join(d, "video_grok.mp4")
+        if os.path.isfile(grok):
+            video = grok
+    if not os.path.isfile(video):
+        raise ValueError("video yok")
+    frame = frame_size(kind, v3)
+    still = os.path.join(d, "still.png")
+    res = _cut_call(tool, video, d, mode, KINDS[kind_id(kind)]["concept"], frame, THUMB_V3,
+                    still if os.path.isfile(still) else "")
+
+    sheet = res.get("sheet") or os.path.join(d, "sheet.webp")
+    th = res.get("thumb") or os.path.join(d, "thumb.webp")
+    if os.path.isfile(sheet) and os.path.abspath(sheet) != os.path.abspath(os.path.join(d, "sheet.webp")):
+        sheet = _tasi(sheet, os.path.join(d, "sheet.webp"))
+    if os.path.isfile(th) and os.path.abspath(th) != os.path.abspath(os.path.join(d, "thumb.webp")):
+        th = _tasi(th, os.path.join(d, "thumb.webp"))
+    if not os.path.isfile(sheet):
+        raise ValueError("kesim sheet uretmedi")
+    # hi-res still: arac uretmediyse still.png'den kurulur
+    hs = res.get("still") or os.path.join(d, "still.webp")
+    if not os.path.isfile(hs) and os.path.isfile(os.path.join(d, "still.png")):
+        try:
+            hs = _still_webp(os.path.join(d, "still.png"), os.path.join(d, "still.webp"))
+        except Exception:
+            hs = ""
+
+    # Guard sonucu #322'nin `metrics.verdict` sozlugunden gelir:
+    # {"pass": bool, "reasons": [...]}. Eski/sade bir arac duz metin dondururse
+    # o da anlasilir. FAIL = kart "kontrol" rozeti alir, DOSYA SILINMEZ.
+    metrics = res.get("metrics") or {}
+    v = metrics.get("verdict")
+    if isinstance(v, dict):
+        kotu, nedenler = (not v.get("pass", True)), list(v.get("reasons") or [])
+    else:
+        kotu = bool(metrics.get("fail")) or str(v or "").lower() in ("fail", "kontrol")
+        nedenler = []
+    pack = metrics.get("sheet") if isinstance(metrics.get("sheet"), dict) else {}
+    frames = int(pack.get("frames") or metrics.get("frames") or FRAMES)
+    rows = int(pack.get("rows") or math.ceil(frames / float(COLS)))
+    kayit = {"at": datetime.now().isoformat(timespec="seconds"), "mode": mode,
+             "frames": frames, "fps": int(pack.get("fps") or FPS),
+             "cols": int(pack.get("cols") or COLS), "rows": rows,
+             "frameW": int(pack.get("frameW") or frame[0]),
+             "frameH": int(pack.get("frameH") or frame[1]),
+             "thumbW": int(pack.get("thumbW") or THUMB_V3[0]),
+             "thumbH": int(pack.get("thumbH") or THUMB_V3[1]),
+             "stillW": int(pack.get("stillW") or STILL_SIZE[0]),
+             "stillH": int(pack.get("stillH") or STILL_SIZE[1]),
+             "v3": bool(v3 or kind_id(kind) == "card"),
+             "bytes": os.path.getsize(sheet),
+             "verdict": "kontrol" if kotu else "ok", "reasons": nedenler,
+             "metrics": metrics,
+             "frames_dir": _rel(res.get("frames_dir") or os.path.join(d, "cut")),
+             "sheet": _rel(sheet), "thumb": _rel(th) if th else "",
+             "still": _rel(hs) if hs else ""}
+    _set_state(collection, rank, kind, sheet=kayit)
+    return kayit
+
+
+def cut(collection: str, ranks: list[str] | None = None, mode: str = "sam",
+        kind: str = "", dealers_v3: bool = False) -> str:
+    """op `card-cut` (asama 3): SAM3 kesim + 12x6 sheet + thumb + hi-res still.
+
+    Butun parti TEK gpu_lane bileti altinda calisir (#299): SAM3 modeli bir kez
+    yuklenir, arada baska GPU isi giremez.
+    """
+    k = kind_id(kind)
+    collection_meta(collection, k)
+    mode = (mode or "sam").strip().lower()
+    if mode not in ("sam", "hybrid"):
+        raise ValueError("bilinmeyen kesim kipi: %s" % mode)
+    tum = _collection_ranks(collection, k)
+    hedef = [r for r in _sec(ranks, tum)
+             if os.path.isfile(os.path.join(rank_dir(collection, r, k), "video.mp4"))
+             or os.path.isfile(os.path.join(rank_dir(collection, r, k), "video_grok.mp4"))]
+    if not hedef:
+        raise ValueError("videosu olan rutbe yok - once asama 2")
+    op_id = _op_new("card-cut", len(hedef))
+    _run(op_id, lambda: _cut_body(op_id, collection, k, hedef, mode, dealers_v3, "3/4 webp"))
+    return op_id
+
+
+def _cut_body(op_id: str, collection: str, kind: str, hedef: list[str], mode: str,
+              dealers_v3: bool, etiket_on: str) -> None:
+    tool = _cut_tool()
+    with gpu_lane.hold("kart kesim %s (%d)" % (collection, len(hedef)), kind="card",
+                       op_id=op_id, total=len(hedef)):                      # #299
+        for i, r in enumerate(hedef, 1):
+            etiket = "%s %s" % (collection, str(r).upper())
+            _op(op_id, message="%s %d/%d  %s" % (etiket_on, i, len(hedef), etiket))
+            try:
+                kayit = _cut_one(tool, collection, kind, r, mode, dealers_v3)
+            except Exception as e:
+                with _ops_lock:
+                    _ops[op_id]["failed"] += 1
+                _op(op_id, done=i, log="%s: %s" % (etiket, str(e)[:220]))
+                continue
+            with _ops_lock:
+                _ops[op_id]["ok"] += 1
+            _op(op_id, done=i, log="%s -> sheet %dx%d %d kare (%s%s)"
+                % (etiket, kayit["frameW"], kayit["frameH"], kayit["frames"],
+                   kayit["verdict"],
+                   (": " + "; ".join(kayit["reasons"])[:160]) if kayit["reasons"] else ""))
+
+
+# --------------------------------------------------- yeniden canlandirma / kesim
+def _grok_still(video: str, dest: str) -> bool:
+    """Grok masterinin ilk karesi -> still.png. Once #322'nin `still_first_frame`
+    fonksiyonu denenir (ayni ffmpeg cagrisi), yoksa yerel yedek kullanilir."""
+    try:
+        tool = _cut_tool()
+        if hasattr(tool, "still_first_frame"):
+            tool.still_first_frame(video, dest)
+            return os.path.isfile(dest)
+    except Exception:
+        pass
+    return _first_frame(video, dest)
+
+
+def _targets(collection: str, kind: str = "", include_dealers: bool = False) -> list[tuple[str, str, str]]:
+    """(koleksiyon, tur, rutbe) uclulari. collection == "all" -> hepsi."""
+    out = []
+    istek = (collection or "").strip()
+    if istek and istek.lower() != "all":
+        k = kind_id(kind)
+        for r in _collection_ranks(istek, k):
+            out.append((istek, k, r))
+        return out
+    for c in collections("card")["collections"]:
+        for r in _collection_ranks(c["id"], "card"):
+            out.append((c["id"], "card", r))
+    if include_dealers:
+        for ad in dealer_names():
+            out.append((ad, "dealer", MAIN))
+    return out
+
+
+def reanimate(collection: str = "all", gesture: str = DEFAULT_GESTURE, kind: str = "",
+              include_dealers: bool = False, dealers_v3: bool = False) -> str:
+    """op `card-reanimate` (GECE MODU): still -> i2v -> kesim, tek zincirde.
+
+    Mevcut 54 kart (+ krupiyeler) icin varsayilan yol. Once Grok masterlari
+    KOPYALANIR (`_migrate_grok`), still'i olmayan rutbeye Grok videosunun ilk
+    karesi still yapilir; sonra butun i2v isleri kuyruga birakilir; en sonda
+    kesimler TEK gpu_lane bileti altinda kosar. Ilerleme asama asama bildirilir
+    ("1/4 still", "2/4 video", "3/4 webp") - sabaha kadar gozetimsiz caliabilir.
+    """
+    op_id = _op_new("card-reanimate", 0)
+
+    def calis():
+        _op(op_id, message="0/4 goc: Grok masterlari kopyalaniyor")
+        try:
+            g = _migrate_grok(include_dealers=True)
+            _op(op_id, log="goc: %d dosya kopyalandi, %d atlandi"
+                % (g.get("copied", 0), g.get("skipped", 0)))
+        except Exception as e:
+            _op(op_id, log="goc uyarisi: %s" % str(e)[:200])
+        hedef = _targets(collection, kind, include_dealers)
+        if not hedef:
+            raise ValueError("hedef yok")
+        _op(op_id, total=len(hedef) * 2, message="%d kart: 3 asama" % len(hedef))
+
+        # --- 1/4 still: eksik still'i Grok videosunun ilk karesinden kur
+        eksik = []
+        for c, k, r in hedef:
+            d = rank_dir(c, r, k)
+            if os.path.isfile(os.path.join(d, "still.png")):
+                continue
+            grok = os.path.join(d, "video_grok.mp4")
+            if os.path.isfile(grok) and _grok_still(grok, os.path.join(d, "still.png")):
+                try:
+                    _still_webp(os.path.join(d, "still.png"), os.path.join(d, "still.webp"))
+                except Exception:
+                    pass
+                _set_state(c, r, k, still={"at": datetime.now().isoformat(timespec="seconds"),
+                                           "job": "", "from": "grok_first_frame"})
+                _op(op_id, log="1/4 %s %s: still Grok videosunun ilk karesinden" % (c, r.upper()))
+            else:
+                eksik.append((c, k, r))
+        for c, k, r in eksik:
+            _op(op_id, log="1/4 %s %s: still YOK - atlanacak" % (c, str(r).upper()))
+        hedef = [t for t in hedef if t not in eksik]
+
+        # --- 2/4 video: koleksiyon koleksiyon i2v (isler toplu kuyruga girer)
+        kesilecek: dict[tuple[str, str], list[str]] = {}
+        gruplar: dict[tuple[str, str], list[str]] = {}
+        for c, k, r in hedef:
+            gruplar.setdefault((c, k), []).append(r)
+        for (c, k), rs in gruplar.items():
+            jest = gesture or DEFAULT_GESTURE
+            olan = _animate_body(op_id, c, k, rs, jest, "2/4 video %s" % c)
+            if olan:
+                kesilecek[(c, k)] = olan
+
+        # --- 3/4 webp: butun kesimler TEK gpu_lane bileti (koleksiyon basina)
+        for (c, k), rs in kesilecek.items():
+            try:
+                _cut_body(op_id, c, k, rs, "sam", dealers_v3, "3/4 webp %s" % c)
+            except Exception as e:
+                _op(op_id, log="3/4 %s: kesim yapilamadi: %s" % (c, str(e)[:200]))
+        _op(op_id, message="bitti - 4/4 push elle yapilir")
+
+    _run(op_id, calis)
+    return op_id
+
+
+def recut(collection: str = "all", kind: str = "", include_dealers: bool = False,
+          dealers_v3: bool = False) -> str:
+    """op `card-recut` (yedek yol): eski Grok videosunu HYBRID kiple yeniden keser."""
+    op_id = _op_new("card-recut", 0)
+
+    def calis():
+        _op(op_id, message="goc: Grok masterlari kopyalaniyor")
+        try:
+            _migrate_grok(include_dealers=True)
+        except Exception as e:
+            _op(op_id, log="goc uyarisi: %s" % str(e)[:200])
+        hedef = _targets(collection, kind, include_dealers)
+        gruplar: dict[tuple[str, str], list[str]] = {}
+        for c, k, r in hedef:
+            d = rank_dir(c, r, k)
+            if os.path.isfile(os.path.join(d, "video_grok.mp4")):
+                gruplar.setdefault((c, k), []).append(r)
+        _op(op_id, total=sum(len(v) for v in gruplar.values()))
+        if not gruplar:
+            raise ValueError("Grok masteri olan kart yok")
+        for (c, k), rs in gruplar.items():
+            _cut_body(op_id, c, k, rs, "hybrid", dealers_v3, "3/4 webp %s (hybrid)" % c)
+        _op(op_id, message="bitti")
+
+    _run(op_id, calis)
+    return op_id
+
+
+# ------------------------------------------------------------------ goc
+def _roster_collection(cid: str) -> dict | None:
+    for c in (roster().get("collections") or []):
+        if c.get("id") == cid:
+            return c
+    return None
+
+
+def _collection_from_roster(cid: str) -> dict:
+    """roster.json girdisinden collection.json turetir (goc)."""
+    rc = _roster_collection(cid) or {}
+    joker = bool(rc.get("rarity_override"))
+    varyant = rc.get("variants") or []
+    ranks = {}
+    sira = list(JOKER_RANKS) if joker else list(RANK_ORDER)
+    for i, v in enumerate(varyant):
+        if i >= len(sira):
+            break
+        ranks[sira[i]] = {"look": v.get("look") or "", "pose": v.get("pose") or "",
+                          "prompt": ", ".join(x for x in ((rc.get("theme") or ""),
+                                                          v.get("look") or "",
+                                                          v.get("pose") or "") if x)}
+    return {"id": cid, "name": rc.get("name") or cid, "theme": rc.get("theme") or "",
+            "style": rc.get("style") or "realistic", "kind": "card",
+            "jokers": len(ranks) if joker else 0,
+            "created": datetime.now().isoformat(timespec="seconds"),
+            "ranks": ranks, "from": "roster.json"}
+
+
+def _migrate_grok(collection: str = "", include_dealers: bool = True,
+                  dry_run: bool = False) -> dict:
+    """Mevcut Grok masterlarini `card.root` altina KOPYALAR (kaynak SILINMEZ).
+
+    `design/characters/<kol>/selected/<id>.png` -> `<kol>/<rutbe>/still.png`
+    `design/characters/<kol>/videos/<id>.mp4`   -> `<kol>/<rutbe>/video_grok.mp4`
+    Krupiye: `dealers/selected/<ad>.png` ve `dealers/videos/<ad>.mp4` (+ durum
+    videolari `video_grok_<durum>.mp4` olarak saklanir, ileride kullanilmak uzere).
+    Hedef dosya varsa DOKUNULMAZ (yeniden goc guvenlidir).
+    """
+    src_root = grok_root()
+    plan, copied, skipped = [], 0, 0
+    hedefler = []
+    if collection and collection.lower() != "all":
+        hedefler = [collection]
+    else:
+        hedefler = [c.get("id") for c in (roster().get("collections") or []) if c.get("id")]
+
+    def kopyala(src: str, dest: str, etiket: str):
+        nonlocal copied, skipped
+        if not os.path.isfile(src):
+            return
+        plan.append({"src": src, "dest": _rel(dest), "what": etiket,
+                     "exists": os.path.isfile(dest)})
+        if os.path.isfile(dest):
+            skipped += 1
+            return
+        if dry_run:
+            copied += 1
+            return
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        shutil.copy2(src, dest)
+        copied += 1
+
+    for cid in hedefler:
+        sd = os.path.join(src_root, cid)
+        if not os.path.isdir(sd):
+            continue
+        rc = _roster_collection(cid) or {}
+        joker = bool(rc.get("rarity_override"))
+        sira = list(JOKER_RANKS) if joker else list(RANK_ORDER)
+        cj = os.path.join(col_dir(cid, "card"), "collection.json")
+        if not os.path.isfile(cj):
+            plan.append({"src": roster_path(), "dest": _rel(cj), "what": "collection.json",
+                         "exists": False})
+            if not dry_run:
+                _save_collection(cid, "card", _collection_from_roster(cid))
+        for r in sira:
+            cid_rank = "%s_%s" % (cid, r.lower())
+            d = rank_dir(cid, r, "card")
+            kopyala(os.path.join(sd, "selected", cid_rank + ".png"),
+                    os.path.join(d, "still.png"), "%s still" % cid_rank)
+            kopyala(os.path.join(sd, "videos", cid_rank + ".mp4"),
+                    os.path.join(d, "video_grok.mp4"), "%s grok video" % cid_rank)
+
+    if include_dealers:
+        sd = os.path.join(src_root, "dealers")
+        if os.path.isdir(sd):
+            try:
+                adlar = sorted({os.path.splitext(a)[0]
+                                for a in os.listdir(os.path.join(sd, "selected"))
+                                if a.lower().endswith(".png")})
+            except OSError:
+                adlar = []
+            for ad in adlar:
+                cj = os.path.join(col_dir(ad, "dealer"), "collection.json")
+                if not os.path.isfile(cj):
+                    plan.append({"src": "", "dest": _rel(cj),
+                                 "what": "collection.json (%s)" % ad, "exists": False})
+                    if not dry_run:
+                        _save_collection(ad, "dealer", {
+                            "id": ad, "name": ad.capitalize(), "kind": "dealer",
+                            "style": "realistic", "gesture": DEFAULT_GESTURE,
+                            "theme": "elegant casino dealer at the blackjack table",
+                            "jokers": 0, "created": datetime.now().isoformat(timespec="seconds"),
+                            "ranks": {}, "from": "grok"})
+                d = rank_dir(ad, MAIN, "dealer")
+                kopyala(os.path.join(sd, "selected", ad + ".png"),
+                        os.path.join(d, "still.png"), "%s still" % ad)
+                kopyala(os.path.join(sd, "videos", ad + ".mp4"),
+                        os.path.join(d, "video_grok.mp4"), "%s grok video" % ad)
+                for durum in ("win", "lose", "deal"):
+                    kopyala(os.path.join(sd, "videos", "%s_%s.mp4" % (ad, durum)),
+                            os.path.join(d, "video_grok_%s.mp4" % durum),
+                            "%s %s video" % (ad, durum))
+
+    return {"root": root(), "source": src_root, "copied": copied, "skipped": skipped,
+            "dry_run": bool(dry_run), "files": plan}
+
+
+def migrate(collection: str = "", include_dealers: bool = True, dry_run: bool = False) -> dict:
+    """Disa acilan goc ucu (kopyalama - kaynak asla silinmez)."""
+    return _migrate_grok(collection, include_dealers, dry_run)
+
+
+# ------------------------------------------------------------------ manifest
+def r2_key(collection: str, kind: str, rank: str, what: str) -> str:
+    """Kovadaki anahtar. what: sheet | thumb | still."""
+    cid = card_id(collection, rank, kind)
+    ad = "%s_%s%s.webp" % (cid, what, SUFFIX)
+    if kind_id(kind) == "dealer":
+        return "dealers/%s" % ad
+    return "collections/%s/%s" % (collection, ad)
+
+
+def _card_entry(collection: str, kind: str, rank: str) -> dict | None:
+    """Bir kartin manifest satiri (sheet yoksa None)."""
+    d = rank_dir(collection, rank, kind)
+    sheet = os.path.join(d, "sheet.webp")
+    thumb_p = os.path.join(d, "thumb.webp")
+    if not (os.path.isfile(sheet) and os.path.isfile(thumb_p)):
+        return None
+    s = (state(collection, rank, kind).get("sheet") or {})
+    # Joker koleksiyonu (roster `rarity_override`) VE J1/J2 rutbeleri legendary.
+    rc = _roster_collection(collection) or {}
+    joker = bool(rc.get("rarity_override")) or str(rank).upper() in JOKER_RANKS
+    rarity = rarity_of(rank, joker)
+    girdi = {
+        "id": card_id(collection, rank, kind),
+        "rank": str(rank).lower(),
+        "rarity": rarity,
+        "price": price_of(rarity),
+        "sheet": r2_key(collection, kind, rank, "sheet"),
+        "thumb": r2_key(collection, kind, rank, "thumb"),
+        "frames": int(s.get("frames") or FRAMES), "fps": int(s.get("fps") or FPS),
+        "cols": int(s.get("cols") or COLS),
+        "rows": int(s.get("rows") or math.ceil(FRAMES / float(COLS))),
+        "frameW": int(s.get("frameW") or FRAME_V3[0]),
+        "frameH": int(s.get("frameH") or FRAME_V3[1]),
+        "thumbW": int(s.get("thumbW") or THUMB_V3[0]),
+        "thumbH": int(s.get("thumbH") or THUMB_V3[1]),
+        "sheetBytes": os.path.getsize(sheet),
+    }
+    if os.path.isfile(os.path.join(d, "still.webp")):
+        girdi["still"] = r2_key(collection, kind, rank, "still")
+    if kind_id(kind) == "dealer":
+        for a in ("rank", "rarity", "price"):
+            girdi.pop(a, None)
+    return girdi
+
+
+def manifest(dealers_v3: bool = False, out_dir: str = "", published_only: bool = True,
+             preview: bool = False) -> dict:
+    """Manifest'i uretir (asama 4'un ICINDE cagrilir; ayri uc = kuru calisma).
+
+    Mevcut manifest TABAN alinir: v3'e gecmemis kartlar ve `dealers[]` bolumu
+    AYNEN korunur (istemciler eski baytlari saklamaya devam eder), yalniz
+    yayina hazir v3 kartlari degistirilir/eklenir. Krupiyeler ancak
+    `dealers_v3=True` ile v3 yollarina gecer (APK'da gomulu scarlett'in yolunu
+    degistiren uygulama surumu cikmadan yapilmaz).
+    """
+    taban = _read_json(manifest_src(), None) or {"version": 1, "collections": []}
+    out = {"version": int(taban.get("version") or 1),
+           "generatedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+           "collections": [dict(c) for c in (taban.get("collections") or [])]}
+    if taban.get("dealers"):
+        out["dealers"] = [dict(d) for d in taban["dealers"]]
+
+    degisen, eklenen = 0, 0
+    for c in collections("card")["collections"]:
+        cid = c["id"]
+        pushed = (pushed_of(cid, "card").get("cards") or {}) if published_only else None
+        yeni = []
+        for r in _collection_ranks(cid, "card"):
+            if pushed is not None and card_id(cid, r, "card") not in pushed:
+                continue
+            e = _card_entry(cid, "card", r)
+            if e:
+                yeni.append(e)
+        if not yeni:
+            continue
+        mevcut = next((x for x in out["collections"] if x.get("id") == cid), None)
+        if mevcut is None:
+            mevcut = {"id": cid, "name": c["name"], "style": c["style"],
+                      "isJokers": bool(c.get("jokers")), "cards": []}
+            out["collections"].append(mevcut)
+            eklenen += 1
+        kartlar = list(mevcut.get("cards") or [])
+        idx = {k.get("id"): i for i, k in enumerate(kartlar)}
+        for e in yeni:
+            if e["id"] in idx:
+                kartlar[idx[e["id"]]] = e
+                degisen += 1
+            else:
+                kartlar.append(e)
+                degisen += 1
+        mevcut["cards"] = kartlar
+
+    if dealers_v3:
+        satirlar = []
+        eski = {d.get("id"): d for d in (out.get("dealers") or [])}
+        for ad in dealer_names():
+            pushed = (pushed_of(ad, "dealer").get("cards") or {}) if published_only else None
+            if pushed is not None and ad not in pushed:
+                continue
+            e = _card_entry(ad, "dealer", MAIN)
+            if not e:
+                continue
+            # Reaksiyonlar (win/lose/deal) v3'te henuz uretilmiyor; eskisi tasinir.
+            st = (eski.get(ad) or {}).get("states")
+            if st:
+                e["states"] = st
+            satirlar.append(e)
+        if satirlar:
+            kalan = [d for d in (out.get("dealers") or [])
+                     if d.get("id") not in {s["id"] for s in satirlar}]
+            out["dealers"] = satirlar + kalan
+
+    kart = sum(len(c.get("cards") or []) for c in out["collections"])
+    if preview:                     # #323: salt okunur onizleme - DOSYA YAZILMAZ
+        return {"file": "", "preview": True, "base": manifest_src(),
+                "collections": len(out["collections"]), "cards": kart,
+                "dealers": len(out.get("dealers") or []), "changed": degisen,
+                "new_collections": eklenen, "dealers_v3": bool(dealers_v3),
+                "published_only": bool(published_only), "manifest": out}
+    hedef_dir = out_dir or root()
+    os.makedirs(hedef_dir, exist_ok=True)
+    yol = os.path.join(hedef_dir, "manifest.json")
+    _write_json(yol, out)
+    return {"file": yol, "base": manifest_src(), "collections": len(out["collections"]),
+            "cards": kart, "dealers": len(out.get("dealers") or []),
+            "changed": degisen, "new_collections": eklenen,
+            "dealers_v3": bool(dealers_v3), "published_only": bool(published_only),
+            "manifest": out}
+
+
+# ------------------------------------------------------------------ 4 Push
+def _r2_put(wrangler: str, key: str, dosya: str, timeout: int = 600) -> tuple[bool, str]:
+    try:
+        proc = subprocess.run(
+            [wrangler, "r2", "object", "put", "%s/%s" % (bucket(), key),
+             "--file", dosya, "--remote"],
+            capture_output=True, text=True, timeout=timeout,
+            encoding="utf-8", errors="replace",
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    except subprocess.TimeoutExpired:
+        return False, "zaman asimi"
+    except FileNotFoundError:
+        return False, "wrangler bulunamadi"
+    if proc.returncode != 0:
+        return False, (proc.stderr or proc.stdout or "")[:400]
+    return True, ""
+
+
+def push(collection: str, kind: str = "", ranks: list[str] | None = None,
+         dealers_v3: bool = False) -> str:
+    """op `card-push` (asama 4): ONCE DOSYALAR, SONRA MANIFEST. GERI ALINAMAZ.
+
+    Onbellek kurali: yollar `_v3` ekiyle YENI, ustune yazma yok. Bir dosya
+    yuklenemezse o kart yayinlanmaz ve manifest'e girmez; manifest yalnizca
+    tum dosyalari kovaya ulasan kartlari sayar (`_pushed.json`).
+    """
+    k = kind_id(kind)
+    collection_meta(collection, k)
+    wr = _wrangler()
+    if not wr or not (os.path.isfile(wr) or shutil.which(wr)):
+        raise ValueError("wrangler bulunamadi: %s" % wr)
+    tum = _collection_ranks(collection, k)
+    hedef = [r for r in _sec(ranks, tum)
+             if os.path.isfile(os.path.join(rank_dir(collection, r, k), "sheet.webp"))]
+    if not hedef:
+        raise ValueError("sheet'i olan kart yok - once asama 3")
+    op_id = _op_new("card-push", len(hedef) + 1)
+
+    def calis():
+        pushed = pushed_of(collection, k)
+        pushed.setdefault("cards", {})
+        for i, r in enumerate(hedef, 1):
+            d = rank_dir(collection, r, k)
+            cid = card_id(collection, r, k)
+            _op(op_id, message="4/4 push %d/%d  %s" % (i, len(hedef), cid))
+            isler = [("sheet", os.path.join(d, "sheet.webp")),
+                     ("thumb", os.path.join(d, "thumb.webp"))]
+            if os.path.isfile(os.path.join(d, "still.webp")):
+                isler.append(("still", os.path.join(d, "still.webp")))
+            yazilan, hata = [], ""
+            for what, dosya in isler:
+                if not os.path.isfile(dosya):
+                    hata = "%s dosyasi yok" % what
+                    break
+                key = r2_key(collection, k, r, what)
+                ok, err = _r2_put(wr, key, dosya)
+                if not ok:
+                    hata = "%s: %s" % (key, err[:150])
+                    break
+                yazilan.append(key)
+                _op(op_id, log="+ %s" % key)
+            if hata:
+                with _ops_lock:
+                    _ops[op_id]["failed"] += 1
+                _op(op_id, done=i, log="YUKLENEMEDI %s: %s" % (cid, hata))
+                continue
+            pushed["cards"][cid] = {"at": datetime.now().isoformat(timespec="seconds"),
+                                    "suffix": SUFFIX, "keys": yazilan}
+            _write_json(os.path.join(col_dir(collection, k), "_pushed.json"), pushed)
+            with _ops_lock:
+                _ops[op_id]["ok"] += 1
+            _op(op_id, done=i)
+
+        # --- manifest EN SON (dosyalar kovada olmadan manifest yayinlanmaz)
+        _op(op_id, message="4/4 manifest")
+        try:
+            res = manifest(dealers_v3=dealers_v3, published_only=True)
+            ok, err = _r2_put(wr, "manifest.json", res["file"])
+            if not ok:
+                raise RuntimeError(err[:200])
+        except Exception as e:
+            with _ops_lock:
+                _ops[op_id]["failed"] += 1
+            _op(op_id, done=len(hedef) + 1, log="manifest YUKLENEMEDI: %s" % str(e)[:200])
+            return
+        pushed["manifest"] = {"at": datetime.now().isoformat(timespec="seconds"),
+                              "cards": res["cards"], "dealers_v3": bool(dealers_v3)}
+        _write_json(os.path.join(col_dir(collection, k), "_pushed.json"), pushed)
+        with _ops_lock:
+            _ops[op_id]["ok"] += 1
+            _ops[op_id]["result"] = {k2: v for k2, v in res.items() if k2 != "manifest"}
+        _op(op_id, done=len(hedef) + 1,
+            log="+ manifest.json (%d kart, %d koleksiyon)" % (res["cards"], res["collections"]),
+            message="bitti")
+
+    _run(op_id, calis)
+    return op_id
