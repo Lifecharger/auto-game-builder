@@ -391,11 +391,17 @@ class _ThumbCell extends StatelessWidget {
     required this.onMixamo,
     required this.onRefresh,
     required this.onDelete,
+    this.badge,
+    this.dimmed = false,
   });
 
   final String label;
   final String? url;
   final bool accepted;
+  /// #300: kabul edilmemis ama adayi olan hucrede "N aday" rozeti.
+  final String? badge;
+  /// #300: aday onizlemesi soluk cizilir - kabul edilmisle karismasin.
+  final bool dimmed;
   final double width;
   final double thumbHeight;
   final VoidCallback onTap;
@@ -432,15 +438,18 @@ class _ThumbCell extends StatelessWidget {
                       if (url != null)
                         // #292: cover kirpiyordu - contain, tam boy kare butun
                         // gorunur (kenarlarda koyu serit kalir).
-                        Image.network(
-                          url!,
-                          headers: CharacterFlowService.authHeaders,
-                          fit: BoxFit.contain,
-                          errorBuilder: (_, _, _) => Container(
-                            color: Colors.white10,
-                            alignment: Alignment.center,
-                            child: const Icon(Icons.image_not_supported_outlined,
-                                size: 22, color: Colors.grey),
+                        Opacity(
+                          opacity: dimmed ? 0.55 : 1,
+                          child: Image.network(
+                            url!,
+                            headers: CharacterFlowService.authHeaders,
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, _, _) => Container(
+                              color: Colors.white10,
+                              alignment: Alignment.center,
+                              child: const Icon(Icons.image_not_supported_outlined,
+                                  size: 22, color: Colors.grey),
+                            ),
                           ),
                         )
                       else
@@ -459,6 +468,23 @@ class _ThumbCell extends StatelessWidget {
                           color: accepted ? Colors.green : Colors.white38,
                         ),
                       ),
+                      if (badge != null)
+                        // #300: aday sayisi - dokununca secici acilir.
+                        Positioned(
+                          left: 3,
+                          top: 3,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 5, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.shade800,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(badge!,
+                                style: const TextStyle(
+                                    fontSize: 9, color: Colors.white)),
+                          ),
+                        ),
                       Positioned(
                         left: 0,
                         right: 0,
@@ -1324,17 +1350,29 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
     );
   }
 
-  Widget _dirCell(CharacterItem it, CharacterDir d, double cellW) => _ThumbCell(
+  Widget _dirCell(CharacterItem it, CharacterDir d, double cellW) {
+    final kabul = it.dirs[d.id] == true;
+    final adaylar = it.dirCandidates[d.id] ?? const <String>[];
+    // #300: kabul edilmemis yonde EN YENI aday soluk gosterilir + "N aday"
+    // rozeti; dokunma aday secicisini acar (yonler "uretiliyor ama gelmiyor"
+    // sanilmasin). Kabul edilmis yonde dokunma yine animasyon ekranidir.
+    final String? url = kabul
+        ? CharacterFlowService.thumbUrl(
+            _name, CharacterFlowService.turnaroundRel(d.id), size: 600)
+        : (adaylar.isEmpty
+            ? null
+            : CharacterFlowService.thumbUrl(_name, adaylar.last, size: 600));
+    return _ThumbCell(
         label: '${d.short} ${d.label}',
-        url: it.dirs[d.id] == true
-            ? CharacterFlowService.thumbUrl(
-                _name, CharacterFlowService.turnaroundRel(d.id),
-                size: 600)
-            : null,
-        accepted: it.dirs[d.id] == true,
+        url: url,
+        accepted: kabul,
+        dimmed: !kabul && adaylar.isNotEmpty,
+        badge: (!kabul && adaylar.isNotEmpty) ? '${adaylar.length} aday - sec' : null,
         width: cellW,
         thumbHeight: cellW * 16 / 9,
-        onTap: () => _openAnim(d.id, 'i2v'),
+        onTap: () => (kabul || adaylar.isEmpty)
+            ? _openAnim(d.id, 'i2v')
+            : _dirBig(it, d),
         onLongPress: () => _dirBig(it, d),
         onAnim: () => _openAnim(d.id, 'i2v'),
         onMixamo: () => _openAnim(d.id, 'mixamo'),
@@ -1347,6 +1385,7 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
                 adet: _dirCount),
         onDelete: () => _deleteDir(d.id, d.label),
       );
+  }
 
   Widget _baseCell(CharacterItem it, double cellW) => _ThumbCell(
         label: 'BASE',

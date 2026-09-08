@@ -285,8 +285,10 @@ def _dir_state(d: str, m: dict) -> tuple[dict, dict, dict]:
         adlar = []
     for y in DIR_IDS:
         kabul[y] = ("%s.png" % y) in adlar
+        # #300: TAM eslesme - "front" yonu front_left_*/front_right_*'i,
+        # "back" yonu back_left/right'i saymasin (on ek eslesmesi yanlisti).
         dosya[y] = ["turnaround/%s" % a for a in adlar
-                    if a.startswith(y + "_") and a.lower().endswith((".png", ".jpg"))]
+                    if re.fullmatch(re.escape(y) + "_[0-9]+[.](png|jpg)", a.lower())]
         aday[y] = len(dosya[y])
     for y, v in (m.get("dirs") or {}).items():
         if y in kabul and v:
