@@ -6394,9 +6394,11 @@ def character_flow_settings(body: CharacterSettingsRequest):
 
 @app.post("/api/character/flow/card/enrich")
 def character_flow_card_enrich(body: CharacterCardRequest):
-    """Yerel Ollama (gemma3:12b) kart metnini genisletir; metni DONDURUR,
-    kullanici onaylayinca PUT card ile kaydedilir."""
-    return _flow_call(_char().enrich_card, body.name)
+    """#297: op doner ({"op": id}) - Ollama arka planda kosar, tunel 100 sn'de
+    kesmesin. Onerilen metin op kaydinin "result" alanindadir
+    ({"card","model","current"}); istemci /op/{id} ile bekler, onaylayinca
+    PUT card ile kaydeder (diske BURADA yazilmaz)."""
+    return {"op": _flow_call(_char().enrich_card, body.name)}
 
 
 class CharacterExpandRequest(BaseModel):
@@ -6409,10 +6411,11 @@ class CharacterExpandRequest(BaseModel):
 @app.post("/api/character/flow/prompt/expand")
 def character_flow_prompt_expand(body: CharacterExpandRequest):
     """rev8: kisa istegi ("idle", "kick") yerel Ollama ile genisletir.
+    #297: op doner ({"op": id}); sonuc op kaydinin "result" alanindadir -
     mode=i2v -> {prompt} (kadraj/fon sablonu KOD tarafindan eklenir),
     mode=mixamo -> {clips:[{name,hash,filename,why}]}. Ollama yoksa 503."""
     try:
-        return _char().expand_prompt(body.name, body.dir, body.text, body.mode)
+        return {"op": _char().expand_prompt(body.name, body.dir, body.text, body.mode)}
     except ConnectionError as e:
         raise HTTPException(503, str(e))
     except ValueError as e:

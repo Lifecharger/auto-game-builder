@@ -487,10 +487,43 @@ class CharacterFlowService {
         .toList();
   }
 
+  /// #297: uzun sunucu isini bekler. Istek/cevap 100 sn'de kesen tunelden
+  /// gecmesin diye is arka planda kosar, burada 2 sn'de bir /op/{id} sorulur.
+  /// Sonuc op kaydinin `result` alanindadir.
+  static Future<Map<String, dynamic>> _awaitOp(
+    String opId, {
+    String hata = 'Islem basarisiz',
+    Duration limit = const Duration(minutes: 10),
+  }) async {
+    final son = DateTime.now().add(limit);
+    var artarda = 0;                       // ust uste ag hatasi (gecici olabilir)
+    while (DateTime.now().isBefore(son)) {
+      await Future<void>.delayed(const Duration(seconds: 2));
+      FlowOp o;
+      try {
+        o = await op(opId);
+        artarda = 0;
+      } catch (e) {
+        if (++artarda >= 5) throw Exception('$hata ($e)');
+        continue;
+      }
+      if (o.running) continue;
+      if (o.status == 'done' && o.failed == 0 && o.result.isNotEmpty) {
+        return o.result;
+      }
+      throw Exception(o.message.isNotEmpty
+          ? o.message
+          : (o.log.isNotEmpty ? o.log.last : hata));
+    }
+    throw Exception('$hata (zaman asimi)');
+  }
+
   /// rev8: kisa istegi Ollama ile genisletir.
   ///   mode 'i2v'     -> {prompt}: tam hareket tarifi (duzenlenebilir doner)
   ///   mode 'mixamo'  -> {clips}: en iyi 8 aday (name, hash, filename, why)
   /// Ollama kapaliysa 503 -> [OllamaOffException].
+  /// #297: sunucu artik {"op": id} doner, sonuc op'un `result` alanindan gelir
+  /// (eski sunucu metni dogrudan dondururse o da kabul edilir).
   static Future<({String prompt, List<MixamoClip> clips})> expandPrompt({
     required String name,
     required String dir,
@@ -502,10 +535,14 @@ class CharacterFlowService {
             headers: _headers,
             body: json.encode(
                 {'name': name, 'dir': dir, 'text': text, 'mode': mode}))
-        .timeout(const Duration(seconds: 180));
+        .timeout(_timeout);
     if (r.statusCode == 503) throw const OllamaOffException();
     if (r.statusCode != 200) _fail(r, 'Genisletme basarisiz');
-    final d = Map<String, dynamic>.from(_decode(r) as Map);
+    var d = Map<String, dynamic>.from(_decode(r) as Map);
+    final opId = '${d['op'] ?? ''}';
+    if (opId.isNotEmpty) {
+      d = await _awaitOp(opId, hata: 'Genisletme basarisiz');
+    }
     final ham = d['clips'];
     return (
       prompt: '${d['prompt'] ?? d['text'] ?? ''}',
@@ -532,6 +569,11 @@ class CharacterFlowService {
 
   static Future<void> saveCard(String name, String text) =>
       _put('/api/character/flow/card', {'name': name, 'card': text, 'text': text});
+
+  /// Karakter basina yastiklama varsayilani (character.json). Uretim
+  /// ekranindaki secici degisince yazilir; butun klipler ayni degeri gorur (#295).
+  static Future<void> savePadding(String name, double padding) =>
+      _put('/api/character/flow/settings', {'name': name, 'padding': padding});
 
   // -------------------------------------------------------------- dosya
   static String thumbUrl(String name, String rel, {int size = 360}) =>
@@ -621,13 +663,20 @@ class CharacterFlowService {
 
   /// card.md'yi yerel Ollama ile zenginlestirir. Onerilen metni DONER -
   /// kaydetmez; kullanici onaylayinca `saveCard` yazar.
+  /// #297/#298: sunucu {"op": id} doner ve Ollama arka planda kosar; metin
+  /// beklenmeden donmedigi icin onay penceresi hic acilmiyordu. Burada op
+  /// bitene kadar beklenir, hata durumunda sunucunun mesaji atilir.
   static Future<String> enrichCard(String name) async {
-    final d = await _post('/api/character/flow/card/enrich', {'name': name});
+    var d = await _post('/api/character/flow/card/enrich', {'name': name});
+    final opId = '${d['op'] ?? ''}';
+    if (opId.isNotEmpty) {
+      d = await _awaitOp(opId, hata: 'Kart zenginlestirilemedi');
+    }
     for (final k in ['card', 'text', 'md', 'content', 'proposal']) {
       final v = d[k];
       if (v is String && v.isNotEmpty) return v;
     }
-    return '';
+    throw Exception('Ollama bos cevap dondu');
   }
 
   /// Bir klibin o yondeki butun surumlerini siler.

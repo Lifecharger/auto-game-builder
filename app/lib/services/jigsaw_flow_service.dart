@@ -75,6 +75,9 @@ class FlowOp {
   final int failed;
   final String message;
   final List<String> log;
+  /// #297: uzun islerin sonucu (ornegin char-enrich -> {card, model, current}).
+  /// Sunucu gondermiyorsa bos kalir.
+  final Map<String, dynamic> result;
 
   const FlowOp({
     required this.id,
@@ -86,6 +89,7 @@ class FlowOp {
     required this.failed,
     required this.message,
     required this.log,
+    this.result = const {},
   });
 
   factory FlowOp.fromJson(Map<String, dynamic> j) => FlowOp(
@@ -98,6 +102,9 @@ class FlowOp {
         failed: (j['failed'] ?? 0) as int,
         message: '${j['message'] ?? ''}',
         log: ((j['log'] ?? []) as List).map((e) => '$e').toList(),
+        result: j['result'] is Map
+            ? Map<String, dynamic>.from(j['result'] as Map)
+            : const {},
       );
 
   bool get running => status == 'running';

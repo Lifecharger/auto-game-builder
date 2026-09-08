@@ -336,6 +336,7 @@ def list_characters() -> list[dict]:
             "clips": sorted((anims_of_file(d).get("clips") or {}).keys()),
             "candidates": len(_candidate_files(d)),
             "candidate_files": _candidate_files(d),
+            "portraits": _portrait_files(d),   # #296: portre adaylari (rel)
             "sprite_canvas": int(m.get("sprite_canvas") or 640),
             "card": os.path.isfile(os.path.join(d, "card.md")),
             "mtime": int(os.stat(d).st_mtime),
@@ -354,6 +355,18 @@ def _candidate_files(d: str) -> list[str]:
     try:
         return ["candidates/%s" % a for a in sorted(os.listdir(cand))
                 if a.lower().endswith((".png", ".jpg", ".jpeg", ".webp")) and not a.startswith("_")]
+    except OSError:
+        return []
+
+
+def _portrait_files(d: str) -> list[str]:
+    """#296: portrait/ altindaki ADAYLARIN rel yollari. Secilen portrait.png ve
+    '_' ile baslayanlar disarida kalir - istemci bunlari thumb/pick'e verir."""
+    pd = os.path.join(d, "portrait")
+    try:
+        return ["portrait/%s" % a for a in sorted(os.listdir(pd))
+                if a.lower().endswith((".png", ".jpg", ".jpeg", ".webp"))
+                and not a.startswith("_") and a.lower() != "portrait.png"]
     except OSError:
         return []
 
@@ -1189,9 +1202,36 @@ Ayni Markdown yapisini KORU (ayni basliklar, ayni madde adlari). Bos ya da kisa 
 Hikaye 3-5 cumle olsun, klise olmasin. YALNIZ kartin son halini dondur, aciklama yazma."""
 
 
-def enrich_card(name: str, timeout: int = 300) -> dict:
-    """Yerel Ollama (gemma3:12b) kart metnini genisletir. Metni DONDURUR,
-    diske yazmaz - kullanici onaylayip PUT card ile kaydeder."""
+def enrich_card(name: str, timeout: int = 300) -> str:
+    """#297: op doner - Ollama cagrisi ARKA PLANDA kosar. Senkron cagri tunelde
+    100 sn'de kesiliyordu, oneri istemciye hic ulasmiyordu (#298: onay penceresi
+    bu yuzden acilmiyordu). Sonuc op kaydinin 'result' alanina yazilir; istemci
+    /op/{id} ile bekler, metni onaylayip PUT card ile kaydeder."""
+    char_dir(name)                                  # karakter yoksa hemen 400
+    if not JF.ollama_ready():
+        raise ValueError("Ollama calismiyor (yerel gemma3 gerekiyor)")
+    op_id = _op_new("char-enrich", 1)
+
+    def calis():
+        _op(op_id, message="Ollama kart metnini yaziyor")
+        try:
+            res = _enrich_text(name, timeout)
+        except Exception as e:
+            with _ops_lock:
+                _ops[op_id]["failed"] += 1
+            _op(op_id, done=1, log=str(e)[:220])
+            raise                                   # _run status='error' + message
+        with _ops_lock:
+            _ops[op_id]["ok"] += 1
+            _ops[op_id]["result"] = res             # op_status dict(o) ile doner
+        _op(op_id, done=1, message="bitti")
+
+    _run(op_id, calis)
+    return op_id
+
+
+def _enrich_text(name: str, timeout: int = 300) -> dict:
+    """Kart metnini Ollama'ya yazdirir (diske YAZMAZ)."""
     if not JF.ollama_ready():
         raise ValueError("Ollama calismiyor (yerel gemma3 gerekiyor)")
     m = meta(name)
@@ -1280,9 +1320,35 @@ def _mixamo_candidates(text: str, limit: int = 60) -> list[dict]:
     return [r for _p, r in puanli[:limit]]
 
 
-def expand_prompt(name: str, y: str = "", text: str = "", mode: str = "i2v") -> dict:
-    """rev8: kisa istegi Ollama ile genisletir. Kisa senkron istek, gpu seridi
-    ALMAZ. Ollama yoksa ConnectionError -> sunucu 503 dondurur."""
+def expand_prompt(name: str, y: str = "", text: str = "", mode: str = "i2v") -> str:
+    """#297: op doner - enrich ile ayni tunel sorunu (Ollama 120-180 sn surebilir,
+    tunel 100 sn'de keser). Ollama kapaliysa ConnectionError HEMEN atilir ki
+    sunucu 503 dondursun (istemcideki sihirli degnek pasiflesir)."""
+    char_dir(name)
+    if not JF.ollama_ready():
+        raise ConnectionError("Ollama calismiyor (yerel gemma3 gerekiyor)")
+    op_id = _op_new("char-expand", 1)
+
+    def calis():
+        _op(op_id, message="Ollama %s onerisi yaziyor" % (mode or "i2v"))
+        try:
+            res = _expand_prompt_sync(name, y, text, mode)
+        except Exception as e:
+            with _ops_lock:
+                _ops[op_id]["failed"] += 1
+            _op(op_id, done=1, log=str(e)[:220])
+            raise
+        with _ops_lock:
+            _ops[op_id]["ok"] += 1
+            _ops[op_id]["result"] = res
+        _op(op_id, done=1, message="bitti")
+
+    _run(op_id, calis)
+    return op_id
+
+
+def _expand_prompt_sync(name: str, y: str = "", text: str = "", mode: str = "i2v") -> dict:
+    """rev8: kisa istegi Ollama ile genisletir. gpu seridi ALMAZ."""
     m = meta(name)
     cfg = anims(name)
     if mode == "mixamo":

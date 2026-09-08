@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -155,51 +154,71 @@ class _CharacterFlowScreenState extends State<CharacterFlowScreen> {
       child: InkWell(
         onTap: () => _open(c),
         onLongPress: () => _deleteCharacter(c),
+        // #294: dar telefonda tasmasin, daha cok kart sigsin - dikey bosluk
+        // kucultuldu, yazilar ellipsis, sayaclar Wrap.
         child: Padding(
-          padding: const EdgeInsets.all(10),
+          padding: const EdgeInsets.fromLTRB(8, 8, 6, 8),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // #294: kucuk resim 9:16 + contain - tam boy kare kirpilmiyor.
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: SizedBox(
-                  width: 78,
-                  height: 118,
+                  width: 66,
+                  height: 117,
                   child: c.lookThumb.isEmpty
                       ? Container(
                           color: Colors.white10,
                           child: const Icon(Icons.person_outline, color: Colors.grey))
-                      : Image.network(
-                          CharacterFlowService.thumbUrl(c.name, c.lookThumb),
-                          headers: CharacterFlowService.authHeaders,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) =>
-                              Container(color: Colors.white10),
+                      : ColoredBox(
+                          color: Colors.black26,
+                          child: Image.network(
+                            CharacterFlowService.thumbUrl(c.name, c.lookThumb,
+                                size: 300),
+                            headers: CharacterFlowService.authHeaders,
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, _, _) =>
+                                Container(color: Colors.white10),
+                          ),
                         ),
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(c.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                             fontSize: 16, fontWeight: FontWeight.bold)),
                     Text(c.klass.isEmpty ? '-' : c.klass,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
                     dirCompass(
                       _dirs,
                       cell: (d) => dirBadge(d, c.dirs[d.id] == true),
                       spacing: 3,
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'yon $dirsOk/${_dirs.length}   '
-                      'sprite $ok/$total   '
-                      'aday ${c.candidateCount}',
-                      style: const TextStyle(fontSize: 11, color: Colors.grey),
+                    const SizedBox(height: 6),
+                    // #294: tek satir yerine Wrap - dar ekranda alta sarar.
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 2,
+                      children: [
+                        for (final t in [
+                          'yon $dirsOk/${_dirs.length}',
+                          'sprite $ok/$total',
+                          'aday ${c.candidateCount}',
+                        ])
+                          Text(t,
+                              style: const TextStyle(
+                                  fontSize: 11, color: Colors.grey)),
+                      ],
                     ),
                   ],
                 ),
@@ -262,10 +281,19 @@ Widget dirCompass(
       if (extra.isNotEmpty)
         Padding(
           padding: EdgeInsets.only(top: spacing),
-          child: Wrap(
-            spacing: spacing,
-            runSpacing: spacing,
-            children: [for (final d in extra) SizedBox(width: 90, child: cell(d))],
+          // #294: sabit 90 genislik dar kartta tasiyordu - hucre genisligi
+          // artik mevcut genislikten (3 sutun) hesaplanir.
+          child: LayoutBuilder(
+            builder: (_, cons) {
+              final w = ((cons.maxWidth - 2 * spacing) / 3).clamp(40.0, 120.0);
+              return Wrap(
+                spacing: spacing,
+                runSpacing: spacing,
+                children: [
+                  for (final d in extra) SizedBox(width: w, child: cell(d)),
+                ],
+              );
+            },
           ),
         ),
     ],
@@ -400,17 +428,19 @@ class _ThumbCell extends StatelessWidget {
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
-                      const ColoredBox(color: Colors.black),
+                      const ColoredBox(color: Colors.black26),
                       if (url != null)
+                        // #292: cover kirpiyordu - contain, tam boy kare butun
+                        // gorunur (kenarlarda koyu serit kalir).
                         Image.network(
                           url!,
                           headers: CharacterFlowService.authHeaders,
-                          fit: BoxFit.cover,
+                          fit: BoxFit.contain,
                           errorBuilder: (_, _, _) => Container(
                             color: Colors.white10,
                             alignment: Alignment.center,
                             child: const Icon(Icons.image_not_supported_outlined,
-                                size: 16, color: Colors.grey),
+                                size: 22, color: Colors.grey),
                           ),
                         )
                       else
@@ -418,7 +448,7 @@ class _ThumbCell extends StatelessWidget {
                           color: Colors.white10,
                           alignment: Alignment.center,
                           child: const Icon(Icons.add_photo_alternate_outlined,
-                              size: 16, color: Colors.grey),
+                              size: 22, color: Colors.grey),
                         ),
                       Positioned(
                         right: 2,
@@ -435,12 +465,13 @@ class _ThumbCell extends StatelessWidget {
                         bottom: 0,
                         child: Container(
                           color: Colors.black54,
+                          // #292: hucreler buyudu, etiket de okunur olsun.
                           child: Text(label,
                               textAlign: TextAlign.center,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                  fontSize: 8, color: Colors.white)),
+                                  fontSize: 10, color: Colors.white)),
                         ),
                       ),
                     ],
@@ -448,8 +479,9 @@ class _ThumbCell extends StatelessWidget {
                 ),
               ),
             ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            // #292: Row tasabiliyordu - Wrap hucreye sigmayinca alt satira sarar.
+            Wrap(
+              alignment: WrapAlignment.center,
               children: [
                 _ico(Icons.movie_filter_outlined, 'Anim uret (AI i2v)', onAnim),
                 _ico(Icons.accessibility_new, 'Mixamo ile uret', onMixamo),
@@ -464,10 +496,11 @@ class _ThumbCell extends StatelessWidget {
   Widget _ico(IconData i, String t, VoidCallback f, {Color? color}) => IconButton(
         tooltip: t,
         onPressed: f,
-        icon: Icon(i, size: 16, color: color),
+        icon: Icon(i, color: color),
+        iconSize: 18,
         padding: EdgeInsets.zero,
         visualDensity: VisualDensity.compact,
-        constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
+        constraints: const BoxConstraints.tightFor(width: 28, height: 28),
       );
 }
 
@@ -724,27 +757,29 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
       padding: bottomSafePadding(context,
           left: 12, top: 12, right: 12, bottom: 12),
       children: [
+        // #293: kutular sabit 72x104 idi, ustteki gorseller okunmuyordu.
+        // Artik uc kutu genisligi paylasir (9:16), sinif/aday yazisi ALTA indi.
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _lookBox('Gorunus', it.lookThumb),
+            Expanded(child: _lookBox('Gorunus', it.lookThumb)),
             const SizedBox(width: 8),
-            _lookBox('Base', it.baseThumb),
+            Expanded(child: _lookBox('Base', it.baseThumb)),
             const SizedBox(width: 8),
-            _lookBox('Portre', it.portraitThumb),
-            const SizedBox(width: 10),
+            Expanded(child: _lookBox('Portre', it.portraitThumb)),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(it.klass.isEmpty ? 'sinif yok' : it.klass,
-                      style: const TextStyle(fontSize: 13)),
-                  const SizedBox(height: 4),
-                  Text('${it.candidateCount} aday',
-                      style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                ],
-              ),
+              child: Text(it.klass.isEmpty ? 'sinif yok' : it.klass,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 13)),
             ),
+            Text('${it.candidateCount} aday',
+                style: const TextStyle(fontSize: 12, color: Colors.grey)),
           ],
         ),
         const SizedBox(height: 12),
@@ -772,14 +807,8 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
             'Zenginlestirme yerel Ollama ile calisir; onerilen metni '
             'onaylamadan kart degismez.',
             style: TextStyle(fontSize: 11, color: Colors.grey)),
-        const SizedBox(height: 12),
-        // rev5: karakter basina yastiklama varsayilani.
-        PaddingPicker(
-            value: _padding, onChanged: (v) => setState(() => _padding = v)),
-        const Text(
-            'Yastiklama animasyon uretiminde referans gorseli kuculterek '
-            'kadraj payi birakir; butun klipler icin ayni kalmali.',
-            style: TextStyle(fontSize: 11, color: Colors.grey)),
+        // #295: yastiklama secici buradan kaldirildi - asil yeri 3 Animasyon
+        // sekmesindeki uretim panelleri (uretimden HEMEN once sorulur).
         const SizedBox(height: 14),
         _portraitRow(it),
         const SizedBox(height: 14),
@@ -851,12 +880,16 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
                         fontWeight: FontWeight.bold,
                         color: Colors.grey)),
               ),
-              OutlinedButton.icon(
-                onPressed: () => _run(
-                    'Portre uretimi',
-                    () => CharacterFlowService.portrait(name: _name, n: _dirCount)),
-                icon: const Icon(Icons.face_retouching_natural, size: 18),
-                label: Text('Portre uret ($_dirCount)'),
+              // #294: dugme dar ekranda satiri tasirmasin.
+              Flexible(
+                child: OutlinedButton.icon(
+                  onPressed: () => _run(
+                      'Portre uretimi',
+                      () => CharacterFlowService.portrait(name: _name, n: _dirCount)),
+                  icon: const Icon(Icons.face_retouching_natural, size: 18),
+                  label: Text('Portre uret ($_dirCount)',
+                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                ),
               ),
             ],
           ),
@@ -865,8 +898,9 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
             const Text('Portre adayi yok.',
                 style: TextStyle(fontSize: 12, color: Colors.grey))
           else
+            // #293: portre serisi de kirpilmasin - 3:4 kutu + contain.
             SizedBox(
-              height: 96,
+              height: 128,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 itemCount: it.portraits.length,
@@ -878,12 +912,16 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
                     borderRadius: BorderRadius.circular(8),
                     child: SizedBox(
                       width: 96,
-                      child: Image.network(
-                        CharacterFlowService.thumbUrl(_name, it.portraits[i],
-                            size: 300),
-                        headers: CharacterFlowService.authHeaders,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => Container(color: Colors.white10),
+                      child: ColoredBox(
+                        color: Colors.black26,
+                        child: Image.network(
+                          CharacterFlowService.thumbUrl(_name, it.portraits[i],
+                              size: 400),
+                          headers: CharacterFlowService.authHeaders,
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, _, _) =>
+                              Container(color: Colors.white10),
+                        ),
                       ),
                     ),
                   ),
@@ -893,30 +931,42 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
         ],
       );
 
-  Widget _lookBox(String baslik, String rel) => Column(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: SizedBox(
-              width: 72,
-              height: 104,
-              child: rel.isEmpty
-                  ? Container(
-                      color: Colors.white10,
-                      alignment: Alignment.center,
-                      child: const Text('yok',
-                          style: TextStyle(fontSize: 10, color: Colors.grey)))
-                  : Image.network(
-                      CharacterFlowService.thumbUrl(_name, rel, size: 400),
-                      headers: CharacterFlowService.authHeaders,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => Container(color: Colors.white10),
-                    ),
+  /// #293: kutu artik satirdaki payini kaplar (9:16), dokunmak tam boyu acar.
+  /// Gorsel `contain` cizilir - kafa/ayak kirpilmaz.
+  Widget _lookBox(String baslik, String rel) => GestureDetector(
+        onTap: () => _big(baslik, rel),
+        onLongPress: () => _big(baslik, rel),
+        child: Column(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: AspectRatio(
+                aspectRatio: 9 / 16,
+                child: rel.isEmpty
+                    ? Container(
+                        color: Colors.white10,
+                        alignment: Alignment.center,
+                        child: const Text('yok',
+                            style: TextStyle(fontSize: 12, color: Colors.grey)))
+                    : ColoredBox(
+                        color: Colors.black26,
+                        child: Image.network(
+                          CharacterFlowService.thumbUrl(_name, rel, size: 600),
+                          headers: CharacterFlowService.authHeaders,
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, _, _) =>
+                              Container(color: Colors.white10),
+                        ),
+                      ),
+              ),
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(baslik, style: const TextStyle(fontSize: 10, color: Colors.grey)),
-        ],
+            const SizedBox(height: 4),
+            Text(baslik,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 11, color: Colors.grey)),
+          ],
+        ),
       );
 
   Widget _candidateTile(String rel) {
@@ -1084,17 +1134,20 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
           style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(44)),
         ),
         const SizedBox(height: 10),
+        // #292: yuvarlak duzen dar telefonda hucreleri ust uste bindiriyordu -
+        // yerine 3x3 izgara: FL F FR / L BASE R / BL B BR, altinda PORTRE.
         LayoutBuilder(
           builder: (_, cons) {
-            final w = cons.maxWidth.clamp(320.0, 460.0);
-            return SizedBox(
-              width: cons.maxWidth,
-              child: Center(child: _dirCircle(it, w)),
+            const bosluk = 8.0;
+            final cellW = ((cons.maxWidth - 2 * bosluk) / 3).clamp(72.0, 150.0);
+            return Column(
+              children: [
+                _dirGrid(it, cellW, bosluk),
+                SizedBox(width: cellW, child: _portraitCell(it, cellW)),
+              ],
             );
           },
         ),
-        const SizedBox(height: 10),
-        Center(child: _portraitCell(it)),
         const SizedBox(height: 12),
         const Text(
           'Tek dokunus o yonun animasyon ekranini acar, basili tutma buyutur. '
@@ -1106,82 +1159,104 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
     );
   }
 
-  Widget _dirCircle(CharacterItem it, double w) {
-    const cellW = 88.0;
-    const thumbH = 72.0;
-    const cellH = thumbH + 24;          // gorsel + ikon satiri
-    const baseW = 96.0;
-    const baseH = 96.0;
-    final r = w / 2 - cellW / 2 - 2;
-    final h = 2 * r + cellH + 10;
-    final cx = w / 2, cy = h / 2;
-    return SizedBox(
-      width: w,
-      height: h,
-      child: Stack(
-        children: [
-          Positioned(
-            left: cx - baseW / 2,
-            top: cy - (baseH + 24) / 2,
-            child: _ThumbCell(
-              label: 'BASE',
-              url: it.baseThumb.isEmpty
-                  ? null
-                  : CharacterFlowService.thumbUrl(_name, it.baseThumb, size: 400),
-              accepted: it.baseThumb.isNotEmpty,
-              width: baseW,
-              thumbHeight: baseH,
-              onTap: () => _openAnim(_baseDir, 'i2v'),
-              onLongPress: () => _big('Base', it.baseThumb),
-              onAnim: () => _openAnim(_baseDir, 'i2v'),
-              onMixamo: () => _openAnim(_baseDir, 'mixamo'),
-              onRefresh: () => _run(
-                  'Base uretimi',
-                  () => CharacterFlowService.dirs(
-                      name: _name, dirs: [_baseDir], n: _dirCount)),
-              onDelete: () => _deleteDir(_baseDir, 'Base'),
-            ),
+  /// #292: pusulanin 3x3 izgara hali. Hucre genisligi disaridan gelir
+  /// (mevcut genislik / 3), yukseklik 9:16 - hicbir hucre digerine binmez.
+  /// Yon kimlikleri/etiketleri yine `_dirs` ve `_compassGrid`ten gelir.
+  Widget _dirGrid(CharacterItem it, double cellW, double bosluk) {
+    final byId = {for (final d in _dirs) d.id: d};
+    final kullanilan = <String>{};
+    final satirlar = <Widget>[];
+    for (final row in _compassGrid) {
+      final hucreler = <Widget>[];
+      for (final id in row) {
+        if (hucreler.isNotEmpty) hucreler.add(SizedBox(width: bosluk));
+        if (id.isEmpty) {
+          hucreler.add(_baseCell(it, cellW));
+          continue;
+        }
+        final d = byId[id];
+        if (d == null) {
+          hucreler.add(SizedBox(width: cellW));
+          continue;
+        }
+        kullanilan.add(id);
+        hucreler.add(_dirCell(it, d, cellW));
+      }
+      satirlar.add(Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: hucreler,
+      ));
+    }
+    // Tanimadigimiz bir yon gelirse izgaranin altina sarar - kaybolmasin.
+    final ekstra = _dirs.where((d) => !kullanilan.contains(d.id)).toList();
+    return Column(
+      children: [
+        for (final s in satirlar) ...[s, SizedBox(height: bosluk)],
+        if (ekstra.isNotEmpty) ...[
+          Wrap(
+            spacing: bosluk,
+            runSpacing: bosluk,
+            alignment: WrapAlignment.center,
+            children: [for (final d in ekstra) _dirCell(it, d, cellW)],
           ),
-          for (final d in _dirs)
-            Positioned(
-              left: cx + r * math.sin(d.azimuth * math.pi / 180) - cellW / 2,
-              top: cy - r * math.cos(d.azimuth * math.pi / 180) - cellH / 2,
-              child: _ThumbCell(
-                label: '${d.short} ${d.label}',
-                url: it.dirs[d.id] == true
-                    ? CharacterFlowService.thumbUrl(
-                        _name, CharacterFlowService.turnaroundRel(d.id),
-                        size: 300)
-                    : null,
-                accepted: it.dirs[d.id] == true,
-                width: cellW,
-                thumbHeight: thumbH,
-                onTap: () => _openAnim(d.id, 'i2v'),
-                onLongPress: () => _dirBig(it, d),
-                onAnim: () => _openAnim(d.id, 'i2v'),
-                onMixamo: () => _openAnim(d.id, 'mixamo'),
-                onRefresh: d.id == 'front'
-                    ? () => _snack('front gorunusun kendisidir - 1. sekmeden secilir')
-                    : () => _run(
-                        '${d.label} uretimi',
-                        () => CharacterFlowService.dirs(
-                            name: _name, dirs: [d.id], n: _dirCount)),
-                onDelete: () => _deleteDir(d.id, d.label),
-              ),
-            ),
+          SizedBox(height: bosluk),
         ],
-      ),
+      ],
     );
   }
 
-  Widget _portraitCell(CharacterItem it) => _ThumbCell(
+  Widget _dirCell(CharacterItem it, CharacterDir d, double cellW) => _ThumbCell(
+        label: '${d.short} ${d.label}',
+        url: it.dirs[d.id] == true
+            ? CharacterFlowService.thumbUrl(
+                _name, CharacterFlowService.turnaroundRel(d.id),
+                size: 600)
+            : null,
+        accepted: it.dirs[d.id] == true,
+        width: cellW,
+        thumbHeight: cellW * 16 / 9,
+        onTap: () => _openAnim(d.id, 'i2v'),
+        onLongPress: () => _dirBig(it, d),
+        onAnim: () => _openAnim(d.id, 'i2v'),
+        onMixamo: () => _openAnim(d.id, 'mixamo'),
+        onRefresh: d.id == 'front'
+            ? () => _snack('front gorunusun kendisidir - 1. sekmeden secilir')
+            : () => _run(
+                '${d.label} uretimi',
+                () => CharacterFlowService.dirs(
+                    name: _name, dirs: [d.id], n: _dirCount)),
+        onDelete: () => _deleteDir(d.id, d.label),
+      );
+
+  Widget _baseCell(CharacterItem it, double cellW) => _ThumbCell(
+        label: 'BASE',
+        url: it.baseThumb.isEmpty
+            ? null
+            : CharacterFlowService.thumbUrl(_name, it.baseThumb, size: 600),
+        accepted: it.baseThumb.isNotEmpty,
+        width: cellW,
+        thumbHeight: cellW * 16 / 9,
+        onTap: () => _openAnim(_baseDir, 'i2v'),
+        onLongPress: () => _big('Base', it.baseThumb),
+        onAnim: () => _openAnim(_baseDir, 'i2v'),
+        onMixamo: () => _openAnim(_baseDir, 'mixamo'),
+        onRefresh: () => _run(
+            'Base uretimi',
+            () => CharacterFlowService.dirs(
+                name: _name, dirs: [_baseDir], n: _dirCount)),
+        onDelete: () => _deleteDir(_baseDir, 'Base'),
+      );
+
+  /// PORTRE bas-omuz yakin plandir: 3:4 kutu (gorsel yine `contain`).
+  Widget _portraitCell(CharacterItem it, double cellW) => _ThumbCell(
         label: 'PORTRE',
         url: it.portraitThumb.isEmpty
             ? null
-            : CharacterFlowService.thumbUrl(_name, it.portraitThumb, size: 400),
+            : CharacterFlowService.thumbUrl(_name, it.portraitThumb, size: 600),
         accepted: it.portraitThumb.isNotEmpty,
-        width: 96,
-        thumbHeight: 96,
+        width: cellW,
+        thumbHeight: cellW * 4 / 3,
         onTap: () => _openAnim(_portraitDir, 'i2v'),
         onLongPress: () => _big('Portre', it.portraitThumb),
         onAnim: () => _openAnim(_portraitDir, 'i2v'),
@@ -1256,12 +1331,15 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
                   style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
               if (it.dirs[d.id] == true)
+                // #292: onizleme de kirpilmasin - contain.
                 SizedBox(
-                  height: 240,
+                  height: 300,
+                  width: double.infinity,
                   child: Image.network(
                     CharacterFlowService.fileUrl(
                         _name, CharacterFlowService.turnaroundRel(d.id)),
                     headers: CharacterFlowService.authHeaders,
+                    fit: BoxFit.contain,
                     errorBuilder: (_, _, _) => const SizedBox(height: 120),
                   ),
                 ),
@@ -1276,8 +1354,9 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
                 const Text('Adaylar - dokunarak kabul et',
                     style: TextStyle(fontSize: 12, color: Colors.grey)),
                 const SizedBox(height: 6),
+                // #292: aday seridi 9:16 + contain - tam boy kare kirpilmiyor.
                 SizedBox(
-                  height: 150,
+                  height: 176,
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
                     itemCount: adaylar.length,
@@ -1291,14 +1370,17 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(8),
                         child: SizedBox(
-                          width: 108,
-                          child: Image.network(
-                            CharacterFlowService.thumbUrl(_name, adaylar[i],
-                                size: 400),
-                            headers: CharacterFlowService.authHeaders,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) =>
-                                Container(color: Colors.white10),
+                          width: 99,
+                          child: ColoredBox(
+                            color: Colors.black26,
+                            child: Image.network(
+                              CharacterFlowService.thumbUrl(_name, adaylar[i],
+                                  size: 400),
+                              headers: CharacterFlowService.authHeaders,
+                              fit: BoxFit.contain,
+                              errorBuilder: (_, _, _) =>
+                                  Container(color: Colors.white10),
+                            ),
                           ),
                         ),
                       ),
@@ -1413,6 +1495,34 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
         onSelectionChanged: (v) => setState(() => _animMode = v.first),
       );
 
+  /// #295: yastiklama secici + aciklama. Asil yeri burasi: uretimden HEMEN
+  /// once sorulur. Deger karakter basinadir (`character.json` -> `it.padding`)
+  /// ve eskisi gibi `animate(padding: ...)` ile gonderilir, yani butun klipler
+  /// icin ayni kalir.
+  Widget _paddingRow(ValueChanged<double> onChanged) {
+    final kabulVar = _clips.any((c) => c.accepted.isNotEmpty);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        PaddingPicker(
+            value: _padding,
+            onChanged: (v) {
+              onChanged(v);
+              // #295: secim karakter basina kalici (character.json) - diger
+              // yonler ve sonraki klipler ayni degerle acilir.
+              CharacterFlowService.savePadding(_name, v).catchError(
+                  (e) => _snack(e.toString().replaceFirst('Exception: ', '')));
+            }),
+        Text(
+          'Yastiklama referans gorseli kuculterek kadraj payi birakir; '
+          'butun klipler icin ayni kalmali.'
+          '${kabulVar ? " Bu yonde kabul edilmis klip var - degistirirsen bundan sonraki klipler yeni degerle uretilir." : ""}',
+          style: const TextStyle(fontSize: 11, color: Colors.grey),
+        ),
+      ],
+    );
+  }
+
   Widget _countSlider() => Row(
         children: [
           Text('Surum: $_animCount',
@@ -1473,8 +1583,8 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
                 ),
               ),
               const SizedBox(height: 8),
-              PaddingPicker(
-                  value: _padding, onChanged: (v) => setState(() => _padding = v)),
+              // #295: yastiklama uretim dugmesinin hemen ustunde sorulur.
+              _paddingRow((v) => setState(() => _padding = v)),
               _countSlider(),
               FilledButton.icon(
                 onPressed: () {
@@ -1609,8 +1719,8 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
                   ),
                 ),
               const SizedBox(height: 8),
-              PaddingPicker(
-                  value: _padding, onChanged: (v) => setState(() => _padding = v)),
+              // #295: yastiklama uretim dugmesinin hemen ustunde sorulur.
+              _paddingRow((v) => setState(() => _padding = v)),
               _countSlider(),
               FilledButton.icon(
                 onPressed: _mixSel.isEmpty
@@ -1728,7 +1838,10 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // #294: dar sutunda yazi tasmasin.
             Text(d.short,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
@@ -1753,17 +1866,32 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // #294: uzun klip/surum adinda satir tasiyordu - baslik ellipsis,
+            // rozetler Wrap ile alta sarar.
             Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Expanded(
-                  child:
-                      Text(c.clip, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  flex: 3,
+                  child: Text(c.clip,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.bold)),
                 ),
-                if (kabul.isNotEmpty)
-                  _rozet('kabul $kabul', Colors.green.shade700)
-                else
-                  _rozet('kabul yok', Colors.orange.shade800),
-                _rozet('${c.versions.length} surum', Colors.blueGrey),
+                Flexible(
+                  flex: 2,
+                  child: Wrap(
+                    alignment: WrapAlignment.end,
+                    runSpacing: 2,
+                    children: [
+                      if (kabul.isNotEmpty)
+                        _rozet('kabul $kabul', Colors.green.shade700)
+                      else
+                        _rozet('kabul yok', Colors.orange.shade800),
+                      _rozet('${c.versions.length} surum', Colors.blueGrey),
+                    ],
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 6),
@@ -1887,7 +2015,9 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (sheet) => SafeArea(
+      // #295: yastiklama secici sayfada oldugu icin StatefulBuilder gerekli.
+      builder: (sheet) => StatefulBuilder(
+        builder: (_, setS) => SafeArea(
         // Liste + "+ Uret" dugmesi yatay ekranda tasiyordu (gorev #289).
         child: SingleChildScrollView(
         child: Padding(
@@ -1917,23 +2047,35 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
                                   ? Icons.check_circle
                                   : Icons.radio_button_unchecked,
                               color: c.accepted == v.v ? Colors.green : Colors.grey),
-                          title: Text(v.v),
+                          title: Text(v.v,
+                              maxLines: 1, overflow: TextOverflow.ellipsis),
                           subtitle: Text(
                               '${v.hasWan ? "wan" : "yalniz manken"}'
                               '${v.seed == null ? "" : "  -  seed ${v.seed}"}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: const TextStyle(fontSize: 11)),
+                          // #294: uc dugme dar ekranda ListTile'i tasiriyordu.
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               IconButton(
                                 tooltip: 'Oynat',
                                 icon: const Icon(Icons.play_arrow, size: 20),
+                                padding: EdgeInsets.zero,
+                                visualDensity: VisualDensity.compact,
+                                constraints: const BoxConstraints.tightFor(
+                                    width: 34, height: 34),
                                 onPressed: () => _playVideo(v.relFor(dir, c.clip),
                                     '$dir / ${c.clip} / ${v.v}'),
                               ),
                               IconButton(
                                 tooltip: 'Kabul et',
                                 icon: const Icon(Icons.check, size: 20),
+                                padding: EdgeInsets.zero,
+                                visualDensity: VisualDensity.compact,
+                                constraints: const BoxConstraints.tightFor(
+                                    width: 34, height: 34),
                                 onPressed: v.hasWan
                                     ? () {
                                         Navigator.pop(sheet);
@@ -1945,6 +2087,10 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
                                 tooltip: 'Sil',
                                 icon: Icon(Icons.delete_outline,
                                     size: 20, color: AppColors.error),
+                                padding: EdgeInsets.zero,
+                                visualDensity: VisualDensity.compact,
+                                constraints: const BoxConstraints.tightFor(
+                                    width: 34, height: 34),
                                 onPressed: () {
                                   Navigator.pop(sheet);
                                   _deleteVersion(dir, c.clip, v.v);
@@ -1957,6 +2103,12 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
                   ),
                 ),
               const SizedBox(height: 8),
+              // #295: burada da uretim var - yastiklama dugmenin hemen ustunde.
+              _paddingRow((v) {
+                setState(() => _padding = v);
+                setS(() {});
+              }),
+              const SizedBox(height: 6),
               FilledButton.icon(
                 onPressed: () {
                   Navigator.pop(sheet);
@@ -1981,6 +2133,7 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
           ),
         ),
         ),
+      ),
       ),
     );
   }
@@ -2062,7 +2215,9 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
                         ListTile(
                           dense: true,
                           contentPadding: EdgeInsets.zero,
-                          title: Text(e.key),
+                          // #294: uzun klip adi tasmasin.
+                          title: Text(e.key,
+                              maxLines: 1, overflow: TextOverflow.ellipsis),
                           subtitle: Text(
                               '${(e.value is Map ? (e.value as Map)['fbx'] : '') ?? ''}',
                               maxLines: 1,
