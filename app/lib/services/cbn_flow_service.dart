@@ -72,6 +72,46 @@ class CbnItem {
   String get label => collection.isEmpty ? name : '$collection/$name';
 }
 
+/// #318: bir varligin ara cikti ozeti - `/api/cbn/flow/meta`.
+///
+/// Gelen'de "nesne var / SAM var / cizgi var" rozetlerinin ARKASINI gosterir:
+/// A adiminin buldugu nesne listesi, SAM maske sayisi, cizgi sayfasi var mi.
+class CbnMeta {
+  final List<String> objects;   // A adimi: bulunan nesneler
+  final String objectsAgent;    // ollama | claude
+  final String objectsAt;
+  final bool hasObjects;
+  final bool hasMasks;          // B adimi
+  final bool hasLineart;        // C adimi (hot)
+  final int maskCount;
+  final String tags;
+  final String description;
+
+  const CbnMeta({
+    this.objects = const [],
+    this.objectsAgent = '',
+    this.objectsAt = '',
+    this.hasObjects = false,
+    this.hasMasks = false,
+    this.hasLineart = false,
+    this.maskCount = 0,
+    this.tags = '',
+    this.description = '',
+  });
+
+  factory CbnMeta.fromJson(Map<String, dynamic> j) => CbnMeta(
+        objects: ((j['objects'] ?? const []) as List).map((e) => '$e').toList(),
+        objectsAgent: '${j['objects_agent'] ?? ''}',
+        objectsAt: '${j['objects_at'] ?? ''}',
+        hasObjects: j['has_objects'] == true,
+        hasMasks: j['has_masks'] == true,
+        hasLineart: j['has_lineart'] == true,
+        maskCount: (j['mask_count'] ?? 0) as int,
+        tags: '${j['tags'] ?? ''}',
+        description: '${j['description'] ?? ''}',
+      );
+}
+
 class CbnFlowService {
   static const stages = ['incoming', 'staging', 'pushed'];
   static const ratings = <String, String>{'hot': 'Hot CBN', 'kid': 'Kid CBN'};
@@ -138,13 +178,20 @@ class CbnFlowService {
     };
   }
 
+  /// #318: EXIF etiketleri + Gelen ara ciktilari (nesne listesi, SAM/cizgi).
+  static Future<CbnMeta> meta(String rating, String stage, String id) async =>
+      CbnMeta.fromJson(await _get('/api/cbn/flow/meta?rating=$rating&stage=$stage'
+          '&id=${Uri.encodeQueryComponent(id)}'));
+
   /// kind: image | numbered | preview | lineart | segments
+  /// (#318: Gelen'de de lineart/segments verilebilir - `<stem>.work/` ara ciktilari)
   static String thumbUrl(String rating, String stage, String id,
           {String kind = 'image', int size = 360}) =>
       '${ApiService.baseUrl}/api/cbn/flow/thumb?rating=$rating&stage=$stage'
       '&id=${Uri.encodeQueryComponent(id)}&kind=$kind&size=$size';
 
   /// kind: image | lineart | regions | numbered | preview | segments | video | svg | json
+  /// (#318: Gelen'de ayrica objects | masks | source_2x)
   static String fileUrl(String rating, String stage, String id,
           {String kind = 'image'}) =>
       '${ApiService.baseUrl}/api/cbn/flow/file?rating=$rating&stage=$stage'

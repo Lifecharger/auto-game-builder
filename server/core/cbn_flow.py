@@ -44,6 +44,7 @@ from . import comfy_gen as G
 from . import gpu_lane
 from . import jigsaw_flow as JF
 from .jigsaw_flow import _op, _op_new, _ops, _ops_lock, _run, _tag, _has_tags, _r2_put  # noqa: F401
+from .jigsaw_flow import _pipe, _xp  # noqa: F401  #318: EXIF okuma yardimcilari
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _TOOLS = os.path.join(_ROOT, "tools", "comfyui")
@@ -53,6 +54,13 @@ RATINGS = [("hot", "Hot CBN"), ("kid", "Kid CBN")]
 STAGES = ("incoming", "staging", "pushed")
 DEFAULT_COLL = "Generic"
 _ID_RE = re.compile(r"^(?:[^\\/:*?\"<>|]{1,120}/)?[^\\/:*?\"<>|]{1,120}$")
+
+# #318: Gelen asamasinin ara ciktilari - <stem>.work/ altindaki A/B/C sonuclari.
+# Kullanici "İnşa et"e basmadan once bunlari GORMELI (rozet yetmiyor).
+WORK_FILES = {"objects": "objects.json", "lineart": "lineart.png",
+              "masks": "masks.npz", "source_2x": "source_2x.png",
+              "segments": "segments.jpg"}
+_seg_lock = threading.Lock()
 
 # kind -> varlik klasorundeki dosya adi
 FILES = {"image": "source.jpg", "source": "source.jpg", "lineart": "lineart.png",
@@ -144,6 +152,14 @@ def item_path(rating: str, stage: str, item_id: str, kind: str = "image") -> str
     iid = _safe_id(item_id)
     if stage == "incoming":
         stem = _inside(rootdir, os.path.join(rootdir, iid))
+        if kind in WORK_FILES:      # #318: ara ciktilar (nesne/SAM/cizgi)
+            jpg = next((stem + u for u in (".jpg", ".jpeg") if os.path.isfile(stem + u)), None)
+            if not jpg:
+                return None
+            if kind == "segments":
+                return segments_view(jpg)
+            p = os.path.join(_work_dir(jpg), WORK_FILES[kind])
+            return p if os.path.isfile(p) else None
         uz = {"image": (".jpg", ".jpeg"), "source": (".jpg", ".jpeg"), "json": (".json",),
               "meta": (".json",)}.get(kind, ())
         for u in uz:
@@ -287,6 +303,110 @@ def resolve_collection(rating: str, ad: str) -> str:
 
 
 # ------------------------------------------------------------------ onizleme
+def segments_view(jpg: str, max_edge: int = 1600) -> str | None:
+    """#318: Gelen'deki masks.npz'yi gorulebilir hale getirir ->
+    <stem>.work/segments.jpg. Kaynak uzerine yari saydam renkli bolum kaplamasi
+    + ince sinirlar + bolum adlari; insa sirasinda uretilen segments.jpg ile
+    AYNI yardimci (kid_cbn.segments_overlay) kullanilir. Onbelleklenir, yalniz
+    masks.npz daha yeniyse yeniden uretilir."""
+    w = _work_dir(jpg)
+    mp = os.path.join(w, "masks.npz")
+    if not os.path.isfile(mp):
+        return None
+    dest = os.path.join(w, "segments.jpg")
+
+    def taze() -> bool:
+        try:
+            return os.path.isfile(dest) and os.stat(dest).st_mtime >= os.stat(mp).st_mtime
+        except OSError:
+            return False
+
+    if taze():
+        return dest
+    with _seg_lock:                       # iki istek ayni anda uretmesin
+        if taze():
+            return dest
+        import cv2  # noqa: WPS433
+        kid_cbn, _hot = _pipeline_modules()
+        masks = kid_cbn.load_masks(mp)
+        if not masks:
+            return None
+        H, W = masks[0][1].shape[:2]
+        img = cv2.imread(jpg)
+        if img is None:
+            return None
+        if img.shape[:2] != (H, W):       # maskeler kaynak olcusunde uretilir
+            img = cv2.resize(img, (W, H), interpolation=cv2.INTER_AREA)
+        seg, adlar = kid_cbn.masks_to_seg(masks, H, W)
+        over = kid_cbn.segments_overlay(img, seg, adlar, seed=3,
+                                        scale=max(0.4, min(0.9, min(H, W) / 1400.0)),
+                                        borders=True)
+        k = max(H, W)
+        if k > max_edge:
+            olcek = max_edge / float(k)
+            over = cv2.resize(over, (int(W * olcek), int(H * olcek)), interpolation=cv2.INTER_AREA)
+        tmp = dest + ".tmp.jpg"
+        cv2.imwrite(tmp, over, [cv2.IMWRITE_JPEG_QUALITY, 82])
+        os.replace(tmp, dest)
+        return dest
+
+
+def item_meta(rating: str, stage: str, item_id: str) -> dict:
+    """#318: bir varligin etiketleri + ara cikti durumu. Gelen'de A adiminin
+    nesne listesi (objects.json) ve B/C adimlarinin var/yok bilgisi doner -
+    telefon ve studyo on izlemesi bunu okur, kullanici korlemesine onaylamaz."""
+    src = item_path(rating, stage, item_id, "image")
+    if not src:
+        raise ValueError("varlik bulunamadi")
+    out = {"id": item_id, "rating": rating, "stage": stage,
+           "file": os.path.basename(src), "tags": "", "subject": {}, "policy": {},
+           "description": "", "sidecar": {}, "objects": [], "objects_agent": "",
+           "objects_at": "", "has_objects": False, "has_masks": False,
+           "has_lineart": False, "mask_count": 0}
+    try:
+        import piexif  # noqa: WPS433
+        z = piexif.load(src).get("0th") or {}
+        out["tags"] = _xp(z, 0x9C9E)
+        out["subject"] = _pipe(_xp(z, 0x9C9F))
+        out["policy"] = _pipe(_xp(z, 0x9C9B))
+        out["description"] = _xp(z, 0x9C9C)
+    except Exception as e:
+        out["exif_error"] = str(e)[:200]
+    yan = os.path.splitext(src)[0] + ".json" if stage == "incoming" \
+        else os.path.join(os.path.dirname(src), "meta.json")
+    try:
+        with open(yan, encoding="utf-8") as fh:
+            out["sidecar"] = json.load(fh) or {}
+    except Exception:
+        pass
+    if stage != "incoming":
+        out["objects"] = list((out["sidecar"] or {}).get("objects") or [])
+        out["has_objects"] = bool(out["objects"])
+        out["has_masks"] = os.path.isfile(os.path.join(os.path.dirname(src), "segments.jpg"))
+        out["has_lineart"] = os.path.isfile(os.path.join(os.path.dirname(src), "lineart.png"))
+        return out
+    w = _work_dir(src)
+    try:
+        with open(os.path.join(w, "objects.json"), encoding="utf-8") as fh:
+            d = json.load(fh) or {}
+        out["objects"] = list(d.get("things") or [])
+        out["objects_agent"] = str(d.get("agent") or "")
+        out["objects_at"] = str(d.get("at") or "")
+        out["has_objects"] = True
+    except Exception:
+        pass
+    mp = os.path.join(w, "masks.npz")
+    out["has_masks"] = os.path.isfile(mp)
+    out["has_lineart"] = os.path.isfile(os.path.join(w, "lineart.png"))
+    if out["has_masks"]:
+        try:                              # yalniz ad dizisi acilir - ucuz
+            import numpy as np  # noqa: WPS433
+            out["mask_count"] = int(len(list(np.load(mp, allow_pickle=True)["names"])))
+        except Exception:
+            pass
+    return out
+
+
 def thumb(rating: str, stage: str, item_id: str, kind: str = "image", size: int = 360) -> str | None:
     src = item_path(rating, stage, item_id, kind if kind in ("image", "lineart", "numbered", "preview", "segments") else "image")
     if not src:
@@ -558,7 +678,17 @@ def _build_from_work(rating: str, jpg: str, work: str, dest: str, log) -> dict:
         # cizgi asamasi yapilmissa Qwen sayfasi kullanilir (gorev #281).
         la = None
         lp = os.path.join(work, "lineart.png")
-        if _setting("hot_cbn.lineart", "sam").lower() == "qwen" and os.path.isfile(lp):
+        # #317: varsayilan artik QWEN cizgisi. Cizgi asamasi (C) atlanmissa insa
+        # onu kendisi uretir (serit zaten tutuluyor); yalniz settings
+        # hot_cbn.lineart="sam" denirse eski SAM konturu kullanilir.
+        kip = _setting("hot_cbn.lineart", "qwen").lower()
+        if kip != "sam" and not os.path.isfile(lp):
+            log("cizgi sayfasi (Qwen) uretiliyor")
+            try:
+                hot_cbn.qwen_lineart(_P(jpg), _P(lp))
+            except Exception as e:
+                log("Qwen cizgi uretilemedi, SAM konturuna dusuldu: %s" % str(e)[:160])
+        if kip != "sam" and os.path.isfile(lp):
             la = cv2.imread(lp, cv2.IMREAD_GRAYSCALE)   # build() olcekler + kaynaga hizalar
             log("bolgeler (Qwen cizgi)")
         else:

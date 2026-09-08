@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import '../services/cbn_flow_service.dart';
 import '../services/jigsaw_flow_service.dart' show FlowCollection, FlowOp;
 import '../services/mode_service.dart';
+import '../widgets/bottom_inset.dart';
 import '../widgets/network_video.dart';
 import '../theme.dart';
 
@@ -171,7 +172,7 @@ class _CbnFlowScreenState extends State<CbnFlowScreen>
               _rating == 'hot'
                   ? 'Bolgeleme + palet + numarali sablon + reveal videosu (CPU). '
                       'SAM asamasi onceden yapilmis olmali; kontur SAM sinirlarindan gelir '
-                      '(Qwen cizgi asamasi istege bagli, ayar: hot_cbn.lineart=qwen).'
+                      '(Hot: insa, cizgi sayfasini Qwen ile kendisi uretir; C adimi istege bagli on izleme.)'
                   : 'Bolgeleme + palet + numarali sablon + SVG (CPU). '
                       'SAM asamasi onceden yapilmis olmali.',
               style: const TextStyle(fontSize: 12, color: Colors.grey),
@@ -529,34 +530,10 @@ class _CbnFlowScreenState extends State<CbnFlowScreen>
   /// (numarali / bitmis / cizgi / kaynak / SAM bolumleri) + hot'ta reveal video.
   void _preview(CbnItem it) {
     if (_stage == 'incoming') {
+      // #318: rozet yerine ARA CIKTILAR gorulsun - Kaynak / Nesneler / SAM / Cizgi.
       showDialog(
         context: context,
-        builder: (_) => Dialog(
-          insetPadding: const EdgeInsets.all(12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Flexible(
-                child: Image.network(
-                  CbnFlowService.thumbUrl(_rating, _stage, it.id, size: 900),
-                  headers: CbnFlowService.authHeaders,
-                  errorBuilder: (_, _, _) => const SizedBox(height: 120),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(10),
-                child: Text(
-                  '${it.label}\netiket: ${it.tagged == true ? "var" : "YOK"}   '
-                  'nesne: ${it.objects ? "var" : "yok"}   SAM: ${it.masks ? "var" : "yok"}'
-                  '${_rating == "hot" ? "   cizgi: ${it.lineart ? "var" : "yok"}" : ""}'
-                  '${it.prompt.isEmpty ? "" : "\n${it.prompt}"}',
-                  style: const TextStyle(fontSize: 12),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            ],
-          ),
-        ),
+        builder: (_) => _IncomingPreview(rating: _rating, item: it),
       );
       return;
     }
@@ -635,10 +612,22 @@ class _CbnFlowScreenState extends State<CbnFlowScreen>
     );
   }
 
+  /// #318: secim cubugundaki "On izleme" - secilenlerden ilkini acar.
+  void _previewSelected() {
+    final secili = _cur.where((i) => _sel.contains(i.id)).toList();
+    if (secili.isEmpty) {
+      _snack('Once varlik sec');
+      return;
+    }
+    _preview(secili.first);
+  }
+
   Widget _actionBar() {
     final butonlar = <Widget>[];
     if (_stage == 'incoming') {
       butonlar.addAll([
+        // #318: insa etmeden once A/B/C ciktilarini goster (ilk secili varlik).
+        _act(Icons.visibility_outlined, 'On izleme', _previewSelected),
         _act(Icons.new_label_outlined, 'Yeniden etiketle', _retag),
         _act(Icons.manage_search, 'A) Nesneleri bul',
             () => _runStage('Nesne listesi', (ids) => CbnFlowService.objects(rating: _rating, ids: ids))),
@@ -667,8 +656,26 @@ class _CbnFlowScreenState extends State<CbnFlowScreen>
     );
   }
 
+  // #317: ikonun altinda kisa etiket (A) / B) / C) / D) ...) - asama hangisi belli olsun.
   Widget _act(IconData i, String t, VoidCallback? f) => Expanded(
-        child: IconButton(onPressed: f, tooltip: t, icon: Icon(i, size: 24)),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+                onPressed: f,
+                tooltip: t,
+                icon: Icon(i, size: 22),
+                padding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact),
+            Text(
+              t.contains(')') ? '${t.split(')').first})' : t.split(' ').first,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                  fontSize: 9, color: f == null ? Colors.grey : Colors.white70),
+            ),
+          ],
+        ),
       );
 
   Widget _errorView() => Center(
@@ -684,6 +691,198 @@ class _CbnFlowScreenState extends State<CbnFlowScreen>
               FilledButton(onPressed: _load, child: const Text('Tekrar dene')),
             ],
           ),
+        ),
+      );
+}
+
+/// #318: Gelen (2. akis) on izlemesi - "İnşa et"e basmadan ONCE A/B/C
+/// asamalarinin ciktilarini gosterir.
+///
+///   Kaynak    kaynak jpg
+///   Nesneler  A adimi: objects.json listesi (chip'ler)
+///   SAM       B adimi: masks.npz'den uretilen bolum kaplamasi (segments.jpg)
+///   Cizgi     C adimi: Qwen cizgi sayfasi (yalniz hot)
+///
+/// Yapilmamis adim icin "A/B/C adimi yapilmamis" yazar. Gorseller
+/// InteractiveViewer icinde - parmakla yakinlastirilabilir (3-4. akistaki
+/// katman onizlemesiyle ayni his).
+class _IncomingPreview extends StatefulWidget {
+  const _IncomingPreview({required this.rating, required this.item});
+
+  final String rating;
+  final CbnItem item;
+
+  @override
+  State<_IncomingPreview> createState() => _IncomingPreviewState();
+}
+
+class _IncomingPreviewState extends State<_IncomingPreview> {
+  String _view = 'image';
+  CbnMeta? _meta;
+  String? _err;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final m = await CbnFlowService.meta(widget.rating, 'incoming', widget.item.id);
+      if (mounted) setState(() => _meta = m);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _err = e.toString().replaceFirst('Exception: ', ''));
+      }
+    }
+  }
+
+  bool get _hasObjects => _meta?.hasObjects ?? widget.item.objects;
+  bool get _hasMasks => _meta?.hasMasks ?? widget.item.masks;
+  bool get _hasLineart => _meta?.hasLineart ?? widget.item.lineart;
+
+  @override
+  Widget build(BuildContext context) {
+    final mq = MediaQuery.of(context);
+    final gorunumler = <(String, String)>[
+      ('image', 'Kaynak'),
+      ('objects', 'Nesneler'),
+      ('segments', 'SAM'),
+      // kid'de cizgi sayfasi yok (C adimi yalniz hot).
+      if (widget.rating == 'hot') ('lineart', 'Cizgi'),
+    ];
+    return Dialog(
+      // #289: alt gezinme cubugunun altinda kalmasin.
+      insetPadding: EdgeInsets.fromLTRB(12, 12, 12, 12 + systemBottomInset(context)),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: mq.size.height * 0.6),
+            child: _body(),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
+            child: Wrap(
+              spacing: 6,
+              alignment: WrapAlignment.center,
+              children: [
+                for (final g in gorunumler)
+                  ChoiceChip(
+                    label: Text(_etiket(g.$1, g.$2),
+                        style: const TextStyle(fontSize: 11)),
+                    selected: _view == g.$1,
+                    onSelected: (_) => setState(() => _view = g.$1),
+                  ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+            child: Text(
+              '${widget.item.label}   etiket: ${widget.item.tagged == true ? "var" : "YOK"}'
+              '${widget.item.prompt.isEmpty ? "" : "\n${widget.item.prompt}"}',
+              style: const TextStyle(fontSize: 11),
+              textAlign: TextAlign.center,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Chip etiketi: yapilmis adimin yaninda kucuk bir isaret.
+  String _etiket(String kind, String ad) {
+    final ok = switch (kind) {
+      'objects' => _hasObjects,
+      'segments' => _hasMasks,
+      'lineart' => _hasLineart,
+      _ => true,
+    };
+    if (kind == 'segments' && ok && (_meta?.maskCount ?? 0) > 0) {
+      return '$ad (${_meta!.maskCount})';
+    }
+    return ok ? ad : '$ad ·';
+  }
+
+  Widget _body() {
+    if (_view == 'objects') return _objects();
+    final eksik = switch (_view) {
+      'segments' => !_hasMasks ? 'B (SAM maskeleri) adimi yapilmamis' : null,
+      'lineart' => !_hasLineart ? 'C (cizgi sayfasi) adimi yapilmamis' : null,
+      _ => null,
+    };
+    if (eksik != null) return _bos(eksik);
+    return InteractiveViewer(
+      maxScale: 5,
+      child: Image.network(
+        CbnFlowService.thumbUrl(widget.rating, 'incoming', widget.item.id,
+            kind: _view, size: 900),
+        headers: CbnFlowService.authHeaders,
+        fit: BoxFit.contain,
+        loadingBuilder: (_, child, p) => p == null
+            ? child
+            : const Padding(
+                padding: EdgeInsets.all(40),
+                child: Center(child: CircularProgressIndicator()),
+              ),
+        errorBuilder: (_, _, _) => _bos('Goruntu alinamadi'),
+      ),
+    );
+  }
+
+  Widget _objects() {
+    if (_meta == null) {
+      return Padding(
+        padding: const EdgeInsets.all(30),
+        child: Center(
+          child: _err == null
+              ? const CircularProgressIndicator()
+              : Text(_err!, textAlign: TextAlign.center),
+        ),
+      );
+    }
+    if (!_meta!.hasObjects || _meta!.objects.isEmpty) {
+      return _bos('A (nesne listesi) adimi yapilmamis');
+    }
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '${_meta!.objects.length} nesne'
+            '${_meta!.objectsAgent.isEmpty ? "" : "  ·  ${_meta!.objectsAgent}"}'
+            '${_meta!.objectsAt.isEmpty ? "" : "  ·  ${_meta!.objectsAt}"}',
+            style: const TextStyle(fontSize: 11, color: Colors.grey),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: [
+              for (final o in _meta!.objects)
+                Chip(
+                  label: Text(o, style: const TextStyle(fontSize: 11)),
+                  visualDensity: VisualDensity.compact,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _bos(String m) => Padding(
+        padding: const EdgeInsets.all(40),
+        child: Center(
+          child: Text(m,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 12, color: Colors.grey)),
         ),
       );
 }

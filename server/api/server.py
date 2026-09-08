@@ -6051,8 +6051,16 @@ def cbn_flow_list(rating: str = "hot", stage: str = "incoming",
     return _flow_call(_cbn().list_items, rating, stage, collection, limit, offset)
 
 
+@app.get("/api/cbn/flow/meta")
+def cbn_flow_meta(rating: str, stage: str, id: str):
+    """#318: EXIF etiketleri + yan dosya + Gelen ara ciktilari (nesne listesi,
+    SAM/cizgi var mi). Gelen on izlemesi "Nesneler" sekmesini bundan doldurur."""
+    return _flow_call(_cbn().item_meta, rating, stage, id)
+
+
 @app.get("/api/cbn/flow/thumb")
 def cbn_flow_thumb(rating: str, stage: str, id: str, kind: str = "image", size: int = 360):
+    # #318: kind=lineart|segments Gelen'de de calisir (ara ciktilar <stem>.work/)
     t = _flow_call(_cbn().thumb, rating, stage, id, kind, max(64, min(1024, size)))
     if not t:
         raise HTTPException(404, "Onizleme yok")

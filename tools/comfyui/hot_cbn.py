@@ -46,7 +46,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from kid_cbn import (COMFY_IN, WORKFLOWS, POOL_ROOT, _converter, _saved_files, comfy_run,  # noqa: E402
                      discover_concepts, segment, _kmeans, _relabel, _delta_e, slugify, _setting,
-                     order_masks_by_center, palette_by_object)
+                     order_masks_by_center, palette_by_object, segments_overlay)
 from cbn_align import align_page, pad_for_edit, unpad_page  # noqa: E402
 
 OUT_ROOT = Path(_setting("hot_cbn.root", "HOT_CBN_ROOT",
@@ -408,14 +408,8 @@ def write_asset(img_bgr: np.ndarray, res: dict, out: Path, meta: dict, reveal: b
     (out / "05_lineart.svg").write_text(lineart_svg(line), encoding="utf-8")
 
     # segments overlay for the contact sheet
-    seg = res["seg"]
-    cols = np.random.default_rng(3).integers(40, 230, size=(len(res["seg_names"]), 3)).astype(np.uint8)
-    over = (img_bgr * 0.35 + cols[seg] * 0.65).astype(np.uint8)
-    for s, name in enumerate(res["seg_names"]):
-        ys, xs = np.where(seg == s)
-        if len(ys):
-            cv2.putText(over, name, (int(xs.mean()) - 20, int(ys.mean())), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 3)
-            cv2.putText(over, name, (int(xs.mean()) - 20, int(ys.mean())), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+    # (#318: ortak yardimci - Gelen on izlemesiyle ayni goruntu)
+    over = segments_overlay(img_bgr, res["seg"], res["seg_names"], seed=3, scale=0.5)
     cv2.imwrite(str(out / "01_segments.png"), over)
 
     data = {**meta, "width": W, "height": H,

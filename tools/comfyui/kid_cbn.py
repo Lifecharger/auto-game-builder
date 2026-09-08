@@ -440,6 +440,57 @@ def load_masks(path):
     return out
 
 
+def mask_names(path) -> list[str]:
+    """#318: masks.npz icindeki kavram adlari - maskeleri acmadan (on izleme
+    icin ucuz sayim)."""
+    z = np.load(str(path), allow_pickle=True)
+    return [str(n) for n in list(z["names"])]
+
+
+def masks_to_seg(masks, H: int, W: int):
+    """#318: SAM maskeleri -> bolum haritasi. build()'in 1. adimiyla AYNI talep
+    sirasi (merkez once, zeminler sonra) ve ayni acma/eleme kurallari - Gelen
+    on izlemesinde gorunen bolumler insa sonucuyla ortusur."""
+    min_px = max(MIN_REGION_PX, int(H * W * MIN_REGION_FRAC))
+    seg = np.full((H, W), -1, dtype=np.int32)
+    names: list[str] = []
+    for concept, mask, _s in order_masks_by_center(masks, H, W):
+        m = mask & (seg == -1)
+        m = cv2.morphologyEx(m.astype(np.uint8), cv2.MORPH_OPEN, np.ones((5, 5), np.uint8)).astype(bool)
+        if m.sum() < min_px:
+            continue
+        seg[m] = len(names)
+        names.append(concept)
+    rest = seg == -1
+    if rest.any():
+        seg[rest] = len(names)
+        names.append("rest")
+    return seg, names
+
+
+def segments_overlay(img_bgr: np.ndarray, seg: np.ndarray, seg_names: list[str],
+                     seed: int = 7, scale: float = 0.55, borders: bool = False) -> np.ndarray:
+    """#318: bolum kaplamasi - kaynak uzerine yari saydam renk + bolum adi.
+    write_asset (kid + hot) ve Gelen on izlemesi ayni goruntuyu uretir."""
+    cols = np.random.default_rng(seed).integers(40, 230, size=(max(1, len(seg_names)), 3)).astype(np.uint8)
+    over = (img_bgr * 0.35 + cols[seg] * 0.65).astype(np.uint8)
+    if borders:
+        # ince sinir: komsusu farkli bolum olan pikseller
+        b = np.zeros(seg.shape, bool)
+        b[:, :-1] |= seg[:, :-1] != seg[:, 1:]
+        b[:-1, :] |= seg[:-1, :] != seg[1:, :]
+        k = max(1, int(round(min(seg.shape) / 700.0)))
+        if k > 1:
+            b = cv2.dilate(b.astype(np.uint8), np.ones((k, k), np.uint8)).astype(bool)
+        over[b] = 20
+    for s, name in enumerate(seg_names):
+        ys, xs = np.where(seg == s)
+        if len(ys):
+            cv2.putText(over, name, (int(xs.mean()) - 20, int(ys.mean())), cv2.FONT_HERSHEY_SIMPLEX, scale, (0, 0, 0), 3)
+            cv2.putText(over, name, (int(xs.mean()) - 20, int(ys.mean())), cv2.FONT_HERSHEY_SIMPLEX, scale, (255, 255, 255), 1)
+    return over
+
+
 def palette_by_object(labels: np.ndarray, seg: np.ndarray, lab_img: np.ndarray, line: np.ndarray,
                       per_object_k: int, max_colors: int, merge_de: float):
     """Numbers per OBJECT: every semantic segment (in claim order = centre-first)
@@ -760,16 +811,8 @@ def write_asset(slug: str, img_bgr: np.ndarray, res: dict, out: Path, meta: dict
     n = labels.max() + 1
     cv2.imwrite(str(out / "00_source.png"), img_bgr)
 
-    # segments overlay
-    seg = res["seg"]
-    rng = np.random.default_rng(7)
-    cols = rng.integers(40, 230, size=(len(res["seg_names"]), 3)).astype(np.uint8)
-    over = (img_bgr * 0.35 + cols[seg] * 0.65).astype(np.uint8)
-    for s, name in enumerate(res["seg_names"]):
-        ys, xs = np.where(seg == s)
-        if len(ys):
-            cv2.putText(over, name, (int(xs.mean()) - 20, int(ys.mean())), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 0), 3)
-            cv2.putText(over, name, (int(xs.mean()) - 20, int(ys.mean())), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 1)
+    # segments overlay (#318: ortak yardimci - Gelen on izlemesiyle ayni goruntu)
+    over = segments_overlay(img_bgr, res["seg"], res["seg_names"], seed=7, scale=0.55)
     cv2.imwrite(str(out / "01_segments.png"), over)
 
     # region id map (24-bit)
