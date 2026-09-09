@@ -30,6 +30,10 @@ class AssetGenerateScreen extends StatefulWidget {
 
 class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
   final _p1 = TextEditingController();
+  // #337: yerel prompt yazari durumu
+  bool _smithReady = false;
+  bool _smithBusy = false;
+  String _smithModel = '';
   final _p2 = TextEditingController();
   final _negative = TextEditingController();
 
@@ -107,7 +111,18 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
   void initState() {
     super.initState();
     _loadAll();
+    _loadSmith();
     _poll = Timer.periodic(const Duration(seconds: 5), (_) => _pollQueue());
+  }
+
+  /// #337: yerel prompt yazari var mi - yoksa serit hic cizilmez.
+  Future<void> _loadSmith() async {
+    final d = await GenerateService.smithStatus();
+    if (!mounted) return;
+    setState(() {
+      _smithReady = d['ready'] == true;
+      _smithModel = '${d['model'] ?? ''}';
+    });
   }
 
   @override
@@ -234,6 +249,94 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
   }
 
   /// Sablon; dropdown'un kapsadigi parcalar dusulmus halde.
+  /// #337: yerel LLM prompt yazari seridi - Zenginlestir / Duzelt / Varyant.
+  /// LLM kapaliysa serit hic gosterilmez, uretim akisi degismez.
+  Widget _smithBar() {
+    if (!_smithReady) return const SizedBox.shrink();
+    final bos = _p1.text.trim().isEmpty;
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Wrap(
+        spacing: 6,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Text(_smithModel, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+          TextButton.icon(
+            onPressed: bos || _smithBusy ? null : () => _smithRun('enrich'),
+            icon: const Icon(Icons.auto_awesome, size: 15),
+            label: const Text('Zenginlestir'),
+          ),
+          TextButton.icon(
+            onPressed: bos || _smithBusy ? null : () => _smithRun('normalize'),
+            icon: const Icon(Icons.auto_fix_high, size: 15),
+            label: const Text('Duzelt'),
+          ),
+          TextButton.icon(
+            onPressed: bos || _smithBusy ? null : _smithVariants,
+            icon: const Icon(Icons.call_split, size: 15),
+            label: const Text('Varyant'),
+          ),
+          if (_smithBusy)
+            const SizedBox(
+                width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _smithRun(String op) async {
+    setState(() => _smithBusy = true);
+    final onceki = _p1.text;
+    final y = await GenerateService.smith(op, onceki, mode: _mode);
+    if (!mounted) return;
+    setState(() {
+      _smithBusy = false;
+      _p1.text = y;
+    });
+    if (y.trim() == onceki.trim()) {
+      _snack('Prompt degismedi (yerel LLM yanit vermedi)');
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('Prompt yazildi'),
+        action: SnackBarAction(
+            label: 'Geri al', onPressed: () => setState(() => _p1.text = onceki)),
+      ));
+    }
+  }
+
+  Future<void> _smithVariants() async {
+    setState(() => _smithBusy = true);
+    final v = await GenerateService.smithVariants(_p1.text, n: 3, mode: _mode);
+    if (!mounted) return;
+    setState(() => _smithBusy = false);
+    if (v.isEmpty) {
+      _snack('Varyant uretilemedi (yerel LLM yanit vermedi)');
+      return;
+    }
+    final sec = await showDialog<String>(
+      context: context,
+      builder: (c) => AlertDialog(
+        scrollable: true,
+        title: const Text('Varyant sec'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final x in v)
+              ListTile(
+                dense: true,
+                title: Text(x, style: const TextStyle(fontSize: 12)),
+                onTap: () => Navigator.pop(c, x),
+              ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Vazgec')),
+        ],
+      ),
+    );
+    if (sec != null && sec.isNotEmpty) setState(() => _p1.text = sec);
+  }
+
   String _prompt2([Map<String, String>? v]) {
     if (!_hasProfiles || _det == null) return _p2.text.trim();
     return _det!.templateFor(_p2.text,
@@ -515,6 +618,7 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
             border: OutlineInputBorder(),
           ),
         ),
+        _smithBar(),
         if (jigsaw) ...[
           const SizedBox(height: 12),
           _detailPanel(),

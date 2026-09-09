@@ -5546,6 +5546,10 @@ class GenerateRequest(BaseModel):
     # "video_1": {"path": "C:/.../dans.mp4"}}. Yuva adlari /api/generate/tasks
     # icindeki "inputs" listesinden gelir.
     inputs: dict[str, dict] = {}
+    # #337: yerel LLM'e prompt'u isletme secenekleri. Ikisi de kapaliysa hicbir
+    # sey degismez; LLM kapaliysa prompt AYNEN gecer (uretim asla engellenmez).
+    enrich: bool = False       # kisa fikri zengin prompt'a cevir (video ise hareket cumlesi)
+    normalize: bool = False    # kipin ev uslubuna oturt, cop terimleri at
 
 
 class JobMetaRequest(BaseModel):
@@ -5650,8 +5654,21 @@ def generate_list(limit: int = 30, client: str | None = None,
 @app.post("/api/generate")
 def generate_submit(body: GenerateRequest):
     g = _gen_ready()
+    prompt = body.prompt
+    # #337: yerel prompt yazari - istege bagli, sessizce basarisiz olur.
+    if body.enrich or body.normalize:
+        try:
+            from core import prompt_smith as PS
+            spec = g._task(body.task) or {}
+            if body.enrich:
+                prompt = (PS.motion(prompt) if spec.get("is_video")
+                          else PS.enrich(prompt, body.mode))
+            if body.normalize:
+                prompt = PS.normalize(prompt, body.mode)
+        except Exception:
+            prompt = body.prompt         # LLM patlarsa uretim yine de kosar
     try:
-        return g.submit(body.task, body.prompt, prompt2=body.prompt2,
+        return g.submit(body.task, prompt, prompt2=body.prompt2,
                         negative=body.negative,
                         width=body.width, height=body.height, duration=body.duration,
                         seed=body.seed, turbo=body.turbo, image_path=body.image_path,
@@ -6212,6 +6229,32 @@ class CardStillsRequest(BaseModel):
     n: int = 1
 
 
+class CardRewriteRequest(BaseModel):
+    collection: str
+    kind: str = "card"
+    theme: str = ""
+
+
+class PromptSmithRequest(BaseModel):
+    """#337: butun kiplerin ortak prompt yazari - tek uc, bes is."""
+    op: str                      # enrich | normalize | variants | motion | looks
+    prompt: str = ""
+    mode: str = "free"           # free | jigsaw | cbn | card | character
+    n: int = 3                   # variants
+    hint: str = ""               # enrich ipucu / motion ipucu
+    subject: str = ""            # motion: goruntudeki ozne
+    theme: str = ""              # looks
+    ranks: list[str] = []        # looks
+    kind: str = "card"           # looks: card | dealer
+
+
+class CardPickRequest(BaseModel):
+    collection: str
+    rank: str
+    file: str
+    kind: str = "card"
+
+
 class CardEditRequest(BaseModel):
     collection: str
     rank: str
@@ -6344,6 +6387,78 @@ def card_flow_stage(body: CardStageRequest):
 def card_flow_stills(body: CardStillsRequest):
     """Asama 1: secili rutbeler icin still uretir, otomatik kabul eder."""
     return {"op": _flow_call(_card().stills, body.collection, body.ranks, body.kind, body.n)}
+
+
+@app.post("/api/card/flow/rewrite-looks")
+def card_flow_rewrite_looks(body: CardRewriteRequest):
+    """#337: koleksiyonun rutbe promptlarini yerel LLM'e yeniden yazdirir
+    (dosyalara dokunmaz - sonra '1 Still' ile yeniden uretilir)."""
+    return _flow_call(_card().rewrite_looks, body.collection, body.kind, body.theme)
+
+
+@app.get("/api/prompt/smith")
+def prompt_smith_status():
+    """#337: yerel prompt yazari hazir mi + hangi model."""
+    try:
+        from core import prompt_smith as PS
+    except Exception as e:
+        return {"ready": False, "model": "", "error": str(e)[:200]}
+    try:
+        return {"ready": PS.ready(), "model": PS.model_adi(),
+                "ops": ["enrich", "normalize", "variants", "motion", "looks"],
+                "age_range": [PS.YAS_ALT, PS.YAS_UST]}
+    except Exception as e:
+        return {"ready": False, "model": "", "error": str(e)[:200]}
+
+
+@app.post("/api/prompt/smith")
+def prompt_smith_run(body: PromptSmithRequest):
+    """#337: enrich | normalize | variants | motion | looks - hepsi yerel LLM.
+
+    LLM kapaliysa GIRDI AYNEN doner (istemci bozulmaz), `changed: false` ile."""
+    try:
+        from core import prompt_smith as PS
+    except Exception as e:
+        raise HTTPException(503, "prompt_smith yuklenemedi: %s" % str(e)[:200])
+    op = (body.op or "").strip().lower()
+    try:
+        if op == "enrich":
+            y = PS.enrich(body.prompt, body.mode, body.hint)
+            return {"op": op, "prompt": y, "changed": y.strip() != (body.prompt or "").strip()}
+        if op == "normalize":
+            y = PS.normalize(body.prompt, body.mode)
+            return {"op": op, "prompt": y, "changed": y.strip() != (body.prompt or "").strip()}
+        if op == "variants":
+            v = PS.variants(body.prompt, body.n, body.mode)
+            return {"op": op, "variants": v, "changed": bool(v)}
+        if op == "motion":
+            y = PS.motion(body.hint or body.prompt, body.subject)
+            return {"op": op, "motion": y,
+                    "changed": y.strip() != (body.hint or body.prompt or "").strip()}
+        if op == "looks":
+            d = PS.looks(body.theme, body.ranks, body.kind)
+            return {"op": op, "ranks": d, "changed": bool(d)}
+    except Exception as e:
+        raise HTTPException(400, str(e)[:300])
+    raise HTTPException(400, "bilinmeyen op: %s" % op)
+
+
+@app.get("/api/card/flow/candidates")
+def card_flow_candidates(collection: str, rank: str, kind: str = "card"):
+    """#336: rutbenin aday still'leri (secilebilir/silinebilir dosya adlari)."""
+    return {"candidates": _flow_call(_card().candidates, collection, rank, kind)}
+
+
+@app.post("/api/card/flow/pick")
+def card_flow_pick(body: CardPickRequest):
+    """#336: bir adayi secili still yapar; onceki still aday olarak saklanir."""
+    return _flow_call(_card().pick, body.collection, body.rank, body.file, body.kind)
+
+
+@app.delete("/api/card/flow/candidate")
+def card_flow_candidate_delete(collection: str, rank: str, file: str, kind: str = "card"):
+    """#336: bir adayi siler (secili still'e dokunmaz)."""
+    return _flow_call(_card().delete_candidate, collection, rank, file, kind)
 
 
 @app.post("/api/card/flow/edit")

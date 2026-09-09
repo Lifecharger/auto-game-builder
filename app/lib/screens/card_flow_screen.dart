@@ -129,6 +129,13 @@ Future<String?> gestureDialog(BuildContext context, List<String> gestures,
   var v = secili.isNotEmpty && gestures.contains(secili)
       ? secili
       : (gestures.isNotEmpty ? gestures.first : 'idle');
+  // #335: hazir jestlerin disinda serbest metin - "hafifce kalca sallama,
+  // ayaklar sabit" gibi. Sunucu bilinmeyen degeri dogrudan hareket cumlesi
+  // olarak kullanir (card_flow.gesture_text).
+  const ozel = '__ozel__';
+  final ozelC = TextEditingController(
+      text: secili.isNotEmpty && !gestures.contains(secili) ? secili : '');
+  if (ozelC.text.isNotEmpty) v = ozel;
   return showDialog<String>(
     context: context,
     builder: (c) => StatefulBuilder(
@@ -161,6 +168,36 @@ Future<String?> gestureDialog(BuildContext context, List<String> gestures,
                   title: Text(g),
                   onTap: () => setLocal(() => v = g),
                 ),
+              ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(
+                    v == ozel
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_unchecked,
+                    size: 18,
+                    color: v == ozel ? AppColors.accent : Colors.grey),
+                title: const Text('Ozel hareket'),
+                onTap: () => setLocal(() => v = ozel),
+              ),
+              if (v == ozel)
+                Padding(
+                  padding: const EdgeInsets.only(left: 4, top: 2),
+                  child: TextField(
+                    controller: ozelC,
+                    autofocus: true,
+                    minLines: 1,
+                    maxLines: 3,
+                    style: const TextStyle(fontSize: 13),
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      border: OutlineInputBorder(),
+                      hintText: 'ornek: hafifce kalca sallama, ayaklar sabit',
+                      helperText: 'Kisa bir hareket cumlesi - kamera yine kilitli',
+                      helperMaxLines: 2,
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
@@ -168,7 +205,12 @@ Future<String?> gestureDialog(BuildContext context, List<String> gestures,
           TextButton(
               onPressed: () => Navigator.pop(c), child: const Text('Vazgec')),
           FilledButton(
-              onPressed: () => Navigator.pop(c, v), child: const Text('Uret')),
+              onPressed: () {
+                final t = ozelC.text.trim();
+                if (v == ozel && t.isEmpty) return;   // bos ozel metinle uretme
+                Navigator.pop(c, v == ozel ? t : v);
+              },
+              child: const Text('Uret')),
         ],
       ),
     ),
@@ -1425,10 +1467,45 @@ class _CardCollectionPageState extends State<CardCollectionPage> {
               _act(Icons.movie_creation_outlined, '2 Video', () => _animate()),
               _act(Icons.content_cut, '3 WebP', () => _cut()),
               _act(Icons.edit_outlined, 'Duzenle', _edit),
+              _act(Icons.auto_awesome, 'Prompt', _rewriteLooks),
             ],
           ),
         ),
       );
+
+  /// #337: rutbe promptlarini yerel LLM'e yeniden yazdirir. Dosyalara
+  /// DOKUNMAZ - sonra "1 Still" ile yeniden uretilir.
+  Future<void> _rewriteLooks() async {
+    final onay = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Promptlari yeniden yaz'),
+        content: const Text(
+            'Yerel LLM koleksiyonun temasina gore her rutbeye yeni gorunus '
+            '(yas 20-26, ten, sac, kiyafet, poz) yazar. Mevcut still / video / '
+            'sheet dosyalarina DOKUNULMAZ - yeni promptlarla uretmek icin '
+            'sonra "1 Still" calistir.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(c, false), child: const Text('Vazgec')),
+          FilledButton(
+              onPressed: () => Navigator.pop(c, true), child: const Text('Yaz')),
+        ],
+      ),
+    );
+    if (onay != true) return;
+    _snack('Promptlar yaziliyor - yerel LLM biraz surebilir');
+    try {
+      // Bu sayfa yalniz kart koleksiyonlarini acar; krupiyenin kendi sayfasi var.
+      final d = await CardFlowService.rewriteLooks(widget.id, kind: 'card');
+      if (!mounted) return;
+      _snack('Promptlar yazildi (${d['written_by'] ?? 'llm'})');
+      await _load();
+    } catch (e) {
+      if (!mounted) return;
+      _snack(e.toString().replaceFirst('Exception: ', ''));
+    }
+  }
 
   Widget _act(IconData i, String t, VoidCallback? f) => Expanded(
         child: Column(
@@ -1613,6 +1690,9 @@ class _CardDetailPageState extends State<CardDetailPage> {
   FlowOp? _op;
   Timer? _opPoll;
 
+  /// #336: bu rutbenin aday still'leri (secilebilir/silinebilir).
+  List<String> _adaylar = const [];
+
   bool get _dealer => widget.kind == 'dealer';
   List<String> get _gestures =>
       _dealer ? _profiles.dealerGestures : _profiles.gestures;
@@ -1646,10 +1726,18 @@ class _CardDetailPageState extends State<CardDetailPage> {
         final c = await CardFlowService.collection(widget.collection);
         s = c?.stateOf(widget.rank) ?? const CardRankState();
       }
+      var adaylar = const <String>[];
+      try {
+        adaylar = await CardFlowService.candidates(widget.collection, widget.rank,
+            kind: widget.kind);
+      } catch (_) {
+        // eski sunucuda uc yok - aday seridi gosterilmez
+      }
       if (!mounted) return;
       setState(() {
         _profiles = p;
         _state = s;
+        _adaylar = adaylar;
         _loading = false;
       });
     } catch (e) {
@@ -1789,6 +1877,7 @@ class _CardDetailPageState extends State<CardDetailPage> {
                       ),
                       Expanded(child: _preview()),
                       _info(),
+                      _adaylarSeridi(),
                       _buttons(),
                     ],
                   ),
@@ -1888,6 +1977,98 @@ class _CardDetailPageState extends State<CardDetailPage> {
           ],
         ),
       );
+
+  /// #336: aday still seridi - dokun = sec, cop = sil. Birden fazla gorsel
+  /// varken telefondan hangisinin secilecegi buradan belirlenir.
+  Widget _adaylarSeridi() {
+    if (_adaylar.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Adaylar (${_adaylar.length}) - dokun = sec',
+              style: const TextStyle(fontSize: 11, color: Colors.grey)),
+          const SizedBox(height: 6),
+          SizedBox(
+            height: 120,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: _adaylar.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
+              itemBuilder: (c, i) {
+                final ad = _adaylar[i];
+                final rel = '${widget.collection}/${widget.rank}/$ad';
+                return Stack(
+                  children: [
+                    InkWell(
+                      onTap: () => _adaySec(ad),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: Image.network(
+                          CardFlowService.relThumbUrl(rel, size: 200),
+                          width: 80,
+                          height: 120,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => Container(
+                              width: 80,
+                              height: 120,
+                              color: Colors.black26,
+                              child: const Icon(Icons.broken_image, size: 18)),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      right: 0,
+                      top: 0,
+                      child: InkWell(
+                        onTap: () => _adaySil(ad),
+                        child: Container(
+                          padding: const EdgeInsets.all(3),
+                          color: Colors.black54,
+                          child: const Icon(Icons.delete_outline,
+                              size: 14, color: Colors.white),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _adaySec(String file) async {
+    try {
+      await CardFlowService.pickCandidate(widget.collection, widget.rank, file,
+          kind: widget.kind);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Aday secili still oldu')));
+      await _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$e'.replaceFirst('Exception: ', ''))));
+    }
+  }
+
+  Future<void> _adaySil(String file) async {
+    try {
+      await CardFlowService.deleteCandidate(
+          widget.collection, widget.rank, file,
+          kind: widget.kind);
+      if (!mounted) return;
+      await _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$e'.replaceFirst('Exception: ', ''))));
+    }
+  }
 
   Widget _buttons() => Padding(
         // #289: alt gezinme cubugunun altinda kalmasin.

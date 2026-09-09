@@ -1,57 +1,68 @@
 {
-  "_comment": "Yerel ComfyUI uretim gorevleri. Yeni bir is akisi eklemek icin buraya bir kayit ekle - kod degistirmeye gerek yok. 'workflow' alani C:\\ComfyUI\\user\\default\\workflows altindaki dosya adidir.",
-  "tasks": [
-    {
-      "id": "image_zimage",
-      "label": "Metinden gorsel (hizli)",
-      "workflow": "Image Z Turbo.json",
-      "needs_image": false,
-      "is_video": false,
-      "width": 896,
-      "height": 1600,
-      "enabled": true
-    },
-    {
-      "id": "image_sdxl",
-      "label": "Metinden gorsel (SDXL)",
-      "workflow": "Image SDXL Simple.json",
-      "needs_image": false,
-      "is_video": false,
-      "width": 832,
-      "height": 1216,
-      "enabled": true
-    },
-    {
-      "id": "edit_qwen",
-      "label": "Gorsel duzenle (kimlik korur)",
-      "workflow": "Image Qwen Image.json",
-      "needs_image": true,
-      "is_video": false,
-      "width": 0,
-      "height": 0,
-      "enabled": true
-    },
-    {
-      "id": "video_ltx",
-      "label": "Gorselden video (sesli)",
-      "workflow": "LTX2.5 I2V.json",
-      "needs_image": true,
-      "is_video": true,
-      "width": 704,
-      "height": 1280,
-      "duration": 5,
-      "enabled": true
-    },
-    {
-      "id": "video_wan",
-      "label": "Gorselden video (Wan)",
-      "workflow": "Wan2.2 I2V.json",
-      "needs_image": true,
-      "is_video": true,
-      "width": 704,
-      "height": 1280,
-      "duration": 5,
-      "enabled": true
-    }
-  ]
+ "_comment": "Yerel ComfyUI uretim gorevleri. Yeni bir is akisi eklemek icin buraya bir kayit ekle - kod degistirmeye gerek yok. 'workflow' alani C:\\ComfyUI\\user\\default\\workflows altindaki dosya adidir.",
+ "tasks": [
+  {
+   "id": "image_zimage",
+   "label": "Metinden gorsel (hizli)",
+   "workflow": "Image Z Turbo.json",
+   "needs_image": false,
+   "is_video": false,
+   "width": 896,
+   "height": 1600,
+   "enabled": true
+  },
+  {
+   "id": "image_sdxl",
+   "label": "Metinden gorsel (SDXL)",
+   "workflow": "Image SDXL Simple.json",
+   "needs_image": false,
+   "is_video": false,
+   "width": 832,
+   "height": 1216,
+   "enabled": true
+  },
+  {
+   "id": "edit_qwen",
+   "label": "Gorsel duzenle (kimlik korur)",
+   "workflow": "Image Qwen Image.json",
+   "needs_image": true,
+   "is_video": false,
+   "width": 0,
+   "height": 0,
+   "enabled": true
+  },
+  {
+   "id": "video_ltx",
+   "label": "Gorselden video (sesli)",
+   "workflow": "LTX2.5 I2V.json",
+   "needs_image": true,
+   "is_video": true,
+   "width": 704,
+   "height": 1280,
+   "duration": 5,
+   "enabled": true
+  },
+  {
+   "id": "video_ltx_flf",
+   "label": "Gorselden dongulu video (ilk=son kare)",
+   "workflow": "FLF2V LTX2.5.json",
+   "needs_image": true,
+   "is_video": true,
+   "width": 704,
+   "height": 1280,
+   "duration": 5,
+   "enabled": true
+  },
+  {
+   "id": "video_wan",
+   "label": "Gorselden video (Wan)",
+   "workflow": "Wan2.2 I2V.json",
+   "needs_image": true,
+   "is_video": true,
+   "width": 704,
+   "height": 1280,
+   "duration": 5,
+   "enabled": true
+  }
+ ]
 }

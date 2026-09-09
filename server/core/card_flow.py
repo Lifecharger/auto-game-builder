@@ -56,6 +56,7 @@ import time
 from datetime import datetime
 
 from . import comfy_gen as G
+from . import prompt_smith as PS
 from . import gpu_lane
 from .jigsaw_flow import _op, _op_new, _ops, _ops_lock, _run, op_status, ops  # noqa: F401
 
@@ -123,8 +124,14 @@ CUT_MODES = ("sam", "hybrid")
 STILL_TASK = "image_zimage"
 EDIT_TASK = "edit_qwen"
 VIDEO_TASK = "video_ltx"
+# Kart videosu bir DONGUDUR (sprite sheet 6 sn basa sarar): FLF2V ile ayni still
+# hem ilk hem son kare olarak verilir - klip basladigi kadrajla bitmek zorunda
+# kalir, boylece LTX'in icine dogru kaymasi (push-in) kapanir ve dongu dikissiz
+# kapanir. Gorev manifest'te yoksa eski i2v'ye duser.
+VIDEO_TASK_LOOP = "video_ltx_flf"
 
 GUARD_THRESHOLD = 25.0          # guard_firstframe.py ile ayni esik
+ZOOM_TOLERANCE = 0.08           # ilk->son kare figur buyumesi (#337): %8 ustu "kontrol"
 
 
 # ------------------------------------------------------------------ ayarlar
@@ -238,6 +245,22 @@ def gestures(kind: str = "") -> dict:
     prof = (_options().get(KINDS[k]["profile"]) or {})
     jest = prof.get("jestler") or {}
     return {a: b for a, b in jest.items() if isinstance(b, str)} or dict(FALLBACK_GESTURES[k])
+
+
+def gesture_text(kind: str, gesture: str) -> str:
+    """Jest metni: hazir anahtar -> profil cumlesi, aksi halde SERBEST METIN (#335).
+
+    Telefondan/studyodan "hafifce kalca sallama, kollar sabit" gibi kisa bir
+    cumle gelebilir. Anahtar listesinde yoksa oldugu gibi hareket cumlesi olarak
+    kullanilir (eskiden sessizce idle'a duserdi - yazim hatasi da gizlenirdi).
+    """
+    g = (gesture or "").strip()
+    jestler = gestures(kind)
+    if g in jestler:
+        return jestler[g]
+    if g:
+        return g[:400]
+    return jestler.get(DEFAULT_GESTURE) or "subtle idle breathing"
 
 
 def _prompt2(kind: str) -> str:
@@ -455,8 +478,10 @@ def look_for(collection: str, kind: str, rank: str, index: int) -> dict:
 
 
 def look_text(theme: str, look: dict) -> str:
+    # "look" = birlesik gorunus (goc edilmis koleksiyonlar ve #337 LLM ciktisi);
+    # skin/hair/outfit = jenerik rotasyonun ayri alanlari. Hangisi varsa o girer.
     parca = [(theme or "").strip()]
-    for alan in ("skin", "hair", "outfit", "pose"):
+    for alan in ("look", "skin", "hair", "outfit", "pose"):
         if look.get(alan):
             parca.append(look[alan].strip())
     return ", ".join(x for x in parca if x)
@@ -872,6 +897,65 @@ def _kabul_still(collection: str, kind: str, rank: str, src: str, job_id: str = 
     return p
 
 
+ADAY_KALIP = ("still_%02d.png", "still_green.png", "still_anime.png")
+
+
+def _aday_yolu(collection: str, rank: str, kind: str, file: str) -> str:
+    """Aday dosyasinin tam yolu - rutbe klasorunun DISINA cikilamaz (#336)."""
+    ad = os.path.basename((file or "").strip().replace("\\", "/"))
+    if not ad.startswith("still_") or not ad.endswith(".png"):
+        raise ValueError("aday dosyasi degil: %s" % ad)
+    d = rank_dir(collection, rank, kind_id(kind))
+    yol = _inside(d, os.path.join(d, ad))
+    if not os.path.isfile(yol):
+        raise ValueError("aday yok: %s" % ad)
+    return yol
+
+
+def candidates(collection: str, rank: str, kind: str = "") -> list[str]:
+    """Rutbenin adaylari (still_NN.png + still_green/anime yedekleri)."""
+    d = rank_dir(collection, rank, kind_id(kind))
+    try:
+        return sorted(a for a in os.listdir(d)
+                      if a.startswith("still_") and a.endswith(".png"))
+    except OSError:
+        return []
+
+
+def pick(collection: str, rank: str, file: str, kind: str = "") -> dict:
+    """#336: bir adayi secili still yapar; onceki still aday olarak saklanir.
+
+    Secilen aday dosyasi kopya birakmamak icin silinir - kartta her zaman TEK
+    secili gorsel + adaylar durur.
+    """
+    k = kind_id(kind)
+    src = _aday_yolu(collection, rank, k, file)
+    d = rank_dir(collection, rank, k, create=True)
+    _yedekle_still(d)
+    hedef = os.path.join(d, "still.png")
+    shutil.copy(src, hedef)
+    try:
+        _still_webp(hedef, os.path.join(d, "still.webp"))
+    except Exception:
+        pass
+    try:
+        os.remove(src)
+    except OSError:
+        pass
+    _set_state(collection, rank, k,
+               still={"at": datetime.now().isoformat(timespec="seconds"),
+                      "job": "", "picked": os.path.basename(src)})
+    return {"collection": collection, "rank": str(rank).upper(), "kind": k,
+            "still": _rel(hedef), "candidates": candidates(collection, rank, k)}
+
+
+def delete_candidate(collection: str, rank: str, file: str, kind: str = "") -> dict:
+    """#336: bir adayi siler (secili still'e DOKUNMAZ)."""
+    k = kind_id(kind)
+    os.remove(_aday_yolu(collection, rank, k, file))
+    return {"deleted": 1, "candidates": candidates(collection, rank, k)}
+
+
 def stills(collection: str, ranks: list[str] | None = None, kind: str = "", n: int = 1) -> str:
     """op `card-still`: secili rutbeler icin yeni still uretir, OTOMATIK kabul eder.
 
@@ -926,6 +1010,59 @@ def stills(collection: str, ranks: list[str] | None = None, kind: str = "", n: i
     return op_id
 
 
+def _looks_yaz(collection: str, kind: str, theme: str, ranks: list[str]) -> tuple[dict, str]:
+    """Rutbe gorunusleri: once yerel LLM (#337), olmazsa jenerik rotasyon.
+
+    LLM temayi okuyup her rutbeye TEMAYA AIT kiyafet yazar - eskiden gorunus
+    jenerik ten/sac/kiyafet listelerinden donuyordu ve tema eziliyordu
+    ("Queens and Princesses" -> "tactical crop vest"). Cikti sekli AYNI:
+    {look, pose, prompt}, yani alt akista hicbir sey degismez.
+    """
+    yazan = "rotasyon"
+    llm = {}
+    try:
+        llm = PS.looks(theme, ranks, kind)
+    except Exception:
+        llm = {}
+    out = {}
+    for i, r in enumerate(ranks):
+        v = llm.get(str(r).upper())
+        if v and v.get("look"):
+            look = {"look": v["look"], "pose": v.get("pose") or "", "age": v.get("age")}
+            yazan = "llm"
+        else:
+            look = look_for(collection, kind, r, i)
+        look["prompt"] = look_text(theme, look)
+        out[r] = look
+    return out, yazan
+
+
+def rewrite_looks(collection: str, kind: str = "", theme: str = "") -> dict:
+    """#337: mevcut koleksiyonun rutbe promptlarini yerel LLM'e yeniden yazdirir.
+
+    Still/video/sheet DOSYALARINA DOKUNMAZ - yalnizca collection.json'daki
+    gorunus metinleri degisir; sonra "1 Still" ile yeniden uretilir.
+    """
+    k = kind_id(kind)
+    m = collection_meta(collection, k)
+    tema = (theme or "").strip() or (m.get("theme") or "")
+    if not tema:
+        raise ValueError("tema bos")
+    ranks = _collection_ranks(collection, k) or list((m.get("ranks") or {}).keys())
+    if not ranks:
+        raise ValueError("rutbe yok")
+    yeni, yazan = _looks_yaz(collection, k, tema, ranks)
+    if yazan != "llm":
+        raise ValueError("yerel LLM yanit vermedi (Ollama kapali olabilir) - promptlar degismedi")
+    m["theme"] = _deanime(tema)
+    m["ranks"] = {r: yeni[r] for r in ranks}
+    m["prompts_by"] = "%s (%s)" % (PS.model_adi(), datetime.now().isoformat(timespec="seconds"))
+    _save_collection(collection, k, m)
+    return {"collection": collection, "kind": k, "ranks": list(ranks),
+            "written_by": m["prompts_by"],
+            "sample": (yeni.get(ranks[0]) or {}).get("prompt", "")[:300]}
+
+
 def create(collection_id: str, name: str = "", theme: str = "", jokers: int = 0,
            kind: str = "", style: str = "realistic") -> dict:
     """Yeni koleksiyon: klasor + collection.json + 13 (+2) rutbe icin 1'er still.
@@ -953,10 +1090,11 @@ def create(collection_id: str, name: str = "", theme: str = "", jokers: int = 0,
          "style": "realistic", "kind": k,
          "jokers": j, "created": datetime.now().isoformat(timespec="seconds"),
          "ranks": {}}
-    for i, r in enumerate(ranks):
-        look = look_for(cid, k, r, i)
-        look["prompt"] = look_text(theme, look)
-        m["ranks"][r] = look
+    yeni, yazan = _looks_yaz(cid, k, theme, ranks)
+    m["ranks"] = {r: yeni[r] for r in ranks}
+    if yazan == "llm":
+        m["prompts_by"] = "%s (%s)" % (PS.model_adi(),
+                                       datetime.now().isoformat(timespec="seconds"))
     _save_collection(cid, k, m)
     for r in ranks:
         os.makedirs(rank_dir(cid, r, k), exist_ok=True)
@@ -1082,6 +1220,44 @@ def _first_frame(video: str, dest: str) -> bool:
         return False
 
 
+def _last_frame(video: str, dest: str) -> bool:
+    """Klibin SON karesi (-sseof): zoom kaymasi ancak burada gorulur."""
+    ff = G._ffmpeg()
+    if not ff:
+        return False
+    try:
+        subprocess.run([ff, "-y", "-loglevel", "error", "-sseof", "-0.2", "-i", video,
+                        "-frames:v", "1", dest], check=True, timeout=300,
+                       creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        return os.path.isfile(dest)
+    except Exception:
+        return False
+
+
+def _figure_box(p: str) -> tuple[int, int] | None:
+    """Karedeki figurun (fon disi piksellerin) genislik/yuksekligi.
+
+    Fon duz acik gri ya da beyaz oldugu icin "fon disi" esikle bulunur; kutunun
+    buyumesi = kameranin yaklasmasi.
+    """
+    from PIL import Image
+    try:
+        with Image.open(p) as f:
+            im = f.convert("L").resize((208, 312), Image.BILINEAR)
+    except Exception:
+        return None
+    px = im.load()
+    xs, ys = [], []
+    for y in range(im.size[1]):
+        for x in range(im.size[0]):
+            if px[x, y] < 225:
+                xs.append(x)
+                ys.append(y)
+    if len(xs) < 50:
+        return None
+    return (max(xs) - min(xs) + 1, max(ys) - min(ys) + 1)
+
+
 def _probe_pixels(p: str, w: int = 64, h: int = 96):
     """guard_firstframe.py ile ayni olcum: 2:3 orta kirpim -> 64x96 RGB."""
     from PIL import Image
@@ -1122,6 +1298,15 @@ def guard_video(still: str, video: str) -> dict:
         out["score"] = round(skor, 2)
         if skor >= GUARD_THRESHOLD:
             out.update(verdict="kontrol", note="ilk kare still'den uzak (%.1f)" % skor)
+        # Kademeli zoom (push-in) ilk karede GORUNMEZ - ilk kare still'in aynisidir.
+        # Figurun kutusu klip boyunca buyuyorsa kamera yaklasmistir (#337).
+        z = _zoom_drift(video, tmp)
+        if z is not None:
+            out["zoom"] = z
+            if z >= ZOOM_TOLERANCE:
+                out.update(verdict="kontrol",
+                           note=(out["note"] + "; " if out["note"] else "")
+                           + "kamera yaklasmis (olcek +%%%.0f)" % (z * 100))
     except Exception as e:
         out.update(verdict="kontrol", note=str(e)[:150])
     finally:
@@ -1132,16 +1317,42 @@ def guard_video(still: str, video: str) -> dict:
     return out
 
 
+def _zoom_drift(video: str, first_png: str) -> float | None:
+    """Ilk kare -> son kare figur olcegi degisimi (0.51 = %51 buyume).
+
+    None = olculemedi (ffmpeg yok, kare cikmadi, figur bulunamadi).
+    """
+    son = os.path.join(os.path.dirname(video), "_guard_son.png")
+    try:
+        if not _last_frame(video, son):
+            return None
+        a, b = _figure_box(first_png), _figure_box(son)
+        if not a or not b:
+            return None
+        # En/boy ayri ayri: kol acmak eni buyutur, gercek zoom IKISINI birden.
+        return round(min(b[0] / a[0], b[1] / a[1]) - 1.0, 3)
+    except Exception:
+        return None
+    finally:
+        try:
+            os.remove(son)
+        except OSError:
+            pass
+
+
 def _video_job(collection: str, kind: str, rank: str, gesture: str) -> dict:
     """Tek rutbenin i2v isi (video_ltx, 6 sn, 832x1248, kilitli kamera)."""
     d = rank_dir(collection, rank, kind)
     still = os.path.join(d, "still.png")
     if not os.path.isfile(still):
         raise ValueError("still yok")
-    jest = gestures(kind).get(gesture) or gestures(kind).get(DEFAULT_GESTURE) or "subtle idle breathing"
+    jest = gesture_text(kind, gesture)
     # Olcu ACIKCA verilir: comfy_gen'in video_size_for butcesi (704x1280) 832x1248'i
     # kucultur; iki kenar da 32'nin kati oldugu icin LTX bu olcuyu dogrudan alir.
-    return G.submit(VIDEO_TASK, jest, prompt2=_motion2(kind), negative=_negative(kind),
+    gorev = VIDEO_TASK_LOOP if G._task(VIDEO_TASK_LOOP) else VIDEO_TASK
+    # image_path TEK basina verilir: comfy_gen is akisindaki BUTUN gorsel
+    # yuvalarini onunla doldurur, yani FLF2V'de ilk ve son kare ayni still olur.
+    return G.submit(gorev, jest, prompt2=_motion2(kind), negative=_negative(kind),
                     width=STILL_SIZE[0], height=STILL_SIZE[1], duration=SECONDS,
                     seed=random.randint(1, 2 ** 31), image_path=still, mode="card",
                     client="flow", category=collection)

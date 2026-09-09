@@ -346,6 +346,14 @@ class CardFlowService {
     return Map<String, dynamic>.from(_decode(r) as Map);
   }
 
+  static Future<Map<String, dynamic>> _delete(String path) async {
+    final r = await http
+        .delete(Uri.parse('${ApiService.baseUrl}$path'), headers: _headers)
+        .timeout(_timeout);
+    if (r.statusCode != 200) _fail(r, 'Istek basarisiz');
+    return Map<String, dynamic>.from(_decode(r) as Map);
+  }
+
   /// Liste / sozluk / bare liste - hangisi gelirse listeye cevirir.
   static List<Map<String, dynamic>> _rows(dynamic d, [List<String>? keys]) {
     if (d is List) {
@@ -447,6 +455,44 @@ class CardFlowService {
       '${ApiService.baseUrl}/api/card/flow/file'
       '?collection=${_q(collection)}&rank=${_q(rank)}'
       '&kind=${_q(kind)}&type=${_q(type)}${v > 0 ? '&v=$v' : ''}';
+
+  /// #336: aday still'in kucuk resmi - `rel` sunucudan gelen goreli yoldur.
+  static String relThumbUrl(String rel, {int size = 200}) =>
+      '${ApiService.baseUrl}/api/card/flow/thumb?rel=${_q(rel)}&size=$size';
+
+  /// #337: koleksiyonun rutbe promptlarini yerel LLM'e yeniden yazdirir.
+  /// Dosyalara dokunmaz - sonra "1 Still" ile yeniden uretilir.
+  static Future<Map<String, dynamic>> rewriteLooks(String collection,
+          {String kind = 'card', String theme = ''}) async =>
+      _post('/api/card/flow/rewrite-looks',
+          {'collection': collection, 'kind': kind, 'theme': theme});
+
+  /// #336: rutbenin aday still'leri (dosya adlari).
+  static Future<List<String>> candidates(String collection, String rank,
+      {String kind = 'card'}) async {
+    final j = await _get('/api/card/flow/candidates'
+        '?collection=${_q(collection)}&rank=${_q(rank)}&kind=${_q(kind)}');
+    final l = j['candidates'];
+    return l is List ? l.map((e) => '$e').toList() : <String>[];
+  }
+
+  /// #336: adayi secili still yapar (onceki still aday olarak kalir).
+  static Future<void> pickCandidate(String collection, String rank, String file,
+          {String kind = 'card'}) async =>
+      _post('/api/card/flow/pick', {
+        'collection': collection,
+        'rank': rank,
+        'file': file,
+        'kind': kind,
+      });
+
+  /// #336: adayi siler (secili still'e dokunmaz).
+  static Future<void> deleteCandidate(
+          String collection, String rank, String file,
+          {String kind = 'card'}) async =>
+      _delete('/api/card/flow/candidate'
+          '?collection=${_q(collection)}&rank=${_q(rank)}'
+          '&file=${_q(file)}&kind=${_q(kind)}');
 
   // ------------------------------------------------------------- yazma
   /// Yeni koleksiyon acar: 13 (+2) rutbe icin 1'er still kuyruga girer.

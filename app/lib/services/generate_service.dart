@@ -357,6 +357,47 @@ class GenerateService {
   }
 
   /// Yeni uretim isini kuyruga ekler.
+  /// #337: yerel prompt yazari hazir mi ({ready, model}).
+  static Future<Map<String, dynamic>> smithStatus() async {
+    try {
+      return await _get('/api/prompt/smith');
+    } catch (_) {
+      return {'ready': false, 'model': ''};
+    }
+  }
+
+  /// #337: prompt'u yerel LLM'e islet. `op` = enrich | normalize | variants |
+  /// motion. Hata olursa GIRDI aynen doner - cagiran taraf bozulmaz.
+  static Future<String> smith(String op, String prompt,
+      {String mode = 'free', String hint = '', String subject = ''}) async {
+    try {
+      final d = await _post('/api/prompt/smith', {
+        'op': op,
+        'prompt': prompt,
+        'mode': mode,
+        if (hint.isNotEmpty) 'hint': hint,
+        if (subject.isNotEmpty) 'subject': subject,
+      });
+      final y = '${d['prompt'] ?? d['motion'] ?? ''}'.trim();
+      return y.isEmpty ? prompt : y;
+    } catch (_) {
+      return prompt;
+    }
+  }
+
+  /// #337: prompt'tan n ayri varyant (bos liste = LLM yok).
+  static Future<List<String>> smithVariants(String prompt,
+      {int n = 3, String mode = 'free'}) async {
+    try {
+      final d = await _post('/api/prompt/smith',
+          {'op': 'variants', 'prompt': prompt, 'n': n, 'mode': mode});
+      final l = d['variants'];
+      return l is List ? l.map((e) => '$e').toList() : <String>[];
+    } catch (_) {
+      return const [];
+    }
+  }
+
   static Future<GenerateJob> submit({
     required String task,
     required String prompt,
@@ -373,6 +414,10 @@ class GenerateService {
     String category = '',
     String? client,
     Map<String, GenerateInputRef> inputs = const {},
+    // #337: yerel LLM prompt yazari - sunucu tarafinda calisir, kapaliysa
+    // prompt aynen gecer (uretim asla engellenmez).
+    bool enrich = false,
+    bool normalize = false,
   }) async {
     final d = await _post('/api/generate', {
       if (inputs.isNotEmpty)
@@ -387,6 +432,8 @@ class GenerateService {
       'turbo': turbo,
       'mode': mode,
       'category': category,
+      if (enrich) 'enrich': true,
+      if (normalize) 'normalize': true,
       if (seed != null) 'seed': seed,
       if (imagePath != null) 'image_path': imagePath,
       if (sourceJob != null) 'source_job': sourceJob,
