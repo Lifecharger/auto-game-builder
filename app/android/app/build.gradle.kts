@@ -50,6 +50,12 @@ android {
 
     buildTypes {
         release {
+            // Play Vitals: native symbol tables ride inside the AAB (BUNDLE-METADATA) so
+            // crash/ANR native frames are symbolicated in Play Console. Not shipped to
+            // users. Never "FULL" (libflutter.so.dbg ~150 MB per ABI breaks the 300 MB limit).
+            ndk {
+                debugSymbolLevel = "SYMBOL_TABLE"
+            }
             signingConfig = if (hasKeystore) {
                 signingConfigs.getByName("release")
             } else {

@@ -15,6 +15,10 @@ from database.db_manager import DBManager
 from database.models import App
 from core import unity_project
 
+# #332: Dart symbol archive (Play Vitals libapp.so frames -> function names)
+SYMBOLS_SUBDIR = "build/symbols"
+SYMBOLS_ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "symbols")
+
 
 class BuildEngine:
     def __init__(self, db: DBManager, settings: dict):
@@ -119,6 +123,14 @@ class BuildEngine:
             process.wait(timeout=600)
             duration = int(time.time() - start)
             success = process.returncode == 0
+            if success and app.app_type == "flutter":
+                try:
+                    note = self._archive_symbols(app)
+                    if note:
+                        output_lines.append(note)
+                        self._emit("build_output", build_id, note)
+                except Exception as e:  # symbols are a bonus - never fail the build
+                    logger.warning("symbol archive failed for %s: %s", app.name, e)
 
             self.db.update_build(
                 build_id,
@@ -148,6 +160,44 @@ class BuildEngine:
             self.db.update_app(app.id, status="error")
             self._emit("build_completed", build_id, False)
 
+    # ------------------------------------------------------------ #332 symbols
+    def _archive_symbols(self, app: App) -> str:
+        """Copy build/symbols/*.symbols to server/data/symbols/<package>/<versionCode>/.
+
+        versionCode = the +N part of pubspec.yaml `version:`; package = the
+        applicationId in android/app/build.gradle(.kts). Old archives are kept
+        (a few MB per build) - Play Vitals reports arrive days later.
+        """
+        import glob
+        import shutil
+        src = os.path.join(app.project_path, SYMBOLS_SUBDIR)
+        files = glob.glob(os.path.join(src, "*.symbols"))
+        if not files:
+            return ""
+        version_code = "0"
+        try:
+            with open(os.path.join(app.project_path, "pubspec.yaml"), encoding="utf-8") as f:
+                m = re.search(r"^version:\s*([\w.]+)\+(\d+)", f.read(), re.M)
+            if m:
+                version_code = m.group(2)
+        except OSError:
+            pass
+        package = app.slug or "app"
+        for g in ("android/app/build.gradle.kts", "android/app/build.gradle"):
+            try:
+                with open(os.path.join(app.project_path, g), encoding="utf-8") as f:
+                    m = re.search(r'applicationId\s*=?\s*"([\w.]+)"', f.read())
+                if m:
+                    package = m.group(1)
+                    break
+            except OSError:
+                continue
+        dest = os.path.join(SYMBOLS_ROOT, package, version_code)
+        os.makedirs(dest, exist_ok=True)
+        for p in files:
+            shutil.copy(p, os.path.join(dest, os.path.basename(p)))
+        return f"[symbols] {len(files)} Dart symbol file(s) archived -> {dest}"
+
     def _get_build_command(self, app: App, build_type: str) -> str:
         if app.build_command:
             return app.build_command
@@ -161,10 +211,14 @@ class BuildEngine:
             # mergeAssets incremental cache — otherwise regenerated assets
             # (SFX, images) with unchanged filenames get served stale.
             prelude = f'cd {pp} && flutter clean && flutter pub get'
+            # #332: --split-debug-info keeps the Dart symbols (libapp.so) out of
+            # the binary and next to it; _archive_symbols() files them per
+            # versionCode so Play Vitals native frames can be resolved later
+            # with tools/playstore/vitals.py symbolize.
             if build_type == "appbundle":
-                return f'{prelude} && flutter build appbundle --release'
+                return f'{prelude} && flutter build appbundle --release --split-debug-info={SYMBOLS_SUBDIR}'
             elif build_type == "apk":
-                return f'{prelude} && flutter build apk --release'
+                return f'{prelude} && flutter build apk --release --split-debug-info={SYMBOLS_SUBDIR}'
             elif build_type == "debug":
                 return f'{prelude} && flutter build apk --debug'
         elif app.app_type == "godot":
