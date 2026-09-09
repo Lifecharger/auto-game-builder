@@ -349,7 +349,11 @@ class CardFlowScreen extends StatefulWidget {
   State<CardFlowScreen> createState() => _CardFlowScreenState();
 }
 
-class _CardFlowScreenState extends State<CardFlowScreen> {
+class _CardFlowScreenState extends State<CardFlowScreen>
+    with WidgetsBindingObserver {
+  // #340: uygulamaya donunce liste kendiliginden tazelenir - eskiden
+  // arkaplandayken uretilen yeni gorseller listede bayat kaliyordu.
+
   String _kind = 'card';
   List<CardCollection> _colls = [];
   List<CardDealer> _dealers = [];
@@ -366,13 +370,22 @@ class _CardFlowScreenState extends State<CardFlowScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _load();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _opPoll?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // #340: uygulamaya donunce liste tazelenir - arkaplandayken uretilen yeni
+    // gorseller eskiden listede bayat kaliyordu (kucuk resim baska, detay baska).
+    if (state == AppLifecycleState.resumed) _load();
   }
 
   Future<void> _load() async {
@@ -449,6 +462,10 @@ class _CardFlowScreenState extends State<CardFlowScreen> {
     final adC = TextEditingController();
     final temaC = TextEditingController();
     var jokers = false;
+    // #339: hazir koleksiyon kartlari - secilince id/ad/tema dolar, sonra
+    // her alan ELLE degistirilebilir. Sablon yoksa serit hic cizilmez.
+    final sablonlar = await CardFlowService.presets();
+    if (!mounted) return;
     final ok = await showDialog<bool>(
       context: context,
       builder: (c) => StatefulBuilder(
@@ -481,12 +498,37 @@ class _CardFlowScreenState extends State<CardFlowScreen> {
                   ),
                 ),
                 const SizedBox(height: 10),
+                if (sablonlar.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  const Text('Hazir kart sec (istege bagli)',
+                      style: TextStyle(fontSize: 11, color: Colors.grey)),
+                  const SizedBox(height: 4),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: [
+                      for (final sb in sablonlar)
+                        ActionChip(
+                          label: Text(sb.label,
+                              style: const TextStyle(fontSize: 11)),
+                          onPressed: () => setLocal(() {
+                            temaC.text = sb.theme;
+                            if (idC.text.trim().isEmpty) idC.text = sb.id;
+                            if (adC.text.trim().isEmpty) adC.text = sb.name;
+                          }),
+                        ),
+                    ],
+                  ),
+                ],
+                const SizedBox(height: 10),
                 TextField(
                   controller: temaC,
-                  maxLines: 3,
+                  maxLines: 4,
                   decoration: const InputDecoration(
                     labelText: 'Tema',
                     hintText: 'orn. sexy police costume with badge and duty belt',
+                    helperText: 'Formul: kimlik + STRICT PALETTE + Signature pieces',
+                    helperMaxLines: 2,
                     border: OutlineInputBorder(),
                   ),
                 ),
@@ -1692,6 +1734,10 @@ class _CardDetailPageState extends State<CardDetailPage> {
 
   /// #336: bu rutbenin aday still'leri (secilebilir/silinebilir).
   List<String> _adaylar = const [];
+  /// #338: bu rutbenin animasyonlari (idle + zafer gibi ekler).
+  List<CardAnim> _anims = const [];
+  /// Uzerinde calisilan animasyon - 2 Video ve 3 WebP buna yazar.
+  String _anim = 'idle';
 
   bool get _dealer => widget.kind == 'dealer';
   List<String> get _gestures =>
@@ -1733,11 +1779,20 @@ class _CardDetailPageState extends State<CardDetailPage> {
       } catch (_) {
         // eski sunucuda uc yok - aday seridi gosterilmez
       }
+      var anims = const <CardAnim>[];
+      try {
+        anims = await CardFlowService.anims(widget.collection, widget.rank,
+            kind: widget.kind);
+      } catch (_) {
+        // eski sunucuda uc yok - serit gosterilmez
+      }
       if (!mounted) return;
       setState(() {
         _profiles = p;
         _state = s;
         _adaylar = adaylar;
+        _anims = anims;
+        if (!anims.any((a) => a.name == _anim)) _anim = 'idle';
         _loading = false;
       });
     } catch (e) {
@@ -1816,7 +1871,8 @@ class _CardDetailPageState extends State<CardDetailPage> {
             collection: widget.collection,
             ranks: _ranks,
             gesture: jest,
-            kind: widget.kind));
+            kind: widget.kind,
+            anim: _anim));
   }
 
   Future<void> _redoCut() async {
@@ -1828,7 +1884,8 @@ class _CardDetailPageState extends State<CardDetailPage> {
             collection: widget.collection,
             ranks: _ranks,
             mode: mode,
-            kind: widget.kind));
+            kind: widget.kind,
+            anim: _anim));
   }
 
   // ------------------------------------------------------------ gorunum
@@ -1877,6 +1934,7 @@ class _CardDetailPageState extends State<CardDetailPage> {
                       ),
                       Expanded(child: _preview()),
                       _info(),
+                      _animSeridi(),
                       _adaylarSeridi(),
                       _buttons(),
                     ],
@@ -1977,6 +2035,92 @@ class _CardDetailPageState extends State<CardDetailPage> {
           ],
         ),
       );
+
+  /// #338: animasyon seridi - hangi animasyon uzerinde calisildigi buradan
+  /// secilir; "+ Yeni" ile zafer gibi ek animasyon acilir, cop ile silinir.
+  Widget _animSeridi() {
+    if (_anims.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Animasyonlar - secili olana uretilir',
+              style: TextStyle(fontSize: 11, color: Colors.grey)),
+          const SizedBox(height: 4),
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: [
+              for (final a in _anims)
+                InputChip(
+                  selected: a.name == _anim,
+                  label: Text(
+                      '${a.name}${a.stage >= 3 ? '  ✓' : (a.stage == 2 ? '  ▶' : '')}',
+                      style: const TextStyle(fontSize: 11)),
+                  onSelected: (_) => setState(() => _anim = a.name),
+                  onDeleted: a.isIdle ? null : () => _animSil(a.name),
+                  deleteIcon: a.isIdle ? null : const Icon(Icons.close, size: 15),
+                ),
+              ActionChip(
+                avatar: const Icon(Icons.add, size: 15),
+                label: const Text('Yeni', style: TextStyle(fontSize: 11)),
+                onPressed: _animEkle,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _animEkle() async {
+    final c = TextEditingController();
+    final ad = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Yeni animasyon'),
+        content: TextField(
+          controller: c,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Ad',
+            hintText: 'orn. zafer',
+            helperText: 'Secip "2 Video" calistir - bu ada ayri video/sheet uretilir',
+            helperMaxLines: 2,
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Vazgec')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, c.text.trim()),
+              child: const Text('Ekle')),
+        ],
+      ),
+    );
+    final t = (ad ?? '').trim().toLowerCase();
+    if (t.isEmpty || t == 'idle') return;
+    // Klasor ilk video uretiminde acilir; simdilik secili yapmak yeter.
+    setState(() {
+      _anims = [..._anims, CardAnim(name: t)];
+      _anim = t;
+    });
+    _snack('"$t" secildi - simdi 2 Video calistir');
+  }
+
+  Future<void> _animSil(String ad) async {
+    try {
+      await CardFlowService.deleteAnim(widget.collection, widget.rank, ad,
+          kind: widget.kind);
+      if (!mounted) return;
+      await _load();
+    } catch (e) {
+      if (!mounted) return;
+      _snack(e.toString().replaceFirst('Exception: ', ''));
+    }
+  }
 
   /// #336: aday still seridi - dokun = sec, cop = sil. Birden fazla gorsel
   /// varken telefondan hangisinin secilecegi buradan belirlenir.

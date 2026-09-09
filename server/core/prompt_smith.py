@@ -110,6 +110,14 @@ LOOKS_SYS = (
     "another theme. The women must differ from each other in skin tone, hair colour and hair "
     "length, outfit silhouette and pose; no two may read as the same person. Vary ethnicity "
     "naturally across the set. Poses are full body, standing or stepping, facing the camera. "
+    "WARDROBE RULES (hard): every outfit is short and revealing with bare legs - a mini skirt, "
+    "micro dress, corset, bodysuit, shorts or a high-slit dress. NEVER trousers, jeans, leggings "
+    "or a pantsuit. A floor-length skirt or gown is allowed ONLY when it is split by a slit that "
+    "runs almost to the hip so a whole bare leg is on show while she stands - a plain, closed, "
+    "unslit long skirt is forbidden. NEVER a coat, blazer, "
+    "cardigan or anything buttoned to the throat. Every outfit has a deep neckline. Do not make "
+    "an outfit more modest than the theme asks - the series is glamour pin-up, not eveningwear. "
+    "Each outfit must also carry the THEME's signature props and silhouette, not just its colours. "
     'Answer as JSON: {"ranks": {"<RANK>": {"age": <int>, "skin": "...", "hair": "...", '
     '"outfit": "...", "pose": "..."}}}. Each field is a short comma-free phrase; "outfit" may '
     "name garment, fabric, colour and footwear."
@@ -120,9 +128,19 @@ def looks(theme: str, ranks: list[str], kind: str = "card", extra: str = "") -> 
     """Tema -> {rutbe: {age, skin, hair, outfit, pose}}. LLM yoksa {} doner."""
     if not ready() or not (theme or "").strip() or not ranks:
         return {}
-    kadraj = ("Framing: waist-up behind a casino table, dealer uniform appropriate to the theme."
-              if kind == "dealer" else
-              "Framing: full body head to feet including footwear.")
+    kadraj = (
+        # Krupiye kesilip oyunun KENDI masasinin uzerine biniyor: still'de masa
+        # OLMAMALI, yoksa eller boslukta kalir ve masa altindaki govde eksilir.
+                "Framing: a WIDE HORIZONTAL 3:2 picture. She is framed from the waist up and fills the "
+        "whole width of the frame - this is a landscape banner, not a tall portrait. She holds a "
+        "small fan of playing cards in ONE hand, raised out to her side away from her body; her "
+        "chest and neckline are completely unobstructed. "
+        "There is NO table, desk or counter in the picture. Wardrobe: a glamorous casino dealer "
+        "outfit fitting the theme, fitted at the waist with a deep plunging neckline showing "
+        "generous cleavage, bare shoulders or arms - never a modest office outfit, never a "
+        "buttoned-up blouse, never a blazer."
+        if kind == "dealer" else
+        "Framing: full body head to feet including footwear.")
     user = ("THEME: %s\nRANKS: %s\n%s\n%s\nInvent one woman per rank."
             % (theme.strip(), ", ".join(str(r).upper() for r in ranks), kadraj, extra.strip()))
     try:
@@ -130,8 +148,24 @@ def looks(theme: str, ranks: list[str], kind: str = "card", extra: str = "") -> 
     finally:
         _bitir()
     ham = d.get("ranks") if isinstance(d, dict) else None
+    if not isinstance(ham, dict) and isinstance(d, dict):
+        # Tek rutbede (krupiye) model bazen "ranks" sarmalayicisini atlar ya da
+        # rutbeyi baska adlandirir; alanlar dogrudan kokte olabilir.
+        if any(a in d for a in ("outfit", "hair", "skin")):
+            ham = {str(ranks[0]).upper(): d}
+        elif len(ranks) == 1:
+            tek = next((v for v in d.values() if isinstance(v, dict)
+                        and any(a in v for a in ("outfit", "hair", "skin"))), None)
+            if tek:
+                ham = {str(ranks[0]).upper(): tek}
     if not isinstance(ham, dict):
         return {}
+    if len(ranks) == 1 and not any(
+            str(r).upper() in ham or str(r).lower() in ham for r in ranks):
+        # Tek rutbe: model ne ad verdiyse versin, tek girdiyi o rutbeye bagla.
+        tek = next((v for v in ham.values() if isinstance(v, dict)), None)
+        if tek:
+            ham = {str(ranks[0]).upper(): tek}
     out = {}
     for r in ranks:
         v = ham.get(str(r).upper()) or ham.get(str(r).lower()) or ham.get(str(r))

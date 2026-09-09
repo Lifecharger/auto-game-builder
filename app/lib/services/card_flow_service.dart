@@ -219,6 +219,56 @@ class CardDealer {
   }
 }
 
+/// #339: hazir koleksiyon karti - listeden secilince tema alanini doldurur.
+class CardPreset {
+  final String id;
+  final String name;
+  final String emoji;
+  final String theme;
+
+  const CardPreset(
+      {required this.id, required this.name, this.emoji = '', this.theme = ''});
+
+  factory CardPreset.fromJson(Map<String, dynamic> j) => CardPreset(
+        id: '${j['id'] ?? ''}',
+        name: '${j['name'] ?? j['id'] ?? ''}',
+        emoji: '${j['emoji'] ?? ''}',
+        theme: '${j['theme'] ?? ''}',
+      );
+
+  String get label => emoji.isEmpty ? name : '$emoji  $name';
+}
+
+/// #338: bir kartin animasyonu. `stage` 0 bos, 2 video, 3 sheet hazir.
+class CardAnim {
+  final String name;
+  final bool video;
+  final bool sheet;
+  final bool thumb;
+  final int stage;
+  final String gesture;
+
+  const CardAnim({
+    required this.name,
+    this.video = false,
+    this.sheet = false,
+    this.thumb = false,
+    this.stage = 0,
+    this.gesture = '',
+  });
+
+  factory CardAnim.fromJson(Map<String, dynamic> j) => CardAnim(
+        name: '${j['name'] ?? ''}',
+        video: j['video'] == true,
+        sheet: j['sheet'] == true,
+        thumb: j['thumb'] == true,
+        stage: (j['stage'] is num) ? (j['stage'] as num).toInt() : 0,
+        gesture: '${j['gesture'] ?? ''}',
+      );
+
+  bool get isIdle => name == 'idle';
+}
+
 /// `/api/card/flow/profiles` cevabi - jest listeleri ve rutbe sirasi.
 /// Uc yoksa sabit listelere duser (dokuman §4 `gesture_prompts`).
 class CardProfilesInfo {
@@ -460,6 +510,47 @@ class CardFlowService {
   static String relThumbUrl(String rel, {int size = 200}) =>
       '${ApiService.baseUrl}/api/card/flow/thumb?rel=${_q(rel)}&size=$size';
 
+  /// #339: hazir koleksiyon kartlari. Bos liste = sablon dosyasi yok, elle
+  /// tema yazmak her zaman mumkun.
+  static Future<List<CardPreset>> presets({String kind = 'card'}) async {
+    try {
+      final d = await _get('/api/card/flow/presets');
+      final l = d[kind == 'dealer' ? 'dealer_presets' : 'presets'];
+      return l is List
+          ? l
+              .whereType<Map>()
+              .map((e) => CardPreset.fromJson(Map<String, dynamic>.from(e)))
+              .toList()
+          : <CardPreset>[];
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// #338: rutbenin animasyonlari (idle once).
+  static Future<List<CardAnim>> anims(String collection, String rank,
+      {String kind = 'card'}) async {
+    try {
+      final d = await _get('/api/card/flow/anims'
+          '?collection=${_q(collection)}&rank=${_q(rank)}&kind=${_q(kind)}');
+      final l = d['anims'];
+      return l is List
+          ? l
+              .whereType<Map>()
+              .map((e) => CardAnim.fromJson(Map<String, dynamic>.from(e)))
+              .toList()
+          : <CardAnim>[];
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// #338: bir animasyonu siler (idle silinemez).
+  static Future<void> deleteAnim(String collection, String rank, String anim,
+          {String kind = 'card'}) async =>
+      _delete('/api/card/flow/anim?collection=${_q(collection)}&rank=${_q(rank)}'
+          '&anim=${_q(anim)}&kind=${_q(kind)}');
+
   /// #337: koleksiyonun rutbe promptlarini yerel LLM'e yeniden yazdirir.
   /// Dosyalara dokunmaz - sonra "1 Still" ile yeniden uretilir.
   static Future<Map<String, dynamic>> rewriteLooks(String collection,
@@ -578,12 +669,14 @@ class CardFlowService {
     required List<String> ranks,
     String gesture = 'idle',
     String kind = 'card',
+    String anim = '',            // #338: bos/idle = kartin ana animasyonu
   }) async =>
       '${(await _post('/api/card/flow/animate', {
             'collection': collection,
             'ranks': ranks,
             'gesture': gesture,
             'kind': kind,
+            if (anim.isNotEmpty) 'anim': anim,
           }))['op'] ?? ''}';
 
   /// 3. asama: SAM3 kesim + sheet + thumb. `mode` = `sam` | `hybrid`.
@@ -592,12 +685,14 @@ class CardFlowService {
     required List<String> ranks,
     String mode = 'sam',
     String kind = 'card',
+    String anim = '',            // #338: bos/idle = kartin ana animasyonu
   }) async =>
       '${(await _post('/api/card/flow/cut', {
             'collection': collection,
             'ranks': ranks,
             'mode': mode,
             'kind': kind,
+            if (anim.isNotEmpty) 'anim': anim,
           }))['op'] ?? ''}';
 
   /// Gece modu: mevcut still'lerden yeniden canlandirma (i2v -> kesim).

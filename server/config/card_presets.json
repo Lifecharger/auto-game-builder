@@ -1,0 +1,97 @@
+{
+ "_not": "Kart Modu koleksiyon sablonlari (#339). Yeni koleksiyon acarken listeden secilir; secilince tema alani dolar ve ELLE duzenlenebilir. Kendi sablonunu eklemek icin bu dosyaya bir satir yaz - sunucu diskten canli okur, yeniden baslatma gerekmez. Formul: <kimlik cumlesi> + STRICT PALETTE + Signature pieces.",
+ "presets": [
+  {
+   "id": "police_royale",
+   "name": "Police Royale",
+   "emoji": "🚔",
+   "theme": "sexy police squad - young policewoman on duty. STRICT PALETTE: navy blue, black and gold only. Signature pieces: cropped uniform shirt with badge, duty belt, mini skirt, thigh-high stockings, stiletto heels"
+  },
+  {
+   "id": "gothic_vampire",
+   "name": "Gothic Vampire Night",
+   "emoji": "🧛",
+   "theme": "gothic vampire night - seductive young vampire woman with PORCELAIN BONE-WHITE pale skin, small delicate fangs, dark gothic glamour. STRICT PALETTE: only white (near skin tone), black and blood red - no other colour anywhere in the outfit. Signature pieces: lace corset, velvet choker, sheer cape or capelet, garter, stiletto heels"
+  },
+  {
+   "id": "neon_nurse",
+   "name": "Neon Nurse",
+   "emoji": "💉",
+   "theme": "neon clinic nurse - futuristic nurse with glowing accents. STRICT PALETTE: white, cyan and hot pink only. Signature pieces: nurse cap, zip-front micro dress with neon piping, white thigh-high stockings with garters, stethoscope, heels"
+  },
+  {
+   "id": "vegas_showgirl",
+   "name": "Vegas Showgirl",
+   "emoji": "🪶",
+   "theme": "las vegas revue showgirl on stage. STRICT PALETTE: gold, black and rhinestone silver only. Signature pieces: tall feather headdress, sequin corset bodysuit, feather boa, fishnet tights, platform heels"
+  },
+  {
+   "id": "queens",
+   "name": "Queens and Princesses",
+   "emoji": "👑",
+   "theme": "sexy royalty - queens and princesses in regal couture. STRICT PALETTE: royal purple, crimson and gold only. Signature pieces: jewelled crown or tiara, velvet high-slit gown or corset mini dress, ermine trim, gold sceptre, stiletto heels"
+  },
+  {
+   "id": "cyber_samurai",
+   "name": "Cyber Samurai",
+   "emoji": "⚔️",
+   "theme": "cyber samurai - neon-lit warrior woman. STRICT PALETTE: matte black, electric red and chrome only. Signature pieces: cropped lacquered armour plate, obi belt, high-slit hakama skirt, katana, armoured heeled boots"
+  },
+  {
+   "id": "pirate_queen",
+   "name": "Pirate Queen",
+   "emoji": "🏴‍☠️",
+   "theme": "caribbean pirate queen on deck. STRICT PALETTE: burgundy, weathered brown leather and gold only. Signature pieces: laced leather corset, ragged high-slit skirt, tricorn hat, wide belt with cutlass, thigh boots"
+  },
+  {
+   "id": "winter_frost",
+   "name": "Winter Frost",
+   "emoji": "❄️",
+   "theme": "winter frost queen - ice sorceress. STRICT PALETTE: ice blue, white and silver only. Signature pieces: crystal crown, sheer frost cape, silver sequin bodysuit, sheer white stockings, crystal heels"
+  },
+  {
+   "id": "desert_mirage",
+   "name": "Desert Mirage",
+   "emoji": "🏜️",
+   "theme": "desert mirage dancer - sun-drenched oasis. STRICT PALETTE: sand beige, turquoise and antique gold only. Signature pieces: coin-trimmed bra top, sheer high-slit harem skirt, gold arm cuffs, veil, barefoot sandals with heels"
+  },
+  {
+   "id": "jungle_huntress",
+   "name": "Jungle Huntress",
+   "emoji": "🌿",
+   "theme": "jungle huntress - wild tribal warrior. STRICT PALETTE: emerald green, bone white and earth brown only. Signature pieces: leaf-and-hide wrap top, high-slit hide skirt, bone necklace, leather arm wraps, strappy heels"
+  },
+  {
+   "id": "racing_grid",
+   "name": "Racing Grid",
+   "emoji": "🏁",
+   "theme": "motorsport grid girl at the racetrack. STRICT PALETTE: racing red, white and carbon black only. Signature pieces: zip-front racing crop top with sponsor patches, micro shorts or mini skirt, chequered scarf, racing gloves, platform heels"
+  },
+  {
+   "id": "angel_devil",
+   "name": "Angel and Devil",
+   "emoji": "😇",
+   "theme": "angel and devil duality - half the deck angelic, half demonic. STRICT PALETTE: pure white, blood red and black only. Signature pieces: feathered wings or small horns, halo or tail, lace corset bodysuit, garter, stiletto heels"
+  }
+ ],
+ "dealer_presets": [
+  {
+   "id": "noir",
+   "name": "Noir",
+   "emoji": "🎴",
+   "theme": "film-noir themed casino dealer - black satin and opera gloves. STRICT PALETTE: black and gold only. Signature pieces: black satin corset micro dress, long opera gloves, gold bow tie choker"
+  },
+  {
+   "id": "sakura",
+   "name": "Sakura",
+   "emoji": "🌸",
+   "theme": "japanese sakura casino dealer - EAST ASIAN JAPANESE woman, fair porcelain skin, long straight jet-black hair with a sakura hairpin. STRICT PALETTE: cherry blossom pink, white and black only. Signature pieces: pink silk cheongsam-cut corset mini dress with sakura embroidery, obi sash, black lacquer hairpin, stiletto heels"
+  },
+  {
+   "id": "scarlett",
+   "name": "Scarlett",
+   "emoji": "❤️",
+   "theme": "crimson casino dealer - red satin and gold trim. STRICT PALETTE: crimson red and gold only. Signature pieces: red satin corset micro dress, gold trim at the neckline, gold drop earrings"
+  }
+ ]
+}

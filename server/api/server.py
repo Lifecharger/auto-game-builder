@@ -6262,11 +6262,19 @@ class CardEditRequest(BaseModel):
     kind: str = "card"
 
 
+class CardAnimDeleteRequest(BaseModel):
+    collection: str
+    rank: str
+    anim: str
+    kind: str = "card"
+
+
 class CardAnimateRequest(BaseModel):
     collection: str
     ranks: list[str] = []
     gesture: str = "idle"
     kind: str = "card"
+    anim: str = ""          # #338: bos/idle = kokteki ana animasyon
 
 
 class CardCutRequest(BaseModel):
@@ -6275,6 +6283,7 @@ class CardCutRequest(BaseModel):
     mode: str = "sam"             # sam | hybrid (eski yesil Grok masterlari)
     kind: str = "card"
     dealers_v3: bool = False
+    anim: str = ""          # #338: bos/idle = kokteki ana animasyon
 
 
 class CardReanimateRequest(BaseModel):
@@ -6443,6 +6452,24 @@ def prompt_smith_run(body: PromptSmithRequest):
     raise HTTPException(400, "bilinmeyen op: %s" % op)
 
 
+@app.get("/api/card/flow/presets")
+def card_flow_presets():
+    """#339: hazir koleksiyon kartlari (kart + krupiye). Dosyadan canli okunur."""
+    return _flow_call(_card().presets)
+
+
+@app.get("/api/card/flow/anims")
+def card_flow_anims(collection: str, rank: str = "", kind: str = "card"):
+    """#338: rutbenin animasyonlari (idle once). Her oge {name, video, sheet, thumb, stage}."""
+    return {"anims": _flow_call(_card().anims_of, collection, rank or _card().MAIN, kind)}
+
+
+@app.delete("/api/card/flow/anim")
+def card_flow_anim_delete(collection: str, rank: str = "", anim: str = "", kind: str = "card"):
+    """#338: bir animasyonu siler. idle silinemez - kartin ana animasyonudur."""
+    return _flow_call(_card().anim_delete, collection, rank or _card().MAIN, anim, kind)
+
+
 @app.get("/api/card/flow/candidates")
 def card_flow_candidates(collection: str, rank: str, kind: str = "card"):
     """#336: rutbenin aday still'leri (secilebilir/silinebilir dosya adlari)."""
@@ -6471,14 +6498,14 @@ def card_flow_edit(body: CardEditRequest):
 def card_flow_animate(body: CardAnimateRequest):
     """Asama 2: still -> LTX-2.5 i2v 6 sn (jest + kilitli kamera), guard, otomatik kabul."""
     return {"op": _flow_call(_card().animate, body.collection, body.ranks,
-                             body.gesture, body.kind)}
+                             body.gesture, body.kind, body.anim)}
 
 
 @app.post("/api/card/flow/cut")
 def card_flow_cut(body: CardCutRequest):
     """Asama 3: SAM3 kesim + 12x6 sheet + thumb + hi-res still (tek gpu_lane bileti)."""
     return {"op": _flow_call(_card().cut, body.collection, body.ranks, body.mode,
-                             body.kind, body.dealers_v3)}
+                             body.kind, body.dealers_v3, body.anim)}
 
 
 @app.post("/api/card/flow/reanimate")
