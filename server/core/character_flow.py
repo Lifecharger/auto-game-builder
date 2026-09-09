@@ -1212,7 +1212,7 @@ def _yerlestirici(dest_dir: str, kalip: str):
     durmaz ve cikti hicbir zaman yerlestirilmeden silinmez."""
     def yerlestir(src: str) -> str:
         p = _serbest_ad(dest_dir, kalip)
-        shutil.move(src, p)
+        _tasi_dene(src, p)                           # #328: thumb kilidine karsi yeniden dene
         return os.path.basename(p)
     return yerlestir
 
@@ -1655,8 +1655,12 @@ DRESS_DIR_TMPL = ("Put the outfit worn by the {subject} in the second image onto
 # #313: PARCA giydirme istemleri - Gorsel 1 = o anki South, Gorsel 2 = parca gorseli.
 # Her parca bir onceki adimin ciktisinin ustune eklenir, bu yuzden "all her other
 # clothing exactly" cumlesi sart (yoksa model onceki parcayi siliyor).
-_KEEP_REST_TMPL = ("keep {poss} {parts}, standing pose, framing, background and all {poss} other "
-                   "clothing and items exactly")
+# #331 equip testi: 8 ardisik giydirmede kadraj adim adim yaklasip bacaklari
+# kesiyordu (cizme/corap kayboldu) - tam boy + ayni kamera mesafesi kilidi.
+_KEEP_REST_TMPL = ("keep {poss} {parts}, standing pose, the full-body framing from head to feet at "
+                   "the same camera distance (do not zoom in, do not crop), background and all "
+                   "{poss} other clothing and items exactly, including any headwear, crown or "
+                   "accessories already worn")
 _PIECE_TMPL = {
     "set":       "Dress the {subject} in the first image in the complete outfit shown in the second image; "
                  "%s; only that outfit changes.",
@@ -1670,8 +1674,8 @@ _PIECE_TMPL = {
                  "%s; only add or replace that garment.",
     "hat":       "Put the hat from the second image on the head of the {subject} in the first image; "
                  "%s; only add or replace that headwear.",
-    "headgear":  "Put the head accessory from the second image on the head of the {subject} in the first image; "
-                 "%s; only add that head accessory.",
+    "headgear":  "Put the head accessory from the second image on the head of the {subject} in the first image, "
+                 "keeping any hat or crown already worn; %s; only add that head accessory.",
     "accessory": "Make the {subject} in the first image wear the accessory from the second image; "
                  "%s; only add that accessory.",
     "weapon":    "Make the {subject} in the first image hold the weapon from the second image in {hands} "
@@ -1689,7 +1693,9 @@ def dress_south(kind: str = "", subject: str = "") -> str:
 
 
 def dress_dir(kind: str = "", subject: str = "") -> str:
-    """#314: yon giydirme istemi (Gorsel 1 = base yonu, Gorsel 2 = giydirilmis South)."""
+    """#314: yon giydirme istemi (Gorsel 1 = base yonu, Gorsel 2 = giydirilmis South).
+    #328: skin yonleri artik bunu KULLANMAZ (_yon_job ile South'tan dondurulur);
+    geriye uyumluluk icin duruyor."""
     return render_kind(DRESS_DIR_TMPL, kind, subject)
 
 
@@ -1889,10 +1895,29 @@ def _bekle(op_id: str, job: dict, etiket: str, timeout: int = 3 * 3600) -> str:
         src = _await_job(jid, op_id, etiket, timeout)
         tmp = os.path.join(_tmp_dir(), "%s_%s%s" % (jid[:8], uuid.uuid4().hex[:6],
                                                     os.path.splitext(src)[1] or ".png"))
-        shutil.move(src, tmp)                        # KES (kopyalama yok)
+        _tasi_dene(src, tmp)                         # KES (kopyalama yok)
         return tmp
     finally:
         _is_sil(jid, bool(tmp))                      # tasindiysa dosyaya dokunma
+
+
+def _tasi_dene(src: str, dst: str, sure: float = 30.0) -> None:
+    """#328 (buyucu_cubbesi): comfy_gen isi "done" olur olmaz kucuk resim is
+    parcacigi (comfy_gen.thumb) ciktiyi PIL ile aciyor; biz ayni anda tasimaya
+    kalkinca Windows "[WinError 32] dosya baska bir islem tarafindan
+    kullaniliyor" veriyordu ve kiyafet/skin isi bosa gidiyordu. Kilit gecici
+    (thumb birkac yuz ms surer): PermissionError'da 0,5 sn arayla `sure`
+    saniyeye kadar yeniden denenir, sonra hata oldugu gibi yukari cikar.
+    """
+    t0 = time.time()
+    while True:
+        try:
+            shutil.move(src, dst)
+            return
+        except PermissionError:
+            if time.time() - t0 >= sure:
+                raise
+            time.sleep(0.5)
 
 
 def _adim_sonu(op_id: str, i: int, ok: bool, mesaj: str) -> None:
@@ -2282,6 +2307,103 @@ def edit_outfit(slug: str, prompt: str) -> dict:
     return {"slug": _slug(slug), "op": op_id}
 
 
+# #329: baska bir gorselden kiyafet CIKARMA - kisi silinir, uzerindeki kiyafet
+# hayalet manken urun fotografi olarak kalir (giysi kategorileri); silah/aksesuar
+# gibi mankensiz kategorilerde yalniz o nesne kalir.
+EXTRACT_GHOST_TMPL = ("Remove the person from this photo completely and keep only {n} they are wearing, "
+                      "shown as an invisible-mannequin product photo: the clothes keep their worn 3D shape "
+                      "but the body inside is invisible, so the neck opening, sleeve openings and hem show "
+                      "empty space. Front view, centered, plain solid flat uniform light gray seamless "
+                      "studio background. Keep every garment's cut, colors, materials, patterns and "
+                      "details exactly as in the photo. Do not draw any mannequin, dummy, doll, head, "
+                      "face, skin, hair, arms or legs. Photorealistic, sharp focus.")
+EXTRACT_PROP_TMPL = ("Keep only {n} from this photo and remove everything else: show it alone as a "
+                     "product photo, centered, plain solid flat uniform light gray seamless studio "
+                     "background, no person, no mannequin. Keep its exact shape, colors, materials and "
+                     "details. Photorealistic, sharp focus.")
+# #329: cikarma negatifi - Qwen Edit "ghost mannequin" deyince BEYAZ MANKEN ciziyor
+EXTRACT_NEG_EXTRA = "mannequin, dummy, doll, figure, head, face, arms, legs, hands, skin, hair"
+
+
+def extract_prompt(category: str = DEFAULT_CATEGORY, kind: str = "", note: str = "") -> str:
+    """#329: cikarma istemi - kategori/ture gore manken ya da mankensiz."""
+    c = category if category in OUTFIT_CATEGORY_IDS else DEFAULT_CATEGORY
+    prof = KIND_PROFILES[kind_id(kind)]
+    mnq = prof.get("mannequin") or ""
+    prop = (c in outfit_prop_categories(kind)) or not mnq
+    tmpl = EXTRACT_PROP_TMPL if prop else EXTRACT_GHOST_TMPL
+    p = tmpl.format(n=outfit_noun(c, kind), mnq=mnq)
+    note = (note or "").strip()
+    return ("%s %s" % (p, note)) if note else p
+
+
+def _extract_source(job_id: str = "", rating: str = "", stage: str = "", item_id: str = "") -> str:
+    """#329: kaynak gorsel - comfy_gen isi (her kip) YA DA Jigsaw akisi ogesi
+    (incoming/staging/pushed). Yol her zaman sunucu tarafinda cozulur, istemci
+    dosya yolu gondermez."""
+    if (job_id or "").strip():
+        return _job_image(job_id.strip())
+    if (item_id or "").strip():
+        p = JF.item_path(rating or "hot", stage or "pushed", item_id.strip(), "image")
+        if not p:
+            raise ValueError("akis ogesi yok: %s/%s/%s" % (rating, stage, item_id))
+        return p
+    raise ValueError("kaynak gorsel sec (job_id ya da akis ogesi)")
+
+
+def extract_outfit(name: str, category: str = "", kind: str = "", job_id: str = "",
+                   rating: str = "", stage: str = "", item_id: str = "", note: str = "") -> dict:
+    """#329: op kind `char-outfit` (1 is) - secili gorseldeki kiyafeti gardiroba cikarir.
+
+    edit_qwen (tek gorsel, kuyruk, mode "free"); cikti geometrisi kaynaktan
+    gelir (yatay jigsaw karesi yatay kalir - manken ortada, fon duz gri).
+    Kayit create_outfit ile ayni bicimde yazilir (+ `source`), listede ve skin
+    birlestiricide diger kiyafetlerden farksizdir.
+    """
+    kat = outfit_category(category)                             # #313
+    tur = kind_id(kind)                                         # #314
+    src = _extract_source(job_id, rating, stage, item_id)
+    name = (name or "").strip()
+    if not name:
+        raise ValueError("kiyafet adi gerekiyor")
+    slug = _slug(name)
+    if not _SLUG_RE.match(slug or ""):
+        raise ValueError("gecersiz kiyafet adi: %s" % name)
+    d = outfits_dir(create=True)
+    if os.path.isfile(os.path.join(d, slug + ".json")):
+        raise ValueError("bu kiyafet zaten var: %s (once sil)" % slug)
+    kaynak = ("job:%s" % job_id.strip()) if (job_id or "").strip()         else ("flow:%s/%s/%s" % (rating or "hot", stage or "pushed", item_id.strip()))
+    _write_json(os.path.join(d, slug + ".json"),
+                {"slug": slug, "name": name, "prompt": (note or "").strip(),
+                 "style": "", "template": "", "category": kat, "kind": tur,
+                 "source": kaynak,                              # #329
+                 "created": datetime.now().isoformat(timespec="seconds")})
+    op_id = _op_new("char-outfit", 1)
+
+    def calis():
+        _op(op_id, message="kiyafet cikar: %s (%s/%s)" % (slug, tur, kat))
+        try:
+            job = G.submit("edit_qwen", extract_prompt(kat, tur, note),
+                           negative="%s, %s" % (outfit_negative(kat, tur), EXTRACT_NEG_EXTRA),
+                           seed=random.randint(1, 2 ** 31),
+                           turbo=True, image_path=src, mode="free", client="flow", category=OUTFITS)
+            out = _bekle(op_id, job, "kiyafet cikar %s" % slug)
+            _convert(out, os.path.join(d, slug + ".png"))
+        except Exception as e:
+            with _ops_lock:
+                _ops[op_id]["failed"] += 1
+            _op(op_id, done=1, log="%s: %s" % (slug, str(e)[:220]))
+            raise
+        with _ops_lock:
+            _ops[op_id]["ok"] += 1
+            _ops[op_id]["result"] = {"slug": slug, "category": kat, "kind": tur,
+                                     "rel": "%s/%s.png" % (OUTFITS, slug)}
+        _op(op_id, done=1, log="%s hazir" % slug, message="bitti")
+
+    _run(op_id, calis)
+    return {"slug": slug, "op": op_id, "kind": tur, "category": kat, "source": kaynak}
+
+
 def delete_outfit(slug: str) -> dict:
     """#305: kiyafeti kutuphaneden siler (giydirilmis skinler kalir)."""
     p = outfit_path(slug)
@@ -2397,9 +2519,10 @@ def create_skin(name: str, skin_name: str = "", outfit: str = "", pieces=None) -
        gorselli bir duzenleme (Gorsel 1 = o anki South, Gorsel 2 = parca gorseli)
        ve kategoriye ozel istem (DRESS_PIECE_PROMPTS). Her adim front.png'yi
        gunceller, bir sonraki adimin girdisi olur.
-    3) Nihai South'tan 7 yon giydirme: Gorsel 1 = base/dirs/<yon>.png, Gorsel 2 =
-       giydirilmis South -> dirs/<yon>.png otomatik kabul.
-    Op total = adim sayisi + 7. Skin slug'i: skin_name > set slug'i > parcalardan
+    3) #329: yon YOK - skin olusturma South'ta biter. 7 yon skin sayfasindan
+       "Eksikleri uret" ile (generate_skin_dirs) South'tan tek gorselli Qwen Edit
+       "dondur" isiyle uretilir (#328; base yonleri skin icin girdi degildir).
+    Op total = adim sayisi. Skin slug'i: skin_name > set slug'i > parcalardan
     turetilir ("top_x+bottom_y"); ayni slug tek skin (yeniden uretmek icin sil).
     """
     d = char_dir(name)
@@ -2454,8 +2577,10 @@ def create_skin(name: str, skin_name: str = "", outfit: str = "", pieces=None) -
     for r in prc:
         adimlar.append(("%s %s" % (r["category"], r["slug"]), r["png"],
                         piece_prompt(r["category"], tur, ozne)))                  # #314
-    yonler = [x for x in DIR_IDS if x != "front"]
-    toplam = len(adimlar) + len(yonler)
+    # #329: skin olusturma YALNIZ South uretir; 7 yon kullanicinin skin
+    # sayfasindaki "Eksikleri uret" dugmesiyle (POST /skins/dirs) South'tan
+    # dondurulur - kullanici South'u begenmeden 7 yon kuyrugu harcanmaz.
+    toplam = len(adimlar)
     op_id = _op_new("char-skin", toplam)
 
     def calis():
@@ -2477,20 +2602,6 @@ def create_skin(name: str, skin_name: str = "", outfit: str = "", pieces=None) -
             _convert(front, os.path.join(sd, "outfit.png"))      # kiyafet referansi = nihai South
         except Exception:
             pass
-        for y in yonler:
-            i += 1
-            _op(op_id, message="%d/%d giydirme %s" % (i, toplam, y))
-            try:
-                hedef = os.path.join(dirs_root(d, BASE_SKIN), "%s.png" % y)
-                if not os.path.isfile(hedef):
-                    raise ValueError("base'in '%s' yonu yok - once base yonlerini uret" % y)
-                out = _bekle(op_id, _giydir_job(name, hedef, front, dress_dir(tur, ozne)),
-                             "giydirme %s" % y)                                   # #314
-                _convert(out, os.path.join(dr, "%s.png" % y))
-            except Exception as e:
-                _adim_sonu(op_id, i, False, "%s: %s" % (y, str(e)[:220]))
-            else:
-                _adim_sonu(op_id, i, True, "%s -> skins/%s/dirs/%s.png" % (y, slug, y))
         _op(op_id, message="bitti")
 
     _run(op_id, calis)
@@ -2518,8 +2629,13 @@ def _giydir_job(name: str, hedef: str, kiyafet: str, prompt: str) -> dict:
 
 
 def generate_skin_dirs(name: str, skin: str, dirs: list[str], n: int = 1) -> str:
-    """#305: POST /skins/dirs - secili yonleri yeniden giydirir (aday uretir)."""
-    d = char_dir(name)
+    """#305: POST /skins/dirs - secili yonlerin adaylarini uretir.
+
+    #328: kaynak giydirilmis SOUTH (skins/<slug>/dirs/front.png), is base
+    yonleriyle AYNI tek gorselli Qwen Edit "dondur" isidir (_yon_job). Base
+    yonleri artik girdi degildir.
+    """
+    char_dir(name)
     sd = _skin_dir(name, skin)
     slug = skin_slug(skin)
     tur, ozne = char_kind(name)                                  # #314
@@ -2529,10 +2645,13 @@ def generate_skin_dirs(name: str, skin: str, dirs: list[str], n: int = 1) -> str
     n = max(1, min(8, int(n or 1)))
     dr = os.path.join(sd, "dirs")
     os.makedirs(dr, exist_ok=True)
-    # #305: giydirme referansi giydirilmis SOUTH'tur (yoksa kiyafet kopyasi)
+    # #328: kaynak giydirilmis SOUTH (yoksa nihai South kopyasi outfit.png)
     ref = os.path.join(dr, "front.png")
     if not os.path.isfile(ref):
         ref = os.path.join(sd, "outfit.png")
+    if not os.path.isfile(ref):
+        raise ValueError("'%s' skininin South'u yok - once skini uret" % slug)
+    _c, _mk, _sf, _wa, yon_uret = _tools()
 
     def uret(op_id):
         isler = []
@@ -2540,8 +2659,7 @@ def generate_skin_dirs(name: str, skin: str, dirs: list[str], n: int = 1) -> str
             for i in range(1, n + 1):
                 etiket = "%s/%s_%02d" % (slug, y, i)
                 try:
-                    job = _giydir_job(name, os.path.join(dirs_root(d, BASE_SKIN), "%s.png" % y),
-                                      ref, dress_dir(tur, ozne))          # #314
+                    job = _yon_job(name, ref, y, yon_uret, tur, ozne)      # #328
                 except Exception as e:
                     with _ops_lock:
                         _ops[op_id]["failed"] += 1

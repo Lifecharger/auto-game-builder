@@ -14,6 +14,7 @@ import '../services/mode_service.dart';
 import '../widgets/bottom_inset.dart';
 import '../widgets/network_video.dart';
 import '../widgets/flow_kind_switch.dart';
+import '../widgets/outfit_extract_dialog.dart';  // #329
 
 /// Asset Mod - Uretilenler ekrani.
 ///
@@ -205,6 +206,38 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
       .whereType<GenerateJob>()
       .where((j) => j.isDone && !j.isVideo)
       .toList();
+
+  /// #329: her kipte - secili TEK gorseldeki kiyafeti gardirop kutuphanesine
+  /// cikarir (sunucuda edit_qwen, kuyruk). Kaynak gorsel is kimligiyle gider.
+  Future<void> _extractOutfit() async {
+    final gorseller = _selectedImages;
+    if (gorseller.isEmpty) {
+      _msg('Tamamlanmis gorsel sec');
+      return;
+    }
+    if (gorseller.length > 1) {
+      _msg('Kiyafet tek gorselden cikarilir - birini sec');
+      return;
+    }
+    final secim = await showOutfitExtractDialog(context);
+    if (secim == null || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      await CharacterFlowService.outfitExtract(
+          name: secim.name,
+          category: secim.category,
+          kind: secim.kind,
+          jobId: gorseller.first.id,
+          note: secim.note);
+      if (!mounted) return;
+      _msg('${secim.name} gardiroba cikariliyor - Karakter > Gardirop');
+      setState(_sel.clear);
+    } catch (e) {
+      _msg(e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   /// Karakter Modu - "Karakter yap": secili TEK isten yeni bir karakter
   /// klasoru acar (isim + sinif + istege bagli kimlik cumlesi). #306: sunucu
@@ -529,6 +562,12 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
                   tooltip: 'Tumunu sec',
                   onPressed: () =>
                       setState(() => _sel.addAll(_visible.map((j) => j.id))),
+                ),
+                // #329: her kipte - secili tek gorselden kiyafet cikar.
+                IconButton(
+                  icon: const Icon(Icons.checkroom_outlined),
+                  tooltip: 'Kiyafet cikar - gorseldeki kiyafeti gardiroba al',
+                  onPressed: _busy ? null : _extractOutfit,
                 ),
                 if (_mode == 'character') ...[
                   IconButton(

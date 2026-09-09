@@ -1240,6 +1240,30 @@ class CharacterFlowService {
         'kind': kind,
       }))['op'] ?? ''}';
 
+  /// #329: baska bir gorseldeki kiyafeti gardiroba cikarir (edit_qwen) - op.
+  /// Kaynak: her kipten uretim isi (`jobId`) YA DA Jigsaw akisi ogesi
+  /// (`rating`/`stage`/`itemId`, incoming|staging|pushed).
+  static Future<String> outfitExtract({
+    required String name,
+    String category = 'set',
+    String kind = 'female',
+    String jobId = '',
+    String rating = '',
+    String stage = '',
+    String itemId = '',
+    String note = '',
+  }) async =>
+      '${(await _post('/api/character/flow/outfits/extract', {
+        'name': name,
+        'category': category,
+        'kind': kind,
+        'job_id': jobId,
+        'rating': rating,
+        'stage': stage,
+        'item_id': itemId,
+        'note': note,
+      }))['op'] ?? ''}';
+
   /// Kiyafeti kisa bir duzeltme cumlesiyle duzenler (edit_qwen) - op.
   static Future<String> outfitEdit(String slug, String prompt) async =>
       '${(await _post('/api/character/flow/outfits/edit',

@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../services/character_flow_service.dart';  // #329
 import '../services/jigsaw_flow_service.dart';
+import '../widgets/outfit_extract_dialog.dart';  // #329
 import '../services/jigsaw_profiles.dart';
 import '../services/mode_service.dart';
 import '../widgets/network_video.dart';
@@ -901,6 +903,34 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
     }
   }
 
+  /// #329: secili TEK ogedeki kiyafeti gardirop kutuphanesine cikarir
+  /// (incoming/staging/pushed - kaynak rating/stage/id ile sunucuda cozulur).
+  /// Op kaydi Jigsaw akisiyla ayni defterdedir, _watch ile izlenir.
+  Future<void> _extractOutfit() async {
+    if (_sel.length != 1) {
+      _snack('Kiyafet tek gorselden cikarilir - birini sec');
+      return;
+    }
+    final id = _sel.first;
+    final secim = await showOutfitExtractDialog(context);
+    if (secim == null || !mounted) return;
+    try {
+      final op = await CharacterFlowService.outfitExtract(
+          name: secim.name,
+          category: secim.category,
+          kind: secim.kind,
+          rating: _rating,
+          stage: _stage,
+          itemId: id,
+          note: secim.note);
+      setState(_sel.clear);
+      if (op.isNotEmpty) _watch(op);
+      _snack('${secim.name} gardiroba cikariliyor - Karakter > Gardirop');
+    } catch (e) {
+      _snack(e.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
   /// Etiket: secili varligin EXIF etiketleri + prompt yan dosyasi.
   Future<void> _showMeta() async {
     final id = _sel.first;
@@ -964,6 +994,8 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
         _act(Icons.sell_outlined, 'Etiket / metadata', _showMeta),
         _act(Icons.new_label_outlined, 'Yeniden etiketle', _retag),
         _act(Icons.check_circle_outline, 'Kabul et', _accept),
+        _act(Icons.checkroom_outlined, 'Kiyafet cikar',
+            _sel.length == 1 ? _extractOutfit : null),  // #329
         _act(Icons.videocam_off_outlined, 'Videoyu sil (gorsel kalir)',
             _selWithVideo.isEmpty ? null : _deleteVideo),
         _act(Icons.delete_outline, 'Reddet', _delete),
@@ -976,10 +1008,16 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
         _act(Icons.videocam_off_outlined, 'Videoyu sil (gorsel kalir)',
             _selWithVideo.isEmpty ? null : _deleteVideo),
         _act(Icons.cloud_upload_outlined, 'Push', _push),
+        _act(Icons.checkroom_outlined, 'Kiyafet cikar',
+            _sel.length == 1 ? _extractOutfit : null),  // #329
         _act(Icons.delete_outline, 'Sil', _delete),
       ]);
     } else {
-      butonlar.add(_act(Icons.sell_outlined, 'Etiket / metadata', _showMeta));
+      butonlar.addAll([
+        _act(Icons.sell_outlined, 'Etiket / metadata', _showMeta),
+        _act(Icons.checkroom_outlined, 'Kiyafet cikar',
+            _sel.length == 1 ? _extractOutfit : null),  // #329
+      ]);
     }
     return BottomAppBar(
       child: Row(

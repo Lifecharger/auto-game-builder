@@ -1109,10 +1109,12 @@ def thumb(job_id: str, size: int = 360) -> str | None:
                            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         else:
             from PIL import Image
-            im = Image.open(src)
-            if getattr(im, "n_frames", 1) > 1:
-                im.seek(0)
-            im = im.convert("RGB")
+            # #328: dosya tutamaci HEMEN kapansin - acik kaldikca character_flow'un
+            # ciktiyi tasimasi Windows'ta WinError 32 ile patliyordu.
+            with Image.open(src) as f:
+                if getattr(f, "n_frames", 1) > 1:
+                    f.seek(0)
+                im = f.convert("RGB")
             im.thumbnail((size, size * 3))
             im.save(dst, "JPEG", quality=82)
         return dst if os.path.isfile(dst) else None

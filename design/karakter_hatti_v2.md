@@ -6,7 +6,7 @@
 > 3. adım skinler. İlk adım otomatik yürümeli: "karakter oluştur" deyince yönlere kadar 1 adetle her şeyi sıraya koymalı,
 > onaya gerek yok. Base'lerden birini seçtiğimde portre, hikaye, yönler kendi oluşmaya başlamalı, hepsinden 1 adet kendi seçilmeli.
 > Hepsi bitince kullanıcı görür, her yön altındaki yenile ile tek tek değiştirir. Bu kısımda animasyon yok.
-> Her base standart bikini/underwear seviyesinde. Skin = kıyafet: kıyafet oluşturulur, sonra her yön giydirilir (2 görsel + prompt).
+> Her base standart bikini/underwear seviyesinde. Skin = kıyafet: kıyafet oluşturulur, sonra kullanıcı skin sayfasından yönleri South'tan döndürtür (#328/#329: tek görsel, Qwen Edit).
 > Base'in kendisi de bir skin. Skinlerin her yönü olur, animasyon skin üstünde yapılır. Skin listesi = 1'deki karakter listesi gibi.
 > "Görünüş seç" gereksiz: karakter kartında base'in South'u, skin listesinde skinin South'u görünür.
 
@@ -83,11 +83,17 @@ birçok karaktere giydirilebilir, kullanıcı kıyafetleri saklar.
      `comfy_gen.workflow_inputs()` yuvalarını oku), girdiler = `base/base.png` + `_outfits/<slug>.png`, prompt = "Dress the woman in the
      first image in the outfit shown in the second image. Keep her face, hair, skin, body, standing pose, framing and background exactly;
      only the clothing changes." → `skins/<slug>/dirs/front.png` (otomatik kabul) ve `skins/<slug>/outfit.png` (kıyafet kopyası).
-  2. **7 yön giydirme, sırayla**: aynı iki-görselli görev, girdiler = `base/dirs/<yön>.png` + giydirilmiş **South** (`dirs/front.png`),
-     prompt = "Put the outfit worn by the woman in the second image onto the woman in the first image. Keep the first image's pose,
-     camera angle, body, face, hair and background exactly; only the clothing changes." → `dirs/<yön>.png` otomatik kabul.
+  2. **7 yön (#328; #329: artık `POST /skins/dirs` ile kullanıcı tetikler, skin oluşturmada koşmaz)**: giydirilmiş **South** (`dirs/front.png`) tek görselli Qwen Image Edit "döndür" işine girer —
+     base yönlerini üreten `_yon_job` ile birebir aynı (yön kamera cümlesi + KEEP "exact same outfit and accessories" kilidi)
+     → `dirs/<yön>.png` otomatik kabul. Base yönleri skin için girdi DEĞİLDİR. Eski iki-görselli "base yönü + giydirilmiş South"
+     giydirmesi yön değiştiremiyordu: ön yönlerde South'u kopyalıyor, yan/arka yönlerde çıplak base'i bırakıyordu (task #328).
   9B VRAM'a sığmazsa `wf_i2i_flux2_klein_edit` (4B). Yuva sırası düğüm sırasına göredir — ajan doğrular ve "first/second" ifadesini ona
   göre yazar.
+- **#329 Kıyafet çıkar**: `POST /outfits/extract {name, category?, kind?, job_id? | rating+stage+item_id, note?}` → `{"slug","op"}`.
+  Kaynak: her kipten comfy_gen işi (Üretilenler galerisi, tek seçim) YA DA Jigsaw akışı incoming/staging/pushed öğesi. edit_qwen tek
+  görsel, kuyruk; kişi silinir, kıyafet içi boş (görünmez manken) ürün karesi olarak `_outfits/<slug>.png` yazılır (`source` alanı kayıtta).
+  Uygulama: galeri araç çubuğu + Jigsaw akışı alt çubuğu "Kiyafet cikar" düğmesi, ortak `showOutfitExtractDialog`.
+- **#329 Kıyafet şeridi**: kıyafete TEK dokunuş menü açar (skin üret / düzenle / sil); dokunur dokunmaz skin başlamaz.
 - `GET /skins?name=` → `{"skins": [{slug, name, outfit: <slug|"">, south: "<rel>", dirs: {yön: bool}, dir_candidates, dir_files,
   anims: {...}, rev}]}` — ilk eleman her zaman `base` (outfit "").
 - `POST /skins/dirs {name, skin, dirs, n}` → seçili yönleri yeniden giydirir; `pick kind:"skin:<slug>:<yön>"` kabul eder, diğer adayları
@@ -124,7 +130,7 @@ Kategoriler (sabit id'ler): `set, top, bottom, shoes, socks, accessory, hat, hea
   giysi: "Put the <kategori adı> from the second image on the woman in the first image; keep her face, hair, skin, body, pose,
   framing, background and all her other clothing exactly; only add/replace that garment." · hat/headgear: "…on her head…" ·
   accessory: "…wear the accessory from the second image…" · weapon: "…hold the weapon from the second image in her hand(s) in a
-  natural ready grip; keep pose otherwise…". Ardından 7 yön giydirme (§3.2: base yönü + nihai South). Op `total` = adım sayısı + 7.
+  natural ready grip; keep pose otherwise…". **#329: yön üretilmez** — skin oluşturma South'ta biter, op `total` = adım sayısı. 7 yön skin sayfasındaki "Eksikleri uret" ile (`POST /skins/dirs`, §3.2) South'tan üretilir.
 - `skin.json`: `{slug, name, outfit, pieces: [...], created}`; `GET /skins` satırları `outfit` ve `pieces` taşır.
 - ✎ Düzenle / ↻ Yeniden üret skin yönlerinde aynen; ayrıca South'u tek parçayla yeniden giydirmek için `POST /skins/dirs` `dirs: ["front"]`.
 
@@ -182,7 +188,7 @@ Detay sekmeleri: **1 Karakter · 2 Yön · 3 Skinler**.
   animasyon ikonları BURADA YOK (kullanıcı: bu kısımda animasyon yok). Hücre dokunma = aday seçici / büyük görüntü.
 - **3 Skinler**: üstte **Kıyafetler** şeridi (kütüphane: küçük resim + ad; "+ Kıyafet üret" = ad + prompt → op; ✎ / sil), altında skin
   listesi (South thumb, ad, yön rozetleri, anim sayacı) — ilk satır **Base**; **"Skin üret"** = kıyafet seç (şeritten) → op (South +
-  7 yön otomatik). Skin satırına dokun → skin detayı: pusula ızgarası (giydirilmiş yönler, yenile/sil/aday seç) + her yönde **anim / Mixamo**
+  #329: yalnız South otomatik, yönler skin sayfasından). Skin satırına dokun → skin detayı: pusula ızgarası (giydirilmiş yönler, yenile/sil/aday seç) + her yönde **anim / Mixamo**
   ikonları → mevcut animasyon ekranı `skin` bağlamıyla (i2v paneli, Mixamo paneli, sürümler, sprite; yastıklama seçici burada, #295).
   Servis: tüm animasyon çağrılarına `skin` parametresi.
 - Snack/ilerleme: op'lar Sıra'da (#299); "Sıraya eklendi (N iş)".
@@ -195,3 +201,15 @@ Aynı üç sekme: Karakter (portre + base adayları + öneriler), Yön (base pus
 - İstisnasız her iş kuyruk/şeritte (#299); ilk tur TAM otomatik (her şeyden 1 adet, otomatik seçim); kullanıcı bittiğinde Düzenle / Yeniden üret ile ince ayar yapar.
 - Base her zaman bikini/underwear seviyesi (neutral set); base'i KULLANICI seçer, gerisi otomatik. Kıyafet karakterden bağımsız, yeniden kullanılabilir; skin = kıyafet + base.
 - Geriye uyumluluk: eski `look`/`turnaround` verisi `skins/signature` olarak korunur, silinmez.
+
+## #330/#331 — 4 sekme, Gardırop + RPG giydirme (2026-09-09)
+- Karakter sayfası **4 sekme**: `1 Karakter · 2 Yön · 3 Gardırop · 4 Skinler`. Stüdyoda da aynı (WardrobePanel + SkinPanel).
+- **3 Gardırop**: üstte **RPG giydirme paneli** — ortada seçili base'in South'u, solda yuvalar (Kafa=hat, Kafalık=headgear, Üst, Alt, Çorap),
+  sağda (Set, Ayakkabı, Kolluk/Aksesuar=accessory çoklu, Silah çoklu). Yuvaya dokun → o kategorinin 3'lü seçicisi; basılı tut → büyüt.
+  **Base seçici** (aynı türdeki karakterler): skin, seçili karakterin olur. Altında `Skin üret (South)` + `Kıyafet çıkar`; altında
+  kategori çipleri + **katalog 3'lü ızgara** (dokun = menü: giydir/büyüt/skin üret/düzenle/sil; basılı tut = büyüt).
+- **Skin üret** = `POST /skins/create {name: <base seçici>, skin_name?, outfit: <set yuvası>, pieces: [<yuvalar giydirme sırasıyla>]}` →
+  yalnız South (#329). **4 Skinler** yalnız base + skinler; yönler skin sayfasından.
+- Uygulama: `widgets/equip_panel.dart` (EquipSelection, EquipPanel, OutfitCatalogGrid, showSlotPicker, showOutfitPreview,
+  pickGeneratedImage), `character_flow_screen.dart` `_tabGardirop/_makeSkinFromEquip/_extractFromWardrobe`.
+  Stüdyo: `WardrobePanel` (katalog satırda 8), `SkinComposer` base seçici (`base_var`).

@@ -9,6 +9,8 @@ import '../services/mode_service.dart';
 import '../theme.dart';
 import '../widgets/bottom_inset.dart';
 import '../widgets/network_video.dart';
+import '../widgets/equip_panel.dart';           // #331
+import '../widgets/outfit_extract_dialog.dart'; // #329
 
 /// Asset Mod - Karakter hatti (#306, design/karakter_hatti_v2.md).
 ///
@@ -934,7 +936,7 @@ class CharacterDetailPage extends StatefulWidget {
 
 class _CharacterDetailPageState extends State<CharacterDetailPage>
     with SingleTickerProviderStateMixin {
-  late final TabController _tabs = TabController(length: 3, vsync: this)
+  late final TabController _tabs = TabController(length: 4, vsync: this)
     ..addListener(() {
       if (!_tabs.indexIsChanging) setState(() {});
     });
@@ -969,6 +971,11 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
   bool _outfitsLoading = true;
   /// #313: serit kategori cipi - bos = "Hepsi".
   String _outfitCat = '';
+
+  // 3 Gardirop (#331): RPG giydirme secimi + hedef base (hangi karakter).
+  final EquipSelection _equip = EquipSelection();
+  List<CharacterItem> _chars = [];
+  String _equipTarget = '';
 
   /// #314: karakterin turu - gardirop ve animasyon buna kilitlidir. Sunucu
   /// alani gondermiyorsa `female`.
@@ -1083,9 +1090,18 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
   Future<void> _loadOutfits() async {
     try {
       final o = await CharacterFlowService.outfits(kind: _kind);
+      // #331: base secici icin karakter listesi (ayni turdekiler).
+      List<CharacterItem> chars = _chars;
+      try {
+        chars = (await CharacterFlowService.list())
+            .where((c) => c.kind == _kind)
+            .toList();
+      } catch (_) {}
       if (!mounted) return;
       setState(() {
         _outfits = o;
+        _chars = chars;
+        if (_equipTarget.isEmpty) _equipTarget = _name;
         _outfitsLoading = false;
       });
     } catch (_) {
@@ -1214,10 +1230,12 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
             ],
           ),
         ],
+        // #330: 4 sekme - Gardirop ayri; skin Gardirop'tan uretilir.
         bottom: TabBar(controller: _tabs, tabs: const [
           Tab(text: '1 Karakter'),
           Tab(text: '2 Yon'),
-          Tab(text: '3 Skinler'),
+          Tab(text: '3 Gardirop'),
+          Tab(text: '4 Skinler'),
         ]),
       ),
       body: _loading
@@ -1235,6 +1253,7 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
                             children: [
                               _tabKarakter(it),
                               _tabYon(it),
+                              _tabGardirop(it),      // #330/#331
                               _tabSkinler(it),
                             ],
                           ),
@@ -2166,31 +2185,18 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
   // -------------------------------------------------------- 3 Skinler
   /// #306: skin = kiyafet. Ilk satir her zaman Base'dir. Satira dokunma skin
   /// detayini acar (yonler + animasyon).
+  // ------------------------------------------------------- 4 Skinler
+  /// #330: yalniz base + skinler. Kiyafet seridi ve skin uretimi 3 Gardirop'ta.
   Widget _tabSkinler(CharacterItem it) {
     final skinler = _skinList;
     return ListView(
       padding: bottomSafePadding(context,
           left: 12, top: 12, right: 12, bottom: 12),
       children: [
-        // #306: kiyafet kutuphanesi seridi - karakterden BAGIMSIZ, tekrar
-        // kullanilir. #313: kategori cipleriyle suzulur; set kiyafete dokunma
-        // hizli skin uretir, parcaya dokunma birlestiriciyi acar.
-        _outfitStrip(),
-        const SizedBox(height: 14),
-        FilledButton.icon(
-          // #313: birlestirici sayfa - set ve/veya parca kombinasyonu.
-          onPressed: () => _openComposer(),
-          icon: const Icon(Icons.checkroom, size: 18),
-          label: const Text('Skin uret (birlestirici)'),
-          style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(44)),
-        ),
-        const SizedBox(height: 6),
         const Text(
-            'Skin = set kiyafet ve/veya parcalar + bu karakterin base\'i: once '
-            'South giydirilir (set, sonra ust/alt/corap/ayakkabi/sapka/kafalik/'
-            'aksesuar/silah sirasiyla), sonra kalan 7 yon iki gorselli '
-            'duzenleme ile giydirilir. Animasyon skin ustunde yapilir; base de '
-            'bir skindir.',
+            'Base + skinler. Yeni skin 3 Gardirop sekmesinden uretilir '
+            '(yalniz South); yonler skinin sayfasindaki "Eksikleri uret" ile '
+            'South\'tan uretilir. Animasyon skin ustunde yapilir.',
             style: TextStyle(fontSize: 11, color: Colors.grey)),
         const SizedBox(height: 12),
         if (skinler.isEmpty)
@@ -2203,6 +2209,195 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
           ],
       ],
     );
+  }
+
+  // ------------------------------------------------------- 3 Gardirop
+  /// #330/#331: ustte RPG giydirme (ortada base, yanlarda yuvalar, base
+  /// secici), altinda "Skin uret" + "Kiyafet cikar", altinda 3'lu katalog.
+  Widget _tabGardirop(CharacterItem it) {
+    final hazir = _kindOutfits;
+    final hedef = _chars.where((c) => c.name == _equipTarget).firstOrNull;
+    final baseUrl = hedef == null
+        ? (it.southThumb.isEmpty ? '' : _thumb(it.southThumb, size: 300))
+        : (hedef.southThumb.isEmpty
+            ? ''
+            : CharacterFlowService.thumbUrl(hedef.name, hedef.southThumb,
+                size: 300, v: hedef.rev));
+    final n = (_equip.set.isEmpty ? 0 : 1) + _equip.pieces.length;
+    return ListView(
+      padding: bottomSafePadding(context,
+          left: 12, top: 12, right: 12, bottom: 12),
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                  'Giydirme - ${CharacterFlowService.kindLabel(_kind)}',
+                  style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey)),
+            ),
+            Flexible(
+              child: OutlinedButton.icon(
+                onPressed: _newOutfit,
+                icon: const Icon(Icons.add_photo_alternate_outlined, size: 18),
+                label: const Text('+ Kiyafet uret',
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        EquipPanel(
+          outfits: hazir,
+          selection: _equip,
+          characters: _chars.isEmpty
+              ? [if (_item != null) _item!]
+              : _chars,
+          selectedName: _equipTarget.isEmpty ? _name : _equipTarget,
+          onCharacter: (v) => setState(() => _equipTarget = v),
+          baseThumbUrl: baseUrl,
+          onChanged: () => setState(() {}),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              flex: 3,
+              child: FilledButton.icon(
+                onPressed: _equip.isEmpty ? null : _makeSkinFromEquip,
+                icon: const Icon(Icons.checkroom, size: 18),
+                label: Text(n == 0 ? 'Skin uret (South)' : 'Skin uret (South, $n is)',
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(44)),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              flex: 2,
+              child: OutlinedButton.icon(
+                onPressed: _extractFromWardrobe,
+                icon: const Icon(Icons.content_cut, size: 16),
+                label: const Text('Kiyafet cikar',
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(44)),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+            'Yuvaya dokun: kiyafet sec - basili tut: buyut. Skin uret = secili '
+            'base + giyilenlerle yeni skinin South\'u (yalniz South; yonler '
+            'skin sayfasindan). Skin, base secicideki karakterin olur.',
+            style: const TextStyle(fontSize: 11, color: Colors.grey)),
+        const SizedBox(height: 12),
+        Text('Gardirop - ${hazir.length} kiyafet',
+            style: const TextStyle(
+                fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+        const SizedBox(height: 4),
+        _outfitCategoryChips(),
+        const SizedBox(height: 4),
+        if (_outfitsLoading && _outfits.isEmpty)
+          const SizedBox(
+              height: 40, child: Center(child: CircularProgressIndicator()))
+        else if (hazir.isEmpty)
+          Text(
+              'Bu turde (${CharacterFlowService.kindLabel(_kind)}) kiyafet '
+              'yok - "+ Kiyafet uret" ya da "Kiyafet cikar".',
+              style: const TextStyle(fontSize: 12, color: Colors.grey))
+        else if (_visibleOutfits.isEmpty)
+          Text(
+              '"${CharacterFlowService.categoryLabel(_outfitCat)}" '
+              'kategorisinde kiyafet yok.',
+              style: const TextStyle(fontSize: 12, color: Colors.grey))
+        else
+          OutfitCatalogGrid(
+            outfits: _visibleOutfits,
+            shrinkWrap: true,
+            selected: (o) => _equip.of(o.category).contains(o.slug),
+            onTap: (o) => o.ready
+                ? _outfitMenu(o)
+                : _snack('Kiyafet henuz hazir degil - kuyrukta ya da uretim basarisiz'),
+            onLongPress: (o) => showOutfitPreview(context, o),
+          ),
+      ],
+    );
+  }
+
+  /// #331: Skin uret = secili base + giyilenler -> yalniz South (1 op).
+  Future<void> _makeSkinFromEquip() async {
+    if (_equip.isEmpty) {
+      _snack('Once bir yuvaya kiyafet giydir');
+      return;
+    }
+    final hedef = _equipTarget.isEmpty ? _name : _equipTarget;
+    final ad = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text('$hedef icin skin uret'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: ad,
+              autofocus: true,
+              decoration: const InputDecoration(
+                  labelText: 'Skin adi (bos: setten / parcalardan turetilir)',
+                  hintText: 'orn. Kirmizi savasci'),
+            ),
+            const SizedBox(height: 8),
+            Text(
+                'base + ${[
+                  if (_equip.set.isNotEmpty) 'set ${_outfitOf(_equip.set)?.name ?? _equip.set}',
+                  for (final p in _equip.pieces) _outfitOf(p)?.name ?? p,
+                ].join(" + ")}',
+                style: const TextStyle(fontSize: 11, color: Colors.grey)),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Vazgec')),
+          FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Uret')),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final n = (_equip.set.isEmpty ? 0 : 1) + _equip.pieces.length;
+    await _run(
+        '${ad.text.trim().isEmpty ? "Skin" : ad.text.trim()} ($hedef, South)',
+        () async => (await CharacterFlowService.skinCreate(
+              hedef,
+              skinName: ad.text.trim(),
+              outfit: _equip.set,
+              pieces: _equip.pieces,
+            ))
+                .op,
+        adet: n);
+    if (hedef != _name) {
+      _snack('Skin $hedef karakterine yaziliyor - onun sayfasinda gorunur');
+    }
+  }
+
+  /// #329: Gardirop'tan kiyafet cikar - kaynak son uretimlerden secilir.
+  Future<void> _extractFromWardrobe() async {
+    final j = await pickGeneratedImage(context);
+    if (j == null || !mounted) return;
+    final secim = await showOutfitExtractDialog(context, kind: _kind);
+    if (secim == null || !mounted) return;
+    await _run(
+        '${secim.name} cikarma',
+        () => CharacterFlowService.outfitExtract(
+            name: secim.name,
+            category: secim.category,
+            kind: secim.kind,
+            jobId: j.id,
+            note: secim.note),
+        adet: 1);
   }
 
   Widget _skinCard(CharacterItem it, SkinItem s) {
@@ -2321,65 +2516,6 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
   // ---------------------------------------------- #306 kiyafet kutuphanesi
   /// Kiyafet seridi: karakterden BAGIMSIZ kutuphane. Dokunma = o kiyafetten
   /// skin uret; basili tutma = skin uret / duzenle / sil menusu.
-  Widget _outfitStrip() => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                // #314: gardirop tur icinde - baslikta hangi turde oldugu yazar.
-                child: Text(
-                    'Kiyafetler - ${CharacterFlowService.kindLabel(_kind)}',
-                    style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey)),
-              ),
-              Flexible(
-                child: OutlinedButton.icon(
-                  onPressed: _newOutfit,
-                  icon: const Icon(Icons.add_photo_alternate_outlined, size: 18),
-                  label: const Text('+ Kiyafet uret',
-                      maxLines: 1, overflow: TextOverflow.ellipsis),
-                ),
-              ),
-            ],
-          ),
-          // #313: kategori cipleri - Hepsi + gardirop kategorileri.
-          const SizedBox(height: 4),
-          _outfitCategoryChips(),
-          const SizedBox(height: 6),
-          if (_outfitsLoading && _outfits.isEmpty)
-            const SizedBox(
-                height: 40, child: Center(child: CircularProgressIndicator()))
-          else if (_kindOutfits.isEmpty)
-            // #314: tur icinde bos - kiyafet yalniz ayni turdeki karakterlere
-            // giydirilir.
-            Text(
-                'Bu turde (${CharacterFlowService.kindLabel(_kind)}) kiyafet '
-                'yok - "+ Kiyafet uret" ile kategori, ad ve tarif ver. '
-                'Kiyafetler ayni turdeki butun karakterlerde tekrar kullanilir.',
-                style: const TextStyle(fontSize: 12, color: Colors.grey))
-          else if (_visibleOutfits.isEmpty)
-            Text(
-                '"${CharacterFlowService.categoryLabel(_outfitCat)}" '
-                'kategorisinde kiyafet yok.',
-                style: const TextStyle(fontSize: 12, color: Colors.grey))
-          else
-            SizedBox(
-              // #313: kucuk kategori etiketi icin +12px.
-              height: 180,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: _visibleOutfits.length,
-                separatorBuilder: (_, _) => const SizedBox(width: 8),
-                itemBuilder: (_, i) => _outfitTile(_visibleOutfits[i]),
-              ),
-            ),
-        ],
-      );
-
-  /// #313: "Hepsi" + sabit kategori cipleri (dokuman §3b sirasi).
   Widget _outfitCategoryChips() => SizedBox(
         height: 34,
         child: ListView(
@@ -2405,64 +2541,6 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
         ),
       );
 
-  Widget _outfitTile(OutfitItem o) => GestureDetector(
-        // #311: png henuz yoksa (kuyrukta/basarisiz) skin uretilmez.
-        // #313: set = hizli "bu setten skin uret"; parca = birlestirici acilir
-        // ve o parca secili gelir.
-        onTap: () => o.ready
-            ? (o.category == 'set'
-                ? _makeSkin(o)
-                : _openComposer(preselect: o))
-            : _snack('Kiyafet henuz hazir degil - kuyrukta ya da uretim basarisiz'),
-        onLongPress: () => _outfitMenu(o),
-        child: SizedBox(
-          width: 82,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // #306: kiyafet karesi 9:16 + contain - kirpilmaz.
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: SizedBox(
-                  width: 82,
-                  height: 146,
-                  child: ColoredBox(
-                    color: Colors.black26,
-                    child: !o.ready
-                        ? Container(
-                            color: Colors.white10,
-                            alignment: Alignment.center,
-                            child: const Text('kuyrukta',
-                                style: TextStyle(
-                                    fontSize: 11, color: Colors.orange)))
-                        : Image.network(
-                      CharacterFlowService.outfitThumbUrl(o.slug, size: 300),
-                      headers: CharacterFlowService.authHeaders,
-                      fit: BoxFit.contain,
-                      errorBuilder: (_, _, _) => Container(
-                        color: Colors.white10,
-                        alignment: Alignment.center,
-                        child: const Icon(Icons.checkroom,
-                            size: 20, color: Colors.grey),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              Text(o.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 10, color: Colors.grey)),
-              // #313: hangi kategoriden oldugu tek bakista gorunsun.
-              Text(o.categoryLabel.toLowerCase(),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 9, color: AppColors.accent)),
-            ],
-          ),
-        ),
-      );
-
   /// Basili tutma menusu - skin uret / duzenle / sil.
   Future<void> _outfitMenu(OutfitItem o) async {
     final secim = await showModalBottomSheet<String>(
@@ -2477,11 +2555,27 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
                   maxLines: 3, style: const TextStyle(fontSize: 11)),
             ),
             const Divider(height: 1),
+            // #331: giydirme yuvasina tak / cikar.
+            ListTile(
+              leading: Icon(
+                  _equip.of(o.category).contains(o.slug)
+                      ? Icons.remove_circle_outline
+                      : Icons.add_circle_outline),
+              title: Text(_equip.of(o.category).contains(o.slug)
+                  ? 'Yuvadan cikar (${CharacterFlowService.categoryLabel(o.category)})'
+                  : 'Giydir - ${CharacterFlowService.categoryLabel(o.category)} yuvasi'),
+              onTap: () => Navigator.pop(c, 'equip'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.zoom_in),
+              title: const Text('Buyut'),
+              onTap: () => Navigator.pop(c, 'preview'),
+            ),
             ListTile(
               leading: const Icon(Icons.checkroom),
               // #313: set = dogrudan skin, parca = birlestirici.
               title: Text(o.category == 'set'
-                  ? 'Bu setten skin uret'
+                  ? 'Bu setten skin uret (South)'
                   : 'Bu parcayla skin uret (birlestirici)'),
               onTap: () => Navigator.pop(c, 'skin'),
             ),
@@ -2499,7 +2593,13 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
         ),
       ),
     );
-    if (secim == 'skin') {
+    if (secim == 'equip') {
+      setState(() => _equip.toggle(o.category, o.slug));
+      if (_tabs.index != 2) _tabs.animateTo(2);
+    } else if (secim == 'preview') {
+      if (!mounted) return;
+      await showOutfitPreview(context, o);
+    } else if (secim == 'skin') {
       // #313: parca kategorileri birlestiriciye gider.
       if (o.category == 'set') {
         await _makeSkin(o);
@@ -2813,9 +2913,11 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
       _snack('${o.name} skini zaten var - yeniden uretmek icin once sil');
       return;
     }
-    await _run('${o.name} skini',
+    // #329: skin olusturma yalniz South'u uretir (1 adim); yonler skin
+    // sayfasindaki "Eksikleri uret" ile South'tan uretilir.
+    await _run('${o.name} skini (South)',
         () async => (await CharacterFlowService.skinCreate(_name, outfit: o.slug)).op,
-        adet: 8);
+        adet: 1);
   }
 
   Future<void> _deleteSkin(SkinItem s) async {
@@ -2851,8 +2953,8 @@ class SkinComposeResult {
     this.pieces = const [],
   });
 
-  /// Set (1) + parcalar + 7 yon giydirme.
-  int get jobs => (outfit.isEmpty ? 0 : 1) + pieces.length + 7;
+  /// Set (1) + parcalar (#329: yon yok - skin sayfasindan).
+  int get jobs => (outfit.isEmpty ? 0 : 1) + pieces.length;
 }
 
 /// #313: "Skin uret" birlestiricisi (dokuman §3b). Base uzerine bir SET ve/veya
@@ -2934,7 +3036,7 @@ class _SkinComposerPageState extends State<SkinComposerPage> {
     return parcalar.isEmpty ? 'base (parca secilmedi)' : 'base + ${parcalar.join(" + ")}';
   }
 
-  int get _jobs => (_set.isEmpty ? 0 : 1) + _pieces.length + 7;
+  int get _jobs => (_set.isEmpty ? 0 : 1) + _pieces.length;   // #329
 
   void _snack(String m) {
     if (!mounted) return;
@@ -2971,7 +3073,7 @@ class _SkinComposerPageState extends State<SkinComposerPage> {
                 const SizedBox(height: 6),
                 const Text(
                     'Base uzerine once set, sonra parcalar sirayla giydirilir; '
-                    'her adim bir is, sonunda 7 yon giydirme.',
+                    'her adim bir is (yalniz South; yonler skin sayfasindan).',
                     style: TextStyle(fontSize: 11, color: Colors.grey)),
                 const SizedBox(height: 10),
                 _setRow(),

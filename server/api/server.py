@@ -6569,6 +6569,19 @@ class CharacterOutfitEditRequest(BaseModel):
     prompt: str
 
 
+class CharacterOutfitExtractRequest(BaseModel):
+    """#329: baska bir gorselden kiyafet cikarma - kaynak comfy_gen isi (job_id)
+    YA DA Jigsaw akisi ogesi (rating/stage/item_id)."""
+    name: str
+    category: str = "set"
+    kind: str = "female"
+    job_id: str = ""
+    rating: str = ""
+    stage: str = ""
+    item_id: str = ""
+    note: str = ""
+
+
 class CharacterSkinDirsRequest(BaseModel):
     name: str
     skin: str
@@ -6755,6 +6768,15 @@ def character_flow_outfit_create(body: CharacterOutfitCreateRequest):
 def character_flow_outfit_edit(body: CharacterOutfitEditRequest):
     """#305: kiyafeti kisa bir cumleyle duzeltir (edit_qwen, otomatik kabul)."""
     return _flow_call(_char().edit_outfit, body.slug, body.prompt)
+
+
+@app.post("/api/character/flow/outfits/extract")
+def character_flow_outfit_extract(body: CharacterOutfitExtractRequest):
+    """#329: secili gorseldeki kiyafeti gardiroba cikarir (edit_qwen, tek gorsel,
+    kuyruk; op kind char-outfit). Kaynak: her kipten comfy_gen isi ya da Jigsaw
+    akisi incoming/staging/pushed ogesi -> {"slug", "op", "kind", "category"}."""
+    return _flow_call(_char().extract_outfit, body.name, body.category, body.kind,
+                      body.job_id, body.rating, body.stage, body.item_id, body.note)
 
 
 @app.delete("/api/character/flow/candidate")
