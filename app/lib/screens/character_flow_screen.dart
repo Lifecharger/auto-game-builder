@@ -2504,6 +2504,7 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
         name: _name,
         initial: s,
         dirs: _dirs,
+        kind: _kind,                         // #334
         padding: _item?.padding ?? 0,
         // #314: hayvan/makine turunde `mixamo` yoktur - manken/Mixamo
         // dugmeleri ve paneli gizlenir, i2v kalir.
@@ -3260,11 +3261,14 @@ class SkinDetailPage extends StatefulWidget {
     required this.dirs,
     this.padding = 0,
     this.animModes = const ['i2v', 'mixamo'],
+    this.kind = 'female',
   });
 
   final String name;
   /// Liste satirindan gelen skin - sunucu `/skins` vermese de ekran cizilir.
   final SkinItem initial;
+  /// #334: karakterin turu - "South'u duzenle" kiyafet secicisi buna suzulur.
+  final String kind;
   final List<CharacterDir> dirs;
   /// character.json'daki yastiklama varsayilani (#295).
   final double padding;
@@ -3538,6 +3542,17 @@ class _SkinDetailPageState extends State<SkinDetailPage>
           },
         ),
         const SizedBox(height: 12),
+        // #334: South'u daha da duzenle - metin (tek gorsel) ya da metin +
+        // kiyafet (South + kiyafet iki gorselli giydirme). Eski South aday kalir.
+        FilledButton.tonalIcon(
+          onPressed: _skin.dirs['front'] == true || _skin.isBase
+              ? _editSouthFurther
+              : null,
+          icon: const Icon(Icons.auto_fix_high, size: 18),
+          label: const Text("South'u daha da duzenle (metin / metin + kiyafet)"),
+          style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(44)),
+        ),
+        const SizedBox(height: 12),
         Text(
           // #314: Mixamo ikonu yalniz insan turlerinde vardir.
           'Ikonlar: anim uret (AI i2v), '
@@ -3631,6 +3646,119 @@ class _SkinDetailPageState extends State<SkinDetailPage>
     if (p == null) return;
     await _run('$baslik duzenleme',
         () => CharacterFlowService.edit(name: _name, target: target, prompt: p),
+        adet: 1);
+  }
+
+  /// #334: South'u daha da duzenle - cumle + istege bagli kiyafet.
+  Future<void> _editSouthFurther() async {
+    final prompt = TextEditingController();
+    OutfitItem? kiyafet;
+    List<OutfitItem>? katalog;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => StatefulBuilder(
+        builder: (c, setLocal) => AlertDialog(
+          scrollable: true,
+          title: Text("South'u duzenle - ${_skin.isBase ? 'Base' : _skin.name}"),
+          content: SizedBox(
+            width: 460,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: prompt,
+                  autofocus: true,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                      labelText: 'Duzeltme cumlesi',
+                      hintText: "orn. 'ceketi kirmizi yap', 'etegi kisalt'"),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    if (kiyafet != null) outfitThumb(kiyafet!, width: 44, height: 74),
+                    if (kiyafet != null) const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                          kiyafet == null
+                              ? 'Kiyafet yok - yalniz metin duzeltmesi'
+                              : '${kiyafet!.name} (${CharacterFlowService.categoryLabel(kiyafet!.category)}) '
+                                  '- South + kiyafet, iki gorselli giydirme',
+                          style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                    ),
+                    TextButton(
+                      onPressed: _skin.isBase
+                          ? null
+                          : () async {
+                              katalog ??= (await CharacterFlowService.outfits(kind: widget.kind))
+                                  .where((o) => o.ready && o.kind == widget.kind)
+                                  .toList();
+                              if (!c.mounted) return;
+                              final secim = await showModalBottomSheet<OutfitItem>(
+                                context: c,
+                                isScrollControlled: true,
+                                builder: (cc) => SafeArea(
+                                  child: SizedBox(
+                                    height: MediaQuery.of(cc).size.height * 0.7,
+                                    child: Column(
+                                      children: [
+                                        const ListTile(title: Text('Kiyafet sec (istege bagli)')),
+                                        const Divider(height: 1),
+                                        Expanded(
+                                          child: OutfitCatalogGrid(
+                                            outfits: katalog!,
+                                            selected: (o) => o.slug == kiyafet?.slug,
+                                            onTap: (o) => Navigator.pop(cc, o),
+                                            onLongPress: (o) => showOutfitPreview(cc, o),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              );
+                              if (secim != null) setLocal(() => kiyafet = secim);
+                            },
+                      child: Text(kiyafet == null ? 'Kiyafet ekle' : 'Degistir'),
+                    ),
+                    if (kiyafet != null)
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 18),
+                        onPressed: () => setLocal(() => kiyafet = null),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                    _skin.isBase
+                        ? "Base skininde yalniz metin duzeltmesi; kiyafet icin Gardirop'tan yeni skin uret."
+                        : 'Sonuc otomatik kabul edilir, eski South aday olarak saklanir. '
+                            "Yonler South'tan yeniden uretilmeli.",
+                    style: const TextStyle(fontSize: 11, color: Colors.grey)),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Vazgec')),
+            FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Duzenle')),
+          ],
+        ),
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final p = prompt.text.trim();
+    if (p.isEmpty) {
+      _snack('Duzeltme cumlesi bos');
+      return;
+    }
+    await _run(
+        "${_skin.isBase ? 'Base' : _skin.name} South duzenleme",
+        () => CharacterFlowService.skinEditSouth(
+            name: _name,
+            skin: _skin.isBase ? '' : _skin.slug,
+            prompt: p,
+            outfit: kiyafet?.slug ?? ''),
         adet: 1);
   }
 

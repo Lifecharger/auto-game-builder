@@ -1067,6 +1067,16 @@ class CharacterFlowService {
       '${(await _post('/api/character/flow/edit',
           {'name': name, 'target': target, 'prompt': prompt}))['op'] ?? ''}';
 
+  /// #334: skinin South'unu daha da duzenler - op. `outfit` bos ise metin
+  /// duzeltmesi (edit_qwen), doluysa South + kiyafet iki gorselli giydirme.
+  static Future<String> skinEditSouth(
+          {required String name,
+          required String skin,
+          required String prompt,
+          String outfit = ''}) async =>
+      '${(await _post('/api/character/flow/skins/edit',
+          {'name': name, 'skin': skin, 'prompt': prompt, 'outfit': outfit}))['op'] ?? ''}';
+
   /// #306: portre / hikaye / yon adimlarini yeniden kosar - op doner.
   static Future<String> pipelineRebuild(String name,
           {List<String> steps = const []}) async =>

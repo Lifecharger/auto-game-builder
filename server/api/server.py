@@ -6569,6 +6569,14 @@ class CharacterOutfitEditRequest(BaseModel):
     prompt: str
 
 
+class CharacterSkinEditRequest(BaseModel):
+    """#334: skinin South'unu daha da duzenle - metin (tek gorsel) ya da metin + kiyafet (iki gorsel)."""
+    name: str
+    skin: str
+    prompt: str
+    outfit: str = ""
+
+
 class CharacterOutfitExtractRequest(BaseModel):
     """#329: baska bir gorselden kiyafet cikarma - kaynak comfy_gen isi (job_id)
     YA DA Jigsaw akisi ogesi (rating/stage/item_id)."""
@@ -6768,6 +6776,13 @@ def character_flow_outfit_create(body: CharacterOutfitCreateRequest):
 def character_flow_outfit_edit(body: CharacterOutfitEditRequest):
     """#305: kiyafeti kisa bir cumleyle duzeltir (edit_qwen, otomatik kabul)."""
     return _flow_call(_char().edit_outfit, body.slug, body.prompt)
+
+
+@app.post("/api/character/flow/skins/edit")
+def character_flow_skin_edit(body: CharacterSkinEditRequest):
+    """#334: skin South'unu duzenle. outfit bos = edit_qwen metin duzeltmesi;
+    outfit dolu = iki gorselli giydirme (South + kiyafet) + metin. Op doner."""
+    return {"op": _flow_call(_char().edit_skin_south, body.name, body.skin, body.prompt, body.outfit)}
 
 
 @app.post("/api/character/flow/outfits/extract")

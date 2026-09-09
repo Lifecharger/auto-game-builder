@@ -213,3 +213,11 @@ Aynı üç sekme: Karakter (portre + base adayları + öneriler), Yön (base pus
 - Uygulama: `widgets/equip_panel.dart` (EquipSelection, EquipPanel, OutfitCatalogGrid, showSlotPicker, showOutfitPreview,
   pickGeneratedImage), `character_flow_screen.dart` `_tabGardirop/_makeSkinFromEquip/_extractFromWardrobe`.
   Stüdyo: `WardrobePanel` (katalog satırda 8), `SkinComposer` base seçici (`base_var`).
+
+## #334 — Skin sayfasında "South'u daha da düzenle" (2026-09-09)
+- Skin detayı > Yönler, pusulanın altında bağımsız düğme. Dialog: düzeltme cümlesi + isteğe bağlı kıyafet (3'lü katalog, aynı tür).
+- `POST /skins/edit {name, skin, prompt, outfit?}` → op (`char-edit`). `outfit` boşsa `edit(name, "skin:<slug>:front", prompt)` (tek görselli
+  edit_qwen + KEEP kilidi); doluysa iki görselli giydirme (Görsel 1 = South, Görsel 2 = kıyafet) + cümle + kategoriye özel parça istemi
+  (`piece_prompt`, tam boy/başlık koruma kilidi dahil). Sonuç otomatik kabul, eski South `dirs/front_NN.png` adayı olarak saklanır.
+- Base skini: yalnız metin (`dir:front`); kıyafet için Gardırop'tan yeni skin. Yönler değiştikten sonra South'tan yeniden üretilmeli.
+- Stüdyo: 4 Skinler çubuğunda "South'u duzenle (+kiyafet)" (Api.char_skin_edit). Uygulama: `_editSouthFurther`, `skinEditSouth`.

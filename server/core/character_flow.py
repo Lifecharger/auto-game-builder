@@ -2122,6 +2122,63 @@ def edit(name: str, target: str, prompt: str) -> str:
     return op_id
 
 
+def edit_skin_south(name: str, skin: str, prompt: str, outfit: str = "") -> str:
+    """#334: skinin South'unu daha da duzenle - op kind `char-edit`.
+
+    outfit BOS: tek gorselli edit_qwen (edit() ile ayni, hedef skin:<slug>:front).
+    outfit DOLU: IKI GORSELLI giydirme (Gorsel 1 = South, Gorsel 2 = kiyafet) +
+    kullanicinin cumlesi + KEEP kilidi (kimlik, poz, tam boy kadraj, diger
+    giysiler). Sonuc otomatik kabul, eski South dirs/front_NN.png adayi olarak
+    saklanir (geri alinabilir). Base skininde South = base.png; degistirilmez,
+    yeni gorsel base adayi olarak birakilir (edit() ile ayni kural).
+    """
+    prompt = (prompt or "").strip()
+    if not prompt:
+        raise ValueError("duzeltme cumlesi bos")
+    slug = skin_slug(skin)
+    if not (outfit or "").strip():
+        return edit(name, ("dir:front" if slug == BASE_SKIN else "skin:%s:front" % slug), prompt)
+    d = char_dir(name)
+    kiyafet = outfit_path(outfit)
+    if not os.path.isfile(kiyafet):
+        raise ValueError("kiyafet gorseli yok: %s" % outfit)
+    om = outfit_meta(outfit)
+    tur, ozne = char_kind(name)
+    if kind_of(om) != tur:
+        raise ValueError("'%s' kiyafeti %s turu icin - bu karakter %s turunde"
+                         % (outfit, KIND_PROFILES[kind_of(om)]["label"], KIND_PROFILES[tur]["label"]))
+    if slug == BASE_SKIN:
+        raise ValueError("base skinine kiyafet giydirilmez - Gardirop'tan yeni skin uret")
+    sd = _skin_dir(name, slug)
+    dr = os.path.join(sd, "dirs")
+    src = os.path.join(dr, "front.png")
+    if not os.path.isfile(src):
+        raise ValueError("'%s' skininin South'u yok" % slug)
+    kat = om.get("category") or DEFAULT_CATEGORY
+    pr = "%s. %s" % (prompt.rstrip("."), piece_prompt(kat, tur, ozne))
+    op_id = _op_new("char-edit", 1)
+
+    def calis():
+        _op(op_id, message="South duzenle (+%s): %s" % (outfit, slug))
+        try:
+            out = _bekle(op_id, _giydir_job(name, src, kiyafet, pr), "South duzenle %s" % slug)
+            onceki = _serbest_ad(dr, "front_%02d.png")
+            shutil.copy(src, onceki)
+            _convert(out, src)
+        except Exception as e:
+            with _ops_lock:
+                _ops[op_id]["failed"] += 1
+            _op(op_id, done=1, log="%s: %s" % (slug, str(e)[:220]))
+            raise
+        with _ops_lock:
+            _ops[op_id]["ok"] += 1
+            _ops[op_id]["result"] = {"skin": slug, "file": _rel(d, src), "previous": _rel(d, onceki)}
+        _op(op_id, done=1, log="%s South -> guncellendi (eski: %s)" % (slug, _rel(d, onceki)), message="bitti")
+
+    _run(op_id, calis)
+    return op_id
+
+
 # ---------------------------------------------------- #305 kiyafet kutuphanesi
 # Kiyafetler karakterden BAGIMSIZDIR: <root>/_outfits/<slug>.png + <slug>.json.
 # Ayni kiyafet birden cok karaktere giydirilir; kullanici kutuphanede saklar.
