@@ -20,6 +20,54 @@ SYMBOLS_SUBDIR = "build/symbols"
 SYMBOLS_ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "symbols")
 
 
+def flutter_root(project_path: str) -> str:
+    """pubspec.yaml is at the project root, or in a well-known subdir (the AGB
+    app itself lives in <repo>/app). Mirrors deploy_engine._resolve_flutter_root."""
+    if os.path.isfile(os.path.join(project_path, "pubspec.yaml")):
+        return project_path
+    for sub in ("app", "flutter", "mobile", "client"):
+        if os.path.isfile(os.path.join(project_path, sub, "pubspec.yaml")):
+            return os.path.join(project_path, sub)
+    return project_path
+
+
+def archive_symbols(project_path: str, slug: str = "app") -> str:
+    """#332: copy <flutter root>/build/symbols/*.symbols to
+    server/data/symbols/<applicationId>/<versionCode>/ (kept forever; Play Vitals
+    reports arrive days later). versionCode = the +N of pubspec `version:`,
+    applicationId from android/app/build.gradle(.kts). Used by BOTH build paths
+    (build_engine and deploy_engine). Returns a one-line note or ""."""
+    import glob
+    import shutil
+    root = flutter_root(project_path)
+    files = glob.glob(os.path.join(root, SYMBOLS_SUBDIR, "*.symbols"))
+    if not files:
+        return ""
+    version_code = "0"
+    try:
+        with open(os.path.join(root, "pubspec.yaml"), encoding="utf-8") as f:
+            m = re.search(r"^version:\s*([\w.]+)\+(\d+)", f.read(), re.M)
+        if m:
+            version_code = m.group(2)
+    except OSError:
+        pass
+    package = slug or "app"
+    for g in ("android/app/build.gradle.kts", "android/app/build.gradle"):
+        try:
+            with open(os.path.join(root, g), encoding="utf-8") as f:
+                m = re.search(r'applicationId\s*=?\s*"([\w.]+)"', f.read())
+            if m:
+                package = m.group(1)
+                break
+        except OSError:
+            continue
+    dest = os.path.join(SYMBOLS_ROOT, package, version_code)
+    os.makedirs(dest, exist_ok=True)
+    for f in files:
+        shutil.copy(f, os.path.join(dest, os.path.basename(f)))
+    return f"[symbols] {len(files)} Dart symbol file(s) archived -> {dest}"
+
+
 class BuildEngine:
     def __init__(self, db: DBManager, settings: dict):
         self.db = db
@@ -162,41 +210,7 @@ class BuildEngine:
 
     # ------------------------------------------------------------ #332 symbols
     def _archive_symbols(self, app: App) -> str:
-        """Copy build/symbols/*.symbols to server/data/symbols/<package>/<versionCode>/.
-
-        versionCode = the +N part of pubspec.yaml `version:`; package = the
-        applicationId in android/app/build.gradle(.kts). Old archives are kept
-        (a few MB per build) - Play Vitals reports arrive days later.
-        """
-        import glob
-        import shutil
-        src = os.path.join(app.project_path, SYMBOLS_SUBDIR)
-        files = glob.glob(os.path.join(src, "*.symbols"))
-        if not files:
-            return ""
-        version_code = "0"
-        try:
-            with open(os.path.join(app.project_path, "pubspec.yaml"), encoding="utf-8") as f:
-                m = re.search(r"^version:\s*([\w.]+)\+(\d+)", f.read(), re.M)
-            if m:
-                version_code = m.group(2)
-        except OSError:
-            pass
-        package = app.slug or "app"
-        for g in ("android/app/build.gradle.kts", "android/app/build.gradle"):
-            try:
-                with open(os.path.join(app.project_path, g), encoding="utf-8") as f:
-                    m = re.search(r'applicationId\s*=?\s*"([\w.]+)"', f.read())
-                if m:
-                    package = m.group(1)
-                    break
-            except OSError:
-                continue
-        dest = os.path.join(SYMBOLS_ROOT, package, version_code)
-        os.makedirs(dest, exist_ok=True)
-        for p in files:
-            shutil.copy(p, os.path.join(dest, os.path.basename(p)))
-        return f"[symbols] {len(files)} Dart symbol file(s) archived -> {dest}"
+        return archive_symbols(app.project_path, app.slug or "app")
 
     def _get_build_command(self, app: App, build_type: str) -> str:
         if app.build_command:

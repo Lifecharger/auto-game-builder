@@ -37,12 +37,13 @@ BUILD_TARGETS = {
     "flutter": {
         "apk": {
             "label": "APK",
-            "cmd_args": ["build", "apk", "--release"],
+            # #332: --split-debug-info -> Dart symbols archived per versionCode
+            "cmd_args": ["build", "apk", "--release", "--split-debug-info=build/symbols"],
             "output": "build/app/outputs/flutter-apk/app-release.apk",
         },
         "aab": {
             "label": "AAB",
-            "cmd_args": ["build", "appbundle", "--release"],
+            "cmd_args": ["build", "appbundle", "--release", "--split-debug-info=build/symbols"],
             "output": "build/app/outputs/bundle/release/app-release.aab",
         },
         "exe": {
@@ -979,6 +980,15 @@ class DeployEngine:
                 success = build_file_exists and file_fresh and not self._shutting_down and not self._is_cancelled(app.id) and not hung
             else:
                 success = process.returncode == 0 and not self._shutting_down and not self._is_cancelled(app.id) and not hung
+            if success and app.app_type == "flutter" and build_target in ("apk", "aab"):
+                try:
+                    from core.build_engine import archive_symbols       # #332
+                    note = archive_symbols(app.project_path, app.slug or "app")
+                    if note:
+                        output_lines.append(note)
+                        self._update_status(app.id, message=note)
+                except Exception as e:  # symbols are a bonus - never fail the build
+                    logger.warning("symbol archive failed for %s: %s", app.name, e)
 
             self.db.update_build(
                 build_id,
