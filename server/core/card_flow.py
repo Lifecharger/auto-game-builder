@@ -853,6 +853,77 @@ def _to_png(src: str, dest: str) -> str:
     return dest
 
 
+def _dealer_reframe(png: str) -> dict:
+    """#342: krupiye still'ini BEL USTU kadraja otomatik kirpar.
+
+    Neden gerekli: prompt'a "medium shot, waist up" yazmak yetmiyor - Z-Image
+    insan figurunu her turlu tam boy ciziyor, 3:2 tuvalde kadin ortada kucuk
+    kaliyor, iki yani bos. Oyunun krupiye bandi genis ve alcak oldugu icin bu
+    kadraj bandi doldurmuyor. Cozum modelden bagimsiz: figuru bul, bastan bele
+    kadar kes, hedef orana getir.
+
+    Fon duz acik gri oldugu icin figur esikle bulunur. Islem YERINDE yapilir;
+    figur bulunamazsa dosyaya DOKUNULMAZ.
+    """
+    from PIL import Image
+    hedef_w, hedef_h = DEALER_STILL
+    oran = hedef_w / float(hedef_h)
+    try:
+        with Image.open(png) as f:
+            im = f.convert("RGB")
+    except Exception as e:
+        return {"ok": False, "note": str(e)[:120]}
+    W, H = im.size
+    gri = im.convert("L")
+    px = gri.load()
+    # Fon rengi kose ortalamasindan; figur = fondan belirgin sapma.
+    kose = [px[2, 2], px[W - 3, 2], px[2, H - 3], px[W - 3, H - 3]]
+    fon = sum(kose) / 4.0
+    xs, ys = [], []
+    adim = max(1, W // 260)
+    for y in range(0, H, adim):
+        for x in range(0, W, adim):
+            if abs(px[x, y] - fon) > 26:
+                xs.append(x)
+                ys.append(y)
+    if len(xs) < 80:
+        return {"ok": False, "note": "figur bulunamadi"}
+    x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
+    boy = y1 - y0
+    if boy < H * 0.25:
+        return {"ok": False, "note": "figur cok kucuk"}
+    # Oyun sprite'in alt %30'unu feltin arkasina gomuyor. Kullanicinin sarti:
+    # GORUNEN bant gogsun ALTINDA bitsin. Gorunen kisim = kirpimin ust %70'i, o
+    # yuzden kirpim figurun ust %67'sine kadar iner: 0.7*0.67 - 0.018 ~= 0.45,
+    # yani gorunen alt sinir figurun %45'i (gogus altina denk gelir).
+    ust = max(0, y0 - int(boy * 0.06))
+    alt = min(H, y0 + int(boy * 0.67))
+    yeni_h = alt - ust
+    yeni_w = int(round(yeni_h * oran))
+    orta = (x0 + x1) // 2
+    sol = orta - yeni_w // 2
+    if yeni_w > W:                      # kaynak yeterince genis degil: yukseklikten ver
+        yeni_w = W
+        yeni_h = int(round(yeni_w / oran))
+        sol = 0
+        alt = min(H, ust + yeni_h)
+        yeni_h = alt - ust
+    sol = max(0, min(sol, W - yeni_w))
+    kutu = (sol, ust, sol + yeni_w, ust + yeni_h)
+    try:
+        # Ham hali BIR KEZ saklanir - kirpim orani ileride degisirse kaynaktan
+        # yeniden kirpilir, yeniden uretim gerekmez.
+        ham = os.path.join(os.path.dirname(png), "still_raw.png")
+        if not os.path.isfile(ham):
+            im.save(ham, "PNG")
+        kirp = im.crop(kutu).resize((hedef_w, hedef_h), Image.LANCZOS)
+        kirp.save(png, "PNG")
+    except Exception as e:
+        return {"ok": False, "note": str(e)[:120]}
+    return {"ok": True, "box": list(kutu), "figure": [x0, y0, x1, y1],
+            "fill": round(min(1.0, (x1 - x0) / float(yeni_w)), 3)}
+
+
 def _still_webp(png: str, dest: str, kind: str = "card") -> str:
     """Hi-res still WebP q90 (manifest `still` alani).
 
@@ -1001,6 +1072,8 @@ def _kabul_still(collection: str, kind: str, rank: str, src: str, job_id: str = 
     d = rank_dir(collection, rank, kind, create=True)
     _yedekle_still(d)
     p = _to_png(src, os.path.join(d, "still.png"))
+    if kind_id(kind) == "dealer":
+        _dealer_reframe(p)          # #342: bel ustu kadraja otomatik kirp
     try:
         _still_webp(p, os.path.join(d, "still.webp"), kind)
     except Exception:

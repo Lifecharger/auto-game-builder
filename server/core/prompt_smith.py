@@ -131,10 +131,11 @@ def looks(theme: str, ranks: list[str], kind: str = "card", extra: str = "") -> 
     kadraj = (
         # Krupiye kesilip oyunun KENDI masasinin uzerine biniyor: still'de masa
         # OLMAMALI, yoksa eller boslukta kalir ve masa altindaki govde eksilir.
-                "Framing: a WIDE HORIZONTAL 3:2 picture. She is framed from the waist up and fills the "
-        "whole width of the frame - this is a landscape banner, not a tall portrait. She holds a "
-        "small fan of playing cards in ONE hand, raised out to her side away from her body; her "
-        "chest and neckline are completely unobstructed. "
+                "Framing: a medium shot, waist up, in a wide horizontal picture. She stands squarely "
+        "FACING THE CAMERA - shoulders parallel to the frame, looking straight into the lens; "
+        "never turned away, never in profile, never looking over her shoulder. She holds a small "
+        "fan of playing cards in ONE hand raised out to her side; her chest and neckline stay "
+        "unobstructed. The `pose` field must describe only a camera-facing pose. "
         "There is NO table, desk or counter in the picture. Wardrobe: a glamorous casino dealer "
         "outfit fitting the theme, fitted at the waist with a deep plunging neckline showing "
         "generous cleavage, bare shoulders or arms - never a modest office outfit, never a "

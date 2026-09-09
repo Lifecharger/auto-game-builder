@@ -646,6 +646,19 @@ FREE_ASPECTS = [
     {"id": "16:9", "label": "16:9", "width": 1280, "height": 720},
 ]
 
+# #341: Jigsaw kipinde de oran secici. Free/CBN listesi ~1 MP; jigsaw bugune
+# kadar 896x1600 (1.43 MP) uretiyordu - o kaliteyi DUSURMEMEK icin jigsaw'in
+# kendi listesi var: her oran ~1.4 MP ve iki kenar da 16'nin kati (Z-Image bu
+# olculeri dogrudan alir). Havuz jpg'si (still_to_pool) orani zaten koruyor,
+# kirpma yok, o yuzden yatay/kare oranlar alt akisi bozmaz.
+JIGSAW_ASPECTS = [
+    {"id": "9:16", "label": "9:16", "width": 896, "height": 1600},
+    {"id": "2:3", "label": "2:3", "width": 960, "height": 1440},
+    {"id": "1:1", "label": "1:1", "width": 1184, "height": 1184},
+    {"id": "3:2", "label": "3:2", "width": 1440, "height": 960},
+    {"id": "16:9", "label": "16:9", "width": 1600, "height": 896},
+]
+
 MODES = {
     "free": {
         "id": "free", "label": "Free Mod",
@@ -656,7 +669,8 @@ MODES = {
     "jigsaw": {
         "id": "jigsaw", "label": "Jigsaw Modu",
         "prompt2": JIGSAW_PROMPT2, "negative": JIGSAW_NEG, "motion2": JIGSAW_MOTION2,
-        "width": 896, "height": 1600, "exports": True, "profiles": "jigsaw", "aspects": False,
+        "width": 896, "height": 1600, "exports": True, "profiles": "jigsaw", "aspects": True,
+        "aspect_sizes": JIGSAW_ASPECTS,
     },
     "cbn": {
         "id": "cbn", "label": "CBN Modu",
