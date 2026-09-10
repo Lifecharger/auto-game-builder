@@ -50,6 +50,11 @@ class CardRankState {
   final String gesture;
   /// Guard olcumleri - kart detayinda duz metin gosterilir.
   final Map<String, dynamic> metrics;
+  /// #345: bu karti ureten prompt (yerel LLM yazdi) + parcalari.
+  final String prompt;
+  final String look;
+  final String pose;
+  final int age;
 
   const CardRankState({
     this.still = false,
@@ -60,6 +65,10 @@ class CardRankState {
     this.rev = 0,
     this.gesture = '',
     this.metrics = const {},
+    this.prompt = '',
+    this.look = '',
+    this.pose = '',
+    this.age = 0,
   });
 
   factory CardRankState.fromJson(Map<String, dynamic> j) => CardRankState(
@@ -74,6 +83,10 @@ class CardRankState {
         metrics: j['metrics'] is Map
             ? Map<String, dynamic>.from(j['metrics'] as Map)
             : const {},
+        prompt: '${j['prompt'] ?? ''}',
+        look: '${j['look'] ?? ''}',
+        pose: '${j['pose'] ?? ''}',
+        age: (j['age'] is num) ? (j['age'] as num).toInt() : 0,
       );
 
   /// Sunucu duz bool ya da metin de gonderebilir ("still", "video", ...).

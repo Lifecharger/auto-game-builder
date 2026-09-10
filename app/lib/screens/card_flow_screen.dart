@@ -2000,6 +2000,39 @@ class _CardDetailPageState extends State<CardDetailPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             cardStageChips(_state),
+            // #345: bu gorseli ureten prompt - dokununca tamami acilir.
+            if (_state.prompt.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              InkWell(
+                onTap: () => showDialog<void>(
+                  context: context,
+                  builder: (c) => AlertDialog(
+                    scrollable: true,
+                    title: Text('Prompt${_state.age > 0 ? '  ·  ${_state.age} yas' : ''}'),
+                    content: SelectableText(_state.prompt,
+                        style: const TextStyle(fontSize: 12)),
+                    actions: [
+                      TextButton(
+                          onPressed: () => Navigator.pop(c),
+                          child: const Text('Kapat')),
+                    ],
+                  ),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.notes, size: 13, color: Colors.grey),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(_state.prompt,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             if (_state.gesture.isNotEmpty) ...[
               const SizedBox(height: 4),
               Text('jest: ${_state.gesture}',

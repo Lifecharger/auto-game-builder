@@ -660,10 +660,23 @@ def _rank_row(collection: str, kind: str, rank: str, pushed: dict) -> dict:
         "metrics": sheet.get("metrics") or {},
         "rev": _rev(d),
         "cut_mode": sheet.get("mode") or "",
+        # #345: LLM'in yazdigi son prompt istemciye de gitsin - kullanici hangi
+        # metnin bu gorseli urettigini gormeden duzeltemez.
+        "prompt": "", "look": "", "pose": "", "age": 0,
         "frameW": sheet.get("frameW") or 0, "frameH": sheet.get("frameH") or 0,
         "frames": sheet.get("frames") or 0,
         "candidates": [],
     }
+    try:
+        m = collection_meta(collection, kind)
+        gor = (m.get("ranks") or {}).get(str(rank).upper()) or {}
+        row["prompt"] = str(gor.get("prompt") or "")
+        row["look"] = str(gor.get("look") or "")
+        row["pose"] = str(gor.get("pose") or "")
+        row["age"] = int(gor.get("age") or 0)
+        row["prompts_by"] = str(m.get("prompts_by") or "")
+    except Exception:
+        pass
     try:
         row["candidates"] = sorted(_rel(os.path.join(d, a)) for a in os.listdir(d)
                                    if a.startswith("still_") and a.endswith(".png")
@@ -741,8 +754,11 @@ def collection(collection_id: str, kind: str = "") -> dict:
         or next((c for c in cards if c["thumb"]), None) \
         or next((c for c in cards if c["still"]), None)
     # #323: istemci `ranks` haritasini okur (kart) / `state` (krupiye).
-    harita = {c["rank"]: {a: c[a] for a in ("still", "video", "sheet", "pushed",
-                                           "verdict", "rev", "gesture", "metrics")}
+    # #345: prompt/look/pose/age da haritaya girer - kullanici hangi metnin bu
+    # gorseli urettigini gormeden duzeltemez.
+    harita = {c["rank"]: {a: c.get(a) for a in ("still", "video", "sheet", "pushed",
+                                                "verdict", "rev", "gesture", "metrics",
+                                                "prompt", "look", "pose", "age")}
               for c in cards}
     out = {"id": m.get("id") or collection_id, "name": m.get("name") or collection_id,
            "kind": k, "style": m.get("style") or "realistic", "theme": m.get("theme") or "",
@@ -753,6 +769,7 @@ def collection(collection_id: str, kind: str = "") -> dict:
                      else (kapak or {}).get("still_rel")) or "",
            "rev": max([0] + [c["rev"] for c in cards]),
            "ranks": harita, "cards": cards,
+           "prompts_by": m.get("prompts_by") or "",
            "counts": {"total": len(cards),
                       "still": sum(1 for c in cards if c["still"]),
                       "video": sum(1 for c in cards if c["video"]),
