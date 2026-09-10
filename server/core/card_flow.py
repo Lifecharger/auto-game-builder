@@ -444,8 +444,24 @@ def _rel(p: str) -> str:
 
 
 def file_path(rel: str) -> str | None:
-    p = _inside(root(), os.path.join(root(), (rel or "").replace("\\", "/")))
-    return p if os.path.isfile(p) else None
+    """card.root'a gore yolu cozer.
+
+    #343 uyum koprusu: krupiyede rutbe klasoru YOKTUR (dosyalar dogrudan
+    `_Dealers/<ad>/` icindedir), ama istemci rutbeli kalibi kurabiliyor
+    (`<ad>/MAIN/<dosya>`). O kalip cozulmezse krupiye yoluna dusulur - boylece
+    eski istemci surumleri de dogru dosyayi bulur.
+    """
+    yol = (rel or "").replace("\\", "/").strip("/")
+    p = _inside(root(), os.path.join(root(), yol))
+    if os.path.isfile(p):
+        return p
+    parca = [x for x in yol.split("/") if x]
+    if len(parca) == 3 and parca[1].lower() in (MAIN, "main"):
+        alt = os.path.join(root(), KINDS["dealer"]["folder"], parca[0], parca[2])
+        alt = _inside(root(), alt)
+        if os.path.isfile(alt):
+            return alt
+    return None
 
 
 VIDEO_EXT = (".mp4", ".webm", ".mov")
@@ -650,7 +666,8 @@ def _rank_row(collection: str, kind: str, rank: str, pushed: dict) -> dict:
     }
     try:
         row["candidates"] = sorted(_rel(os.path.join(d, a)) for a in os.listdir(d)
-                                   if a.startswith("still_") and a.endswith(".png"))
+                                   if a.startswith("still_") and a.endswith(".png")
+                                   and a not in ADAY_DISI)
     except OSError:
         pass
     # Asama numarasi: 0 bos, 1 still, 2 video, 3 sheet, 4 push
@@ -1089,7 +1106,7 @@ ADAY_KALIP = ("still_%02d.png", "still_green.png", "still_anime.png")
 def _aday_yolu(collection: str, rank: str, kind: str, file: str) -> str:
     """Aday dosyasinin tam yolu - rutbe klasorunun DISINA cikilamaz (#336)."""
     ad = os.path.basename((file or "").strip().replace("\\", "/"))
-    if not ad.startswith("still_") or not ad.endswith(".png"):
+    if not ad.startswith("still_") or not ad.endswith(".png") or ad in ADAY_DISI:
         raise ValueError("aday dosyasi degil: %s" % ad)
     d = rank_dir(collection, rank, kind_id(kind))
     yol = _inside(d, os.path.join(d, ad))
@@ -1098,12 +1115,22 @@ def _aday_yolu(collection: str, rank: str, kind: str, file: str) -> str:
     return yol
 
 
+# Aday SAYILMAYAN "still_*" dosyalari: bunlar yedek/kaynak, secilecek gorsel degil.
+ADAY_DISI = {"still_raw.png", "still_green.png", "still_anime.png"}
+
+
 def candidates(collection: str, rank: str, kind: str = "") -> list[str]:
-    """Rutbenin adaylari (still_NN.png + still_green/anime yedekleri)."""
+    """Rutbenin secilebilir adaylari.
+
+    `still_raw.png` (krupiye kirpimindan onceki ham kare), `still_green.png` ve
+    `still_anime.png` YEDEKTIR - aday listesine girmezler, yoksa secici ekranda
+    secilemeyen bir kutu olarak gorunurler (#343).
+    """
     d = rank_dir(collection, rank, kind_id(kind))
     try:
         return sorted(a for a in os.listdir(d)
-                      if a.startswith("still_") and a.endswith(".png"))
+                      if a.startswith("still_") and a.endswith(".png")
+                      and a not in ADAY_DISI)
     except OSError:
         return []
 

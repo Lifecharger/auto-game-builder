@@ -558,6 +558,14 @@ class CardFlowService {
       _post('/api/card/flow/rewrite-looks',
           {'collection': collection, 'kind': kind, 'theme': theme});
 
+  /// #343: bir adayin card.root'a gore yolu. Krupiyede rutbe klasoru YOKTUR -
+  /// dosyalar dogrudan `_Dealers/<ad>/` icindedir.
+  static String candidateRel(String collection, String rank, String file,
+          {String kind = 'card'}) =>
+      kind == 'dealer'
+          ? '_Dealers/$collection/$file'
+          : '$collection/${rank.toLowerCase()}/$file';
+
   /// #336: rutbenin aday still'leri (dosya adlari).
   static Future<List<String>> candidates(String collection, String rank,
       {String kind = 'card'}) async {

@@ -1515,18 +1515,34 @@ INSTRUCTIONS (Lead Programmer + Engine Specialist Knowledge):
 
                 version_code = upload_resp["versionCode"]
 
-                service.edits().tracks().update(
-                    packageName=package,
-                    editId=edit_id,
-                    track=track,
-                    body={
-                        "track": track,
-                        "releases": [{
-                            "versionCodes": [str(version_code)],
-                            "status": "draft" if track == "internal" else "completed",
-                        }],
-                    },
-                ).execute()
+                # #344: internal surumu de DOGRUDAN yayina girsin. Eskiden internal
+                # her zaman "draft" yaziliyordu ve Console'dan elle yayinlamak
+                # gerekiyordu; o kural HIC YAYINLANMAMIS uygulamalar icin var (Play
+                # API onlarda "completed" kabul etmez). Yayindaki bir uygulamada
+                # internal test incelemesizdir ve dakikalar icinde canliya cikar.
+                # Once "completed" denenir; API reddederse "draft"a dusulur.
+                def _track_yaz(durum: str) -> None:
+                    service.edits().tracks().update(
+                        packageName=package,
+                        editId=edit_id,
+                        track=track,
+                        body={
+                            "track": track,
+                            "releases": [{
+                                "versionCodes": [str(version_code)],
+                                "status": durum,
+                            }],
+                        },
+                    ).execute()
+
+                try:
+                    _track_yaz("completed")
+                except Exception as track_hata:
+                    if track != "internal":
+                        raise
+                    print("[deploy] internal 'completed' reddedildi, draft'a dusuluyor: %s"
+                          % str(track_hata)[:200])
+                    _track_yaz("draft")
 
                 service.edits().commit(packageName=package, editId=edit_id).execute()
 

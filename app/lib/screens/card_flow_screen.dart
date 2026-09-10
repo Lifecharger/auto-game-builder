@@ -2142,7 +2142,8 @@ class _CardDetailPageState extends State<CardDetailPage> {
               separatorBuilder: (_, _) => const SizedBox(width: 8),
               itemBuilder: (c, i) {
                 final ad = _adaylar[i];
-                final rel = '${widget.collection}/${widget.rank}/$ad';
+                final rel = CardFlowService.candidateRel(
+                    widget.collection, widget.rank, ad, kind: widget.kind);
                 return Stack(
                   children: [
                     InkWell(
@@ -2151,6 +2152,9 @@ class _CardDetailPageState extends State<CardDetailPage> {
                         borderRadius: BorderRadius.circular(6),
                         child: Image.network(
                           CardFlowService.relThumbUrl(rel, size: 200),
+                          // #343: kimlik basligi ZORUNLU - onsuz sunucu 401
+                          // doner ve butun adaylar kirik gorsel olarak cikar.
+                          headers: CardFlowService.authHeaders,
                           width: 80,
                           height: 120,
                           fit: BoxFit.cover,
