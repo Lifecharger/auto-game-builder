@@ -91,6 +91,32 @@ def admin_key() -> str:
         return ""
 
 
+# Bu makinede workers.dev'e IPv6 baglantisi 7 sn asili kaliyor (urllib once
+# IPv6 dener, birkac adres -> 40 sn). curl IPv4'e aninda baglaniyor. Adres
+# cozumunu IPv4'e zorlayan baglanti sinifi; SNI/hostname degismez.
+import http.client
+import socket
+
+
+def _ipv4_addr(host: str, port: int):
+    ai = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)
+    return ai[0][4] if ai else (host, port)
+
+
+class _IPv4HTTPSConnection(http.client.HTTPSConnection):
+    def connect(self):
+        self._create_connection = lambda addr, timeout=None, source_address=None:             socket.create_connection(_ipv4_addr(*addr), timeout, source_address)
+        super().connect()
+
+
+class _IPv4HTTPSHandler(urllib.request.HTTPSHandler):
+    def https_open(self, req):
+        return self.do_open(_IPv4HTTPSConnection, req, context=self._context)
+
+
+_opener = urllib.request.build_opener(_IPv4HTTPSHandler())
+
+
 def _call(path: str, body: dict | None = None, method: str | None = None, timeout: int = 60) -> dict:
     key = admin_key()
     if not key:
@@ -101,7 +127,7 @@ def _call(path: str, body: dict | None = None, method: str | None = None, timeou
                                           "User-Agent": "agb-delivery/1"},
                                  method=method or ("PUT" if data is not None else "GET"))
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
+        with _opener.open(req, timeout=timeout) as r:
             return json.loads(r.read() or b"{}")
     except urllib.error.HTTPError as e:
         raise ValueError("worker %s: %s" % (e.code, (e.read() or b"")[:200].decode("utf-8", "replace")))
