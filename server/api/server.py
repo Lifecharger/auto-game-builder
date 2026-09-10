@@ -6398,7 +6398,15 @@ class CardCutRequest(BaseModel):
     mode: str = "sam"             # sam | hybrid (eski yesil Grok masterlari)
     kind: str = "card"
     dealers_v3: bool = False
-    anim: str = ""          # #338: bos/idle = kokteki ana animasyon
+    anim: str = ""          # #338: bos/idle = kokteki ana animasyon; "*" = videosu olan hepsi (#362)
+
+
+class CardAnimateSetRequest(BaseModel):
+    """#362: secili kartlarin her birine ANIM_SET (idle + victory) uretir."""
+    collection: str
+    ranks: list[str] = []
+    kind: str = "card"
+    engine: str = ""
 
 
 class CardReanimateRequest(BaseModel):
@@ -6674,6 +6682,13 @@ def card_flow_animate(body: CardAnimateRequest):
                              body.gesture, body.kind, body.anim, body.pool_only, body.engine)}
 
 
+@app.post("/api/card/flow/animate-set")
+def card_flow_animate_set(body: CardAnimateSetRequest):
+    """#362: her karta 2 animasyon (idle + victory) - toplu '2 Video' bunu cagirir."""
+    return {"op": _flow_call(_card().animate_set, body.collection, body.ranks, body.kind,
+                             body.engine)}
+
+
 @app.get("/api/card/flow/videos")
 def card_flow_videos(collection: str, rank: str = "", kind: str = "card"):
     """#357: rutbenin video havuzu + animasyon etiketleri."""
@@ -6782,6 +6797,10 @@ def card_flow_thumb(collection: str = "", rank: str = "", kind: str = "still",
     `cut`/`frame` ALFALI PNG doner (damali zemin uzerinde gosterilir), digerleri
     onbellekli JPEG kucuk resimdir. `v` yalniz onbellek kiricidir.
     """
+    # #363: studyo turu `kind=card|dealer` diye gonderir (view= ile birlikte);
+    # telefon `type=` kullanir. Krupiye kucuk resimleri bu yuzden 404 donuyordu.
+    if view and kind in ("card", "dealer") and type == "card":
+        type = kind
     a = _flow_call(_card().asset, collection, rank, view or kind, type, rel)
     if not a:
         raise HTTPException(404, "Onizleme yok")
@@ -6802,6 +6821,8 @@ def card_flow_thumb(collection: str = "", rank: str = "", kind: str = "still",
 def card_flow_file(collection: str = "", rank: str = "", kind: str = "still",
                    view: str = "", type: str = "card", rel: str = "", v: str = ""):
     """Ham dosya: video.mp4 | sheet.webp | still.webp/png | thumb.webp (ya da ?rel=)."""
+    if view and kind in ("card", "dealer") and type == "card":     # #363 (bkz. thumb)
+        type = kind
     a = _flow_call(_card().asset, collection, rank, view or kind, type, rel)
     if not a:
         raise HTTPException(404, "Dosya yok")

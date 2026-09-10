@@ -573,11 +573,11 @@ class CardFlowService {
   static const dealerRank = 'main';
 
   /// roster.json `gesture_prompts` (dokuman §4).
-  static const defaultGestures = <String>['idle', 'wink', 'kiss', 'hair', 'pose'];
+  static const defaultGestures = <String>['idle', 'victory', 'wave', 'wink', 'kiss', 'hair', 'pose', 'dance', 'spin'];   // #362
 
   /// Krupiye jestleri (dokuman "Tur secimi").
   static const defaultDealerGestures = <String>[
-    'idle', 'shuffle', 'deal', 'wink', 'smile',
+    'idle', 'victory', 'shuffle', 'deal', 'wink', 'smile', 'wave',   // #362
   ];
 
   /// Kesim kipleri: `sam` (varsayilan, duz gri fon) | `hybrid` (eski yesil
@@ -1065,6 +1065,23 @@ class CardFlowService {
             if (poolOnly) 'pool_only': true,
             if (engine.isNotEmpty) 'engine': engine,
           }))['op'] ?? ''}';
+
+  /// #362: toplu 2 Video - her karta idle + victory (sunucudaki ANIM_SET).
+  static Future<String> animateSet({
+    required String collection,
+    required List<String> ranks,
+    String kind = 'card',
+    String engine = '',
+  }) async =>
+      '${(await _post('/api/card/flow/animate-set', {
+            'collection': collection,
+            'ranks': ranks,
+            'kind': kind,
+            if (engine.isNotEmpty) 'engine': engine,
+          }))['op'] ?? ''}';
+
+  /// #362: kesimde `anim` = `*` -> videosu olan her animasyon (kart basina 2 webp).
+  static const allAnims = '*';
 
   /// 3. asama: SAM3 kesim + sheet + thumb. `mode` = `sam` | `hybrid`.
   static Future<String> cut({

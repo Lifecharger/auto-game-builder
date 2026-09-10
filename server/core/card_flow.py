@@ -323,10 +323,27 @@ def gesture_text(kind: str, gesture: str) -> str:
     g = (gesture or "").strip()
     jestler = gestures(kind)
     if g in jestler:
-        return jestler[g]
+        return _jest_karistir(kind, g, jestler[g])
     if g:
         return g[:400]
-    return jestler.get(DEFAULT_GESTURE) or "subtle idle breathing"
+    return _jest_karistir(kind, DEFAULT_GESTURE,
+                          jestler.get(DEFAULT_GESTURE) or "subtle idle breathing")
+
+
+def _jest_karistir(kind: str, gesture: str, sablon: str) -> str:
+    """#362: sablondaki `{mix}` yerine profilin `jest_karisim[jest]` parcalarindan
+    rastgele n tanesi gelir - her kartin animasyonu biraz farkli olsun (biri spin,
+    biri dans, biri opucuk...). Karisim tanimi yoksa sablon oldugu gibi doner."""
+    if "{mix}" not in sablon:
+        return sablon
+    prof = (_options().get(KINDS[kind_id(kind)]["profile"]) or {})
+    kar = ((prof.get("jest_karisim") or {}).get(gesture) or {})
+    parcalar = [str(p).strip() for p in (kar.get("parcalar") or []) if str(p).strip()]
+    if not parcalar:
+        return sablon.replace("{mix}", "").replace(" ,", ",").strip()
+    n = max(1, min(int(kar.get("n") or 2), len(parcalar)))
+    secim = random.sample(parcalar, n)
+    return sablon.replace("{mix}", ", then ".join(secim))
 
 
 def _prompt2(kind: str) -> str:
@@ -401,6 +418,12 @@ def rank_dir(collection: str, rank: str, kind: str = "", create: bool = False) -
 # baytlarini sonsuza dek sakliyor, tasimak eski surumleri kirar.
 IDLE_ANIM = "idle"
 ANIM_DIR = "anim"
+# #362: her kartta bulunmasi gereken animasyonlar: (etiket, jest). Kullanicinin
+# tarifi: "her kart = 2 anim: 1 idle (spin/dance/wink/kiss...), 2 victory (zafer
+# ziplamasi). Ona gore 2 webp." Toplu 2 Video ikisini de acar, 3 WebP "*" ile
+# videosu olan her etiketi keser, push zaten tum animasyonlari alir (#338).
+ANIM_SET = [("idle", "idle"), ("victory", "victory")]
+ALL_ANIMS = "*"
 
 
 def anim_id(name: str = "") -> str:
@@ -2052,12 +2075,49 @@ def _probe_pixels(p: str, w: int = 64, h: int = 96):
     return im.crop((l, t, l + cw, t + ch)).resize((w, h), Image.BILINEAR)
 
 
+def motion_score(video: str) -> float | None:
+    """#362: hareket olcusu - 5 ornek kare arasinda ortalama mutlak fark (0-255, 208x312).
+
+    Kullanicinin sikayeti: "kartlar kucuk, bu kadar hareketsiz cikinca hic belli
+    olmuyor." < 8 = donuk (LTX/H3 'subtle idle' ciktilarinda 6-11 olculdu),
+    ~15+ gorunur hareket. None = olculemedi.
+    """
+    if not (video and os.path.isfile(video)):
+        return None
+    try:
+        import io
+        from PIL import Image, ImageChops, ImageStat
+        ff = G._ffmpeg() or "ffmpeg"
+        kareler = []
+        for t in (0.1, 1.5, 3.0, 4.5, 5.9):
+            r = subprocess.run([ff, "-v", "error", "-ss", str(t), "-i", video, "-frames:v", "1",
+                                "-f", "image2pipe", "-vcodec", "png", "-"], capture_output=True,
+                               timeout=120, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            if r.stdout:
+                kareler.append(Image.open(io.BytesIO(r.stdout)).convert("L").resize((208, 312)))
+        if len(kareler) < 2:
+            return None
+        farklar = [ImageStat.Stat(ImageChops.difference(a, b)).mean[0] for a, b in zip(kareler, kareler[1:])]
+        return round(sum(farklar) / len(farklar), 2)
+    except Exception:
+        return None
+
+
 def guard_video(still: str, video: str) -> dict:
     """Ilk kare - still farki (yanlis kadin / reframe / zoom kaymasi).
 
     score < 25 -> uyumlu; >= 25 -> "kontrol" rozeti (otomatik silme YOK, kullanici bakar).
+    #362: `motion` (hareket olcusu); donuk klipte `frozen: True` + nota uyari.
     """
     out = {"score": None, "verdict": "ok", "note": ""}
+    try:
+        h = motion_score(video)
+        out["motion"] = h
+        if h is not None and h < 8:
+            out["frozen"] = True
+            out["note"] = "donuk: hareket %.1f (< 8)" % h
+    except Exception:
+        pass
     if not (still and os.path.isfile(still) and video and os.path.isfile(video)):
         out.update(verdict="kontrol", note="karsilastirma dosyasi yok")
         return out
@@ -2179,9 +2239,32 @@ def animate(collection: str, ranks: list[str] | None = None, gesture: str = DEFA
     return op_id
 
 
+def animate_set(collection: str, ranks: list[str] | None = None, kind: str = "",
+                engine: str = "") -> str:
+    """#362: op `card-video` - secili kartlarin HER BIRINE ANIM_SET'teki butun
+    animasyonlar (idle + victory) uretilir ve etiketlerine atanir. Toplu
+    "2 Video" bunu cagirir; tek etiket icin `animate()` durur."""
+    k = kind_id(kind)
+    collection_meta(collection, k)
+    tum = _collection_ranks(collection, k)
+    hedef = [r for r in _sec(ranks, tum)
+             if os.path.isfile(os.path.join(rank_dir(collection, r, k), "still.png"))]
+    if not hedef:
+        raise ValueError("still'i olan rutbe yok - once asama 1")
+    eng = engine_of(collection, k, engine)
+    op_id = _op_new("card-video", len(hedef) * len(ANIM_SET))
+
+    def calis():
+        for i, (tag, jest) in enumerate(ANIM_SET):
+            _animate_body(op_id, collection, k, hedef, jest, "2/4 video %s" % tag,
+                          anim_id(tag), pool_only=False, engine=eng, offset=i * len(hedef))
+    _run(op_id, calis)
+    return op_id
+
+
 def _animate_body(op_id: str, collection: str, kind: str, hedef: list[str],
                   gesture: str, etiket_on: str, anim: str = IDLE_ANIM,
-                  pool_only: bool = False, engine: str = "") -> list[str]:
+                  pool_only: bool = False, engine: str = "", offset: int = 0) -> list[str]:
     """Butun i2v isleri TEK SEFERDE kuyruga birakir, ciktilari sirayla toplar.
 
     gpu_lane BURADA ALINMAZ - comfy_gen dispatcher'i her isi kendi bileti ile
@@ -2203,7 +2286,8 @@ def _animate_body(op_id: str, collection: str, kind: str, hedef: list[str],
     _op(op_id, message="%s  %d is kuyruga girdi" % (etiket_on, len(isler)))
     olanlar = []
     for i, (jid, r, etiket) in enumerate(isler, 1):
-        _op(op_id, message="%s %d/%d  %s" % (etiket_on, i, len(isler), etiket))
+        i += offset                     # #362: cok animasyonlu op'ta sayac geri sarmasin
+        _op(op_id, message="%s %d/%d  %s" % (etiket_on, i, len(isler) + offset, etiket))
         tasindi = False
         try:
             src = _await_job(jid, op_id, etiket)
@@ -2602,28 +2686,35 @@ def cut(collection: str, ranks: list[str] | None = None, mode: str = "sam",
     if mode not in ("sam", "hybrid"):
         raise ValueError("bilinmeyen kesim kipi: %s" % mode)
     tum = _collection_ranks(collection, k)
-    a = anim_id(anim)
-    hedef = [r for r in _sec(ranks, tum)
-             if os.path.isfile(os.path.join(anim_dir(collection, r, k, a), "video.mp4"))
-             or (a == IDLE_ANIM
-                 and os.path.isfile(os.path.join(rank_dir(collection, r, k), "video_grok.mp4")))]
+    if (anim or "").strip() == ALL_ANIMS:
+        # #362: videosu olan HER animasyon (idle + victory + ...) - kart basina 2 webp.
+        hedef = [(r, x["name"]) for r in _sec(ranks, tum)
+                 for x in anims_of(collection, r, k) if x.get("video")]
+    else:
+        a = anim_id(anim)
+        hedef = [(r, a) for r in _sec(ranks, tum)
+                 if os.path.isfile(os.path.join(anim_dir(collection, r, k, a), "video.mp4"))
+                 or (a == IDLE_ANIM
+                     and os.path.isfile(os.path.join(rank_dir(collection, r, k), "video_grok.mp4")))]
     if not hedef:
         raise ValueError("videosu olan rutbe yok - once asama 2")
     op_id = _op_new("card-cut", len(hedef))
-    _run(op_id, lambda: _cut_body(op_id, collection, k, hedef, mode, dealers_v3, "3/4 webp", a))
+    _run(op_id, lambda: _cut_body(op_id, collection, k, hedef, mode, dealers_v3, "3/4 webp"))
     return op_id
 
 
-def _cut_body(op_id: str, collection: str, kind: str, hedef: list[str], mode: str,
+def _cut_body(op_id: str, collection: str, kind: str, hedef: list, mode: str,
               dealers_v3: bool, etiket_on: str, anim: str = IDLE_ANIM) -> None:
+    """`hedef`: rutbe listesi (hepsi `anim` ile) YA DA (rutbe, animasyon) ciftleri (#362)."""
     tool = _cut_tool()
-    with gpu_lane.hold("kart kesim %s (%d)" % (collection, len(hedef)), kind="card",
-                       op_id=op_id, total=len(hedef)):                      # #299
-        for i, r in enumerate(hedef, 1):
-            etiket = "%s %s" % (collection, str(r).upper())
-            _op(op_id, message="%s %d/%d  %s" % (etiket_on, i, len(hedef), etiket))
+    ciftler = [(x if isinstance(x, tuple) else (x, anim)) for x in hedef]
+    with gpu_lane.hold("kart kesim %s (%d)" % (collection, len(ciftler)), kind="card",
+                       op_id=op_id, total=len(ciftler)):                      # #299
+        for i, (r, a) in enumerate(ciftler, 1):
+            etiket = "%s %s%s" % (collection, str(r).upper(), "" if a == IDLE_ANIM else " [%s]" % a)
+            _op(op_id, message="%s %d/%d  %s" % (etiket_on, i, len(ciftler), etiket))
             try:
-                kayit = _cut_one(tool, collection, kind, r, mode, dealers_v3, anim)
+                kayit = _cut_one(tool, collection, kind, r, mode, dealers_v3, a)
             except Exception as e:
                 with _ops_lock:
                     _ops[op_id]["failed"] += 1
@@ -2957,7 +3048,8 @@ def reanimate(collection: str = "all", gesture: str = DEFAULT_GESTURE, kind: str
         hedef = _targets(collection, kind, include_dealers)
         if not hedef:
             raise ValueError("hedef yok")
-        _op(op_id, total=len(hedef) * 2, message="%d kart: 3 asama" % len(hedef))
+        _op(op_id, total=len(hedef) * 2 * len(ANIM_SET),
+            message="%d kart x %d animasyon: 3 asama" % (len(hedef), len(ANIM_SET)))
 
         # --- 1/4 still: eksik still'i Grok videosunun ilk karesinden kur
         eksik = []
@@ -3008,11 +3100,15 @@ def reanimate(collection: str = "all", gesture: str = DEFAULT_GESTURE, kind: str
                 _op(op_id, log="1b/4 ELLE DUZELT (still'e dokunulmadi): %s" % ", ".join(elle))
 
         # --- 2/4 video: koleksiyon koleksiyon i2v (isler toplu kuyruga girer)
+        # #362: her karta ANIM_SET (idle + victory). Kullanicinin verdigi ozel
+        # jest yalniz idle etiketine uygulanir; victory kendi sablonuyla gider.
+        ozel = (gesture or "").strip()
         for (c, k), rs in gruplar.items():
-            jest = gesture or DEFAULT_GESTURE
-            olan = _animate_body(op_id, c, k, rs, jest, "2/4 video %s" % c)
-            if olan:
-                kesilecek[(c, k)] = olan
+            for tag, jest in ANIM_SET:
+                j = ozel if (ozel and ozel != DEFAULT_GESTURE and tag == IDLE_ANIM) else jest
+                olan = _animate_body(op_id, c, k, rs, j, "2/4 video %s [%s]" % (c, tag), anim_id(tag))
+                if olan:
+                    kesilecek.setdefault((c, k), []).extend((r, anim_id(tag)) for r in olan)
 
         # --- 3/4 webp: butun kesimler TEK gpu_lane bileti (koleksiyon basina)
         for (c, k), rs in kesilecek.items():

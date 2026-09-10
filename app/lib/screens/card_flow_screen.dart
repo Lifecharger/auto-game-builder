@@ -1646,25 +1646,57 @@ class _CardCollectionPageState extends State<CardCollectionPage> {
 
   Future<void> _animate({bool hepsi = false}) async {
     final r = _targets(hepsi: hepsi);
-    // #357: toplu video da ayni pencere - varsayilan etiket idle.
-    final ist = await videoDialog(context,
-        gestures: _profiles.gestures,
-        gestureTexts: _profiles.gestureTexts,
-        engines: _c?.videoEngines ?? const [],
-        engine: _c?.videoEngine ?? '',
-        baslik: '2 Video (${r.length} kart)');
-    if (ist == null) return;
+    // #362: her kart = 2 animasyon (idle + victory). Toplu dugme ikisini de
+    // acar; tek etiket / serbest prompt icin kart detayindaki 2 Video kalir.
+    final motorlar = _c?.videoEngines ?? const <CardEngine>[];
+    var motor = _c?.videoEngine ?? '';
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => StatefulBuilder(
+        builder: (c, setLocal) => AlertDialog(
+          title: Text('2 Video (${r.length} kart)'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Her karta 2 animasyon uretilir ve etiketine atanir:\n'
+                  '• idle - dans, salinim, sac, goz kirpma, opucuk (karisik)\n'
+                  '• victory - zafer ziplamasi, yahoo sevinci\n'
+                  'Toplam ${r.length * 2} video; eskileri havuzda kalir.',
+                  style: const TextStyle(fontSize: 12)),
+              if (motorlar.length > 1) ...[
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String>(
+                  initialValue: motorlar.any((e) => e.id == motor) ? motor : motorlar.first.id,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                      isDense: true, border: OutlineInputBorder(), labelText: 'Motor'),
+                  items: [
+                    for (final e in motorlar)
+                      DropdownMenuItem(
+                          value: e.id,
+                          enabled: e.available,
+                          child: Text(e.label, style: const TextStyle(fontSize: 12))),
+                  ],
+                  onChanged: (v) => setLocal(() => motor = v ?? motor),
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Vazgec')),
+            FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Uret')),
+          ],
+        ),
+      ),
+    );
+    if (ok != true) return;
     try {
-      final op = await CardFlowService.animate(
-          collection: widget.id,
-          ranks: r,
-          gesture: ist.gesture,
-          anim: ist.tag,
-          poolOnly: ist.poolOnly,
-          engine: ist.engine);
+      final op = await CardFlowService.animateSet(
+          collection: widget.id, ranks: r, engine: motor);
       setState(_sel.clear);
       _watch(op);
-      _snack(queueSnackText(r.length));
+      _snack(queueSnackText(r.length * 2));
     } on CardNotReadyException catch (e) {
       _snack(e.message);
     } catch (e) {
@@ -1677,8 +1709,9 @@ class _CardCollectionPageState extends State<CardCollectionPage> {
     final mode = await cutModeDialog(context, _profiles.cutModes);
     if (mode == null) return;
     try {
+      // #362: videosu olan her animasyon kesilir (kart basina 2 webp).
       final op = await CardFlowService.cut(
-          collection: widget.id, ranks: r, mode: mode);
+          collection: widget.id, ranks: r, mode: mode, anim: CardFlowService.allAnims);
       setState(_sel.clear);
       _watch(op);
       _snack(queueSnackText(r.length));
