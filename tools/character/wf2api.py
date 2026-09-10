@@ -213,6 +213,34 @@ def sg_widget_order(sg: dict) -> list:
             if str(i.get("type") or "").upper() in _SG_WIDGET_TYPES and i.get("name")]
 
 
+def _tip_uyar(deger, varsayilan) -> int:
+    """Degerin widget VARSAYILANIYLA turu uyusuyor mu: +1 uyar, -1 uymaz, 0 bilinmez.
+
+    Kaymayi yakalamak icin: metin varsayilanli bir widget'a (combo, ornek
+    CreateVideo.color_space "sRGB") sayi dusmusse dizilim kaymistir.
+    """
+    if varsayilan is None or deger is None:
+        return 0
+    if isinstance(varsayilan, bool) or isinstance(deger, bool):
+        return 1 if isinstance(deger, bool) and isinstance(varsayilan, bool) else -1
+    say = (int, float)
+    if isinstance(varsayilan, say):
+        return 1 if isinstance(deger, say) else -1
+    if isinstance(varsayilan, str):
+        return 1 if isinstance(deger, str) else -1
+    return 0
+
+
+def _dizilim_puani(seq, wv, vars_) -> int:
+    """Bir aday dizilimin widgets_values ile tur uyumu (buyuk = daha dogru)."""
+    p = 0
+    for i, ad in enumerate(seq):
+        if i >= len(wv) or not ad:
+            continue
+        p += _tip_uyar(wv[i], vars_.get(ad))
+    return p
+
+
 def _widget_map(node, specs=None, sg_order=None):
     """Dugumun widget adi -> deger sozlugu.
 
@@ -250,13 +278,31 @@ def _widget_map(node, specs=None, sg_order=None):
         cands.append(declared)
         cands.append(eski)
 
-    seq = next((c for c in cands if len(c) == len(wv)), None)
-    if seq is None:
-        seq = cands[0] if cands else []
+    vars_ = {w["n"]: w.get("d") for w in ((sp or {}).get("widgets") or [])}
+    tam = [c for c in cands if len(c) == len(wv)]
+    seq = tam[0] if tam else (cands[0] if cands else [])
+    # Baglantiya cevrilmis bir widget'in degeri BAZI frontend surumlerinde
+    # widgets_values icinde KALIR. O zaman "baglanti olani atla" dizilimi bir
+    # kaydirir ve degerler yanlis girise yazilir (ornek: CreateVideo fps
+    # baglanti iken bit_depth=24, color_space=8 -> ComfyUI 400). Secilen
+    # dizilimin tur uyumu EKSIYSE, daha uzun bir adayin bastan kirpilmisini
+    # dene - daha iyi puan aliyorsa onu kullan.
+    if _dizilim_puani(seq, wv, vars_) < 0:
+        for c in cands:
+            if len(c) > len(wv):
+                kirpik = c[:len(wv)]
+                if _dizilim_puani(kirpik, wv, vars_) > _dizilim_puani(seq, wv, vars_):
+                    seq = kirpik
     out = {}
     for i, name in enumerate(seq):
         if i >= len(wv):
             break
+        # Baglantili widget'in degeri de YAZILIR - emit() onceligi dogru kuruyor:
+        # baglanti COZULURSE onu kullanir, cozulemezse (bypass/mute/acilmamis
+        # alt-grafik girisi) buradaki widget degerine duser. Bir ara "baglantili
+        # olani atla" denendi ve alt-grafik icindeki UNETLoader/CLIPLoader/
+        # VAELoader'in model adlari kayboldu (Flux Klein is akislari "zorunlu
+        # giris eksik" hatasi verdi) - o yuzden atlamak YANLIS.
         if name:
             out[name] = wv[i]
     return out
@@ -544,17 +590,27 @@ def _apply_overrides(api: dict, overrides: dict, specs: dict) -> None:
             if k in overrides and overrides[k] is not None:
                 yaz(uid, k, overrides[k])
 
-    # 3) olcu: yalniz latent ureten / zamanlayici dugumlerde
+    # 3) olcu: yalniz latent ureten / zamanlayici dugumlerde. AGB #357: Wan
+    #    video dugumleri de (WanImageToVideo / WanFirstLastFrameToVideo ...) -
+    #    latent'i onlar kurar; olcu yazilmazsa sablonun 640x640'i ile uretilirdi.
     w, h = overrides.get("width"), overrides.get("height")
     if isinstance(w, int) and isinstance(h, int) and w > 0 and h > 0:
         for uid in list(api):
             ct = api[uid]["class_type"]
-            if not (ct.startswith("Empty") or ct.endswith("Scheduler")):
+            if not (ct.startswith("Empty") or ct.endswith("Scheduler") or ct.startswith("Wan")):
                 continue
             ws = widgets(uid)
             if "width" in ws and "height" in ws:
                 yaz(uid, "width", w)
                 yaz(uid, "height", h)
+    # 4) sure -> kare sayisi (Wan: 16 fps, 4k+1 kare; sablon 81 = 5 sn). AGB #357.
+    #    Ust sinir 81: 16 GB VRAM'de 1 MP x 97 kare riskli, dongu icin 5 sn yeter.
+    d = overrides.get("duration")
+    if isinstance(d, (int, float)) and d > 0:
+        kare = min(81, 4 * int(round(16 * float(d) / 4)) + 1)
+        for uid in list(api):
+            if api[uid]["class_type"].startswith("Wan") and "length" in widgets(uid):
+                yaz(uid, "length", kare)
 
 
 # ------------------------------------------------------------- dogrulama

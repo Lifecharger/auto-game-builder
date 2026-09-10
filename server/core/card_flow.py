@@ -148,6 +148,16 @@ VIDEO_TASK = "video_ltx"
 # kalir, boylece LTX'in icine dogru kaymasi (push-in) kapanir ve dongu dikissiz
 # kapanir. Gorev manifest'te yoksa eski i2v'ye duser.
 VIDEO_TASK_LOOP = "video_ltx_flf"
+# #357: koleksiyon basina video motoru. HEPSI ilk kare = son kare (FLF2V)
+# calisir - dongu icin sart. MiniMax H3 BILEREK yok: lisansi ciktilari da
+# kapsiyor (AB/UK/ABD/G.Kore'de dagitim yasak), kart oyununa giren hicbir
+# varlik onunla uretilmez.
+VIDEO_ENGINES = {
+    "ltx": {"task": "video_ltx_flf", "label": "LTX-2.5 (sesli, 6 sn, ~6 dk/kart)"},
+    "wan": {"task": "video_wan_flf", "label": "Wan 2.2 14B (sessiz, 5 sn, 4 adim)"},
+}
+DEFAULT_ENGINE = "ltx"
+VIDEOS_DIR = "videos"          # #357: rutbenin video HAVUZU (<vid>.mp4 + <vid>.json)
 
 GUARD_THRESHOLD = 25.0          # guard_firstframe.py ile ayni esik
 ZOOM_TOLERANCE = 0.08           # ilk->son kare figur buyumesi (#337): %8 ustu "kontrol"
@@ -696,6 +706,8 @@ def _rank_row(collection: str, kind: str, rank: str, pushed: dict) -> dict:
         "frameW": sheet.get("frameW") or 0, "frameH": sheet.get("frameH") or 0,
         "frames": sheet.get("frames") or 0,
         "candidates": [],
+        # #357: havuzdaki video sayisi (atanmis olsun olmasin)
+        "videos": _havuz_sayisi(d),
     }
     try:
         m = collection_meta(collection, kind)
@@ -802,7 +814,7 @@ def collection(collection_id: str, kind: str = "") -> dict:
     # gorseli urettigini gormeden duzeltemez.
     harita = {c["rank"]: {a: c.get(a) for a in ("still", "video", "sheet", "pushed",
                                                 "verdict", "rev", "gesture", "metrics",
-                                                "prompt", "look", "pose", "age")}
+                                                "prompt", "look", "pose", "age", "videos")}
               for c in cards}
     out = {"id": m.get("id") or collection_id, "name": m.get("name") or collection_id,
            "kind": k, "style": m.get("style") or "realistic", "theme": m.get("theme") or "",
@@ -814,6 +826,8 @@ def collection(collection_id: str, kind: str = "") -> dict:
            "rev": max([0] + [c["rev"] for c in cards]),
            "ranks": harita, "cards": cards,
            "prompts_by": m.get("prompts_by") or "",
+           # #357: video motoru (koleksiyon ayari) + kurulu motorlar
+           "video_engine": collection_engine(m), "video_engines": video_engines(),
            "counts": {"total": len(cards),
                       "still": sum(1 for c in cards if c["still"]),
                       "video": sum(1 for c in cards if c["video"]),
@@ -1167,9 +1181,27 @@ def face_detail_on(m: dict) -> bool:
     return bool((m or {}).get("face_detail"))
 
 
+def collection_engine(m: dict) -> str:
+    """#357: koleksiyonun video motoru (gecersizse ltx)."""
+    a = str((m or {}).get("video_engine") or "").strip().lower()
+    return a if a in VIDEO_ENGINES else DEFAULT_ENGINE
+
+
+def video_engines() -> list[dict]:
+    """#357: istemci listesi - yalniz is akisi gercekten kurulu olan motorlar."""
+    out = []
+    for eid, e in VIDEO_ENGINES.items():
+        try:
+            var = bool(G._task(e["task"]))
+        except Exception:
+            var = False
+        out.append({"id": eid, "label": e["label"], "task": e["task"], "available": var})
+    return out
+
+
 def set_settings(collection: str, kind: str = "", model: str | None = None,
-                 face_detail: bool | None = None) -> dict:
-    """#353: koleksiyonun uretim ayarlari - model ve yuz rotusu."""
+                 face_detail: bool | None = None, video_engine: str | None = None) -> dict:
+    """#353: koleksiyonun uretim ayarlari - model ve yuz rotusu. #357: video motoru."""
     k = kind_id(kind)
     m = collection_meta(collection, k)
     if model is not None:
@@ -1179,9 +1211,15 @@ def set_settings(collection: str, kind: str = "", model: str | None = None,
         m["model"] = a
     if face_detail is not None:
         m["face_detail"] = bool(face_detail)
+    if video_engine is not None:
+        e = str(video_engine).strip().lower()
+        if e not in VIDEO_ENGINES:
+            raise ValueError("bilinmeyen video motoru: %s (%s)" % (video_engine, ", ".join(VIDEO_ENGINES)))
+        m["video_engine"] = e
     _save_collection(collection, k, m)
     return {"collection": collection, "kind": k, "model": collection_model(m),
-            "face_detail": face_detail_on(m), "models": list(MODELLER)}
+            "face_detail": face_detail_on(m), "models": list(MODELLER),
+            "video_engine": collection_engine(m), "video_engines": video_engines()}
 
 
 def _still_job(collection: str, kind: str, rank: str, index: int, m: dict) -> dict:
@@ -1274,6 +1312,21 @@ def candidates(collection: str, rank: str, kind: str = "") -> list[str]:
                       and a not in ADAY_DISI)
     except OSError:
         return []
+
+
+def candidate_revs(collection: str, rank: str, kind: str = "") -> dict[str, int]:
+    """#356: aday adi -> degisiklik zamani (saniye). Aday adlari yeniden
+    kullanilir (secilen aday silinir, eski still bos numaraya yazilir); telefon
+    kucuk resmi URL'ye gore bellekte tuttugu icin ayni ad baska gorsel
+    gosteriyordu. Istemci bunu `v=` olarak ekler."""
+    d = rank_dir(collection, rank, kind_id(kind))
+    out = {}
+    for a in candidates(collection, rank, kind):
+        try:
+            out[a] = int(os.path.getmtime(os.path.join(d, a)))
+        except OSError:
+            out[a] = 0
+    return out
 
 
 def pick(collection: str, rank: str, file: str, kind: str = "") -> dict:
@@ -1585,6 +1638,8 @@ def templates(collection: str, kind: str = "") -> dict:
             # #353: uretim ayarlari - istemci bunlari acilir liste + anahtar cizer
             "model": collection_model(m), "models": list(MODELLER),
             "face_detail": face_detail_on(m),
+            # #357: video motoru (ltx | wan) - koleksiyon kartindan secilir
+            "video_engine": collection_engine(m), "video_engines": video_engines(),
             "slots": yuvalar, "back_rank": BACK_RANK,
             "axes": list(EKSENLER), "labels": dict(EKSEN_ETIKET),
             "back_axes": list(BACK_EKSENLER), "back_labels": dict(BACK_ETIKET),
@@ -2050,8 +2105,19 @@ def _zoom_drift(video: str, first_png: str) -> float | None:
             pass
 
 
-def _video_job(collection: str, kind: str, rank: str, gesture: str) -> dict:
-    """Tek rutbenin i2v isi (video_ltx, 6 sn, 832x1248, kilitli kamera)."""
+def engine_of(collection: str, kind: str, engine: str = "") -> str:
+    """#357: istekteki motor, yoksa koleksiyon ayari, yoksa ltx."""
+    e = (engine or "").strip().lower()
+    if e in VIDEO_ENGINES:
+        return e
+    return collection_engine(collection_meta(collection, kind_id(kind)))
+
+
+def _video_job(collection: str, kind: str, rank: str, gesture: str, engine: str = "") -> dict:
+    """Tek rutbenin FLF2V isi (ilk kare = son kare = still, 832x1248, kilitli kamera).
+
+    #357: motor koleksiyon ayarindan (ltx | wan); is akisi kurulu degilse LTX'e duser.
+    """
     d = rank_dir(collection, rank, kind)
     still = os.path.join(d, "still.png")
     if not os.path.isfile(still):
@@ -2059,7 +2125,10 @@ def _video_job(collection: str, kind: str, rank: str, gesture: str) -> dict:
     jest = gesture_text(kind, gesture)
     # Olcu ACIKCA verilir: comfy_gen'in video_size_for butcesi (704x1280) 832x1248'i
     # kucultur; iki kenar da 32'nin kati oldugu icin LTX bu olcuyu dogrudan alir.
-    gorev = VIDEO_TASK_LOOP if G._task(VIDEO_TASK_LOOP) else VIDEO_TASK
+    eng = engine_of(collection, kind, engine)
+    gorev = VIDEO_ENGINES[eng]["task"]
+    if not G._task(gorev):
+        gorev = VIDEO_TASK_LOOP if G._task(VIDEO_TASK_LOOP) else VIDEO_TASK
     # image_path TEK basina verilir: comfy_gen is akisindaki BUTUN gorsel
     # yuvalarini onunla doldurur, yani FLF2V'de ilk ve son kare ayni still olur.
     olcu = still_size(kind)
@@ -2070,11 +2139,15 @@ def _video_job(collection: str, kind: str, rank: str, gesture: str) -> dict:
 
 
 def animate(collection: str, ranks: list[str] | None = None, gesture: str = DEFAULT_GESTURE,
-            kind: str = "", anim: str = "") -> str:
-    """op `card-video` (asama 2): still -> LTX-2.5 i2v 6 sn, guard, otomatik kabul.
+            kind: str = "", anim: str = "", pool_only: bool = False, engine: str = "") -> str:
+    """op `card-video` (asama 2): still -> FLF2V video, guard, havuza kayit.
 
-    `anim` bos/idle ise cikti rutbe klasorunun kokune (eski davranis), aksi halde
-    <rutbe>/anim/<ad>/ altina yazilir (#338).
+    #357: her cikti once rutbenin video HAVUZUNA girer (videos/<vid>.mp4).
+    `pool_only` False ise ayrica `anim` etiketine atanir (bos/idle = kartin ana
+    animasyonu, eski davranis); True ise yalniz havuzda durur, kullanici sonra
+    "Videolar" seridinden secip istedigi etikete atar. `gesture` hazir anahtar
+    ya da SERBEST hareket cumlesidir (#335) - etiketle bagi yoktur.
+    `engine` bos = koleksiyon ayari.
     """
     k = kind_id(kind)
     collection_meta(collection, k)
@@ -2084,13 +2157,16 @@ def animate(collection: str, ranks: list[str] | None = None, gesture: str = DEFA
     if not hedef:
         raise ValueError("still'i olan rutbe yok - once asama 1")
     a = anim_id(anim)
+    eng = engine_of(collection, k, engine)
     op_id = _op_new("card-video", len(hedef))
-    _run(op_id, lambda: _animate_body(op_id, collection, k, hedef, gesture, "2/4 video", a))
+    _run(op_id, lambda: _animate_body(op_id, collection, k, hedef, gesture, "2/4 video", a,
+                                      pool_only=bool(pool_only), engine=eng))
     return op_id
 
 
 def _animate_body(op_id: str, collection: str, kind: str, hedef: list[str],
-                  gesture: str, etiket_on: str, anim: str = IDLE_ANIM) -> list[str]:
+                  gesture: str, etiket_on: str, anim: str = IDLE_ANIM,
+                  pool_only: bool = False, engine: str = "") -> list[str]:
     """Butun i2v isleri TEK SEFERDE kuyruga birakir, ciktilari sirayla toplar.
 
     gpu_lane BURADA ALINMAZ - comfy_gen dispatcher'i her isi kendi bileti ile
@@ -2100,7 +2176,7 @@ def _animate_body(op_id: str, collection: str, kind: str, hedef: list[str],
     for r in hedef:
         etiket = "%s %s" % (collection, str(r).upper())
         try:
-            job = _video_job(collection, kind, r, gesture)
+            job = _video_job(collection, kind, r, gesture, engine)
         except Exception as e:
             with _ops_lock:
                 _ops[op_id]["failed"] += 1
@@ -2117,18 +2193,16 @@ def _animate_body(op_id: str, collection: str, kind: str, hedef: list[str],
         try:
             src = _await_job(jid, op_id, etiket)
             d = rank_dir(collection, r, kind, create=True)
-            ad = anim_dir(collection, r, kind, anim, create=True)
-            dest = _tasi(src, os.path.join(ad, "video.mp4"))
+            # #357: once HAVUZ - guard rutbenin still'ine gore havuz dosyasinda olculur.
+            vid, yol = _havuza_koy(collection, r, kind, src, {
+                "job": jid, "gesture": gesture, "prompt": gesture_text(kind, gesture),
+                "engine": engine or engine_of(collection, kind, ""),
+                "at": datetime.now().isoformat(timespec="seconds")})
             tasindi = not os.path.isfile(src)
-            # Guard her zaman rutbenin still'ine bakar - animasyon adi ne olursa
-            # olsun kadraj o still'den baslar.
-            g = guard_video(os.path.join(d, "still.png"), dest)
-            bilgi = {"at": datetime.now().isoformat(timespec="seconds"),
-                     "job": jid, "gesture": gesture, "guard": g, "anim": anim}
-            if anim == IDLE_ANIM:
-                _set_state(collection, r, kind, video=bilgi)
-            else:
-                _write_json(os.path.join(ad, "state.json"), bilgi)
+            g = guard_video(os.path.join(d, "still.png"), yol)
+            _havuz_meta_yaz(collection, r, kind, vid, guard=g)
+            if not pool_only:
+                assign_video(collection, r, kind, vid, anim)
         except Exception as e:
             with _ops_lock:
                 _ops[op_id]["failed"] += 1
@@ -2137,10 +2211,229 @@ def _animate_body(op_id: str, collection: str, kind: str, hedef: list[str],
             olanlar.append(r)
             with _ops_lock:
                 _ops[op_id]["ok"] += 1
-            _op(op_id, done=i, log="%s -> video.mp4 (guard %s %s)"
-                % (etiket, g.get("verdict"), g.get("score")))
+            _op(op_id, done=i, log="%s -> havuz %s%s (guard %s %s)"
+                % (etiket, vid, "" if pool_only else " -> %s" % anim,
+                   g.get("verdict"), g.get("score")))
         _is_sil(jid, tasindi)
     return olanlar
+
+
+# ------------------------------------------------ video havuzu + etiket (#357)
+# Kullanicinin tarifi: "animasyon kategorisi olarak videolari uretelim, idle mi
+# degil mi etiketi kullanici atasin; promptu kendi yazsin ya da sablondan
+# gondersin; videolar yukarida yan yana, secip atasin, atama etiketi videonun
+# altinda yazsin, animasyon kutusunda gorunsun; + Yeni ile istedigi etiketi
+# acsin." Havuz: <rutbe>/videos/<vid>.mp4 + <vid>.json (prompt, motor, guard).
+# Atama = havuz dosyasinin etiket klasorune KOPYASI (idle = rutbe koku); havuz
+# kaydi durur, ayni video birden fazla etikete atanabilir.
+def _videos_dir(collection: str, rank: str, kind: str = "", create: bool = False) -> str:
+    return _mk(os.path.join(rank_dir(collection, rank, kind, create), VIDEOS_DIR), create)
+
+
+def _havuz_sayisi(rank_klasoru: str) -> int:
+    try:
+        return sum(1 for a in os.listdir(os.path.join(rank_klasoru, VIDEOS_DIR))
+                   if a.lower().endswith(".mp4"))
+    except OSError:
+        return 0
+
+
+def _vid_id(ad: str) -> str:
+    v = (ad or "").strip()
+    if v.lower().endswith(".mp4"):
+        v = v[:-4]
+    return _safe(v, "video")
+
+
+def _havuz_yolu(collection: str, rank: str, kind: str, vid: str) -> str:
+    p = os.path.join(_videos_dir(collection, rank, kind), _vid_id(vid) + ".mp4")
+    if not os.path.isfile(p):
+        raise ValueError("havuzda video yok: %s" % vid)
+    return p
+
+
+def _havuza_koy(collection: str, rank: str, kind: str, src: str, meta: dict) -> tuple[str, str]:
+    """Uretim ciktisini havuza TASIR; (vid, yol) doner."""
+    vd = _videos_dir(collection, rank, kind, create=True)
+    vid = datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + str(meta.get("job") or "")[:6]
+    k = 2
+    while os.path.exists(os.path.join(vd, vid + ".mp4")):
+        vid = "%s-%d" % (vid, k)
+        k += 1
+    yol = _tasi(src, os.path.join(vd, vid + ".mp4"))
+    _write_json(os.path.join(vd, vid + ".json"), dict(meta, id=vid))
+    return vid, yol
+
+
+def _havuz_meta_yaz(collection: str, rank: str, kind: str, vid: str, **kw) -> dict:
+    p = os.path.join(_videos_dir(collection, rank, kind), _vid_id(vid) + ".json")
+    m = _read_json(p, {}) or {}
+    m.update(kw)
+    _write_json(p, m)
+    return m
+
+
+def _atamalar(collection: str, rank: str, kind: str) -> dict[str, list[str]]:
+    """vid -> atandigi etiketler (idle + anim/<ad>)."""
+    out: dict[str, list[str]] = {}
+    for a in anims_of(collection, rank, kind):
+        if a["name"] == IDLE_ANIM:
+            st = state(collection, rank, kind).get("video") or {}
+        else:
+            st = _read_json(os.path.join(anim_dir(collection, rank, kind, a["name"]),
+                                         "state.json"), {}) or {}
+        src = str(st.get("source") or "")
+        if src and a.get("video"):
+            out.setdefault(src, []).append(a["name"])
+    return out
+
+
+def videos_of(collection: str, rank: str, kind: str = "") -> list[dict]:
+    """#357: rutbenin video havuzu - yeni once. Her oge:
+    {id, rel, rev, prompt, gesture, engine, at, guard, tags:[etiket]}"""
+    vd = _videos_dir(collection, rank, kind)
+    try:
+        adlar = sorted((a for a in os.listdir(vd) if a.lower().endswith(".mp4")), reverse=True)
+    except OSError:
+        return []
+    atama = _atamalar(collection, rank, kind)
+    out = []
+    for a in adlar:
+        vid = a[:-4]
+        p = os.path.join(vd, a)
+        m = _read_json(os.path.join(vd, vid + ".json"), {}) or {}
+        try:
+            rev = int(os.path.getmtime(p))
+        except OSError:
+            rev = 0
+        out.append({"id": vid, "rel": _rel(p), "rev": rev,
+                    "prompt": str(m.get("prompt") or ""), "gesture": str(m.get("gesture") or ""),
+                    "engine": str(m.get("engine") or ""), "at": str(m.get("at") or ""),
+                    "guard": m.get("guard") or None, "tags": atama.get(vid, [])})
+    return out
+
+
+def _kesim_temizle(klasor: str) -> list[str]:
+    """Bir etiket klasorunun kesim urunlerini (sheet/thumb/cut/onbellek) siler."""
+    silinen = []
+    for a in ("sheet.webp", "thumb.webp", "_frame0.png", "_guard_f0.png", "_guard_son.png"):
+        p = os.path.join(klasor, a)
+        if os.path.isfile(p):
+            try:
+                os.remove(p)
+                silinen.append(a)
+            except OSError:
+                pass
+    cd = os.path.join(klasor, "cut")
+    if os.path.isdir(cd):
+        shutil.rmtree(cd, ignore_errors=True)
+        silinen.append("cut/")
+    return silinen
+
+
+def _pushed_dusur(collection: str, rank: str, kind: str) -> None:
+    """Yerel _pushed.json kaydini dusurur (R2'deki dosyalar kalir - yayin geri alinamaz)."""
+    pj = os.path.join(col_dir(collection, kind), "_pushed.json")
+    pushed = _read_json(pj, {}) or {}
+    cid = card_id(collection, rank, kind)
+    if isinstance(pushed.get("cards"), dict) and pushed["cards"].pop(cid, None) is not None:
+        _write_json(pj, pushed)
+
+
+def assign_video(collection: str, rank: str, kind: str, video: str, tag: str = "") -> dict:
+    """#357: havuzdaki videoyu bir animasyon etiketine atar (idle = kartin ana
+    animasyonu). Etiketin eski videosu ve kesim urunleri silinir - sheet/webp o
+    etiket icin yeniden kesilir. Ayni video birden fazla etikete atanabilir."""
+    k = kind_id(kind)
+    vid = _vid_id(video)
+    src = _havuz_yolu(collection, rank, k, vid)
+    a = anim_id(tag)
+    ad = anim_dir(collection, rank, k, a, create=True)
+    dest = os.path.join(ad, "video.mp4")
+    shutil.copy(src, dest)
+    _kesim_temizle(ad)
+    m = _read_json(os.path.join(_videos_dir(collection, rank, k), vid + ".json"), {}) or {}
+    bilgi = {"at": datetime.now().isoformat(timespec="seconds"),
+             "job": str(m.get("job") or ""), "gesture": str(m.get("gesture") or m.get("prompt") or ""),
+             "prompt": str(m.get("prompt") or ""), "engine": str(m.get("engine") or ""),
+             "guard": m.get("guard") or None, "anim": a, "source": vid}
+    if a == IDLE_ANIM:
+        _set_state(collection, rank, k, video=bilgi, sheet=None)
+        _pushed_dusur(collection, rank, k)
+    else:
+        _write_json(os.path.join(ad, "state.json"), bilgi)
+    return {"collection": collection, "rank": str(rank).upper(), "kind": k,
+            "video": vid, "tag": a, "anims": anims_of(collection, rank, k),
+            "videos": videos_of(collection, rank, k)}
+
+
+def delete_video(collection: str, rank: str, kind: str, video: str) -> dict:
+    """#357: havuzdan bir videoyu siler. Etiketlere atanmis KOPYALAR kalir."""
+    k = kind_id(kind)
+    vid = _vid_id(video)
+    vd = _videos_dir(collection, rank, k)
+    silinen = 0
+    for a in (vid + ".mp4", vid + ".json"):
+        p = os.path.join(vd, a)
+        if os.path.isfile(p):
+            os.remove(p)
+            silinen += 1
+    if not silinen:
+        raise ValueError("havuzda video yok: %s" % vid)
+    return {"deleted": vid, "videos": videos_of(collection, rank, k)}
+
+
+def delete_asset(collection: str, rank: str, kind: str, what: str, anim: str = "") -> dict:
+    """#357: SECILI varligi tek basina siler - still | video | sheet (webp).
+
+    Kullanicinin sikayeti: "direkt secili resmi veya videoyu silme yok, ust
+    bardaki sil hepsini temizliyor." video/sheet etiket klasorune (idle = kok)
+    gore silinir; still rutbenindir (adaylar KALIR - secici ekranda durur).
+    Havuz dosyalarina dokunulmaz.
+    """
+    k = kind_id(kind)
+    w = (what or "").strip().lower()
+    if w in ("webp", "cut", "kesim"):
+        w = "sheet"
+    if w not in ("still", "video", "sheet"):
+        raise ValueError("ne silinecek? still | video | sheet")
+    d = rank_dir(collection, rank, k)
+    if not os.path.isdir(d):
+        raise ValueError("rutbe klasoru yok: %s" % rank)
+    a = anim_id(anim)
+    ad = anim_dir(collection, rank, k, a)
+    silinen: list[str] = []
+
+    def sil(klasor: str, ad_: str) -> None:
+        p = os.path.join(klasor, ad_)
+        if os.path.isfile(p):
+            try:
+                os.remove(p)
+                silinen.append(ad_)
+            except OSError:
+                pass
+
+    if w == "still":
+        for ad_ in ("still.png", "still.webp", "_frame0.png"):
+            sil(d, ad_)
+        _set_state(collection, rank, k, still=None)
+    elif w == "video":
+        for ad_ in ("video.mp4", "video_grok.mp4", "_guard_f0.png", "_guard_son.png"):
+            sil(ad, ad_)
+        if a == IDLE_ANIM:
+            _set_state(collection, rank, k, video=None)
+            _pushed_dusur(collection, rank, k)
+        else:
+            p = os.path.join(ad, "state.json")
+            if os.path.isfile(p):
+                os.remove(p)
+    else:
+        silinen += _kesim_temizle(ad)
+        if a == IDLE_ANIM:
+            _set_state(collection, rank, k, sheet=None)
+            _pushed_dusur(collection, rank, k)
+    return {"collection": collection, "rank": str(rank).upper(), "kind": k,
+            "what": w, "anim": a, "deleted": silinen}
 
 
 # ------------------------------------------------------------------ 3 WebP

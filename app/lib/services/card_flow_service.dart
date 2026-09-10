@@ -55,6 +55,8 @@ class CardRankState {
   final String look;
   final String pose;
   final int age;
+  /// #357: havuzdaki video sayisi (atanmis olsun olmasin).
+  final int videos;
 
   const CardRankState({
     this.still = false,
@@ -69,6 +71,7 @@ class CardRankState {
     this.look = '',
     this.pose = '',
     this.age = 0,
+    this.videos = 0,
   });
 
   factory CardRankState.fromJson(Map<String, dynamic> j) => CardRankState(
@@ -87,6 +90,7 @@ class CardRankState {
         look: '${j['look'] ?? ''}',
         pose: '${j['pose'] ?? ''}',
         age: (j['age'] is num) ? (j['age'] as num).toInt() : 0,
+        videos: (j['videos'] is num) ? (j['videos'] as num).toInt() : 0,
       );
 
   /// Sunucu duz bool ya da metin de gonderebilir ("still", "video", ...).
@@ -133,6 +137,9 @@ class CardCollection {
   /// #353: kart ARKASI - rutbe degildir (animasyon/kesim/push'a girmez), ama
   /// izgarada 16. hucre olarak gorunur; null = eski sunucu.
   final CardRankState? back;
+  /// #357: koleksiyonun video motoru (ltx | wan) + kurulu motorlar.
+  final String videoEngine;
+  final List<CardEngine> videoEngines;
 
   const CardCollection({
     required this.id,
@@ -144,6 +151,8 @@ class CardCollection {
     this.cover = '',
     this.rev = 0,
     this.back,
+    this.videoEngine = 'ltx',
+    this.videoEngines = const [],
   });
 
   static const backRank = 'BACK';
@@ -176,6 +185,8 @@ class CardCollection {
       back: j['back'] is Map
           ? CardRankState.fromJson(Map<String, dynamic>.from(j['back'] as Map))
           : null,
+      videoEngine: '${j['video_engine'] ?? 'ltx'}',
+      videoEngines: CardEngine.list(j['video_engines']),
     );
   }
 
@@ -269,6 +280,8 @@ class CardAnim {
   final bool thumb;
   final int stage;
   final String gesture;
+  /// #357: etiket klasoru (card.root'a gore) - kucuk resim `dir/video.mp4`.
+  final String dir;
 
   const CardAnim({
     required this.name,
@@ -277,6 +290,7 @@ class CardAnim {
     this.thumb = false,
     this.stage = 0,
     this.gesture = '',
+    this.dir = '',
   });
 
   factory CardAnim.fromJson(Map<String, dynamic> j) => CardAnim(
@@ -286,9 +300,71 @@ class CardAnim {
         thumb: j['thumb'] == true,
         stage: (j['stage'] is num) ? (j['stage'] as num).toInt() : 0,
         gesture: '${j['gesture'] ?? ''}',
+        dir: '${j['dir'] ?? ''}',
       );
 
   bool get isIdle => name == 'idle';
+}
+
+/// #357: video motoru (koleksiyon ayari). MiniMax H3 bilerek yok - lisansi
+/// ciktilari kapsiyor, kart oyununa giren varlik onunla uretilmez.
+class CardEngine {
+  const CardEngine(this.id, this.label, {this.available = true});
+  final String id;
+  final String label;
+  final bool available;
+
+  static List<CardEngine> list(dynamic v) => v is List
+      ? v
+          .whereType<Map>()
+          .map((e) => CardEngine('${e['id'] ?? ''}', '${e['label'] ?? e['id'] ?? ''}',
+              available: e['available'] != false))
+          .where((e) => e.id.isNotEmpty)
+          .toList()
+      : const [CardEngine('ltx', 'LTX-2.5')];
+}
+
+/// #357: havuzdaki bir video - prompt, motor, guard ve atandigi etiketler.
+class CardVideo {
+  const CardVideo({
+    required this.id,
+    this.rel = '',
+    this.rev = 0,
+    this.prompt = '',
+    this.gesture = '',
+    this.engine = '',
+    this.at = '',
+    this.guard = const {},
+    this.tags = const [],
+  });
+  final String id;
+  final String rel;
+  final int rev;
+  final String prompt;
+  final String gesture;
+  final String engine;
+  final String at;
+  final Map<String, dynamic> guard;
+  final List<String> tags;
+
+  factory CardVideo.fromJson(Map<String, dynamic> j) => CardVideo(
+        id: '${j['id'] ?? ''}',
+        rel: '${j['rel'] ?? ''}',
+        rev: (j['rev'] is num) ? (j['rev'] as num).toInt() : 0,
+        prompt: '${j['prompt'] ?? ''}',
+        gesture: '${j['gesture'] ?? ''}',
+        engine: '${j['engine'] ?? ''}',
+        at: '${j['at'] ?? ''}',
+        guard: j['guard'] is Map ? Map<String, dynamic>.from(j['guard'] as Map) : const {},
+        tags: (j['tags'] as List? ?? const []).map((e) => '$e').toList(),
+      );
+}
+
+/// #357: `/api/card/flow/videos` cevabi - havuz + etiketler birlikte.
+class CardVideos {
+  const CardVideos({this.videos = const [], this.anims = const []});
+  final List<CardVideo> videos;
+  final List<CardAnim> anims;
 }
 
 /// #347: bir rutbenin SABLONU - 9 eksen + kilitler + manuel metin.
@@ -339,6 +415,9 @@ class CardTemplates {
   final List<String> models;
   /// #353: yuz rotusu - tam boy karede yuz kucuk kaliyor, ayri gecis netlestirir.
   final bool faceDetail;
+  /// #357: video motoru (ltx | wan) + kurulu motorlar.
+  final String videoEngine;
+  final List<CardEngine> videoEngines;
   /// #348: 16 yuva - 13 rutbe + J1 + J2 + BACK (kart arkasi).
   final List<String> slots;
   final String backRank;
@@ -357,6 +436,8 @@ class CardTemplates {
     this.model = 'zimage',
     this.models = const ['zimage', 'qwen'],
     this.faceDetail = false,
+    this.videoEngine = 'ltx',
+    this.videoEngines = const [],
     this.slots = const [],
     this.backRank = 'BACK',
     this.axes = const [],
@@ -390,6 +471,8 @@ class CardTemplates {
             .map((e) => '$e')
             .toList(),
         faceDetail: j['face_detail'] == true,
+        videoEngine: '${j['video_engine'] ?? 'ltx'}',
+        videoEngines: CardEngine.list(j['video_engines']),
         slots: (j['slots'] as List? ?? const []).map((e) => '$e').toList(),
         backRank: '${j['back_rank'] ?? 'BACK'}',
         backAxes: (j['back_axes'] as List? ?? const []).map((e) => '$e').toList(),
@@ -416,12 +499,18 @@ class CardProfilesInfo {
   final List<String> dealerGestures;   // krupiye jestleri
   final List<String> ranks;
   final List<String> cutModes;         // sam | hybrid
+  /// #357: jest adi -> hareket cumlesi (sablon). Video penceresinde metin
+  /// olarak gosterilir, kullanici duzenleyip gonderir.
+  final Map<String, String> gestureTexts;
+  final Map<String, String> dealerGestureTexts;
 
   const CardProfilesInfo({
     this.gestures = CardFlowService.defaultGestures,
     this.dealerGestures = CardFlowService.defaultDealerGestures,
     this.ranks = CardFlowService.baseRanks,
     this.cutModes = CardFlowService.cutModes,
+    this.gestureTexts = const {},
+    this.dealerGestureTexts = const {},
   });
 
   factory CardProfilesInfo.fromJson(Map<String, dynamic> j) {
@@ -433,10 +522,18 @@ class CardProfilesInfo {
             .toList();
         if (out.isNotEmpty) return out;
       }
+      // #357: sunucu jestleri {ad: cumle} sozlugu olarak verir - anahtarlar.
+      if (v is Map && v.isNotEmpty) return v.keys.map((e) => '$e').toList();
       return yedek;
     }
 
+    Map<String, String> sozluk(dynamic v) => v is Map
+        ? {for (final e in v.entries) '${e.key}': '${e.value}'}
+        : const {};
+
     return CardProfilesInfo(
+      gestureTexts: sozluk(j['gestures']),
+      dealerGestureTexts: sozluk(j['dealer_gestures'] ?? j['gestures_dealer']),
       gestures: liste(j['gestures'], CardFlowService.defaultGestures),
       dealerGestures: liste(j['dealer_gestures'] ?? j['gestures_dealer'],
           CardFlowService.defaultDealerGestures),
@@ -444,6 +541,13 @@ class CardProfilesInfo {
       cutModes: liste(j['cut_modes'], CardFlowService.cutModes),
     );
   }
+}
+
+/// #356: aday still + degisiklik zamani (kucuk resim onbellek kiricisi).
+class CardCandidate {
+  const CardCandidate(this.file, this.rev);
+  final String file;
+  final int rev;
 }
 
 class CardFlowService {
@@ -647,8 +751,17 @@ class CardFlowService {
       '&kind=${_q(kind)}&type=${_q(type)}${v > 0 ? '&v=$v' : ''}';
 
   /// #336: aday still'in kucuk resmi - `rel` sunucudan gelen goreli yoldur.
-  static String relThumbUrl(String rel, {int size = 200}) =>
-      '${ApiService.baseUrl}/api/card/flow/thumb?rel=${_q(rel)}&size=$size';
+  /// #356: `v` (dosya mtime) ZORUNLU sayilir: aday adlari yeniden kullanilir,
+  /// Flutter kucuk resmi URL'ye gore bellekte tutar; v'siz URL eski gorseli
+  /// gosterir. 0 ise cagiran taraf yukleme zamanini verir (onbellek yok).
+  static String relThumbUrl(String rel, {int size = 200, int v = 0}) =>
+      '${ApiService.baseUrl}/api/card/flow/thumb?rel=${_q(rel)}&size=$size'
+      '${v > 0 ? '&v=$v' : ''}';
+
+  /// #357: havuz videosunun ham dosyasi (oynatma) - `rel` card.root'a gore.
+  static String relFileUrl(String rel, {int v = 0}) =>
+      '${ApiService.baseUrl}/api/card/flow/file?rel=${_q(rel)}'
+      '${v > 0 ? '&v=$v' : ''}';
 
   /// #339: hazir koleksiyon kartlari. Bos liste = sablon dosyasi yok, elle
   /// tema yazmak her zaman mumkun.
@@ -691,6 +804,47 @@ class CardFlowService {
       _delete('/api/card/flow/anim?collection=${_q(collection)}&rank=${_q(rank)}'
           '&anim=${_q(anim)}&kind=${_q(kind)}');
 
+  /// #357: rutbenin video havuzu + etiketleri. Eski sunucuda bos doner.
+  static Future<CardVideos> videos(String collection, String rank,
+      {String kind = 'card'}) async {
+    try {
+      final d = await _get('/api/card/flow/videos'
+          '?collection=${_q(collection)}&rank=${_q(rank)}&kind=${_q(kind)}');
+      List<T> oku<T>(dynamic l, T Function(Map<String, dynamic>) f) => l is List
+          ? l.whereType<Map>().map((e) => f(Map<String, dynamic>.from(e))).toList()
+          : <T>[];
+      return CardVideos(
+          videos: oku(d['videos'], CardVideo.fromJson),
+          anims: oku(d['anims'], CardAnim.fromJson));
+    } catch (_) {
+      return const CardVideos();
+    }
+  }
+
+  /// #357: havuzdaki videoyu bir etikete atar (idle = kartin ana animasyonu).
+  static Future<void> assignVideo(String collection, String rank, String video,
+          String tag, {String kind = 'card'}) async =>
+      _post('/api/card/flow/video/assign', {
+        'collection': collection,
+        'rank': rank,
+        'video': video,
+        'tag': tag,
+        'kind': kind,
+      });
+
+  /// #357: havuzdan video siler (etiketlere atanmis kopyalar kalir).
+  static Future<void> deleteVideo(String collection, String rank, String video,
+          {String kind = 'card'}) async =>
+      _delete('/api/card/flow/video?collection=${_q(collection)}&rank=${_q(rank)}'
+          '&video=${_q(video)}&kind=${_q(kind)}');
+
+  /// #357: SECILI varligi tek basina siler - `what` = still | video | sheet.
+  /// video/sheet secili animasyon etiketine gore (`anim`, bos = idle).
+  static Future<void> deleteAsset(String collection, String rank, String what,
+          {String kind = 'card', String anim = ''}) async =>
+      _delete('/api/card/flow/asset?collection=${_q(collection)}&rank=${_q(rank)}'
+          '&what=${_q(what)}&kind=${_q(kind)}${anim.isNotEmpty ? '&anim=${_q(anim)}' : ''}');
+
   /// #347: koleksiyonun 13 sablonu + karistirici listeleri.
   static Future<CardTemplates> templates(String collection,
           {String kind = 'card'}) async =>
@@ -729,12 +883,16 @@ class CardFlowService {
 
   /// #353: koleksiyonun uretim ayarlari - model ve yuz rotusu.
   static Future<void> setSettings(String collection,
-          {String kind = 'card', String? model, bool? faceDetail}) async =>
+          {String kind = 'card',
+          String? model,
+          bool? faceDetail,
+          String? videoEngine}) async =>
       _post('/api/card/flow/settings', {
         'collection': collection,
         'kind': kind,
         if (model != null) 'model': model,
         if (faceDetail != null) 'face_detail': faceDetail,
+        if (videoEngine != null) 'video_engine': videoEngine,   // #357
       });
 
   /// #346: koleksiyonun temasini degistirir (promptlara dokunmaz).
@@ -759,12 +917,21 @@ class CardFlowService {
           : '$collection/${rank.toLowerCase()}/$file';
 
   /// #336: rutbenin aday still'leri (dosya adlari).
-  static Future<List<String>> candidates(String collection, String rank,
+  static Future<List<CardCandidate>> candidates(String collection, String rank,
       {String kind = 'card'}) async {
     final j = await _get('/api/card/flow/candidates'
         '?collection=${_q(collection)}&rank=${_q(rank)}&kind=${_q(kind)}');
     final l = j['candidates'];
-    return l is List ? l.map((e) => '$e').toList() : <String>[];
+    final revs = j['revs'] is Map ? j['revs'] as Map : const {};
+    // #356: eski sunucu `revs` vermez -> yukleme ani (her acilista taze).
+    final simdi = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    return l is List
+        ? l.map((e) {
+            final ad = '$e';
+            final r = revs[ad];
+            return CardCandidate(ad, r is num && r > 0 ? r.toInt() : simdi);
+          }).toList()
+        : <CardCandidate>[];
   }
 
   /// #336: adayi secili still yapar (onceki still aday olarak kalir).
@@ -881,9 +1048,11 @@ class CardFlowService {
   static Future<String> animate({
     required String collection,
     required List<String> ranks,
-    String gesture = 'idle',
+    String gesture = 'idle',     // hazir ad YA DA serbest hareket cumlesi
     String kind = 'card',
     String anim = '',            // #338: bos/idle = kartin ana animasyonu
+    bool poolOnly = false,       // #357: yalniz havuza, etiket atama yok
+    String engine = '',          // #357: ltx | wan (bos = koleksiyon ayari)
   }) async =>
       '${(await _post('/api/card/flow/animate', {
             'collection': collection,
@@ -891,6 +1060,8 @@ class CardFlowService {
             'gesture': gesture,
             'kind': kind,
             if (anim.isNotEmpty) 'anim': anim,
+            if (poolOnly) 'pool_only': true,
+            if (engine.isNotEmpty) 'engine': engine,
           }))['op'] ?? ''}';
 
   /// 3. asama: SAM3 kesim + sheet + thumb. `mode` = `sam` | `hybrid`.

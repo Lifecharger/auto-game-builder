@@ -126,6 +126,182 @@ class _CheckerPainter extends CustomPainter {
 }
 
 /// Jest secici - 2. asamada (ve ↻ Animasyon'da) hangi hareket uretilecek.
+/// #357: "2 Video" istegi - hareket cumlesi (sablondan ya da elle), hangi
+/// etikete atanacagi (bos = yalniz havuza) ve motor.
+class VideoIstek {
+  const VideoIstek(this.gesture, {this.tag = '', this.engine = ''});
+  final String gesture;   // sunucuya giden hareket cumlesi (ya da hazir ad)
+  final String tag;       // '' = yalniz havuza (atama yok)
+  final String engine;    // '' = koleksiyon ayari
+  bool get poolOnly => tag.isEmpty;
+}
+
+/// #357: video penceresi. Kullanicinin tarifi: "idle/wink sablon olarak kendi
+/// gidiyordu; artik promptu kendi yazsin ya da sablondan gondersin, etiketi
+/// (idle / victory ...) ayrica atasin." Sablon secilince metin kutusuna
+/// cumlesi dolar; kullanici duzenler, giden metin KUTUDAKIDIR.
+Future<VideoIstek?> videoDialog(
+  BuildContext context, {
+  required List<String> gestures,
+  Map<String, String> gestureTexts = const {},
+  List<String> anims = const ['idle'],
+  List<CardEngine> engines = const [],
+  String engine = '',
+  String tag = 'idle',
+  String secili = '',
+  String baslik = '2 Video',
+}) async {
+  const havuz = '__havuz__';
+  const yeni = '__yeni__';
+  final ilkSablon = secili.isNotEmpty && gestures.contains(secili)
+      ? secili
+      : (gestures.isNotEmpty ? gestures.first : 'idle');
+  final metinC = TextEditingController(
+      text: secili.isNotEmpty && !gestures.contains(secili)
+          ? secili
+          : (gestureTexts[ilkSablon] ?? ilkSablon));
+  final yeniC = TextEditingController();
+  var sablon = ilkSablon;
+  var hedef = anims.contains(tag) ? tag : (tag.isEmpty ? havuz : anims.first);
+  var motor = engines.any((e) => e.id == engine)
+      ? engine
+      : (engines.isNotEmpty ? engines.first.id : '');
+  return showDialog<VideoIstek>(
+    context: context,
+    builder: (c) => StatefulBuilder(
+      builder: (c, setLocal) => AlertDialog(
+        scrollable: true,
+        title: Text(baslik),
+        content: SizedBox(
+          width: 400,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                  'Ilk kare = son kare (dongu). Kamera kilitli kalir - kadraj, '
+                  'olcek ve fon degismez. Cikti once HAVUZA girer; etiket '
+                  'secersen oraya da atanir.',
+                  style: TextStyle(fontSize: 11, color: Colors.grey)),
+              const SizedBox(height: 10),
+              DropdownButtonFormField<String>(
+                initialValue: sablon,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                    isDense: true,
+                    border: OutlineInputBorder(),
+                    labelText: 'Sablon (metni doldurur)'),
+                items: [
+                  for (final g in gestures)
+                    DropdownMenuItem(
+                        value: g,
+                        child: Text(g, style: const TextStyle(fontSize: 13))),
+                ],
+                onChanged: (v) {
+                  if (v == null) return;
+                  setLocal(() {
+                    sablon = v;
+                    metinC.text = gestureTexts[v] ?? v;
+                  });
+                },
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: metinC,
+                minLines: 2,
+                maxLines: 5,
+                style: const TextStyle(fontSize: 13),
+                decoration: const InputDecoration(
+                  isDense: true,
+                  border: OutlineInputBorder(),
+                  labelText: 'Hareket cumlesi (giden prompt)',
+                  helperText: 'Gorunur hareket tarif et; sonunda baslangic pozuna donsun',
+                  helperMaxLines: 2,
+                ),
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                initialValue: hedef,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                    isDense: true,
+                    border: OutlineInputBorder(),
+                    labelText: 'Etikete ata'),
+                items: [
+                  const DropdownMenuItem(
+                      value: havuz,
+                      child: Text('(yalniz havuza - sonra atarim)',
+                          style: TextStyle(fontSize: 13))),
+                  for (final a in anims)
+                    DropdownMenuItem(
+                        value: a,
+                        child: Text(a, style: const TextStyle(fontSize: 13))),
+                  const DropdownMenuItem(
+                      value: yeni,
+                      child: Text('Yeni etiket...',
+                          style: TextStyle(fontSize: 13))),
+                ],
+                onChanged: (v) => setLocal(() => hedef = v ?? havuz),
+              ),
+              if (hedef == yeni)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: TextField(
+                    controller: yeniC,
+                    autofocus: true,
+                    style: const TextStyle(fontSize: 13),
+                    decoration: const InputDecoration(
+                        isDense: true,
+                        border: OutlineInputBorder(),
+                        labelText: 'Yeni etiket adi',
+                        hintText: 'orn. victory'),
+                  ),
+                ),
+              if (engines.length > 1) ...[
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  initialValue: motor,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                      isDense: true,
+                      border: OutlineInputBorder(),
+                      labelText: 'Motor'),
+                  items: [
+                    for (final e in engines)
+                      DropdownMenuItem(
+                          value: e.id,
+                          enabled: e.available,
+                          child: Text(e.available ? e.label : '${e.label} (kurulu degil)',
+                              style: const TextStyle(fontSize: 13))),
+                  ],
+                  onChanged: (v) => setLocal(() => motor = v ?? motor),
+                ),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(c), child: const Text('Vazgec')),
+          FilledButton(
+            onPressed: () {
+              final metin = metinC.text.trim();
+              if (metin.isEmpty) return;
+              var t = hedef == havuz ? '' : hedef;
+              if (hedef == yeni) {
+                t = yeniC.text.trim().toLowerCase();
+                if (t.isEmpty) return;
+              }
+              Navigator.pop(c, VideoIstek(metin, tag: t, engine: motor));
+            },
+            child: const Text('Uret'),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
 Future<String?> gestureDialog(BuildContext context, List<String> gestures,
     {String baslik = 'Animasyon - jest sec', String secili = ''}) async {
   var v = secili.isNotEmpty && gestures.contains(secili)
@@ -1447,11 +1623,22 @@ class _CardCollectionPageState extends State<CardCollectionPage> {
 
   Future<void> _animate({bool hepsi = false}) async {
     final r = _targets(hepsi: hepsi);
-    final jest = await gestureDialog(context, _profiles.gestures);
-    if (jest == null) return;
+    // #357: toplu video da ayni pencere - varsayilan etiket idle.
+    final ist = await videoDialog(context,
+        gestures: _profiles.gestures,
+        gestureTexts: _profiles.gestureTexts,
+        engines: _c?.videoEngines ?? const [],
+        engine: _c?.videoEngine ?? '',
+        baslik: '2 Video (${r.length} kart)');
+    if (ist == null) return;
     try {
       final op = await CardFlowService.animate(
-          collection: widget.id, ranks: r, gesture: jest);
+          collection: widget.id,
+          ranks: r,
+          gesture: ist.gesture,
+          anim: ist.tag,
+          poolOnly: ist.poolOnly,
+          engine: ist.engine);
       setState(_sel.clear);
       _watch(op);
       _snack(queueSnackText(r.length));
@@ -1972,17 +2159,24 @@ class _CardDetailPageState extends State<CardDetailPage> {
   Timer? _opPoll;
 
   /// #336: bu rutbenin aday still'leri (secilebilir/silinebilir).
-  List<String> _adaylar = const [];
+  List<CardCandidate> _adaylar = const [];
   /// #338: bu rutbenin animasyonlari (idle + zafer gibi ekler).
   List<CardAnim> _anims = const [];
   /// Uzerinde calisilan animasyon - 2 Video ve 3 WebP buna yazar.
   String _anim = 'idle';
+  /// #357: bu rutbenin video HAVUZU - uretilen her video once buraya duser,
+  /// kullanici secip etikete atar.
+  List<CardVideo> _videos = const [];
+  String _engine = '';
+  List<CardEngine> _engines = const [];
 
   bool get _dealer => widget.kind == 'dealer';
   /// #353: kart ARKASI - yalniz still / duzenle / aday (video-kesim yok).
   bool get _arka => !_dealer && widget.rank.toUpperCase() == CardCollection.backRank;
   List<String> get _gestures =>
       _dealer ? _profiles.dealerGestures : _profiles.gestures;
+  Map<String, String> get _gestureTexts =>
+      _dealer ? _profiles.dealerGestureTexts : _profiles.gestureTexts;
 
   @override
   void initState() {
@@ -2014,8 +2208,10 @@ class _CardDetailPageState extends State<CardDetailPage> {
         s = _arka
             ? (c?.back ?? const CardRankState())
             : (c?.stateOf(widget.rank) ?? const CardRankState());
+        _engine = c?.videoEngine ?? '';
+        _engines = c?.videoEngines ?? const [];
       }
-      var adaylar = const <String>[];
+      var adaylar = const <CardCandidate>[];
       try {
         adaylar = await CardFlowService.candidates(widget.collection, widget.rank,
             kind: widget.kind);
@@ -2029,12 +2225,18 @@ class _CardDetailPageState extends State<CardDetailPage> {
       } catch (_) {
         // eski sunucuda uc yok - serit gosterilmez
       }
+      // #357: havuz (eski sunucuda bos doner).
+      final havuz = _arka
+          ? const CardVideos()
+          : await CardFlowService.videos(widget.collection, widget.rank,
+              kind: widget.kind);
       if (!mounted) return;
       setState(() {
         _profiles = p;
         _state = s;
         _adaylar = adaylar;
         _anims = anims;
+        _videos = havuz.videos;
         if (!anims.any((a) => a.name == _anim)) _anim = 'idle';
         _loading = false;
       });
@@ -2113,17 +2315,357 @@ class _CardDetailPageState extends State<CardDetailPage> {
           collection: widget.collection, ranks: _ranks, kind: widget.kind));
 
   Future<void> _redoAnim() async {
-    final jest = await gestureDialog(context, _gestures,
+    // #357: prompt ile etiket ayri - pencereden hem cumle hem hedef secilir.
+    final ist = await videoDialog(context,
+        gestures: _gestures,
+        gestureTexts: _gestureTexts,
+        anims: [for (final a in _anims) a.name],
+        engines: _engines,
+        engine: _engine,
+        tag: _anim,
         secili: _state.gesture);
-    if (jest == null) return;
+    if (ist == null) return;
     await _run(
         '2 Video',
         () => CardFlowService.animate(
             collection: widget.collection,
             ranks: _ranks,
-            gesture: jest,
+            gesture: ist.gesture,
             kind: widget.kind,
-            anim: _anim));
+            anim: ist.tag,
+            poolOnly: ist.poolOnly,
+            engine: ist.engine));
+  }
+
+  /// #357: SECILI gorunumu (still / video / kesim) tek basina siler.
+  /// Ust bardaki cop butun rutbeyi temizler; bu yalniz bakilan varligi.
+  Future<void> _deleteAsset() async {
+    final what = _view == 'cut' ? 'sheet' : _view;
+    final ad = switch (what) {
+      'video' => 'Video ($_anim)',
+      'sheet' => 'WebP / kesim ($_anim)',
+      _ => 'Still',
+    };
+    final var_ = switch (what) {
+      'video' => _anims.any((a) => a.name == _anim && a.video) || _state.video,
+      'sheet' => _anims.any((a) => a.name == _anim && a.sheet) || _state.sheet,
+      _ => _state.still,
+    };
+    if (!var_) {
+      _snack('$ad yok');
+      return;
+    }
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text('$ad silinsin mi?'),
+        content: Text(switch (what) {
+          'video' => 'Yalniz bu etiketin videosu silinir; havuzdaki kopya, '
+              'still ve webp kalir.',
+          'sheet' => 'Yalniz sheet.webp, thumb ve kesim kareleri silinir; '
+              'video ve still kalir.',
+          _ => 'Yalniz secili still silinir; adaylar, video ve webp kalir.',
+        }),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Vazgec')),
+          FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Sil')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await CardFlowService.deleteAsset(widget.collection, widget.rank, what,
+          kind: widget.kind, anim: what == 'still' ? '' : _anim);
+      if (!mounted) return;
+      _snack('$ad silindi');
+      await _load();
+    } catch (e) {
+      _snack(e.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
+  // ------------------------------------------------------ #357 video havuzu
+  Future<void> _videoAta(CardVideo v, String tag) async {
+    try {
+      await CardFlowService.assignVideo(widget.collection, widget.rank, v.id, tag,
+          kind: widget.kind);
+      if (!mounted) return;
+      _snack('$tag <- ${v.id}');
+      setState(() => _anim = tag);
+      await _load();
+    } catch (e) {
+      _snack(e.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
+  Future<void> _videoSil(CardVideo v) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Havuzdan sil'),
+        content: Text('${v.id} havuzdan silinir. Etiketlere atanmis kopyalar '
+            '(${v.tags.isEmpty ? 'yok' : v.tags.join(', ')}) kalir.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Vazgec')),
+          FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Sil')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await CardFlowService.deleteVideo(widget.collection, widget.rank, v.id,
+          kind: widget.kind);
+      if (!mounted) return;
+      await _load();
+    } catch (e) {
+      _snack(e.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
+  Future<String?> _yeniEtiketAdi() async {
+    final c = TextEditingController();
+    final ad = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Yeni animasyon etiketi'),
+        content: TextField(
+          controller: c,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Ad',
+            hintText: 'orn. victory',
+            helperText: 'Oyun bu adla okur (idle, wink, victory ...)',
+            helperMaxLines: 2,
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Vazgec')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, c.text.trim()),
+              child: const Text('Ekle')),
+        ],
+      ),
+    );
+    final t = (ad ?? '').trim().toLowerCase();
+    return t.isEmpty ? null : t;
+  }
+
+  /// Havuz videosuna dokununca: onizle / etikete ata / yeni etiket / sil.
+  Future<void> _videoMenu(CardVideo v) async {
+    final secim = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (c) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          padding: EdgeInsets.only(bottom: MediaQuery.paddingOf(c).bottom + 8),
+          children: [
+            ListTile(
+              dense: true,
+              title: Text(v.id, style: const TextStyle(fontSize: 13)),
+              subtitle: Text(
+                  '${v.engine.isNotEmpty ? '${v.engine} · ' : ''}'
+                  '${v.tags.isEmpty ? 'atanmadi' : 'atandi: ${v.tags.join(', ')}'}'
+                  '${v.prompt.isNotEmpty ? '\n${v.prompt}' : ''}',
+                  style: const TextStyle(fontSize: 11)),
+            ),
+            const Divider(height: 8),
+            ListTile(
+              dense: true,
+              leading: const Icon(Icons.play_circle_outline),
+              title: const Text('Onizle'),
+              onTap: () => Navigator.pop(c, 'play'),
+            ),
+            for (final a in _anims)
+              ListTile(
+                dense: true,
+                leading: Icon(v.tags.contains(a.name)
+                    ? Icons.check_box
+                    : Icons.label_outline),
+                title: Text('Ata: ${a.name}'),
+                onTap: () => Navigator.pop(c, 'ata:${a.name}'),
+              ),
+            ListTile(
+              dense: true,
+              leading: const Icon(Icons.add),
+              title: const Text('Yeni etikete ata...'),
+              onTap: () => Navigator.pop(c, 'yeni'),
+            ),
+            ListTile(
+              dense: true,
+              leading: Icon(Icons.delete_outline, color: AppColors.error),
+              title: const Text('Havuzdan sil'),
+              onTap: () => Navigator.pop(c, 'sil'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (secim == null || !mounted) return;
+    if (secim == 'play') {
+      await showDialog<void>(
+        context: context,
+        builder: (c) => Dialog(
+          child: AspectRatio(
+            aspectRatio: _dealer ? 3 / 2 : 2 / 3,
+            child: NetworkVideo(
+              url: CardFlowService.relFileUrl(v.rel, v: v.rev),
+              headers: CardFlowService.authHeaders,
+            ),
+          ),
+        ),
+      );
+    } else if (secim.startsWith('ata:')) {
+      await _videoAta(v, secim.substring(4));
+    } else if (secim == 'yeni') {
+      final t = await _yeniEtiketAdi();
+      if (t != null) await _videoAta(v, t);
+    } else if (secim == 'sil') {
+      await _videoSil(v);
+    }
+  }
+
+  /// Animasyon kutusuna uzun basinca: havuzdan ata / video sil / webp sil / etiket sil.
+  Future<void> _animMenu(CardAnim a) async {
+    final secim = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (c) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          padding: EdgeInsets.only(bottom: MediaQuery.paddingOf(c).bottom + 8),
+          children: [
+            ListTile(
+                dense: true,
+                title: Text(a.name, style: const TextStyle(fontSize: 13)),
+                subtitle: Text(
+                    a.stage >= 3 ? 'video + webp hazir' : (a.video ? 'video var, webp yok' : 'bos'),
+                    style: const TextStyle(fontSize: 11))),
+            const Divider(height: 8),
+            for (final v in _videos)
+              ListTile(
+                dense: true,
+                leading: Icon(v.tags.contains(a.name) ? Icons.check_box : Icons.movie_outlined),
+                title: Text('Ata: ${v.id}', style: const TextStyle(fontSize: 13)),
+                subtitle: v.prompt.isEmpty
+                    ? null
+                    : Text(v.prompt, maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 11)),
+                onTap: () => Navigator.pop(c, 'ata:${v.id}'),
+              ),
+            if (_videos.isEmpty)
+              const ListTile(
+                  dense: true,
+                  title: Text('Havuzda video yok - once "2 Video"',
+                      style: TextStyle(fontSize: 12, color: Colors.grey))),
+            if (a.video)
+              ListTile(
+                dense: true,
+                leading: Icon(Icons.delete_outline, color: AppColors.error),
+                title: const Text('Videoyu sil (etiket kalir)'),
+                onTap: () => Navigator.pop(c, 'video'),
+              ),
+            if (a.sheet)
+              ListTile(
+                dense: true,
+                leading: Icon(Icons.delete_outline, color: AppColors.error),
+                title: const Text('WebP / kesimi sil'),
+                onTap: () => Navigator.pop(c, 'sheet'),
+              ),
+            if (!a.isIdle)
+              ListTile(
+                dense: true,
+                leading: Icon(Icons.label_off_outlined, color: AppColors.error),
+                title: const Text('Etiketi sil (video + webp ile)'),
+                onTap: () => Navigator.pop(c, 'etiket'),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (secim == null || !mounted) return;
+    if (secim.startsWith('ata:')) {
+      final v = _videos.where((x) => x.id == secim.substring(4)).firstOrNull;
+      if (v != null) await _videoAta(v, a.name);
+    } else if (secim == 'video' || secim == 'sheet') {
+      try {
+        await CardFlowService.deleteAsset(widget.collection, widget.rank, secim,
+            kind: widget.kind, anim: a.name);
+        if (!mounted) return;
+        await _load();
+      } catch (e) {
+        _snack(e.toString().replaceFirst('Exception: ', ''));
+      }
+    } else if (secim == 'etiket') {
+      await _animSil(a.name);
+    }
+  }
+
+  /// #357: havuz seridi - videolar yan yana, altinda atandigi etiketler.
+  Widget _videolarSeridi() {
+    if (_videos.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Videolar (${_videos.length}) - dokun = ata / onizle / sil',
+              style: const TextStyle(fontSize: 11, color: Colors.grey)),
+          const SizedBox(height: 4),
+          SizedBox(
+            height: 138,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: _videos.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
+              itemBuilder: (c, i) {
+                final v = _videos[i];
+                final atandi = v.tags.isNotEmpty;
+                return InkWell(
+                  onTap: () => _videoMenu(v),
+                  child: SizedBox(
+                    width: 76,
+                    child: Column(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: Container(
+                            width: 72,
+                            height: 108,
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                  color: atandi ? AppColors.accent : Colors.white24,
+                                  width: atandi ? 2 : 1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Image.network(
+                              CardFlowService.relThumbUrl(v.rel, size: 200, v: v.rev),
+                              headers: CardFlowService.authHeaders,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, _, _) => const Center(
+                                  child: Icon(Icons.movie_outlined, size: 18)),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(atandi ? v.tags.join(', ') : 'atanmadi',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                                fontSize: 10,
+                                color: atandi ? AppColors.accent : Colors.grey)),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _redoCut() async {
@@ -2206,30 +2748,49 @@ class _CardDetailPageState extends State<CardDetailPage> {
                           child: LinearProgressIndicator(value: _op!.progress),
                         ),
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-                        child: SegmentedButton<String>(
-                          segments: [
-                            const ButtonSegment(value: 'still', label: Text('Still')),
-                            // #353: kart arkasinin videosu/kesimi yoktur.
-                            if (!_arka) ...const [
-                              ButtonSegment(value: 'video', label: Text('Video')),
-                              ButtonSegment(value: 'cut', label: Text('Kesim')),
-                            ],
+                        padding: const EdgeInsets.fromLTRB(12, 8, 4, 4),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: SegmentedButton<String>(
+                                segments: [
+                                  const ButtonSegment(value: 'still', label: Text('Still')),
+                                  // #353: kart arkasinin videosu/kesimi yoktur.
+                                  if (!_arka) ...const [
+                                    ButtonSegment(value: 'video', label: Text('Video')),
+                                    ButtonSegment(value: 'cut', label: Text('Kesim')),
+                                  ],
+                                ],
+                                selected: {_view},
+                                showSelectedIcon: false,
+                                style: const ButtonStyle(
+                                  visualDensity: VisualDensity.compact,
+                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                onSelectionChanged: (v) {
+                                  HapticFeedback.selectionClick();
+                                  setState(() => _view = v.first);
+                                },
+                              ),
+                            ),
+                            // #357: YALNIZ bakilan varligi sil (ust bardaki cop
+                            // butun rutbeyi temizler).
+                            IconButton(
+                              icon: Icon(Icons.delete_outline, color: AppColors.error),
+                              tooltip: switch (_view) {
+                                'video' => 'Bu videoyu sil ($_anim)',
+                                'cut' => 'WebP / kesimi sil ($_anim)',
+                                _ => 'Still\'i sil',
+                              },
+                              visualDensity: VisualDensity.compact,
+                              onPressed: _deleteAsset,
+                            ),
                           ],
-                          selected: {_view},
-                          showSelectedIcon: false,
-                          style: const ButtonStyle(
-                            visualDensity: VisualDensity.compact,
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          ),
-                          onSelectionChanged: (v) {
-                            HapticFeedback.selectionClick();
-                            setState(() => _view = v.first);
-                          },
                         ),
                       ),
                       Expanded(child: _preview()),
                       _info(),
+                      if (!_arka) _videolarSeridi(),    // #357: havuz
                       if (!_arka) _animSeridi(),        // #353: arkada animasyon yok
                       _adaylarSeridi(),
                       _buttons(),
@@ -2365,78 +2926,142 @@ class _CardDetailPageState extends State<CardDetailPage> {
         ),
       );
 
-  /// #338: animasyon seridi - hangi animasyon uzerinde calisildigi buradan
-  /// secilir; "+ Yeni" ile zafer gibi ek animasyon acilir, cop ile silinir.
+  /// #338/#357: animasyon KUTULARI - her etiket (idle, wink, victory ...) bir
+  /// kutu: atanmis videonun ilk karesi + ad + asama. Dokun = sec (2 Video /
+  /// 3 WebP buna calisir), uzun bas = havuzdan ata / sil. "+ Yeni" etiket acar.
   Widget _animSeridi() {
-    if (_anims.isEmpty) return const SizedBox.shrink();
+    final liste = _anims.isEmpty ? const [CardAnim(name: 'idle')] : _anims;
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Animasyonlar - secili olana uretilir',
+          const Text('Animasyonlar - dokun = sec, uzun bas = ata / sil',
               style: TextStyle(fontSize: 11, color: Colors.grey)),
           const SizedBox(height: 4),
-          Wrap(
-            spacing: 6,
-            runSpacing: 4,
-            children: [
-              for (final a in _anims)
-                InputChip(
-                  selected: a.name == _anim,
-                  label: Text(
-                      '${a.name}${a.stage >= 3 ? '  ✓' : (a.stage == 2 ? '  ▶' : '')}',
-                      style: const TextStyle(fontSize: 11)),
-                  onSelected: (_) => setState(() => _anim = a.name),
-                  onDeleted: a.isIdle ? null : () => _animSil(a.name),
-                  deleteIcon: a.isIdle ? null : const Icon(Icons.close, size: 15),
+          SizedBox(
+            height: 118,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: [
+                for (final a in liste) ...[
+                  _animKutu(a),
+                  const SizedBox(width: 8),
+                ],
+                InkWell(
+                  onTap: _animEkle,
+                  child: Container(
+                    width: 64,
+                    height: 96,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.white24),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.add, size: 20),
+                        Text('Yeni', style: TextStyle(fontSize: 10)),
+                      ],
+                    ),
+                  ),
                 ),
-              ActionChip(
-                avatar: const Icon(Icons.add, size: 15),
-                label: const Text('Yeni', style: TextStyle(fontSize: 11)),
-                onPressed: _animEkle,
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  Future<void> _animEkle() async {
-    final c = TextEditingController();
-    final ad = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Yeni animasyon'),
-        content: TextField(
-          controller: c,
-          autofocus: true,
-          decoration: const InputDecoration(
-            labelText: 'Ad',
-            hintText: 'orn. zafer',
-            helperText: 'Secip "2 Video" calistir - bu ada ayri video/sheet uretilir',
-            helperMaxLines: 2,
-            border: OutlineInputBorder(),
-          ),
+  Widget _animKutu(CardAnim a) {
+    final secili = a.name == _anim;
+    final thumb = a.video && a.dir.isNotEmpty
+        ? CardFlowService.relThumbUrl('${a.dir}/video.mp4', size: 200, v: _state.rev)
+        : '';
+    return InkWell(
+      onTap: () => setState(() => _anim = a.name),
+      onLongPress: () => _animMenu(a),
+      child: SizedBox(
+        width: 68,
+        child: Column(
+          children: [
+            Container(
+              width: 64,
+              height: 96,
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                border: Border.all(
+                    color: secili ? AppColors.accent : Colors.white24,
+                    width: secili ? 2 : 1),
+                borderRadius: BorderRadius.circular(6),
+                color: Colors.black26,
+              ),
+              child: thumb.isEmpty
+                  ? const Center(
+                      child: Icon(Icons.movie_creation_outlined,
+                          size: 18, color: Colors.grey))
+                  : Image.network(thumb,
+                      headers: CardFlowService.authHeaders,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => const Center(
+                          child: Icon(Icons.movie_outlined, size: 18))),
+            ),
+            const SizedBox(height: 2),
+            Text(
+                '${a.name}${a.stage >= 3 ? ' ✓' : (a.stage == 2 ? ' ▶' : '')}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: secili ? FontWeight.bold : FontWeight.normal,
+                    color: secili ? AppColors.accent : Colors.grey)),
+          ],
         ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('Vazgec')),
-          FilledButton(
-              onPressed: () => Navigator.pop(ctx, c.text.trim()),
-              child: const Text('Ekle')),
-        ],
       ),
     );
-    final t = (ad ?? '').trim().toLowerCase();
-    if (t.isEmpty || t == 'idle') return;
-    // Klasor ilk video uretiminde acilir; simdilik secili yapmak yeter.
+  }
+
+  Future<void> _animEkle() async {
+    final t = await _yeniEtiketAdi();
+    if (!mounted || t == null || _anims.any((a) => a.name == t)) return;
+    // Klasor ilk atamada/uretimde acilir; simdilik kutuyu gosterip secmek yeter.
     setState(() {
       _anims = [..._anims, CardAnim(name: t)];
       _anim = t;
     });
-    _snack('"$t" secildi - simdi 2 Video calistir');
+    if (_videos.isEmpty) {
+      _snack('"$t" acildi - 2 Video ile uret ya da havuzdan ata');
+      return;
+    }
+    // #357: havuzda video varsa hemen sec-ata.
+    final v = await showModalBottomSheet<CardVideo>(
+      context: context,
+      showDragHandle: true,
+      builder: (c) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          padding: EdgeInsets.only(bottom: MediaQuery.paddingOf(c).bottom + 8),
+          children: [
+            ListTile(
+                dense: true,
+                title: Text('"$t" icin havuzdan video sec',
+                    style: const TextStyle(fontSize: 13))),
+            for (final v in _videos)
+              ListTile(
+                dense: true,
+                leading: const Icon(Icons.movie_outlined),
+                title: Text(v.id, style: const TextStyle(fontSize: 13)),
+                subtitle: Text(
+                    v.tags.isEmpty ? 'atanmadi' : v.tags.join(', '),
+                    style: const TextStyle(fontSize: 11)),
+                onTap: () => Navigator.pop(c, v),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (v != null) await _videoAta(v, t);
   }
 
   Future<void> _animSil(String ad) async {
@@ -2470,7 +3095,7 @@ class _CardDetailPageState extends State<CardDetailPage> {
               itemCount: _adaylar.length,
               separatorBuilder: (_, _) => const SizedBox(width: 8),
               itemBuilder: (c, i) {
-                final ad = _adaylar[i];
+                final ad = _adaylar[i].file;
                 final rel = CardFlowService.candidateRel(
                     widget.collection, widget.rank, ad, kind: widget.kind);
                 return Stack(
@@ -2480,7 +3105,10 @@ class _CardDetailPageState extends State<CardDetailPage> {
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(6),
                         child: Image.network(
-                          CardFlowService.relThumbUrl(rel, size: 200),
+                          // #356: v = dosya zamani; ad yeniden kullanilinca
+                          // bellekteki eski kucuk resim gelmesin.
+                          CardFlowService.relThumbUrl(rel,
+                              size: 200, v: _adaylar[i].rev),
                           // #343: kimlik basligi ZORUNLU - onsuz sunucu 401
                           // doner ve butun adaylar kirik gorsel olarak cikar.
                           headers: CardFlowService.authHeaders,

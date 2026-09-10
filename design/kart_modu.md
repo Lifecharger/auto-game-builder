@@ -136,3 +136,31 @@ video | kesim önizleme (sheet ilk kare, şeffaf zemin damalı) | ✎ Düzenle /
 - Yetişkin figürler, chibi/çocuk yok (`feedback_no_minors_no_chibi`); hot çizgisinin kalıbı (v5 formülü) korunur.
 - Her iş kuyrukta (#299); ilk tur tam otomatik 1'er; ince ayar ✎/↻.
 - R2 push ve manifest yalnız kullanıcı düğmesiyle; staging klasörü elle yüklenmez kuralı burada geçerli DEĞİL (push düğmesi var), ama push onay ister.
+
+## #357 - Video havuzu, etiket atama, motor secimi, tekil silme (2026-09-10)
+
+**Sorun.** "idle/wink" hem prompt sablonu hem animasyon adiydi; kullanici videoyu uretip
+sonra "bu idle olsun, bu victory olsun" diyemiyordu. Ust bardaki tek cop butun rutbeyi
+temizliyordu; bakilan still/video/webp tek basina silinemiyordu. Motor secimi yoktu.
+
+**Model.**
+- Havuz: `<rutbe>/videos/<vid>.mp4` + `<vid>.json` (prompt, gesture, engine, at, job, guard).
+  `animate()` ciktisi once buraya girer; `pool_only` degilse `anim` etiketine atanir.
+- Atama: `assign_video(collection, rank, kind, vid, tag)` havuz dosyasini etiket klasorune
+  KOPYALAR (idle = rutbe koku, digerleri `anim/<tag>/`), eski sheet/thumb/cut'i siler,
+  state'e `source=vid` yazar (idle icin pushed kaydi duser). Ayni video birden fazla
+  etikete atanabilir. `videos_of()` her videonun `tags` listesini bu kaynaktan turetir.
+- Motor: `collection.json.video_engine` = `ltx` | `wan`; `VIDEO_ENGINES` -> manifest gorevi.
+  Hepsi FLF2V (ilk kare = son kare). MiniMax H3 listeye ALINMAZ: lisans ciktilari kapsiyor.
+  Wan: `FLF2V Wan2.2 14B Kart.json` (Lightning dali acik), wf2api Wan dugumlerine
+  width/height/length yazar (81 kare = 5 sn ust sinir).
+- Tekil silme: `delete_asset(what=still|video|sheet, anim)`; havuza dokunmaz.
+
+**Uclar.** `GET /api/card/flow/videos`, `POST /api/card/flow/video/assign`,
+`DELETE /api/card/flow/video`, `DELETE /api/card/flow/asset`; `animate` body'de
+`pool_only`, `engine`; `settings` body'de `video_engine`.
+
+**Istemciler.** AGB: video penceresi (sablon -> metin, etiket, motor), Videolar seridi,
+animasyon kutulari (+ Yeni), segment satirinda cop. Studyo: "Videolar (havuz)" penceresi,
+"yalniz havuza" kutusu, ayarlarda motor, onizlemede "Secili gorunumu sil".
+

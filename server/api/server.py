@@ -6329,6 +6329,7 @@ class CardSettingsRequest(BaseModel):
     kind: str = "card"
     model: str | None = None          # zimage | qwen
     face_detail: bool | None = None   # yuz rotusu acik/kapali
+    video_engine: str | None = None   # #357: ltx | wan
 
 
 class CardThemeRequest(BaseModel):
@@ -6374,9 +6375,20 @@ class CardAnimDeleteRequest(BaseModel):
 class CardAnimateRequest(BaseModel):
     collection: str
     ranks: list[str] = []
-    gesture: str = "idle"
+    gesture: str = "idle"   # hazir anahtar YA DA serbest hareket cumlesi (#335)
     kind: str = "card"
     anim: str = ""          # #338: bos/idle = kokteki ana animasyon
+    pool_only: bool = False  # #357: True = yalniz havuza, etiket atama yok
+    engine: str = ""         # #357: ltx | wan (bos = koleksiyon ayari)
+
+
+class CardVideoAssignRequest(BaseModel):
+    """#357: havuzdaki videoyu bir animasyon etiketine ata."""
+    collection: str
+    rank: str
+    video: str
+    tag: str = "idle"
+    kind: str = "card"
 
 
 class CardCutRequest(BaseModel):
@@ -6529,9 +6541,10 @@ def card_flow_set_template(body: CardTemplateRequest):
 
 @app.post("/api/card/flow/settings")
 def card_flow_settings(body: CardSettingsRequest):
-    """#353: koleksiyonun uretim ayarlari - model (zimage|qwen) ve yuz rotusu."""
+    """#353: koleksiyonun uretim ayarlari - model (zimage|qwen) ve yuz rotusu.
+    #357: video_engine (ltx|wan)."""
     return _flow_call(_card().set_settings, body.collection, body.kind,
-                      body.model, body.face_detail)
+                      body.model, body.face_detail, body.video_engine)
 
 
 @app.post("/api/card/flow/theme")
@@ -6614,8 +6627,10 @@ def card_flow_anim_delete(collection: str, rank: str = "", anim: str = "", kind:
 
 @app.get("/api/card/flow/candidates")
 def card_flow_candidates(collection: str, rank: str, kind: str = "card"):
-    """#336: rutbenin aday still'leri (secilebilir/silinebilir dosya adlari)."""
-    return {"candidates": _flow_call(_card().candidates, collection, rank, kind)}
+    """#336: rutbenin aday still'leri (secilebilir/silinebilir dosya adlari).
+    #356: `revs` = ad -> mtime; istemci kucuk resim URL'sine `v=` ekler."""
+    return {"candidates": _flow_call(_card().candidates, collection, rank, kind),
+            "revs": _flow_call(_card().candidate_revs, collection, rank, kind)}
 
 
 @app.post("/api/card/flow/pick")
@@ -6651,9 +6666,38 @@ def card_flow_edit(body: CardEditRequest):
 
 @app.post("/api/card/flow/animate")
 def card_flow_animate(body: CardAnimateRequest):
-    """Asama 2: still -> LTX-2.5 i2v 6 sn (jest + kilitli kamera), guard, otomatik kabul."""
+    """Asama 2: still -> FLF2V video (jest/serbest prompt + kilitli kamera), guard.
+    #357: cikti havuza girer; pool_only degilse `anim` etiketine atanir."""
     return {"op": _flow_call(_card().animate, body.collection, body.ranks,
-                             body.gesture, body.kind, body.anim)}
+                             body.gesture, body.kind, body.anim, body.pool_only, body.engine)}
+
+
+@app.get("/api/card/flow/videos")
+def card_flow_videos(collection: str, rank: str = "", kind: str = "card"):
+    """#357: rutbenin video havuzu + animasyon etiketleri."""
+    r = rank or _card().MAIN
+    return {"videos": _flow_call(_card().videos_of, collection, r, kind),
+            "anims": _flow_call(_card().anims_of, collection, r, kind)}
+
+
+@app.post("/api/card/flow/video/assign")
+def card_flow_video_assign(body: CardVideoAssignRequest):
+    """#357: havuzdaki videoyu etikete ata (idle = kartin ana animasyonu)."""
+    return _flow_call(_card().assign_video, body.collection, body.rank, body.kind,
+                      body.video, body.tag)
+
+
+@app.delete("/api/card/flow/video")
+def card_flow_video_delete(collection: str, rank: str, video: str, kind: str = "card"):
+    """#357: havuzdan video sil (etiketlere atanmis kopyalar kalir)."""
+    return _flow_call(_card().delete_video, collection, rank, kind, video)
+
+
+@app.delete("/api/card/flow/asset")
+def card_flow_asset_delete(collection: str, rank: str, what: str, kind: str = "card",
+                           anim: str = ""):
+    """#357: secili varligi tek basina sil: what = still | video | sheet (webp)."""
+    return _flow_call(_card().delete_asset, collection, rank, kind, what, anim)
 
 
 @app.post("/api/card/flow/cut")
@@ -6740,6 +6784,10 @@ def card_flow_thumb(collection: str = "", rank: str = "", kind: str = "still",
     if not a:
         raise HTTPException(404, "Onizleme yok")
     onbellek = {"Cache-Control": "public, max-age=604800"}
+    if rel:
+        # #356: ?rel= (aday still'leri) ad yeniden kullanilan dosyalardir -
+        # tarayici/LAN sayfasi 7 gun tutmasin, her seferinde dogrulasin.
+        onbellek = {"Cache-Control": "no-cache"}
     if a.get("media") == "image/png" and (view or kind) in ("cut", "frame"):
         return FileResponse(a["path"], media_type="image/png", headers=onbellek)
     t = _flow_call(_card().thumb, a["rel"], max(64, min(1024, size)))

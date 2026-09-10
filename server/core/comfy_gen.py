@@ -764,6 +764,7 @@ _lock = threading.Lock()
 # _cv, _lock uzerine kurulu - kuyruk ve is kayitlari ayni kilit altinda.
 _cv = threading.Condition(_lock)
 _queue: list[str] = []          # bekleyen is id'leri, sirayla
+_tickets: dict[str, dict] = {}   # #356: is id -> kuyruga girerken ayirtilan serit bileti
 _current: str | None = None     # su an calisan isin id'si
 _dispatcher_started = False
 
@@ -983,10 +984,19 @@ def set_meta(job_id: str, *, favorite: bool | None = None, note: str | None = No
         return _snapshot(j)
 
 
+def _drop_ticket_locked(job_id: str) -> None:
+    """#356: bekleyen isin ayirtilmis serit biletini dusurur (_cv tutulurken)."""
+    t = _tickets.pop(job_id, None)
+    if t is not None:
+        from . import gpu_lane
+        gpu_lane.drop(t)
+
+
 def delete_job(job_id: str, remove_file: bool = True) -> bool:
     with _cv:
         if job_id in _queue:            # bekleyen isi once siradan cikar
             _queue.remove(job_id)
+            _drop_ticket_locked(job_id)
         j = _jobs.pop(job_id, None)
         if not j:
             return False
@@ -1010,12 +1020,20 @@ def cancel_job(job_id: str) -> bool:
         j["cancel"] = True
         if job_id in _queue:            # henuz baslamamis - sadece siradan cikar
             _queue.remove(job_id)
+            _drop_ticket_locked(job_id)
             j.update(status="cancelled", error="iptal edildi",
                      finished_at=datetime.now().isoformat())
             j.pop("_args", None)
             _persist_locked()
             return True
         pid = j.get("comfy_prompt_id")
+    # #356: dispatcher bu isin biletiyle seridi bekliyor olabilir - bileti
+    # iptal et ki bekleyis LaneCancelled ile bitsin (serit alinmissa zararsiz).
+    try:
+        from . import gpu_lane
+        gpu_lane.cancel_ticket(job_id=job_id)
+    except Exception:
+        pass
     if pid:
         try:
             _post("/queue", {"delete": [pid]})
@@ -1053,6 +1071,9 @@ def move_job(job_id: str, delta: int) -> bool:
         if k == i:
             return False
         _queue.insert(k, _queue.pop(i))
+        # #356: serit biletleri de ayni siraya dizilir.
+        from . import gpu_lane
+        gpu_lane.reorder("comfy", [_tickets[j]["id"] for j in _queue if j in _tickets])
         return True
 
 
@@ -1061,6 +1082,7 @@ def clear_queue() -> int:
     with _cv:
         ids, _queue[:] = list(_queue), []
         for jid in ids:
+            _drop_ticket_locked(jid)
             j = _jobs.get(jid)
             if j:
                 j.update(status="cancelled", error="kuyruk temizlendi",
@@ -1082,24 +1104,42 @@ def free_comfy() -> bool:
 
 def _dispatcher() -> None:
     """Kuyruktaki isleri tek tek, sirayla calistirir. Her is GPU seridini
-    (gpu_lane) alir: etiketleme / CBN insa / muzik ile ayni FIFO'da."""
+    (gpu_lane) alir: etiketleme / CBN insa / muzik ile ayni FIFO'da.
+
+    #356: bilet kuyruga girerken ayrildi (submit); burada yalnizca sirasi
+    beklenir. Serit beklenirken is hala "queued"dur (Sira ekrani onu seritteki
+    bilet olarak gosterir); serit alininca "running" olur."""
     global _current
+    from . import gpu_lane
     while True:
         with _cv:
             while not _queue:
                 _cv.wait()
             job_id = _queue.pop(0)
             job = _jobs.get(job_id)
+            t = _tickets.pop(job_id, None)
             if not job or job.get("cancel"):
+                if t is not None:
+                    gpu_lane.drop(t)
                 continue
             args = job.pop("_args", None)
-            _current = job_id
+            if t is None:               # eski kayit (yeniden yuklenen kuyruk) - simdi ayirt
+                t = gpu_lane.reserve("uretim: %s" % job["task"], kind="comfy", job_id=job_id)
         try:
             if args:
-                from . import gpu_lane
-                # #299: bilet isin id'sini tasir - Sira ekrani ilerlemeyi eslestirir.
-                with gpu_lane.hold("uretim: %s" % job["task"], kind="comfy", job_id=job_id):
-                    _run_job(job_id, job["task"], args)
+                try:
+                    with gpu_lane.hold_reserved(t):
+                        with _cv:
+                            if job.get("cancel"):
+                                raise gpu_lane.LaneCancelled("iptal")
+                            _current = job_id
+                        _run_job(job_id, job["task"], args)
+                except gpu_lane.LaneCancelled:
+                    with _cv:
+                        job.update(status="cancelled", error="iptal edildi",
+                                   finished_at=datetime.now().isoformat())
+            else:
+                gpu_lane.drop(t)
         except Exception as e:  # noqa: BLE001 - dispatcher asla olmemeli
             print("[comfy_gen] dispatcher hatasi: %s" % e)
         finally:
@@ -1386,9 +1426,13 @@ def submit(task: str, prompt: str, *, prompt2: str = "", negative: str = "",
                       image_path=image_path, inputs=cozulen),
     }
     _start_dispatcher()
+    from . import gpu_lane
     with _cv:
         _jobs[job_id] = job
         _queue.append(job_id)
+        # #356: serit bileti KUYRUGA GIRERKEN ayrilir - build/etiketleme gibi
+        # sonradan gelen isler bekleyen uretimlerin onune gecemez.
+        _tickets[job_id] = gpu_lane.reserve("uretim: %s" % task, kind="comfy", job_id=job_id)
         _persist_locked()
         snap = _snapshot(job)
         _cv.notify()

@@ -291,6 +291,7 @@ class _CardTemplatesScreenState extends State<CardTemplatesScreen> {
                       if (_busy) const LinearProgressIndicator(minHeight: 2),
                       _temaSatiri(),
                       _ayarSeridi(),
+                      _motorSeridi(),   // #357
                       _eksenSeridi(),
                       const Divider(height: 1),
                       Expanded(child: _liste()),
@@ -453,6 +454,47 @@ class _CardTemplatesScreenState extends State<CardTemplatesScreen> {
           ],
         ),
       );
+
+  /// #357: video motoru - koleksiyonun butun kartlari bu motorla animasyon
+  /// alir (ilk kare = son kare). MiniMax H3 listede yok: lisansi ciktilari
+  /// kapsiyor, kart oyununa giren varlik onunla uretilmez.
+  Widget _motorSeridi() {
+    if (widget.kind == 'dealer' && _d.videoEngines.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final motorlar = _d.videoEngines.isEmpty
+        ? const [CardEngine('ltx', 'LTX-2.5')]
+        : _d.videoEngines;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      child: DropdownButtonFormField<String>(
+        initialValue: motorlar.any((e) => e.id == _d.videoEngine)
+            ? _d.videoEngine
+            : motorlar.first.id,
+        isExpanded: true,
+        decoration: const InputDecoration(
+            isDense: true,
+            border: OutlineInputBorder(),
+            labelText: 'Video motoru (ilk kare = son kare)'),
+        items: [
+          for (final e in motorlar)
+            DropdownMenuItem(
+                value: e.id,
+                enabled: e.available,
+                child: Text(e.available ? e.label : '${e.label} (kurulu degil)',
+                    style: const TextStyle(fontSize: 12))),
+        ],
+        onChanged: _busy
+            ? null
+            : (v) => v == null
+                ? null
+                : _sarmala(
+                    () => CardFlowService.setSettings(widget.collection,
+                        kind: widget.kind, videoEngine: v),
+                    'Video motoru: $v'),
+      ),
+    );
+  }
 
   /// #348: eksen secici artik CIP degil ACILIR LISTE - "hepsine uygula".
   Widget _eksenSeridi() => Padding(

@@ -92,34 +92,83 @@ def _ticket(label: str, kind: str, op_id: str = "", job_id: str = "", total: int
             "queued_at": datetime.now().isoformat(timespec="seconds"), "t0": time.time()}
 
 
-@contextmanager
-def hold(label: str, kind: str = "gpu", *, op_id: str = "", job_id: str = "", total: int = 0):
-    """Seridi FIFO sirayla al; blok bitince birak.
+def reserve(label: str, kind: str = "gpu", *, op_id: str = "", job_id: str = "", total: int = 0) -> dict:
+    """#356: siraya SIMDI gir, seridi SONRA al.
 
-    #299: op_id / job_id / total istege baglidir (eski cagiranlar degismedi).
+    Kullanicinin sikayeti: "build ya da baska bir is bekleyen uretimleri ezip
+    one geciyor." Nedeni: comfy_gen kuyrugundaki isler seritten ancak siralari
+    geldigi anda bilet aliyordu; 12 bekleyen video seritte gorunmuyor, o arada
+    gelen build seritte TEK bekleyen oluyor ve ilk video biter bitmez araya
+    giriyordu. Simdi is kuyruga girdigi anda bilet ayirtir; serit gercek gelis
+    sirasini uygular. Ayrilan bilet `hold_reserved(t)` ile kullanilir, is
+    baslamadan iptal edilirse `drop(t)` ile dusurulur.
     """
-    global _current
     t = _ticket(label, kind, op_id, job_id, total)
     with _cv:
         _waiting.append(t)
+        _cv.notify_all()
+    return t
+
+
+def drop(t: dict) -> bool:
+    """#356: ayirtilmis ama hic baslamamis bileti siradan cikarir."""
+    with _cv:
+        if t in _waiting:
+            _waiting.remove(t)
+            _cv.notify_all()
+            return True
+    return False
+
+
+def reorder(kind: str, ordered_ids: list[str]) -> None:
+    """#356: ayni turden bekleyen biletleri, YERLERI sabit kalarak verilen
+    id sirasina dizer (comfy_gen.move_job kuyrugu oynatinca serit de oynar;
+    yoksa dispatcher bir bileti beklerken serit basinda baska bir bilet durur)."""
+    with _cv:
+        yerler = [i for i, w in enumerate(_waiting) if w["kind"] == kind]
+        havuz = {_waiting[i]["id"]: _waiting[i] for i in yerler}
+        sira = [havuz[i] for i in ordered_ids if i in havuz]
+        sira += [havuz[_waiting[i]["id"]] for i in yerler if havuz[_waiting[i]["id"]] not in sira]
+        for i, t in zip(yerler, sira):
+            _waiting[i] = t
+        _cv.notify_all()
+
+
+def first_waiting(kind: str = "") -> dict | None:
+    """#356: (varsa) verilen turden en ondeki bekleyen bilet."""
+    with _cv:
+        for w in _waiting:
+            if not kind or w["kind"] == kind:
+                return dict(w)
+    return None
+
+
+@contextmanager
+def hold_reserved(t: dict):
+    """#356: `reserve()` ile alinmis bileti FIFO sirasi gelince kullan; blok
+    bitince birak. Bilet dusurulmus ya da iptal edilmisse LaneCancelled."""
+    global _current
+    with _cv:
+        if t not in _waiting:
+            raise LaneCancelled("bilet siradan dusurulmus: %s" % t.get("label"))
         while _current is not None or _waiting[0] is not t:
             if t.get("cancelled"):
                 # #352: kullanici Sira ekranindan bekleyen bileti dusurdu -
                 # serit hic alinmaz, is govdesi hic baslamaz.
                 _waiting.remove(t)
                 _cv.notify_all()
-                raise LaneCancelled("sirada iptal edildi: %s" % label)
+                raise LaneCancelled("sirada iptal edildi: %s" % t.get("label"))
             _cv.wait()
         if t.get("cancelled"):
             _waiting.remove(t)
             _cv.notify_all()
-            raise LaneCancelled("sirada iptal edildi: %s" % label)
+            raise LaneCancelled("sirada iptal edildi: %s" % t.get("label"))
         _waiting.remove(t)
         t["started_at"] = datetime.now().isoformat(timespec="seconds")
         t["t1"] = time.time()
         _current = t
     # Serit alindi, is HENUZ baslamadi: onceki turden kalan bellek burada birakilir.
-    _tur_degisti(kind)
+    _tur_degisti(t["kind"])
     try:
         yield t
     finally:
@@ -130,6 +179,18 @@ def hold(label: str, kind: str = "gpu", *, op_id: str = "", job_id: str = "", to
             del _history[:-30]
             _current = None
             _cv.notify_all()
+
+
+@contextmanager
+def hold(label: str, kind: str = "gpu", *, op_id: str = "", job_id: str = "", total: int = 0):
+    """Seridi FIFO sirayla al; blok bitince birak.
+
+    #299: op_id / job_id / total istege baglidir (eski cagiranlar degismedi).
+    #356: reserve + hold_reserved kisayolu.
+    """
+    t = reserve(label, kind, op_id=op_id, job_id=job_id, total=total)
+    with hold_reserved(t) as tt:
+        yield tt
 
 
 def status() -> dict:

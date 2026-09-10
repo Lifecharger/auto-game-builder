@@ -83,9 +83,14 @@ void main() {
     final d = DetailState(profiller['hot']!);
     d.values['pose'] = 'close-up portrait';
     d.values['hair'] = 'blonde hair';
-    expect(d.promptWith('police officer'),
-        'police officer, close-up portrait, blonde hair');
-    expect(d.promptWith(''), 'close-up portrait, blonde hair');
+    // #353: alan sirasi secenek dosyasindan gelir (sac artik poz'dan once);
+    // test sirayi dosyadan okur, sabit yazmaz.
+    final ids = d.profile.fields.map((f) => f.key).toList();
+    final sirali = ids.indexOf('hair') < ids.indexOf('pose')
+        ? 'blonde hair, close-up portrait'
+        : 'close-up portrait, blonde hair';
+    expect(d.promptWith('police officer'), 'police officer, $sirali');
+    expect(d.promptWith(''), sirali);
   });
 
   test('dolu dropdown sablondaki karsiligini dusuruyor', () {
