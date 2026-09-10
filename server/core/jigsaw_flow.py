@@ -389,17 +389,27 @@ _ops: dict[str, dict] = {}
 _ops_lock = threading.Lock()
 
 
+class OpCancelled(RuntimeError):
+    """#352: kullanici Sira ekranindan islemi iptal etti.
+
+    `_op()` her ilerleme yazisinda bayragi denetler ve bunu firlatir; op
+    govdesi bir sonraki ilerleme adiminda kendiliginden durur. Isi calistiran
+    `_run` sarmali bunu 'cancelled' durumuna cevirir (hata degildir).
+    """
+
+
 def _op_new(kind: str, total: int) -> str:
     op_id = uuid.uuid4().hex[:12]
     with _ops_lock:
         _ops[op_id] = {"id": op_id, "kind": kind, "status": "running",
                        "done": 0, "total": total, "ok": 0, "failed": 0,
-                       "message": "", "log": [],
+                       "message": "", "log": [], "jobs": [], "cancel": False,
                        "started_at": datetime.now().isoformat(timespec="seconds")}
     return op_id
 
 
 def _op(op_id: str, **kw):
+    iptal = False
     with _ops_lock:
         o = _ops.get(op_id)
         if not o:
@@ -408,6 +418,52 @@ def _op(op_id: str, **kw):
         if kayit:
             o["log"] = (o["log"] + [kayit])[-200:]
         o.update(kw)
+        iptal = bool(o.get("cancel")) and o.get("status") == "running"
+    if iptal:
+        raise OpCancelled("iptal edildi")
+
+
+def _op_job(op_id: str, job_id: str) -> None:
+    """#352: op'un actigi comfy_gen isini deftere yazar - iptalde hepsi kesilir."""
+    if not (op_id and job_id):
+        return
+    with _ops_lock:
+        o = _ops.get(op_id)
+        if o is not None and job_id not in o["jobs"]:
+            o["jobs"] = (o["jobs"] + [job_id])[-500:]
+
+
+def cancel_op(op_id: str) -> dict:
+    """#352: calisan/bekleyen bir op'u iptal eder.
+
+    1) op defterine bayrak: govde bir sonraki `_op()` cagrisinda OpCancelled
+       ile durur (uzun parti dongulerinin hepsi her adimda `_op` cagirir).
+    2) op'un actigi comfy_gen isleri kuyruktan cikarilir / kesilir - yoksa
+       ComfyUI bir saat daha bosuna calisirdi.
+    3) op GPU seridinde bekliyorsa bileti dusurulur (gpu_lane.cancel_ticket).
+    """
+    with _ops_lock:
+        o = _ops.get(op_id)
+        if not o:
+            return {"ok": False, "detail": "islem yok"}
+        if o.get("status") != "running":
+            return {"ok": False, "detail": "islem zaten bitmis (%s)" % o.get("status")}
+        o["cancel"] = True
+        o["message"] = "iptal ediliyor..."
+        jobs = list(o.get("jobs") or [])
+    kesilen = 0
+    for jid in jobs:
+        try:
+            if G.cancel_job(jid):
+                kesilen += 1
+        except Exception:
+            pass
+    try:
+        from . import gpu_lane
+        gpu_lane.cancel_ticket(op_id=op_id)
+    except Exception:
+        pass
+    return {"ok": True, "op": op_id, "jobs_cancelled": kesilen}
 
 
 def op_status(op_id: str) -> dict | None:
@@ -426,10 +482,30 @@ def _run(op_id: str, fn):
     def sarmal():
         try:
             fn()
-            _op(op_id, status="done")
+            _bitir_op(op_id, "done", "")
+        except OpCancelled:
+            _bitir_op(op_id, "cancelled", "iptal edildi")
         except Exception as e:
-            _op(op_id, status="error", message=str(e)[:400])
+            # Iptal bayragi kalkmis ama govde baska bir hatayla dusmus olabilir
+            # (iptal edilen comfy isi 'cancelled' ile RuntimeError firlatir).
+            with _ops_lock:
+                iptal = bool((_ops.get(op_id) or {}).get("cancel"))
+            _bitir_op(op_id, "cancelled" if iptal else "error",
+                      "iptal edildi" if iptal else str(e)[:400])
     threading.Thread(target=sarmal, daemon=True).start()
+
+
+def _bitir_op(op_id: str, durum: str, mesaj: str) -> None:
+    """#352: op durumunu `_op` uzerinden degil DOGRUDAN yazar - iptal bayragi
+    kalkmis bir op'ta `_op` yeniden OpCancelled firlatirdi."""
+    with _ops_lock:
+        o = _ops.get(op_id)
+        if not o:
+            return
+        o["status"] = durum
+        if mesaj:
+            o["message"] = mesaj
+        o["finished_at"] = datetime.now().isoformat(timespec="seconds")
 
 
 # ------------------------------------------------------------------ 1 -> 2

@@ -751,12 +751,13 @@ class CharacterFlowService {
   static Map<String, String> get authHeaders => GenerateService.authHeaders;
 
   static Never _fail(http.Response r, String fallback) {
+    // #352: sunucunun `detail` mesaji artik kaybolmuyor (bkz. jigsaw servisi).
+    String msg = '$fallback (${r.statusCode})';
     try {
-      final d = json.decode(r.body);
-      throw Exception('${d['detail'] ?? fallback}');
-    } catch (_) {
-      throw Exception('$fallback (${r.statusCode})');
-    }
+      final d = json.decode(utf8.decode(r.bodyBytes));
+      if (d is Map && d['detail'] != null) msg = d['detail'].toString();
+    } catch (_) {}
+    throw Exception(msg);
   }
 
   static dynamic _decode(http.Response r) =>

@@ -118,6 +118,20 @@ video | kesim önizleme (sheet ilk kare, şeffaf zemin damalı) | ✎ Düzenle /
 "Hepsini üret", "Hepsini animasyona sok", "Hepsini kes", "Manifest", "Push" (onaylı). Krupiye ve avatar sekmeleri aynı ekranın alt kipleri.
 Üretilenler: "Kart Modu" filtresi + "Koleksiyona ekle" (seçili iş → rütbe). Stüdyo: aynı akış, aynı uçlar.
 
+**#352 (2026-09-10) — erişim, silme, iptal:**
+- **Koleksiyon Kartı** (tema + 16 yuva + model zimage|qwen + yüz rötuşu) tek ekrandır (`CardTemplatesScreen` / stüdyo `card_templates_dialog`).
+  Uygulamada koleksiyon ekranının üst tema şeridi, app bar'daki ⚙ ve listedeki basılı-tut menüsü buraya gider; krupiyede de aynı (basılı tut).
+  Eski küçük tema penceresi ve "Kaydet + prompt yaz" (LLM `rewrite-looks`) kaldırıldı — #345'ten beri still promptu şablon katmanlarından
+  kurulur, LLM metni üretime girmiyordu. Koleksiyon oluşturma da LLM çağırmaz (`create`/`dealer_create`): şablonlar anında diske yazılır.
+- **Silme:** `DELETE /api/card/flow/rank` rütbeyi boşa döndürür (still/aday/video/sheet/anim/state; klasör ve koleksiyon kalır, `_pushed.json`
+  kaydı düşer); `DELETE /api/card/flow/collection?id&kind` koleksiyonu/krupiyeyi klasörüyle siler (R2 kalır, geri alınamaz). Uygulama: seçim
+  çubuğu "Temizle", kart detayı çöp, koleksiyon/krupiye menüsü "Sil". Stüdyo: "Kartı temizle", "Koleksiyonu sil".
+- **BACK yuvası rütbe değildir:** `_collection_ranks` `back/` klasörünü dışlar → animasyon/kesim/push/manifest/gece modu BACK'e dokunmaz.
+- **Prompt kaydı:** kabul edilen still'in gerçek promptu `state.json still.prompt`; kart detayı önce onu, yoksa şablon önizlemesini gösterir.
+- **Sıra iptali (tüm hat):** `POST /api/queue/cancel {ticket_id|op_id|job_id}` — bekleyen şerit bileti düşer (`gpu_lane.cancel_ticket`),
+  op defterine bayrak (`jigsaw_flow.cancel_op`, `_op()` bir sonraki adımda `OpCancelled` fırlatır, durum `cancelled`), op'un açtığı comfy
+  işleri (`_op_job` defteri + `_await_job`) kesilir. Uygulama Sıra ekranı her bilette "İptal"; stüdyo "Seçili bileti iptal et (şerit)".
+
 ## 6. Kurallar
 - Yetişkin figürler, chibi/çocuk yok (`feedback_no_minors_no_chibi`); hot çizgisinin kalıbı (v5 formülü) korunur.
 - Her iş kuyrukta (#299); ilk tur tam otomatik 1'er; ince ayar ✎/↻.

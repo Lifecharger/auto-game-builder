@@ -647,6 +647,22 @@ class QueueService {
   /// Alt sekmedeki rozet. Dinleyen oldugu surece 5 sn'de bir sorar - Sira
   /// sekmesi gorunmuyorsa ag trafigi yoktur.
   static final QueueDepthNotifier depth = QueueDepthNotifier._();
+
+  /// #352: birlesik siradaki HERHANGI bir satiri iptal eder - bekleyen serit
+  /// bileti, calisan akis op'u (karakter/CBN/kart) ya da comfy isi. Sunucu
+  /// biletten op/is kimligini kendisi cozer.
+  static Future<void> cancelTicket(QueueTicket t) async {
+    final r = await http
+        .post(Uri.parse('${ApiService.baseUrl}/api/queue/cancel'),
+            headers: GenerateService._headers,
+            body: jsonEncode({
+              'ticket_id': t.id,
+              'op_id': t.opId,
+              'job_id': t.jobId,
+            }))
+        .timeout(GenerateService._timeout);
+    if (r.statusCode != 200) GenerateService._fail(r, 'Iptal edilemedi');
+  }
 }
 
 class QueueDepthNotifier extends ValueNotifier<int> {

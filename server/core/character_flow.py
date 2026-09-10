@@ -68,7 +68,7 @@ from datetime import datetime
 from . import comfy_gen as G
 from . import gpu_lane
 from . import jigsaw_flow as JF
-from .jigsaw_flow import _op, _op_new, _ops, _ops_lock, _run  # noqa: F401
+from .jigsaw_flow import _op, _op_new, _op_job, _ops, _ops_lock, _run, OpCancelled  # noqa: F401
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _TOOLS = os.path.join(_ROOT, "tools")
@@ -1228,6 +1228,8 @@ def _kuyruk_op(kind: str, total: int, uret) -> str:
 
     def calis():
         isler = uret(op_id)
+        for jid, _et, _yer in isler:
+            _op_job(op_id, jid)                      # #352: iptalde hepsi kesilir
         _op(op_id, total=len(isler), message="%d is kuyruga girdi" % len(isler))
         _topla(op_id, isler)
 
@@ -3105,6 +3107,9 @@ def _pad_edge(src: str, dest: str, padding: float) -> str:
 
 
 def _await_job(job_id: str, op_id: str, etiket: str, timeout: int = 3 * 3600) -> str:
+    # #352: is op defterine yazilir; op iptal edilirse (`_op` OpCancelled
+    # firlatir) beklenen comfy isi de kesilir - ComfyUI bosuna calismaz.
+    _op_job(op_id, job_id)
     t0 = time.time()
     while time.time() - t0 < timeout:
         time.sleep(3)
@@ -3119,7 +3124,14 @@ def _await_job(job_id: str, op_id: str, etiket: str, timeout: int = 3 * 3600) ->
             return f
         if st in ("error", "cancelled"):
             raise RuntimeError(j.get("error") or st)
-        _op(op_id, message="%s  %s %%%d" % (etiket, st, j.get("progress") or 0))
+        try:
+            _op(op_id, message="%s  %s %%%d" % (etiket, st, j.get("progress") or 0))
+        except OpCancelled:
+            try:
+                G.cancel_job(job_id)
+            except Exception:
+                pass
+            raise
     raise RuntimeError("i2v zaman asimi")
 
 

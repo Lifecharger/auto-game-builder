@@ -776,6 +776,20 @@ class CardFlowService {
           '?collection=${_q(collection)}&rank=${_q(rank)}'
           '&file=${_q(file)}&kind=${_q(kind)}');
 
+  /// #352: rutbeyi BOSA dondurur - still/aday/video/sheet/animasyon silinir,
+  /// klasor kalir ("1 Still" ile yeniden uretilir). Krupiyede rank = main.
+  static Future<int> clearRank(String collection, String rank,
+      {String kind = 'card'}) async {
+    final d = await _delete('/api/card/flow/rank'
+        '?collection=${_q(collection)}&rank=${_q(rank)}&kind=${_q(kind)}');
+    return (d['deleted'] is num) ? (d['deleted'] as num).toInt() : 0;
+  }
+
+  /// #352: koleksiyonu / krupiyeyi klasoruyle siler. GERI ALINAMAZ; R2'ye
+  /// push edilmis dosyalar kovada kalir.
+  static Future<void> deleteCollection(String id, {String kind = 'card'}) async =>
+      _delete('/api/card/flow/collection?id=${_q(id)}&kind=${_q(kind)}');
+
   // ------------------------------------------------------------- yazma
   /// Yeni koleksiyon acar: 13 (+2) rutbe icin 1'er still kuyruga girer.
   /// Op doner (bos gelebilir - o zaman izlenecek is yoktur).

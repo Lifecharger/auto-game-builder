@@ -139,7 +139,9 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
     try {
       await GenerateService.setFavorite(j.id, !j.favorite);
       _load();
-    } catch (_) {}
+    } catch (e) {
+      _msg(e.toString().replaceFirst('Exception: ', ''));   // #352: sessiz kalmasin
+    }
   }
 
   void _toggleSel(GenerateJob j) {

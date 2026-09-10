@@ -121,11 +121,13 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
     SettingsScreen(),
   ];
 
+  // #352: sekme sirasi kullanicinin istedigi gibi - 1 Uretim, 2 Uretilenler,
+  // 3 Hat, 4 Sira, 5 Ayarlar (Sira en sona yakin; Uretilenler uretimin yani).
   static const _assetScreens = [
     AssetGenerateScreen(),
-    AssetQueueScreen(),
     AssetGalleryScreen(),
     FlowHub(),
+    AssetQueueScreen(),
     SettingsScreen(),
   ];
 
@@ -353,9 +355,18 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
         type: BottomNavigationBarType.fixed,
         items: _assetMode
             ? [
+                // #352: sira = Uretim | Uretilenler | Hat | Sira | Ayarlar
                 const BottomNavigationBarItem(
                   icon: Icon(Icons.auto_awesome),
                   label: 'Uretim',
+                ),
+                const BottomNavigationBarItem(
+                  icon: Icon(Icons.photo_library),
+                  label: 'Uretilenler',
+                ),
+                const BottomNavigationBarItem(
+                  icon: Icon(Icons.conveyor_belt),
+                  label: 'Hat',
                 ),
                 BottomNavigationBarItem(
                   // #299: butun isler tek sunucu sirasina girer - rozet
@@ -372,14 +383,6 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
                     child: const Icon(Icons.playlist_play),
                   ),
                   label: 'Sira',
-                ),
-                const BottomNavigationBarItem(
-                  icon: Icon(Icons.photo_library),
-                  label: 'Uretilenler',
-                ),
-                const BottomNavigationBarItem(
-                  icon: Icon(Icons.conveyor_belt),
-                  label: 'Hat',
                 ),
                 const BottomNavigationBarItem(
                   icon: Icon(Icons.settings),

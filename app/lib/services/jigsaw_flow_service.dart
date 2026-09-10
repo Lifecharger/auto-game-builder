@@ -165,12 +165,14 @@ class JigsawFlowService {
       };
 
   static Never _fail(http.Response r, String fallback) {
+    // #352: `throw` try icindeydi ve catch onu yutup sunucunun mesajini
+    // "Istek basarisiz (400)" ile eziyordu - detay artik disarida atilir.
+    String msg = '$fallback (${r.statusCode})';
     try {
-      final d = json.decode(r.body);
-      throw Exception('${d['detail'] ?? fallback}');
-    } catch (_) {
-      throw Exception('$fallback (${r.statusCode})');
-    }
+      final d = json.decode(utf8.decode(r.bodyBytes));
+      if (d is Map && d['detail'] != null) msg = d['detail'].toString();
+    } catch (_) {}
+    throw Exception(msg);
   }
 
   static Future<Map<String, dynamic>> _get(String path) async {

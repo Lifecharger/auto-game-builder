@@ -136,20 +136,29 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
   /// Sunucudaki arka plan islemini bitene kadar izler.
   void _watch(String opId) {
     _opPoll?.cancel();
+    var hata = 0;
     _opPoll = Timer.periodic(const Duration(seconds: 2), (t) async {
       try {
         final o = await JigsawFlowService.op(opId);
         if (!mounted) return;
+        hata = 0;
         setState(() => _op = o);
         if (!o.running) {
           t.cancel();
           _snack(o.status == 'error'
               ? 'Islem hatasi: ${o.message}'
-              : '${o.ok} tamam${o.failed > 0 ? ", ${o.failed} hata" : ""}');
+              : o.status == 'cancelled'
+                  ? 'Islem iptal edildi'
+                  : '${o.ok} tamam${o.failed > 0 ? ", ${o.failed} hata" : ""}');
           _load();
         }
       } catch (_) {
-        t.cancel();
+        // #352: tek bir ag hatasi izlemeyi bitiriyor ve ilerleme cubugu
+        // "calisiyor" halinde donmus kaliyordu - 3 ardisik hatada birak.
+        if (++hata >= 3) {
+          t.cancel();
+          if (mounted) setState(() => _op = null);
+        }
       }
     });
   }

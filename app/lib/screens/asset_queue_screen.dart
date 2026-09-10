@@ -97,6 +97,23 @@ class _AssetQueueScreenState extends State<AssetQueueScreen> {
     }
   }
 
+  /// #352: birlesik siradaki HER satir iptal edilebilir - bekleyen karakter/CBN/
+  /// kart op'u da, calisan op da. Sunucu op'un actigi comfy islerini de keser.
+  Future<void> _cancelTicket(QueueTicket t, {required bool running}) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text(running ? 'Calisan isi iptal et' : 'Sıradan cikar'),
+        content: Text(t.label.isEmpty ? t.kind : t.label),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Vazgec')),
+          FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Iptal et')),
+        ],
+      ),
+    );
+    if (ok == true) _act(() => QueueService.cancelTicket(t));
+  }
+
   Future<void> _clear() async {
     final ok = await showDialog<bool>(
       context: context,
@@ -307,6 +324,14 @@ class _AssetQueueScreenState extends State<AssetQueueScreen> {
                           ? 'gecen ${t.elapsedLabel}'
                           : 'bekliyor ${t.elapsedLabel}',
                       style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                const SizedBox(width: 6),
+                // #352: her bilet iptal edilebilir (op / comfy isi / serit bileti).
+                TextButton.icon(
+                  onPressed: () => _cancelTicket(t, running: running),
+                  icon: Icon(Icons.close, size: 16, color: AppColors.error),
+                  label: Text('Iptal',
+                      style: TextStyle(fontSize: 12, color: AppColors.error)),
+                ),
               ],
             ),
           ],

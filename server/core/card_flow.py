@@ -58,7 +58,8 @@ from datetime import datetime
 from . import comfy_gen as G
 from . import prompt_smith as PS
 from . import gpu_lane
-from .jigsaw_flow import _op, _op_new, _ops, _ops_lock, _run, op_status, ops  # noqa: F401
+from .jigsaw_flow import _op, _op_new, _op_job, _ops, _ops_lock, _run, op_status, ops  # noqa: F401
+from .jigsaw_flow import OpCancelled, cancel_op  # noqa: F401  #352
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _TOOLS = os.path.join(_ROOT, "tools")
@@ -698,8 +699,19 @@ def _rank_row(collection: str, kind: str, rank: str, pushed: dict) -> dict:
     }
     try:
         m = collection_meta(collection, kind)
-        gor = (m.get("ranks") or {}).get(str(rank).upper()) or {}
-        row["prompt"] = str(gor.get("prompt") or "")
+        R = str(rank).upper()
+        gor = (m.get("ranks") or {}).get(R) or {}
+        # #352: once still'i URETEN gercek prompt (state.still.prompt), yoksa
+        # sablonun su anki onizlemesi, en sonda eski LLM/rotasyon metni.
+        metin = str((s.get("still") or {}).get("prompt") or "")
+        if not metin and not is_back(R):
+            try:
+                t = _sablonlar_oku(collection, kind, m, [R]).get(R) or {}
+                p3 = template_text(t)
+                metin = look_text(m.get("theme") or "", {"look": p3}) if p3 else ""
+            except Exception:
+                metin = ""
+        row["prompt"] = metin or str(gor.get("prompt") or "")
         row["look"] = str(gor.get("look") or "")
         row["pose"] = str(gor.get("pose") or "")
         row["age"] = int(gor.get("age") or 0)
@@ -752,8 +764,11 @@ def _collection_ranks(collection: str, kind: str) -> list[str]:
     if kind_id(kind) == "dealer":
         return [MAIN] if os.path.isdir(d) else []
     try:
+        # #352: BACK (kart arkasi) bir RUTBE DEGILDIR - animasyon, kesim, push ve
+        # manifest dongulerine girmez. Klasoru `stills(["BACK"])` acar; yalniz
+        # Koleksiyon Karti ekraninin 16. yuvasi olarak yasar (slots_of).
         adlar = [a for a in os.listdir(d) if os.path.isdir(os.path.join(d, a))
-                 and not a.startswith("_") and a != "cut"]
+                 and not a.startswith("_") and a != "cut" and not is_back(a)]
     except OSError:
         return []
     sira = {r.lower(): i for i, r in enumerate(list(RANK_ORDER) + list(JOKER_RANKS))}
@@ -856,7 +871,12 @@ def _incoming_list() -> list[dict]:
 
 # --------------------------------------------------------- comfy_gen kuyrugu
 def _await_job(job_id: str, op_id: str, etiket: str, timeout: int = 3 * 3600) -> str:
-    """#299: tek comfy_gen isini bekler, cikti dosyasinin yolunu doner."""
+    """#299: tek comfy_gen isini bekler, cikti dosyasinin yolunu doner.
+
+    #352: is op defterine yazilir; kullanici op'u iptal ederse (`_op` OpCancelled
+    firlatir) beklenen comfy isi de kesilir - ComfyUI bosuna calismaz.
+    """
+    _op_job(op_id, job_id)
     t0 = time.time()
     while time.time() - t0 < timeout:
         time.sleep(3)
@@ -871,7 +891,14 @@ def _await_job(job_id: str, op_id: str, etiket: str, timeout: int = 3 * 3600) ->
             return f
         if st in ("error", "cancelled"):
             raise RuntimeError(j.get("error") or st)
-        _op(op_id, message="%s  %s %%%d" % (etiket, st, j.get("progress") or 0))
+        try:
+            _op(op_id, message="%s  %s %%%d" % (etiket, st, j.get("progress") or 0))
+        except OpCancelled:
+            try:
+                G.cancel_job(job_id)
+            except Exception:
+                pass
+            raise
     raise RuntimeError("zaman asimi: %s" % etiket)
 
 
@@ -1182,7 +1209,8 @@ def _still_job(collection: str, kind: str, rank: str, index: int, m: dict) -> di
                     client="flow", category=collection)
 
 
-def _kabul_still(collection: str, kind: str, rank: str, src: str, job_id: str = "") -> str:
+def _kabul_still(collection: str, kind: str, rank: str, src: str, job_id: str = "",
+                 prompt: str = "") -> str:
     d = rank_dir(collection, rank, kind, create=True)
     _yedekle_still(d)
     p = _to_png(src, os.path.join(d, "still.png"))
@@ -1192,8 +1220,13 @@ def _kabul_still(collection: str, kind: str, rank: str, src: str, job_id: str = 
         _still_webp(p, os.path.join(d, "still.webp"), kind)
     except Exception:
         pass
-    _set_state(collection, rank, kind,
-               still={"at": datetime.now().isoformat(timespec="seconds"), "job": job_id})
+    # #352: bu gorseli ureten GERCEK prompt state'e yazilir - kart detayindaki
+    # "Prompt" satiri eskiden collection.json'daki bayat LLM metnini gosteriyordu
+    # (sablon sistemine gecildiginden beri o metin uretime hic girmiyor).
+    kayit = {"at": datetime.now().isoformat(timespec="seconds"), "job": job_id}
+    if prompt:
+        kayit["prompt"] = prompt[:2000]
+    _set_state(collection, rank, kind, still=kayit)
     return p
 
 
@@ -1264,6 +1297,61 @@ def delete_candidate(collection: str, rank: str, file: str, kind: str = "") -> d
     k = kind_id(kind)
     os.remove(_aday_yolu(collection, rank, k, file))
     return {"deleted": 1, "candidates": candidates(collection, rank, k)}
+
+
+def clear_rank(collection: str, rank: str, kind: str = "") -> dict:
+    """#352: rutbeyi BOSA dondurur - begenilmeyen kart atilir.
+
+    still / adaylar / video / sheet / thumb / kesim kareleri / ek animasyonlar /
+    state silinir; rutbe klasoru ve koleksiyon kalir ("1 Still" ile yeniden
+    uretilir). Krupiyede rutbe klasoru = krupiye klasoru: collection.json ve
+    _pushed.json korunur. Kart daha once push edildiyse R2'deki dosyalar
+    KALIR (yayin geri alinamaz) - yalniz yerel _pushed.json kaydi dusurulur ki
+    bir sonraki manifest o karti saymasin.
+    """
+    k = kind_id(kind)
+    collection_meta(collection, k)
+    d = rank_dir(collection, rank, k)
+    if not os.path.isdir(d):
+        raise ValueError("rutbe klasoru yok: %s" % rank)
+    korunan = {"collection.json", "_pushed.json"}
+    silinen = 0
+    for a in os.listdir(d):
+        if a in korunan:
+            continue
+        p = os.path.join(d, a)
+        try:
+            if os.path.isdir(p):
+                shutil.rmtree(p)
+            else:
+                os.remove(p)
+            silinen += 1
+        except OSError:
+            pass
+    pj = os.path.join(col_dir(collection, k), "_pushed.json")
+    pushed = _read_json(pj, {}) or {}
+    cid = card_id(collection, rank, k)
+    if isinstance(pushed.get("cards"), dict) and pushed["cards"].pop(cid, None) is not None:
+        _write_json(pj, pushed)
+    return {"collection": collection, "rank": str(rank).upper(), "kind": k,
+            "deleted": silinen}
+
+
+def delete_collection(collection: str, kind: str = "") -> dict:
+    """#352: koleksiyonu (ya da krupiyeyi) klasoruyle birlikte siler - GERI ALINAMAZ.
+
+    R2'ye push edilmis kartlar kovada kalir (yayin geri alinamaz, istemciler
+    baytlari saklar); manifest bir sonraki push'ta bu koleksiyonu yeniden
+    uretemeyecegi icin eski manifest girdisi de oldugu gibi kalir.
+    """
+    k = kind_id(kind)
+    d = col_dir(collection, k)
+    if not os.path.isfile(os.path.join(d, "collection.json")):
+        raise ValueError("koleksiyon yok: %s" % collection)
+    pushed = pushed_of(collection, k)
+    n = len(pushed.get("cards") or {})
+    shutil.rmtree(d)
+    return {"deleted": collection, "kind": k, "pushed_cards": n}
 
 
 def _yuz_rotus(collection: str, kind: str, rank: str, op_id: str, etiket: str) -> bool:
@@ -1355,16 +1443,17 @@ def stills(collection: str, ranks: list[str] | None = None, kind: str = "", n: i
                         _ops[op_id]["failed"] += 1
                     _op(op_id, log="%s kuyruga girmedi: %s" % (etiket, str(e)[:200]))
                     continue
-                isler.append((job["id"], r, etiket, i == 0))
+                _op_job(op_id, job["id"])                       # #352 iptal defteri
+                isler.append((job["id"], r, etiket, i == 0, job.get("combined") or ""))
                 _op(op_id, log="%s kuyrukta (%s)" % (etiket, job["id"][:8]))
         _op(op_id, total=len(isler), message="%d still kuyruga girdi" % len(isler))
-        for i, (jid, r, etiket, kabul) in enumerate(isler, 1):
+        for i, (jid, r, etiket, kabul, metin) in enumerate(isler, 1):
             _op(op_id, message="1/4 still  %d/%d  %s" % (i, len(isler), etiket))
             tasindi = False
             try:
                 src = _await_job(jid, op_id, etiket)
                 if kabul:
-                    yol = _kabul_still(collection, k, r, src, jid)
+                    yol = _kabul_still(collection, k, r, src, jid, prompt=metin)
                     # #353: koleksiyon ayari acikken yuz ayri gecisten gecer.
                     # Kart ARKASI desen oldugu icin atlanir.
                     if face_detail_on(m) and not is_back(r):
@@ -1587,6 +1676,13 @@ def set_template(collection: str, rank: str, data: dict, kind: str = "") -> dict
                         else look_text(m.get("theme") or "", {"look": template_text(t)}))}
 
 
+def _rotasyon_look(collection: str, kind: str, theme: str, rank: str, index: int) -> dict:
+    """#352: LLM'siz gorunus kaydi - jenerik rotasyon + birlesik metin (yedek alan)."""
+    look = look_for(collection, kind, rank, index)
+    look["prompt"] = look_text(theme, look)
+    return look
+
+
 def _looks_yaz(collection: str, kind: str, theme: str, ranks: list[str]) -> tuple[dict, str]:
     """Rutbe gorunusleri: once yerel LLM (#337), olmazsa jenerik rotasyon.
 
@@ -1687,11 +1783,15 @@ def create(collection_id: str, name: str = "", theme: str = "", jokers: int = 0,
          "style": "realistic", "kind": k,
          "jokers": j, "created": datetime.now().isoformat(timespec="seconds"),
          "ranks": {}}
-    yeni, yazan = _looks_yaz(cid, k, theme, ranks)
-    m["ranks"] = {str(r).upper(): yeni[r] for r in ranks}
-    if yazan == "llm":
-        m["prompts_by"] = "%s (%s)" % (PS.model_adi(),
-                                       datetime.now().isoformat(timespec="seconds"))
+    # #352: koleksiyon acilisinda LLM CAGRILMAZ. #345'ten beri still promptu
+    # sablon katmanlarindan (P1 tema + P2 guzellik + P3 eksenler) kurulur; buradaki
+    # LLM cagrisi (a) uretime hic girmeyen metin yaziyor, (b) 13 rutbe icin
+    # 30-120 sn surup telefonun 60 sn'lik istegini dusuruyor, (c) 12B modeli GPU
+    # seridi DISINDA yukluyordu. Eski jenerik rotasyon yalniz yedek alan olarak
+    # kalir; asil sablonlar hemen diske yazilir ki ilk acilista rastgele gelmesin.
+    m["ranks"] = {str(r).upper(): _rotasyon_look(cid, k, theme, r, i)
+                  for i, r in enumerate(ranks)}
+    m["templates"] = _sablonlar_oku(cid, k, m, slots_of(k, j))
     _save_collection(cid, k, m)
     for r in ranks:
         os.makedirs(rank_dir(cid, r, k), exist_ok=True)
@@ -1711,13 +1811,8 @@ def dealer_create(dealer_id: str, name: str = "", theme: str = "",
     if os.path.isfile(os.path.join(d, "collection.json")):
         raise ValueError("krupiye zaten var: %s" % ad)
     theme = (theme or "elegant casino dealer at the blackjack table").strip()
-    # #337: gorunusu yerel LLM yazar (temaya sadik, yas 20-26, acik kiyafet);
-    # LLM yoksa eski jenerik rotasyona duser.
-    yeni_look, yazan = _looks_yaz(ad, "dealer", theme, [MAIN])
-    look = yeni_look.get(MAIN) or yeni_look.get(MAIN.upper()) or {}
-    if not look:
-        look = look_for(ad, "dealer", MAIN, _tohum(ad) % 6)
-        look["prompt"] = look_text(theme, look)
+    # #352: LLM cagrisi kaldirildi (bkz. create) - still promptu sablondan kurulur.
+    look = _rotasyon_look(ad, "dealer", theme, MAIN, _tohum(ad) % 6)
     if (outfit or "").strip():
         look["outfit"] = outfit.strip()
         look["prompt"] = look_text(theme, look)
@@ -1726,6 +1821,7 @@ def dealer_create(dealer_id: str, name: str = "", theme: str = "",
          "theme": theme, "gesture": gesture or DEFAULT_GESTURE, "jokers": 0,
          "created": datetime.now().isoformat(timespec="seconds"),
          "ranks": {MAIN.upper(): look}}
+    m["templates"] = _sablonlar_oku(ad, "dealer", m, slots_of("dealer"))   # #352
     _save_collection(ad, "dealer", m)
     return {"collection": ad, "kind": "dealer", "dealer": ad, "ranks": [MAIN],
             "op": stills(ad, [MAIN], "dealer", 1)}
@@ -1788,7 +1884,7 @@ def edit(collection: str, rank: str, prompt: str, kind: str = "") -> str:
                            mode="free", client="flow", category=collection)
             jid = job["id"]
             out = _await_job(jid, op_id, "duzenle %s" % str(rank).upper())
-            _kabul_still(collection, k, rank, out, jid)
+            _kabul_still(collection, k, rank, out, jid, prompt="duzenle: " + prompt)
             tasindi = not os.path.isfile(out)
         except Exception as e:
             with _ops_lock:
@@ -1999,6 +2095,7 @@ def _animate_body(op_id: str, collection: str, kind: str, hedef: list[str],
                 _ops[op_id]["failed"] += 1
             _op(op_id, log="%s kuyruga girmedi: %s" % (etiket, str(e)[:200]))
             continue
+        _op_job(op_id, job["id"])                           # #352 iptal defteri
         isler.append((job["id"], r, etiket))
         _op(op_id, log="%s i2v kuyrukta (%s)" % (etiket, job["id"][:8]))
     _op(op_id, message="%s  %d is kuyruga girdi" % (etiket_on, len(isler)))
@@ -2397,6 +2494,7 @@ def _realify_body(op_id: str, collection: str, kind: str, hedef: list[str],
                 _ops[op_id]["failed"] += 1
             _op(op_id, log="%s kuyruga girmedi: %s" % (etiket, str(e)[:200]))
             continue
+        _op_job(op_id, job["id"])                           # #352 iptal defteri
         isler.append((job["id"], r, etiket))
         _op(op_id, log="%s gercekci kuyrukta (%s)" % (etiket, job["id"][:8]))
     _op(op_id, message="%s  %d is kuyruga girdi" % (etiket_on, len(isler)))

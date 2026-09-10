@@ -27,6 +27,29 @@ _waiting: list[dict] = []          # FIFO biletler
 _current: dict | None = None
 _history: list[dict] = []          # son 30 tamamlanan
 
+
+class LaneCancelled(RuntimeError):
+    """#352: bilet daha serit alinmadan kullanici tarafindan dusuruldu."""
+
+
+def cancel_ticket(ticket_id: str = "", op_id: str = "", job_id: str = "") -> dict:
+    """#352: BEKLEYEN bir bileti dusurur (bilet id'si, op id'si ya da is id'si ile).
+
+    Calisan bilet buradan kesilmez - onun isi (comfy isi ya da op govdesi)
+    kendi kanalindan iptal edilir: comfy_gen.cancel_job / jigsaw_flow.cancel_op.
+    Bekleyen bileti tutan is parcacigi hold() icinde uyanir ve LaneCancelled
+    ile cikar; serit hic alinmaz.
+    """
+    with _cv:
+        hedef = [w for w in _waiting
+                 if (ticket_id and w["id"] == ticket_id)
+                 or (op_id and w.get("op_id") == op_id)
+                 or (job_id and w.get("job_id") == job_id)]
+        for w in hedef:
+            w["cancelled"] = True
+        _cv.notify_all()
+        return {"cancelled": len(hedef), "ids": [w["id"] for w in hedef]}
+
 # #349: serit el degistirirken bellek birakma.
 # Kullanicinin tarifi: "islem ve model degistikce free eder". Ayni turden
 # arka arkaya gelen isler (ornegin 75 still) ARADA BOSALTMAZ - yalnizca tur
@@ -80,7 +103,17 @@ def hold(label: str, kind: str = "gpu", *, op_id: str = "", job_id: str = "", to
     with _cv:
         _waiting.append(t)
         while _current is not None or _waiting[0] is not t:
+            if t.get("cancelled"):
+                # #352: kullanici Sira ekranindan bekleyen bileti dusurdu -
+                # serit hic alinmaz, is govdesi hic baslamaz.
+                _waiting.remove(t)
+                _cv.notify_all()
+                raise LaneCancelled("sirada iptal edildi: %s" % label)
             _cv.wait()
+        if t.get("cancelled"):
+            _waiting.remove(t)
+            _cv.notify_all()
+            raise LaneCancelled("sirada iptal edildi: %s" % label)
         _waiting.remove(t)
         t["started_at"] = datetime.now().isoformat(timespec="seconds")
         t["t1"] = time.time()

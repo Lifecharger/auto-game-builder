@@ -686,8 +686,13 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
           label: '$_count',
           onChanged: (v) => setState(() => _count = v.round()),
         ),
-        if (t != null && t.width > 0)
-          Text('Olcu: ${t.width} x ${t.height}',
+        // #352: oran secici acikken GERCEK gonderilen olcu yazilir - eskiden
+        // 16:9 secilse bile gorevin varsayilani (896x1600) gorunuyordu.
+        if (t != null && (_modeDef.aspects || t.width > 0))
+          Text(
+              _modeDef.aspects
+                  ? 'Olcu: ${_aspectSize.$1} x ${_aspectSize.$2}  ($_aspect)'
+                  : 'Olcu: ${t.width} x ${t.height}',
               style: const TextStyle(color: Colors.grey, fontSize: 12)),
         const SizedBox(height: 16),
         FilledButton.icon(

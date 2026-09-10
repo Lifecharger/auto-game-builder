@@ -105,23 +105,31 @@ class _CbnFlowScreenState extends State<CbnFlowScreen>
   void _watch(String opId) {
     _opPoll?.cancel();
     var tick = 0;
+    var hata = 0;
     _opPoll = Timer.periodic(const Duration(seconds: 2), (t) async {
       try {
         final o = await CbnFlowService.op(opId);
         if (!mounted) return;
+        hata = 0;
         setState(() => _op = o);
         tick++;
         if (!o.running) {
           t.cancel();
           _snack(o.status == 'error'
               ? 'Islem hatasi: ${o.message}'
-              : '${o.ok} tamam${o.failed > 0 ? ", ${o.failed} hata" : ""}');
+              : o.status == 'cancelled'
+                  ? 'Islem iptal edildi'
+                  : '${o.ok} tamam${o.failed > 0 ? ", ${o.failed} hata" : ""}');
           _load();
         } else if (o.kind.startsWith('cbn-') && tick % 10 == 0) {
           _load();
         }
       } catch (_) {
-        t.cancel();
+        // #352: gecici ag hatasi cubugu donmus birakmasin - 3 ardisik hatada birak.
+        if (++hata >= 3) {
+          t.cancel();
+          if (mounted) setState(() => _op = null);
+        }
       }
     });
   }

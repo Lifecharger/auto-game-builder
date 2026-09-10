@@ -6051,6 +6051,52 @@ def unified_queue():
     return queue_view.snapshot()
 
 
+class QueueCancelRequest(BaseModel):
+    """#352: birlesik siradan iptal - bilet, op ya da comfy isi kimligiyle."""
+    ticket_id: str = ""
+    op_id: str = ""
+    job_id: str = ""
+
+
+@app.post("/api/queue/cancel")
+def unified_queue_cancel(body: QueueCancelRequest):
+    """#352: Sira ekranindaki HER SATIR iptal edilebilir.
+
+    * comfy isi (job_id): kuyruktan cikar / calisani keser (comfy_gen.cancel_job)
+    * akis op'u (op_id): op defterine bayrak + actigi comfy isleri + serit bileti
+      (jigsaw_flow.cancel_op); govde bir sonraki ilerleme adiminda durur
+    * yalniz bilet (ticket_id): bilet op/is tasiyorsa onlara cevrilir, bekleyen
+      bilet seritten dusurulur
+    """
+    from core import gpu_lane
+    from core import jigsaw_flow as JF
+    op_id, job_id = (body.op_id or "").strip(), (body.job_id or "").strip()
+    tid = (body.ticket_id or "").strip()
+    if tid and not (op_id or job_id):
+        st = gpu_lane.status()
+        adaylar = ([st["running"]] if st.get("running") else []) + (st.get("waiting") or [])
+        for w in adaylar:
+            if w and w.get("id") == tid:
+                op_id, job_id = w.get("op_id") or "", w.get("job_id") or ""
+                break
+    out = {"ok": False, "job": False, "op": None, "ticket": None}
+    if job_id:
+        try:
+            out["job"] = bool(_gen_ready().cancel_job(job_id))
+        except Exception:
+            out["job"] = False
+    if op_id:
+        out["op"] = JF.cancel_op(op_id)
+    if tid:
+        out["ticket"] = gpu_lane.cancel_ticket(ticket_id=tid)
+    out["ok"] = bool(out["job"] or (out["op"] or {}).get("ok")
+                     or (out["ticket"] or {}).get("cancelled"))
+    if not out["ok"]:
+        raise HTTPException(400, (out["op"] or {}).get("detail")
+                            or "iptal edilecek is bulunamadi")
+    return out
+
+
 @app.get("/api/cbn/profiles")
 def cbn_profiles():
     return _flow_call(_cbn().profiles)
@@ -6562,6 +6608,19 @@ def card_flow_pick(body: CardPickRequest):
 def card_flow_candidate_delete(collection: str, rank: str, file: str, kind: str = "card"):
     """#336: bir adayi siler (secili still'e dokunmaz)."""
     return _flow_call(_card().delete_candidate, collection, rank, file, kind)
+
+
+@app.delete("/api/card/flow/rank")
+def card_flow_rank_clear(collection: str, rank: str, kind: str = "card"):
+    """#352: rutbeyi bosa dondurur - still/aday/video/sheet/animasyon silinir,
+    klasor kalir. Krupiyede rank=main."""
+    return _flow_call(_card().clear_rank, collection, rank, kind)
+
+
+@app.delete("/api/card/flow/collection")
+def card_flow_collection_delete(id: str, kind: str = "card"):
+    """#352: koleksiyonu / krupiyeyi klasoruyle siler. GERI ALINAMAZ (R2 kalir)."""
+    return _flow_call(_card().delete_collection, id, kind)
 
 
 @app.post("/api/card/flow/edit")

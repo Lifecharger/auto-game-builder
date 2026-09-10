@@ -438,20 +438,28 @@ class _CardFlowScreenState extends State<CardFlowScreen>
   void _watch(String opId) {
     if (opId.isEmpty) return;
     _opPoll?.cancel();
+    var hata = 0;
     _opPoll = Timer.periodic(const Duration(seconds: 3), (t) async {
       try {
         final o = await CardFlowService.op(opId);
         if (!mounted) return;
+        hata = 0;
         setState(() => _op = o);
         if (!o.running) {
           t.cancel();
           _snack(o.status == 'error'
               ? 'Islem hatasi: ${o.message}'
-              : '${o.ok} tamam${o.failed > 0 ? ", ${o.failed} hata" : ""}');
+              : o.status == 'cancelled'
+                  ? 'Islem iptal edildi'
+                  : '${o.ok} tamam${o.failed > 0 ? ", ${o.failed} hata" : ""}');
           _load();
         }
       } catch (_) {
-        t.cancel();
+        // #352: gecici ag hatasi cubugu donmus birakmasin - 3 ardisik hatada birak.
+        if (++hata >= 3) {
+          t.cancel();
+          if (mounted) setState(() => _op = null);
+        }
       }
     });
   }
@@ -809,6 +817,14 @@ class _CardFlowScreenState extends State<CardFlowScreen>
             ListTile(
                 dense: true,
                 title: Text(ad, style: const TextStyle(fontWeight: FontWeight.bold))),
+            // #352: koleksiyon ayarlari listeden de acilir.
+            ListTile(
+              leading: const Icon(Icons.tune),
+              title: const Text('Koleksiyon Karti (ayarlar)'),
+              subtitle: const Text('tema, 16 yuva, model, yuz rotusu',
+                  style: TextStyle(fontSize: 11)),
+              onTap: () => Navigator.pop(c, 'card'),
+            ),
             ListTile(
               leading: const Icon(Icons.autorenew),
               title: const Text('Yeniden canlandir'),
@@ -824,11 +840,30 @@ class _CardFlowScreenState extends State<CardFlowScreen>
                   style: TextStyle(fontSize: 11)),
               onTap: () => Navigator.pop(c, 'realify'),
             ),
+            ListTile(
+              leading: Icon(Icons.delete_outline, color: AppColors.error),
+              title: Text('Koleksiyonu sil',
+                  style: TextStyle(color: AppColors.error)),
+              subtitle: const Text('klasor butun kartlariyla silinir - geri alinamaz',
+                  style: TextStyle(fontSize: 11)),
+              onTap: () => Navigator.pop(c, 'delete'),
+            ),
           ],
         ),
       ),
     );
     if (secim == null || !mounted) return;
+    if (secim == 'card') {
+      await Navigator.of(context).push(MaterialPageRoute<void>(
+        builder: (_) => CardTemplatesScreen(collection: id, title: ad, kind: 'card'),
+      ));
+      _load();
+      return;
+    }
+    if (secim == 'delete') {
+      await _deleteEntry(id, ad, kind: 'card');
+      return;
+    }
     try {
       // Eski Grok videosunu yeniden kesme yolu kaldirildi (kullanici: yeniden
       // canlandirma zaten still'den yeni video uretiyor).
@@ -846,6 +881,67 @@ class _CardFlowScreenState extends State<CardFlowScreen>
       _snack(e.message);
     } catch (e) {
       _snack(e.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
+  /// #352: koleksiyonu ya da krupiyeyi klasoruyle siler - GERI ALINAMAZ.
+  Future<void> _deleteEntry(String id, String ad, {required String kind}) async {
+    final krupiye = kind == 'dealer';
+    final ok = await _confirm(
+        '${krupiye ? "Krupiyeyi" : "Koleksiyonu"} sil - $ad',
+        '${krupiye ? "Krupiye" : "Koleksiyon"} klasoru butun dosyalariyla silinir.\n\n'
+            'GERI ALINAMAZ. R2\'ye push edilmis dosyalar kovada kalir.',
+        onay: 'Sil');
+    if (!ok) return;
+    try {
+      await CardFlowService.deleteCollection(id, kind: kind);
+      _snack('$ad silindi');
+    } on CardNotReadyException catch (e) {
+      _snack(e.message);
+    } catch (e) {
+      _snack(e.toString().replaceFirst('Exception: ', ''));
+    }
+    _load();
+  }
+
+  /// #352: krupiye satirina basili tutunca - ayarlar / sil.
+  Future<void> _dealerMenu(CardDealer d) async {
+    final secim = await showModalBottomSheet<String>(
+      context: context,
+      builder: (c) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+                dense: true,
+                title: Text(d.name, style: const TextStyle(fontWeight: FontWeight.bold))),
+            ListTile(
+              leading: const Icon(Icons.tune),
+              title: const Text('Krupiye Karti (ayarlar)'),
+              subtitle: const Text('tema, sablon, model, yuz rotusu',
+                  style: TextStyle(fontSize: 11)),
+              onTap: () => Navigator.pop(c, 'card'),
+            ),
+            ListTile(
+              leading: Icon(Icons.delete_outline, color: AppColors.error),
+              title: Text('Krupiyeyi sil', style: TextStyle(color: AppColors.error)),
+              subtitle: const Text('klasor butun dosyalariyla silinir - geri alinamaz',
+                  style: TextStyle(fontSize: 11)),
+              onTap: () => Navigator.pop(c, 'delete'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (secim == null || !mounted) return;
+    if (secim == 'card') {
+      await Navigator.of(context).push(MaterialPageRoute<void>(
+        builder: (_) =>
+            CardTemplatesScreen(collection: d.id, title: d.name, kind: 'dealer'),
+      ));
+      _load();
+    } else if (secim == 'delete') {
+      await _deleteEntry(d.id, d.name, kind: 'dealer');
     }
   }
 
@@ -1123,6 +1219,7 @@ class _CardFlowScreenState extends State<CardFlowScreen>
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () => _openDealer(d),
+        onLongPress: () => _dealerMenu(d),          // #352: ayarlar / sil
         child: Padding(
           padding: const EdgeInsets.fromLTRB(8, 8, 6, 8),
           child: Row(
@@ -1281,20 +1378,28 @@ class _CardCollectionPageState extends State<CardCollectionPage> {
   void _watch(String opId) {
     if (opId.isEmpty) return;
     _opPoll?.cancel();
+    var hata = 0;
     _opPoll = Timer.periodic(const Duration(seconds: 3), (t) async {
       try {
         final o = await CardFlowService.op(opId);
         if (!mounted) return;
+        hata = 0;
         setState(() => _op = o);
         if (!o.running) {
           t.cancel();
           _snack(o.status == 'error'
               ? 'Islem hatasi: ${o.message}'
-              : '${o.ok} tamam${o.failed > 0 ? ", ${o.failed} hata" : ""}');
+              : o.status == 'cancelled'
+                  ? 'Islem iptal edildi'
+                  : '${o.ok} tamam${o.failed > 0 ? ", ${o.failed} hata" : ""}');
           _load();
         }
       } catch (_) {
-        t.cancel();
+        // #352: gecici ag hatasi cubugu donmus birakmasin - 3 ardisik hatada birak.
+        if (++hata >= 3) {
+          t.cancel();
+          if (mounted) setState(() => _op = null);
+        }
       }
     });
   }
@@ -1432,10 +1537,30 @@ class _CardCollectionPageState extends State<CardCollectionPage> {
                 tooltip: 'Tumunu sec',
                 onPressed: () => setState(() => _sel.addAll(_ranks)),
               ),
+            // #352: Koleksiyon Karti (16 yuva + model + yuz rotusu) artik
+            // DOGRUDAN erisilir - eskiden yalniz bir kart secince cikan alt
+            // cubuktaki "Kart" dugmesinin arkasindaydi, bulunamiyordu.
+            IconButton(
+                icon: const Icon(Icons.tune),
+                tooltip: 'Koleksiyon Karti - tema, 16 yuva, model, yuz rotusu',
+                onPressed: _sablonlariAc),
             IconButton(
                 icon: const Icon(Icons.refresh),
                 tooltip: 'Yenile',
                 onPressed: _load),
+            PopupMenuButton<String>(
+              tooltip: 'Daha fazla',
+              onSelected: (v) => switch (v) {
+                'delete' => _deleteCollection(),
+                _ => _sablonlariAc(),
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(
+                    value: 'card', child: Text('Koleksiyon Karti (ayarlar)')),
+                PopupMenuItem(
+                    value: 'delete', child: Text('Koleksiyonu sil')),
+              ],
+            ),
           ],
         ),
         bottomNavigationBar: _selecting ? _actionBar() : null,
@@ -1462,13 +1587,14 @@ class _CardCollectionPageState extends State<CardCollectionPage> {
     if (mounted) _load();
   }
 
-  /// #346: koleksiyonun KARTI - temasi en ustte durur ve dokununca degisir.
-  /// Koleksiyonla ilgili fikir degisirse buradan duzeltilir; yalniz olusturma
-  /// penceresinde kalmasi yetmiyordu.
+  /// #346/#352: koleksiyonun KARTI - temasi en ustte durur; dokununca
+  /// Koleksiyon Karti EKRANI acilir (tema + 16 yuva + model + yuz rotusu).
+  /// Eskiden buradan eski kucuk tema penceresi aciliyordu, yeni ekran
+  /// baska bir yolun arkasinda kaliyordu.
   Widget _temaSeridi() {
     final tema = _c?.theme ?? '';
     return InkWell(
-      onTap: _temaDuzenle,
+      onTap: _sablonlariAc,
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
@@ -1479,102 +1605,66 @@ class _CardCollectionPageState extends State<CardCollectionPage> {
             const SizedBox(width: 6),
             Expanded(
               child: Text(
-                  tema.isEmpty ? 'Tema yok - dokun ve yaz' : tema,
-                  maxLines: 2,
+                  tema.isEmpty
+                      ? 'Tema yok - dokun: Koleksiyon Karti'
+                      : '$tema\nKoleksiyon Karti: dokun (tema, 16 yuva, model, yuz rotusu)',
+                  maxLines: 3,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                       fontSize: 11,
                       color: tema.isEmpty ? AppColors.error : Colors.grey)),
             ),
-            const Icon(Icons.edit, size: 14, color: Colors.grey),
+            const Icon(Icons.tune, size: 14, color: Colors.grey),
           ],
         ),
       ),
     );
   }
 
-  Future<void> _temaDuzenle() async {
-    final c = TextEditingController(text: _c?.theme ?? '');
-    final sablonlar = await CardFlowService.presets();
-    if (!mounted) return;
-    final secim = await showDialog<String>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setLocal) => AlertDialog(
-          scrollable: true,
-          title: const Text('Koleksiyon karti'),
-          content: SizedBox(
-            width: 440,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (sablonlar.isNotEmpty) ...[
-                  const Text('Hazir kart (dokun, sonra elle duzenle)',
-                      style: TextStyle(fontSize: 11, color: Colors.grey)),
-                  const SizedBox(height: 4),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 4,
-                    children: [
-                      for (final sb in sablonlar)
-                        ActionChip(
-                          label: Text(sb.label,
-                              style: const TextStyle(fontSize: 11)),
-                          onPressed: () => setLocal(() => c.text = sb.theme),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                ],
-                TextField(
-                  controller: c,
-                  maxLines: 6,
-                  decoration: const InputDecoration(
-                    labelText: 'Tema',
-                    helperText:
-                        'Formul: kimlik + STRICT PALETTE + Signature pieces',
-                    helperMaxLines: 2,
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx), child: const Text('Vazgec')),
-            TextButton(
-                onPressed: () => Navigator.pop(ctx, 'kaydet'),
-                child: const Text('Kaydet')),
-            FilledButton(
-                onPressed: () => Navigator.pop(ctx, 'yaz'),
-                child: const Text('Kaydet + prompt yaz')),
-          ],
-        ),
-      ),
-    );
-    if (secim == null) return;
-    final t = c.text.trim();
-    if (t.isEmpty) {
-      _snack('Tema bos olamaz');
-      return;
-    }
+  /// #352: koleksiyonu klasoruyle siler - GERI ALINAMAZ.
+  Future<void> _deleteCollection() async {
+    final (s, _, _, p) = _c?.progress ?? (0, 0, 0, 0);
+    final ok = await _confirm(
+        'Koleksiyonu sil - ${widget.title}',
+        'Koleksiyon klasoru butun kartlariyla silinir ($s still'
+            '${p > 0 ? ", $p push edilmis" : ""}).\n\n'
+            'GERI ALINAMAZ. R2\'ye push edilmis dosyalar kovada kalir.',
+        onay: 'Sil');
+    if (!ok) return;
     try {
-      await CardFlowService.setTheme(widget.id, t, kind: 'card');
-      if (secim == 'yaz') {
-        _snack('Promptlar yaziliyor - yerel LLM biraz surebilir');
-        final d = await CardFlowService.rewriteLooks(widget.id, kind: 'card');
-        if (!mounted) return;
-        _snack('Promptlar yazildi (${d['written_by'] ?? 'llm'})');
-      } else {
-        _snack('Tema kaydedildi');
-      }
-      await _load();
-    } catch (e) {
+      await CardFlowService.deleteCollection(widget.id, kind: 'card');
       if (!mounted) return;
+      Navigator.of(context).pop();
+    } on CardNotReadyException catch (e) {
+      _snack(e.message);
+    } catch (e) {
       _snack(e.toString().replaceFirst('Exception: ', ''));
     }
+  }
+
+  /// #352: secili kartlari BOSA dondurur (still/aday/video/sheet silinir,
+  /// rutbe kalir) - begenilmeyen kart atilip "1 Still" ile yeniden uretilir.
+  Future<void> _clearSelected() async {
+    final r = _sel.toList()..sort();
+    if (r.isEmpty) return;
+    final ok = await _confirm(
+        'Kartlari temizle',
+        '${r.join(", ")} - still, adaylar, video ve webp silinir; rutbe bos '
+            'kalir ("1 Still" ile yeniden uretilir).',
+        onay: 'Temizle');
+    if (!ok) return;
+    var hata = 0;
+    for (final rank in r) {
+      try {
+        await CardFlowService.clearRank(widget.id, rank, kind: 'card');
+      } catch (_) {
+        hata++;
+      }
+    }
+    if (!mounted) return;
+    setState(_sel.clear);
+    _snack(hata == 0 ? '${r.length} kart temizlendi' : '$hata kart temizlenemedi');
+    _load();
   }
 
   Widget _opBar() => Padding(
@@ -1635,45 +1725,12 @@ class _CardCollectionPageState extends State<CardCollectionPage> {
               _act(Icons.movie_creation_outlined, '2 Video', () => _animate()),
               _act(Icons.content_cut, '3 WebP', () => _cut()),
               _act(Icons.edit_outlined, 'Duzenle', _edit),
-              _act(Icons.style, 'Kart', _sablonlariAc),
+              // #352: begenilmeyen karti at (rutbe bosa doner).
+              _act(Icons.delete_sweep_outlined, 'Temizle', _clearSelected),
             ],
           ),
         ),
       );
-
-  /// #337: rutbe promptlarini yerel LLM'e yeniden yazdirir. Dosyalara
-  /// DOKUNMAZ - sonra "1 Still" ile yeniden uretilir.
-  Future<void> _rewriteLooks() async {
-    final onay = await showDialog<bool>(
-      context: context,
-      builder: (c) => AlertDialog(
-        title: const Text('Promptlari yeniden yaz'),
-        content: const Text(
-            'Yerel LLM koleksiyonun temasina gore her rutbeye yeni gorunus '
-            '(yas 20-26, ten, sac, kiyafet, poz) yazar. Mevcut still / video / '
-            'sheet dosyalarina DOKUNULMAZ - yeni promptlarla uretmek icin '
-            'sonra "1 Still" calistir.'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(c, false), child: const Text('Vazgec')),
-          FilledButton(
-              onPressed: () => Navigator.pop(c, true), child: const Text('Yaz')),
-        ],
-      ),
-    );
-    if (onay != true) return;
-    _snack('Promptlar yaziliyor - yerel LLM biraz surebilir');
-    try {
-      // Bu sayfa yalniz kart koleksiyonlarini acar; krupiyenin kendi sayfasi var.
-      final d = await CardFlowService.rewriteLooks(widget.id, kind: 'card');
-      if (!mounted) return;
-      _snack('Promptlar yazildi (${d['written_by'] ?? 'llm'})');
-      await _load();
-    } catch (e) {
-      if (!mounted) return;
-      _snack(e.toString().replaceFirst('Exception: ', ''));
-    }
-  }
 
   Widget _act(IconData i, String t, VoidCallback? f) => Expanded(
         child: Column(
@@ -1938,20 +1995,28 @@ class _CardDetailPageState extends State<CardDetailPage> {
   void _watch(String opId) {
     if (opId.isEmpty) return;
     _opPoll?.cancel();
+    var hata = 0;
     _opPoll = Timer.periodic(const Duration(seconds: 3), (t) async {
       try {
         final o = await CardFlowService.op(opId);
         if (!mounted) return;
+        hata = 0;
         setState(() => _op = o);
         if (!o.running) {
           t.cancel();
           _snack(o.status == 'error'
               ? 'Islem hatasi: ${o.message}'
-              : '${o.ok} tamam${o.failed > 0 ? ", ${o.failed} hata" : ""}');
+              : o.status == 'cancelled'
+                  ? 'Islem iptal edildi'
+                  : '${o.ok} tamam${o.failed > 0 ? ", ${o.failed} hata" : ""}');
           _load();
         }
       } catch (_) {
-        t.cancel();
+        // #352: gecici ag hatasi cubugu donmus birakmasin - 3 ardisik hatada birak.
+        if (++hata >= 3) {
+          t.cancel();
+          if (mounted) setState(() => _op = null);
+        }
       }
     });
   }
@@ -2014,6 +2079,44 @@ class _CardDetailPageState extends State<CardDetailPage> {
             anim: _anim));
   }
 
+  /// #352: kart -> rutbeyi bosa dondur (still/aday/video/sheet silinir);
+  /// krupiye -> krupiyeyi klasoruyle sil. Ikisi de onaylidir.
+  Future<void> _deleteThis() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        scrollable: true,
+        title: Text(_dealer ? 'Krupiyeyi sil' : 'Karti temizle'),
+        content: Text(_dealer
+            ? '${widget.title} klasoru butun dosyalariyla silinir. GERI ALINAMAZ.'
+            : '${widget.title}: still, adaylar, video, webp ve animasyonlar '
+                'silinir; rutbe bos kalir ("1 Still" ile yeniden uretilir).'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(c, false), child: const Text('Vazgec')),
+          FilledButton(
+              onPressed: () => Navigator.pop(c, true),
+              child: Text(_dealer ? 'Sil' : 'Temizle')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      if (_dealer) {
+        await CardFlowService.deleteCollection(widget.collection, kind: 'dealer');
+      } else {
+        await CardFlowService.clearRank(widget.collection, widget.rank,
+            kind: widget.kind);
+      }
+      if (!mounted) return;
+      Navigator.of(context).pop();
+    } on CardNotReadyException catch (e) {
+      _snack(e.message);
+    } catch (e) {
+      _snack(e.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
   // ------------------------------------------------------------ gorunum
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -2024,6 +2127,10 @@ class _CardDetailPageState extends State<CardDetailPage> {
                 icon: const Icon(Icons.refresh),
                 tooltip: 'Yenile',
                 onPressed: _load),
+            IconButton(
+                icon: Icon(Icons.delete_outline, color: AppColors.error),
+                tooltip: _dealer ? 'Krupiyeyi sil' : 'Karti temizle (rutbe bosa doner)',
+                onPressed: _deleteThis),
           ],
         ),
         body: _loading
