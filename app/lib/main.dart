@@ -24,6 +24,7 @@ import 'screens/asset_generate_screen.dart';
 import 'screens/asset_gallery_screen.dart';
 import 'screens/asset_queue_screen.dart';
 import 'screens/asset_flow_hub.dart';
+import 'screens/delivery_screen.dart';   // #363
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -109,9 +110,11 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
   late Animation<double> _fadeAnimation;
   AppState? _appStateRef;
 
-  /// Uygulama modu. Code Mod = proje yonetimi, Asset Mod = yerel uretim.
-  /// Settings her iki modda da son sekme olarak sabit kalir.
-  bool _assetMode = false;
+  /// Uygulama modu. Code Mod = proje yonetimi, Asset Mod = yerel uretim,
+  /// Delivery Mod (#363) = sunum kurallari. Settings her modda son sekmedir.
+  String _mode = ModeService.code;
+  bool get _assetMode => _mode == ModeService.asset;
+  bool get _deliveryMode => _mode == ModeService.delivery;
 
   static const _codeScreens = [
     DashboardScreen(),
@@ -131,7 +134,14 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
     SettingsScreen(),
   ];
 
-  List<Widget> get _screens => _assetMode ? _assetScreens : _codeScreens;
+  static const _deliveryScreens = [
+    DeliveryScreen(),
+    SettingsScreen(),
+  ];
+
+  List<Widget> get _screens => _deliveryMode
+      ? _deliveryScreens
+      : (_assetMode ? _assetScreens : _codeScreens);
 
   /// ModeService degisince modu uygular. Sekme indeksi sifirlanir,
   /// yoksa yeni moddaki daha kisa listede tasar.
@@ -140,7 +150,7 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
     _fadeController.reverse().then((_) {
       if (!mounted) return;
       setState(() {
-        _assetMode = ModeService.isAsset;
+        _mode = ModeService.mode.value;
         _currentIndex = 0;
       });
       context.read<AppState>().setActiveTab(0);
@@ -159,7 +169,7 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
       CurvedAnimation(parent: _fadeController, curve: Curves.easeInOut),
     );
     _fadeController.value = 1.0;
-    ModeService.assetMode.addListener(_onModeChanged);
+    ModeService.mode.addListener(_onModeChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _appStateRef = context.read<AppState>();
       _appStateRef!.addListener(_onAppStateChanged);
@@ -170,7 +180,7 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
 
   @override
   void dispose() {
-    ModeService.assetMode.removeListener(_onModeChanged);
+    ModeService.mode.removeListener(_onModeChanged);
     _appStateRef?.removeListener(_onAppStateChanged);
     _fadeController.dispose();
     super.dispose();
@@ -278,6 +288,11 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
           _switchTab(0);
           return;
         }
+        // Delivery -> Asset -> Code sirasiyla geri.
+        if (_deliveryMode) {
+          ModeService.setMode(ModeService.asset);
+          return;
+        }
         // Asset Mod'un ilk sekmesindeysek once Code Mod'a don
         if (_assetMode) {
           ModeService.set(false);
@@ -353,7 +368,18 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
         currentIndex: _currentIndex,
         onTap: _switchTab,
         type: BottomNavigationBarType.fixed,
-        items: _assetMode
+        items: _deliveryMode
+            ? const [
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.local_shipping_outlined),
+                  label: 'Dagitim',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.settings),
+                  label: 'Ayarlar',
+                ),
+              ]
+            : _assetMode
             ? [
                 // #352: sira = Uretim | Uretilenler | Hat | Sira | Ayarlar
                 const BottomNavigationBarItem(

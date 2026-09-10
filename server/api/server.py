@@ -6060,6 +6060,53 @@ def gpu_queue():
     return gpu_lane.status()
 
 
+# ------------------------------------------------- Delivery Mod (gorev #363)
+# Uygulamalara ne sunulacaginin ac/kapa anahtarlari (rating / safety / voyeur ...).
+# Kurallar hotjigsaw-scanner worker'inda (KV) yasar; buradan okunur/yazilir,
+# degisiklik sonraki manifest isteginde canli. Bkz. core/delivery.py.
+def _delivery():
+    from core import delivery
+    return delivery
+
+
+class DeliveryRulesRequest(BaseModel):
+    default: dict = {}
+    apps: dict = {}
+
+
+@app.get("/api/delivery/overview")
+def delivery_overview():
+    """Kurallar + gercek deger dagilimi + uygulama basina sunulan/toplam."""
+    return _flow_call(_delivery().overview)
+
+
+@app.get("/api/delivery/rules")
+def delivery_rules():
+    return _flow_call(_delivery().rules)
+
+
+@app.put("/api/delivery/rules")
+def delivery_rules_save(body: DeliveryRulesRequest):
+    """Kurallari worker'a yazar - anlik canli (uygulama guncellemesi gerekmez)."""
+    return _flow_call(_delivery().save_rules, {"default": body.default, "apps": body.apps})
+
+
+@app.get("/api/delivery/values")
+def delivery_values(collection: str = "generic"):
+    return _flow_call(_delivery().values, collection)
+
+
+@app.get("/api/delivery/preview")
+def delivery_preview(app: str = ""):
+    return _flow_call(_delivery().preview, app)
+
+
+@app.get("/api/delivery/preset")
+def delivery_preset(name: str):
+    """Hizli on ayar govdesi (istemci bunu bir kural setine yazar)."""
+    return _flow_call(_delivery().preset, name)
+
+
 @app.get("/api/queue")
 def unified_queue():
     """#299: TEK Sira ekrani. Serit biletleri (op ilerlemesi eklenmis) +

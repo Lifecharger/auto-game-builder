@@ -608,6 +608,11 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
                   onPressed: () => ModeService.set(false),
                 ),
                 IconButton(
+                  icon: const Icon(Icons.local_shipping_outlined),
+                  tooltip: 'Delivery Mod',
+                  onPressed: () => ModeService.setMode(ModeService.delivery),   // #363
+                ),
+                IconButton(
                   icon: const Icon(Icons.refresh),
                   tooltip: 'Yenile',
                   onPressed: _load,

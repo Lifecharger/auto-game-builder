@@ -265,6 +265,12 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             tooltip: 'Asset Mod',
             onPressed: () => ModeService.set(true),
           ),
+          // #363: Delivery Mod - sunum kurallari (strike kill switch)
+          IconButton(
+            icon: const Icon(Icons.local_shipping_outlined),
+            tooltip: 'Delivery Mod',
+            onPressed: () => ModeService.setMode(ModeService.delivery),
+          ),
           IconButton(
             icon: const Icon(Icons.radar),
             tooltip: l10n.scanForProjects,
