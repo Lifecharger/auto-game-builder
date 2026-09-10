@@ -80,4 +80,16 @@ void main() {
     final size = t.getSize(find.byType(SegmentedButton<String>));
     expect(size.width, closeTo(360 - 24, 1));
   });
+
+  // #355: "Jigsaw Modu" -> " Mod" kirpilinca "Jigsawu" kaliyordu.
+  test('kindLabel: tablo + Mod/Modu eki kirpma', () {
+    expect(kindLabel('jigsaw', 'Jigsaw Modu'), 'Jigsaw');
+    expect(kindLabel('cbn', 'CBN Modu'), 'CBN');
+    expect(kindLabel('card', 'Kart Modu'), 'Kart');
+    expect(kindLabel('character', 'Karakter Modu'), 'Karakter');
+    expect(kindLabel('free', 'Free Mod'), 'Free');
+    expect(kindLabel('yeni', 'Yeni Kip Modu'), 'Yeni Kip');
+    expect(kindLabel('yeni', 'Yeni Mod'), 'Yeni');
+    expect(kindLabel('yeni'), 'yeni');
+  });
 }

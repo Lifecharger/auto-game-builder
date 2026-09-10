@@ -484,6 +484,8 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Uretim'),
+        // #355: kip anahtari Uretilenler/Hat ile AYNI yerde (app bar alti).
+        bottom: kindSwitchBottom(_modeSwitch()),
         actions: [
           if (_queueDepth > 0)
             Center(
@@ -549,8 +551,6 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
       children: [
-        _modeSwitch(),
-        const SizedBox(height: 14),
         if (!_comfyUp)
           Card(
             color: AppColors.error.withValues(alpha: 0.12),
@@ -954,18 +954,12 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
 
   /// #353: kip anahtari Uretilenler'dekiyle AYNI widget (FlowKindSwitch) -
   /// kisa etiketler (Free / Jigsaw / CBN / Kart / Karakter), tam genislik.
-  Widget _modeSwitch() {
-    if (_modes.length < 2) return const SizedBox.shrink();
-    return SizedBox(
-      width: double.infinity,
-      child: FlowKindSwitch(
-        items: {
-          for (final m in _modes)
-            m.id: m.label.replaceAll(' Mod', '').replaceAll(' Modu', ''),
-        },
-        selected: _mode,
-        onChanged: _setMode,
-      ),
+  Widget? _modeSwitch() {
+    if (_modes.length < 2) return null;
+    return FlowKindSwitch(
+      items: {for (final m in _modes) m.id: kindLabel(m.id, m.label)},
+      selected: _mode,
+      onChanged: _setMode,
     );
   }
 

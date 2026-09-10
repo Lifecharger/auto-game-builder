@@ -31,13 +31,7 @@ class _FlowHubState extends State<FlowHub> {
   // #353: Free de bir hat (basit: duzenle / video uret) - Uretilenler'deki
   // anahtarla ayni sira: Free | Jigsaw | CBN | Kart | Karakter.
   Widget _switch() => FlowKindSwitch(
-        items: const {
-          'free': 'Free',
-          'jigsaw': 'Jigsaw',
-          'cbn': 'CBN',
-          'card': 'Kart',
-          'character': 'Karakter',
-        },
+        items: kindLabels,                 // #355: tek kaynak
         selected: _kind,
         onChanged: (v) {
           HapticFeedback.selectionClick();

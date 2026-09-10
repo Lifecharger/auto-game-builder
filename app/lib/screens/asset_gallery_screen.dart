@@ -613,44 +613,34 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
                   onPressed: _load,
                 ),
               ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(92),
-          child: Column(
-            children: [
-              // Galeri kipe ozel - masaustundeki studyo ile ayni davranis.
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: FlowKindSwitch(                       // #327
-                  items: const {
-                    'free': 'Free',
-                    'jigsaw': 'Jigsaw',
-                    'cbn': 'CBN',
-                    'card': 'Kart',                           // #323
-                    'character': 'Karakter',
-                  },
-                  selected: _mode,
-                  onChanged: (v) {
-                    setState(() {
-                      _mode = v;
-                      _sel.clear();
-                    });
-                    _load();
-                  },
-                ),
+        // #355: uc ekranda da AYNI kalip (kindSwitchBottom) - ayni yukseklik,
+        // ayni yatay bosluk, ayni hiza.
+        bottom: kindSwitchBottom(
+          FlowKindSwitch(                               // #327
+            items: kindLabels,                          // #355: tek kaynak
+            selected: _mode,
+            onChanged: (v) {
+              setState(() {
+                _mode = v;
+                _sel.clear();
+              });
+              _load();
+            },
+          ),
+          tabs: PreferredSize(
+            preferredSize: const Size.fromHeight(46),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              child: Row(
+                children: [
+                  _chip('Hepsi', _Filter.all),
+                  _chip('Gorsel', _Filter.image),
+                  _chip('Video', _Filter.video),
+                  _chip('Favori', _Filter.favorite),
+                ],
               ),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                child: Row(
-                  children: [
-                    _chip('Hepsi', _Filter.all),
-                    _chip('Gorsel', _Filter.image),
-                    _chip('Video', _Filter.video),
-                    _chip('Favori', _Filter.favorite),
-                  ],
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),

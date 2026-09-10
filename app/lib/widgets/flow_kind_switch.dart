@@ -5,6 +5,22 @@ import 'package:flutter/material.dart';
 /// burada etiketler sarmaz, sigmayan etiket kendi yuvasinda kuculur.
 /// Tam genisliktir (expandedInsets); sinirli genislikli bir ebeveyn ister
 /// (govde, app bar'in alti = kindSwitchBottom). Basliga (title) KOYMA.
+/// #355: kip kimligi -> kisa etiket. Uretim, Uretilenler ve Hat hepsi BU
+/// tablodan okur; kimse "Jigsaw Modu"ndan kelime kirparak etiket uretmez
+/// ("Jigsawu" faciasi).
+const Map<String, String> kindLabels = {
+  'free': 'Free',
+  'jigsaw': 'Jigsaw',
+  'cbn': 'CBN',
+  'card': 'Kart',
+  'character': 'Karakter',
+};
+
+/// Tabloda olmayan kip icin sunucu etiketinden " Mod"/" Modu" ekini atar.
+String kindLabel(String id, [String? fallback]) =>
+    kindLabels[id] ??
+    (fallback ?? id).replaceAll(RegExp(r'\s+Modu?$', caseSensitive: false), '');
+
 class FlowKindSwitch extends StatelessWidget {
   const FlowKindSwitch({
     super.key,
