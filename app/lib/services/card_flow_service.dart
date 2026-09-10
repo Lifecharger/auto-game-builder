@@ -306,8 +306,8 @@ class CardAnim {
   bool get isIdle => name == 'idle';
 }
 
-/// #357: video motoru (koleksiyon ayari). MiniMax H3 bilerek yok - lisansi
-/// ciktilari kapsiyor, kart oyununa giren varlik onunla uretilmez.
+/// #357: video motoru (koleksiyon ayari) - liste sunucudan gelir (ltx, wan,
+/// minimax). MiniMax etiketi lisans uyarisi tasir (#358, kullanici istedi).
 class CardEngine {
   const CardEngine(this.id, this.label, {this.available = true});
   final String id;

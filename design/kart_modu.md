@@ -151,7 +151,9 @@ temizliyordu; bakilan still/video/webp tek basina silinemiyordu. Motor secimi yo
   state'e `source=vid` yazar (idle icin pushed kaydi duser). Ayni video birden fazla
   etikete atanabilir. `videos_of()` her videonun `tags` listesini bu kaynaktan turetir.
 - Motor: `collection.json.video_engine` = `ltx` | `wan`; `VIDEO_ENGINES` -> manifest gorevi.
-  Hepsi FLF2V (ilk kare = son kare). MiniMax H3 listeye ALINMAZ: lisans ciktilari kapsiyor.
+  Hepsi FLF2V (ilk kare = son kare). MiniMax H3 #358'de kullanicinin istegiyle eklendi
+  (`FLF2V MiniMax H3 Kart.json`, 576x864 sabit, 158 kare = 6.58 sn, iki LoadImage);
+  etiket lisans uyarisi tasir (AB/UK/ABD/G.Kore dagitim yasak).
   Wan: `FLF2V Wan2.2 14B Kart.json` (Lightning dali acik), wf2api Wan dugumlerine
   width/height/length yazar (81 kare = 5 sn ust sinir).
 - Tekil silme: `delete_asset(what=still|video|sheet, anim)`; havuza dokunmaz.

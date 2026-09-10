@@ -149,12 +149,15 @@ VIDEO_TASK = "video_ltx"
 # kapanir. Gorev manifest'te yoksa eski i2v'ye duser.
 VIDEO_TASK_LOOP = "video_ltx_flf"
 # #357: koleksiyon basina video motoru. HEPSI ilk kare = son kare (FLF2V)
-# calisir - dongu icin sart. MiniMax H3 BILEREK yok: lisansi ciktilari da
-# kapsiyor (AB/UK/ABD/G.Kore'de dagitim yasak), kart oyununa giren hicbir
-# varlik onunla uretilmez.
+# calisir - dongu icin sart. MiniMax H3 kullanicinin ISTEGIYLE listede
+# (#358): lisansi ciktilari da kapsiyor (AB/UK/ABD/G.Kore'de dagitim yasak);
+# secim kullanicinin, etiket uyariyor. H3 576x864'te calisir (16 GB VRAM'de
+# 1 MP x 158 kare tasar), guard/kesim olcuden bagimsiz.
 VIDEO_ENGINES = {
     "ltx": {"task": "video_ltx_flf", "label": "LTX-2.5 (sesli, 6 sn, ~6 dk/kart)"},
     "wan": {"task": "video_wan_flf", "label": "Wan 2.2 14B (sessiz, 5 sn, 4 adim)"},
+    "minimax": {"task": "video_minimax_flf",
+                "label": "MiniMax H3 (sesli, 576x864, 6.6 sn, ~10 dk/kart, LISANS: AB/UK/ABD/Kore dagitim yasak)"},
 }
 DEFAULT_ENGINE = "ltx"
 VIDEOS_DIR = "videos"          # #357: rutbenin video HAVUZU (<vid>.mp4 + <vid>.json)

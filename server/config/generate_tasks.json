@@ -83,6 +83,17 @@
    "enabled": true
   },
   {
+   "id": "video_minimax_flf",
+   "label": "Gorselden dongulu video (MiniMax H3, sesli, 576x864)",
+   "workflow": "FLF2V MiniMax H3 Kart.json",
+   "needs_image": true,
+   "is_video": true,
+   "width": 576,
+   "height": 864,
+   "duration": 6,
+   "enabled": true
+  },
+  {
    "id": "video_wan",
    "label": "Gorselden video (Wan)",
    "workflow": "Wan2.2 I2V.json",
