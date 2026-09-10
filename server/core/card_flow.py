@@ -76,6 +76,11 @@ INCOMING = "_Incoming Kart"
 # --------------------------------------------------------------- sozlesme
 RANK_ORDER = ("A", "K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3", "2")
 JOKER_RANKS = ("J1", "J2")
+# #348: kart ARKASI - destenin sirt deseni. Rutbe degil, koleksiyonun 16. yuvasi;
+# manifest'te kart olarak GECMEZ, kendi anahtariyla yayinlanir.
+BACK_RANK = "BACK"
+BACK_EKSENLER = ("motif", "palette", "finish")
+BACK_ETIKET = {"motif": "Motif", "palette": "Palet", "finish": "Yuzey"}
 RARITY_BY_RANK = {"A": "epic", "K": "rare", "Q": "rare", "J": "rare"}
 DEFAULT_RARITY = "common"
 JOKER_RARITY = "legendary"
@@ -563,6 +568,24 @@ def card_id(collection: str, rank: str, kind: str = "") -> str:
     if kind_id(kind) == "dealer":
         return str(collection).lower()
     return "%s_%s" % (collection, str(rank).lower())
+
+
+def slots_of(kind: str, jokers: int = 0) -> list[str]:
+    """#348: Koleksiyon Karti ekraninin 16 yuvasi = 13 rutbe + 2 joker + kart arkasi.
+
+    `ranks_of` URETIM rutbelerini verir (manifest, roster, sheet); bu ise
+    duzenleme ekraninin yuva listesidir.
+    """
+    if kind_id(kind) == "dealer":
+        return [MAIN.upper()]
+    # Duzenleme ekrani HER ZAMAN 16 yuva gosterir: 13 rutbe + 2 joker + arka.
+    # Koleksiyonun `jokers` ayari uretim/manifest tarafini ilgilendirir; joker
+    # yuvasina gorsel uretilirse ayar kendiliginden 2'ye cekilir (bkz. stills).
+    return list(RANK_ORDER) + list(JOKER_RANKS) + [BACK_RANK]
+
+
+def is_back(rank: str) -> bool:
+    return str(rank or "").strip().upper() == BACK_RANK
 
 
 def ranks_of(kind: str, jokers: int = 0) -> list[str]:
@@ -1093,9 +1116,21 @@ def _still_job(collection: str, kind: str, rank: str, index: int, m: dict) -> di
     """Tek rutbenin still isi (image_zimage, mode 'card')."""
     # #347: Pozitif 1 (tema) + Pozitif 3 (sablon eksenleri + manuel metin).
     # Pozitif 2 (guzellik) ve negatif asagida prompt2/negative olarak gider.
-    tpl = _sablonlar_oku(collection, kind, m,
-                         _collection_ranks(collection, kind) or [str(rank).lower()])
+    # #348: kart ARKASI kadin degil desen - kendi P2/negatifiyle uretilir.
+    arka = is_back(rank)
+    tpl = _sablonlar_oku(collection, kind, m, slots_of(kind, m.get("jokers", 0)))
     t = tpl.get(str(rank).upper()) or {}
+    if arka:
+        # Kart arkasina TEMA GIRMEZ: tema kadini tarif ediyor ("seductive young
+        # vampire woman...") ve arkada kadin cikmasina sebep oluyordu. Arka
+        # yalniz kendi eksenlerinden (motif/palet/yuzey) + manuel metinden kurulur.
+        metin = template_text(t, True)
+        olcu = still_size(kind)
+        return G.submit(STILL_TASK, metin, prompt2=_back_prompt2(),
+                        negative=_back_negative(),
+                        width=olcu[0], height=olcu[1],
+                        seed=random.randint(1, 2 ** 31), mode="card",
+                        client="flow", category=collection)
     p3 = template_text(t)
     if p3:
         metin = look_text(m.get("theme") or "", {"look": p3})
@@ -1203,7 +1238,19 @@ def stills(collection: str, ranks: list[str] | None = None, kind: str = "", n: i
     """
     k = kind_id(kind)
     m = collection_meta(collection, k)
+    # #348: BACK yuvasi da uretilebilir - istemci ranks=["BACK"] yollar.
     tum = _collection_ranks(collection, k) or [r.lower() for r in ranks_of(k, m.get("jokers", 0))]
+    if ranks:
+        istek = {str(r).upper() for r in ranks}
+        if istek & set(JOKER_RANKS):
+            # Joker yuvasina uretiliyorsa koleksiyon jokerli hale gelir.
+            tum = list(tum) + [r for r in JOKER_RANKS if r.upper() in istek
+                               and r.lower() not in [x.lower() for x in tum]]
+            if int(m.get("jokers") or 0) < 2:
+                m["jokers"] = 2
+                _save_collection(collection, k, m)
+        if any(is_back(r) for r in istek):
+            tum = list(tum) + [BACK_RANK]
     hedef = _sec(ranks, tum)
     n = max(1, min(4, int(n or 1)))
     op_id = _op_new("card-still", len(hedef) * n)
@@ -1266,24 +1313,40 @@ EKSEN_SIRA = ("race", "skin", "hair", "eyes", "outfit_style", "outfit_color", "o
               "pose", "expression")
 
 
-def mixers(kind: str = "") -> dict:
-    """Karistiricilarin secenek listeleri (card_options `secenekler`)."""
-    prof = (_options().get(KINDS[kind_id(kind)]["profile"]) or {})
+def mixers(kind: str = "", back: bool = False) -> dict:
+    """Karistiricilarin secenek listeleri (card_options `secenekler`).
+
+    `back=True` ise kart ARKASI profili: motif / palet / yuzey (#348).
+    """
+    ad = "back" if back else KINDS[kind_id(kind)]["profile"]
+    prof = (_options().get(ad) or {})
     sec = prof.get("secenekler") or {}
-    return {a: [x for x in (sec.get(a) or []) if isinstance(x, str)] for a in EKSENLER}
+    eks = BACK_EKSENLER if back else EKSENLER
+    return {a: [x for x in (sec.get(a) or []) if isinstance(x, str)] for a in eks}
 
 
-def _sablon_uret(kind: str, tohum: int | None = None) -> dict:
+def _back_prompt2() -> str:
+    prof = (_options().get("back") or {})
+    return (prof.get("sablon") or "").strip() or         "ornate playing card back design, {}, symmetrical pattern, no people, no text"
+
+
+def _back_negative() -> str:
+    prof = (_options().get("back") or {})
+    return (prof.get("negatif") or "").strip() or         "person, face, text, letters, numbers, watermark, blurry, low quality"
+
+
+def _sablon_uret(kind: str, tohum: int | None = None, back: bool = False) -> dict:
     """Bos bir sablonu karistiricilardan rastgele doldurur."""
-    ms = mixers(kind)
+    ms = mixers(kind, back)
     rnd = random.Random(tohum) if tohum is not None else random
-    return {a: (rnd.choice(ms[a]) if ms.get(a) else "") for a in EKSENLER}
+    eks = BACK_EKSENLER if back else EKSENLER
+    return {a: (rnd.choice(ms[a]) if ms.get(a) else "") for a in eks}
 
 
-def template_text(t: dict) -> str:
+def template_text(t: dict, back: bool = False) -> str:
     """Sablondan Pozitif 3 metnini kurar (kilit/manuel alanlari disarida kalir)."""
     parca = []
-    for a in EKSEN_SIRA:
+    for a in (BACK_EKSENLER if back else EKSEN_SIRA):
         v = str((t or {}).get(a) or "").strip()
         if v:
             parca.append(v)
@@ -1307,7 +1370,7 @@ def _sablonlar_oku(collection: str, kind: str, m: dict, ranks: list[str]) -> dic
         R = str(r).upper()
         t = ham.get(R)
         if not isinstance(t, dict):
-            t = _sablon_uret(kind, _tohum("%s|%s" % (collection, R)) + i)
+            t = _sablon_uret(kind, _tohum("%s|%s" % (collection, R)) + i, is_back(R))
             t["locked"] = []
             t["manual"] = ""
         t.setdefault("locked", [])
@@ -1320,15 +1383,21 @@ def templates(collection: str, kind: str = "") -> dict:
     """#347: koleksiyonun sablonlari + karistirici listeleri (istemci bunu cizer)."""
     k = kind_id(kind)
     m = collection_meta(collection, k)
-    ranks = _collection_ranks(collection, k) or         [r.lower() for r in ranks_of(k, m.get("jokers", 0))]
-    tpl = _sablonlar_oku(collection, k, m, ranks)
+    # #348: 16 yuva - 13 rutbe + 2 joker + kart arkasi.
+    yuvalar = slots_of(k, m.get("jokers", 0))
+    tpl = _sablonlar_oku(collection, k, m, yuvalar)
     if m.get("templates") != tpl:                 # ilk acilista diske yazilir
         m["templates"] = tpl
         _save_collection(collection, k, m)
-    return {"collection": collection, "kind": k, "theme": m.get("theme") or "",
+    tema = m.get("theme") or ""
+    return {"collection": collection, "kind": k, "theme": tema,
+            "slots": yuvalar, "back_rank": BACK_RANK,
             "axes": list(EKSENLER), "labels": dict(EKSEN_ETIKET),
-            "mixers": mixers(k), "templates": tpl,
-            "preview": {R: look_text(m.get("theme") or "", {"look": template_text(t)})
+            "back_axes": list(BACK_EKSENLER), "back_labels": dict(BACK_ETIKET),
+            "mixers": mixers(k), "back_mixers": mixers(k, True),
+            "templates": tpl,
+            "preview": {R: (template_text(t, True) if is_back(R)
+                            else look_text(tema, {"look": template_text(t)}))
                         for R, t in tpl.items()}}
 
 
@@ -1346,23 +1415,26 @@ def roll_templates(collection: str, kind: str = "", ranks: list[str] | None = No
     """
     k = kind_id(kind)
     m = collection_meta(collection, k)
-    tum = _collection_ranks(collection, k) or         [r.lower() for r in ranks_of(k, m.get("jokers", 0))]
+    tum = slots_of(k, m.get("jokers", 0))
     hedef = {str(r).upper() for r in (_sec(ranks, tum) or tum)}
-    ekseni = [a for a in (axes or EKSENLER) if a in EKSENLER]
     tpl = _sablonlar_oku(collection, k, m, tum)
-    ms = mixers(k)
+    ms, msb = mixers(k), mixers(k, True)
     for R, t in tpl.items():
         if R not in hedef:
             continue
+        arka = is_back(R)
+        havuz = msb if arka else ms
+        ekseni = [a for a in (axes or (BACK_EKSENLER if arka else EKSENLER))
+                  if a in (BACK_EKSENLER if arka else EKSENLER)]
         kilit = set(t.get("locked") or [])
         for a in ekseni:
-            if a in kilit or not ms.get(a):
+            if a in kilit or not havuz.get(a):
                 continue
-            t[a] = random.choice(ms[a])
+            t[a] = random.choice(havuz[a])
     m["templates"] = tpl
     _save_collection(collection, k, m)
     return {"collection": collection, "kind": k, "templates": tpl,
-            "rolled": sorted(hedef), "axes": ekseni}
+            "rolled": sorted(hedef)}
 
 
 def set_axis(collection: str, axis: str, value: str, kind: str = "",
@@ -1374,15 +1446,17 @@ def set_axis(collection: str, axis: str, value: str, kind: str = "",
     ekseni tek hamlede sabitler - 13 rutbeyi tek tek duzenlemek gerekmez.
     """
     k = kind_id(kind)
-    if axis not in EKSENLER:
+    if axis not in EKSENLER and axis not in BACK_EKSENLER:
         raise ValueError("bilinmeyen eksen: %s" % axis)
     m = collection_meta(collection, k)
-    tum = _collection_ranks(collection, k) or         [r.lower() for r in ranks_of(k, m.get("jokers", 0))]
+    tum = slots_of(k, m.get("jokers", 0))
     hedef = {str(r).upper() for r in (_sec(ranks, tum) or tum)}
     tpl = _sablonlar_oku(collection, k, m, tum)
     for R, t in tpl.items():
         if R not in hedef:
             continue
+        if is_back(R) != (axis in BACK_EKSENLER):
+            continue                  # kart ekseni arkaya, arka ekseni karta yazilmaz
         t[axis] = str(value or "").strip()
         kilit = set(t.get("locked") or [])
         kilit.add(axis) if lock else kilit.discard(axis)
@@ -1397,24 +1471,26 @@ def set_template(collection: str, rank: str, data: dict, kind: str = "") -> dict
     """#347: tek bir sablonu yazar - eksen degerleri, kilitler ve manuel metin."""
     k = kind_id(kind)
     m = collection_meta(collection, k)
-    tum = _collection_ranks(collection, k) or         [r.lower() for r in ranks_of(k, m.get("jokers", 0))]
+    tum = slots_of(k, m.get("jokers", 0))
     R = str(rank).upper()
     if R not in {str(x).upper() for x in tum}:
         raise ValueError("rutbe yok: %s" % rank)
     tpl = _sablonlar_oku(collection, k, m, tum)
     t = tpl.get(R) or {}
-    for a in EKSENLER:
+    for a in (BACK_EKSENLER if is_back(R) else EKSENLER):
         if a in (data or {}):
             t[a] = str(data[a] or "").strip()
     if "manual" in (data or {}):
         t["manual"] = str(data["manual"] or "").strip()
     if "locked" in (data or {}):
-        t["locked"] = [a for a in (data["locked"] or []) if a in EKSENLER]
+        gecerli = BACK_EKSENLER if is_back(R) else EKSENLER
+        t["locked"] = [a for a in (data["locked"] or []) if a in gecerli]
     tpl[R] = t
     m["templates"] = tpl
     _save_collection(collection, k, m)
     return {"collection": collection, "kind": k, "rank": R, "template": t,
-            "preview": look_text(m.get("theme") or "", {"look": template_text(t)})}
+            "preview": (template_text(t, True) if is_back(R)
+                        else look_text(m.get("theme") or "", {"look": template_text(t)}))}
 
 
 def _looks_yaz(collection: str, kind: str, theme: str, ranks: list[str]) -> tuple[dict, str]:

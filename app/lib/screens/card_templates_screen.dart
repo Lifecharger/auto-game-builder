@@ -89,48 +89,67 @@ class _CardTemplatesScreenState extends State<CardTemplatesScreen> {
           kind: widget.kind, ranks: [rank]),
       '$rank karistirildi');
 
-  /// Bir ekseni butun rutbelere yazar + kilitler.
+  /// Bir ekseni butun yuvalara yazar + kilitler. Deger ACILIR LISTEDEN secilir.
   Future<void> _eksenHepsine(String axis) async {
-    final secenekler = _d.mixers[axis] ?? const <String>[];
+    final arka = _d.backAxes.contains(axis);
+    final secenekler =
+        (arka ? _d.backMixers[axis] : _d.mixers[axis]) ?? const <String>[];
     if (secenekler.isEmpty) return;
-    final secim = await showDialog<String>(
+    String? secim;
+    final onay = await showDialog<bool>(
       context: context,
-      builder: (c) => AlertDialog(
-        scrollable: true,
-        title: Text('${_d.labels[axis] ?? axis} - hepsine uygula'),
-        content: SizedBox(
-          width: 420,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Padding(
-                padding: EdgeInsets.only(bottom: 8),
-                child: Text(
-                    'Secilen deger 13 rutbeye birden yazilir ve KILITLENIR - '
-                    'karistirmada degismez.',
-                    style: TextStyle(fontSize: 11, color: Colors.grey)),
-              ),
-              for (final v in secenekler)
-                ListTile(
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(v, style: const TextStyle(fontSize: 12)),
-                  onTap: () => Navigator.pop(c, v),
+      builder: (c) => StatefulBuilder(
+        builder: (c, setLocal) => AlertDialog(
+          title: Text(
+              '${(arka ? _d.backLabels[axis] : _d.labels[axis]) ?? axis} - hepsine'),
+          content: SizedBox(
+            width: 420,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                    arka
+                        ? 'Kart arkasina yazilir ve KILITLENIR.'
+                        : '13 kart + 2 jokere birden yazilir ve KILITLENIR - '
+                            'karistirmada degismez.',
+                    style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: secim,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                      isDense: true,
+                      border: OutlineInputBorder(),
+                      labelText: 'Deger'),
+                  items: [
+                    for (final v in secenekler)
+                      DropdownMenuItem(
+                          value: v,
+                          child: Text(v,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 12))),
+                  ],
+                  onChanged: (v) => setLocal(() => secim = v),
                 ),
-            ],
+              ],
+            ),
           ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(c, false),
+                child: const Text('Vazgec')),
+            FilledButton(
+                onPressed: secim == null ? null : () => Navigator.pop(c, true),
+                child: const Text('Uygula')),
+          ],
         ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(c), child: const Text('Vazgec')),
-        ],
       ),
     );
-    if (secim == null) return;
+    if (onay != true || secim == null) return;
     await _sarmala(
-        () => CardFlowService.setAxis(widget.collection, axis, secim,
+        () => CardFlowService.setAxis(widget.collection, axis, secim!,
             kind: widget.kind),
-        '${_d.labels[axis] ?? axis} hepsine yazildi ve kilitlendi');
+        'Hepsine yazildi ve kilitlendi');
   }
 
   Future<void> _satirDuzenle(String rank) async {
@@ -150,23 +169,23 @@ class _CardTemplatesScreenState extends State<CardTemplatesScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                for (final a in _d.axes) ...[
+                for (final a in _d.axesFor(rank)) ...[
                   Row(
                     children: [
                       Expanded(
                         child: DropdownButtonFormField<String>(
-                          initialValue: (_d.mixers[a] ?? const [])
+                          initialValue: (_d.mixersFor(rank)[a] ?? const [])
                                   .contains(yerel[a])
                               ? yerel[a]
                               : null,
                           isExpanded: true,
                           decoration: InputDecoration(
-                            labelText: _d.labels[a] ?? a,
+                            labelText: _d.labelsFor(rank)[a] ?? a,
                             isDense: true,
                             border: const OutlineInputBorder(),
                           ),
                           items: [
-                            for (final v in _d.mixers[a] ?? const <String>[])
+                            for (final v in _d.mixersFor(rank)[a] ?? const <String>[])
                               DropdownMenuItem(
                                   value: v,
                                   child: Text(v,
@@ -232,10 +251,22 @@ class _CardTemplatesScreenState extends State<CardTemplatesScreen> {
         '$rank kaydedildi');
   }
 
+  /// Tek yuvayi uretime yollar - sablon degistikten sonra sonucu hemen gormek
+  /// icin; koleksiyon ekranina donmek gerekmez.
+  Future<void> _yuvayiUret(String slot) async {
+    try {
+      await CardFlowService.stills(
+          collection: widget.collection, ranks: [slot], kind: widget.kind, n: 1);
+      if (mounted) _snack('$slot kuyruga girdi');
+    } catch (e) {
+      if (mounted) _snack(e.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(
-          title: Text('Sablonlar - ${widget.title}'),
+          title: Text('Koleksiyon Karti - ${widget.title}'),
           actions: [
             IconButton(
                 onPressed: _busy ? null : _load,
@@ -266,58 +297,153 @@ class _CardTemplatesScreenState extends State<CardTemplatesScreen> {
                   ),
       );
 
-  Widget _temaSatiri() => Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('P1',
-                style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey)),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(_d.theme.isEmpty ? 'Tema yok' : _d.theme,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 11, color: Colors.grey)),
-            ),
-          ],
+  /// P1 - koleksiyonun temasi. Dokununca hazir kart listesinden secilir ya da
+  /// elle yazilir; kart kimligi bu ekranin icinde kalir (#348).
+  Widget _temaSatiri() => InkWell(
+        onTap: _busy ? null : _temaDuzenle,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('P1',
+                  style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey)),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(_d.theme.isEmpty ? 'Tema yok - dokun ve yaz' : _d.theme,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontSize: 11,
+                        color: _d.theme.isEmpty ? AppColors.error : Colors.grey)),
+              ),
+              const Icon(Icons.edit, size: 14, color: Colors.grey),
+            ],
+          ),
         ),
       );
 
-  /// Eksen basliklari - dokununca o eksen 13 rutbeye birden yazilir.
-  Widget _eksenSeridi() => SizedBox(
-        height: 38,
-        child: ListView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          children: [
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.only(right: 6),
-                child: Text('hepsine uygula:',
-                    style: TextStyle(fontSize: 10, color: Colors.grey)),
-              ),
-            ),
-            for (final a in _d.axes)
-              Padding(
-                padding: const EdgeInsets.only(right: 6),
-                child: Center(
-                  child: ActionChip(
-                    label: Text(_d.labels[a] ?? a,
-                        style: const TextStyle(fontSize: 11)),
-                    onPressed: _busy ? null : () => _eksenHepsine(a),
+  Future<void> _temaDuzenle() async {
+    final c = TextEditingController(text: _d.theme);
+    final sablonlar = await CardFlowService.presets(kind: widget.kind);
+    if (!mounted) return;
+    String? secili;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          scrollable: true,
+          title: const Text('Tema (P1)'),
+          content: SizedBox(
+            width: 440,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (sablonlar.isNotEmpty) ...[
+                  DropdownButtonFormField<String>(
+                    initialValue: secili,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                        isDense: true,
+                        border: OutlineInputBorder(),
+                        labelText: 'Hazir kart'),
+                    items: [
+                      for (final sb in sablonlar)
+                        DropdownMenuItem(
+                            value: sb.id,
+                            child: Text(sb.label,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 12))),
+                    ],
+                    onChanged: (v) => setLocal(() {
+                      secili = v;
+                      final sb = sablonlar.firstWhere((x) => x.id == v,
+                          orElse: () => const CardPreset(id: '', name: ''));
+                      if (sb.theme.isNotEmpty) c.text = sb.theme;
+                    }),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+                TextField(
+                  controller: c,
+                  maxLines: 6,
+                  decoration: const InputDecoration(
+                    labelText: 'Tema',
+                    helperText: 'kimlik + STRICT PALETTE + Signature pieces',
+                    helperMaxLines: 2,
+                    isDense: true,
+                    border: OutlineInputBorder(),
                   ),
                 ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Vazgec')),
+            FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Kaydet')),
+          ],
+        ),
+      ),
+    );
+    if (ok != true) return;
+    final t = c.text.trim();
+    if (t.isEmpty) {
+      _snack('Tema bos olamaz');
+      return;
+    }
+    await _sarmala(
+        () => CardFlowService.setTheme(widget.collection, t, kind: widget.kind),
+        'Tema kaydedildi');
+  }
+
+  /// #348: eksen secici artik CIP degil ACILIR LISTE - "hepsine uygula".
+  Widget _eksenSeridi() => Padding(
+        padding: const EdgeInsets.fromLTRB(12, 2, 12, 6),
+        child: Row(
+          children: [
+            const Text('Hepsine uygula:',
+                style: TextStyle(fontSize: 11, color: Colors.grey)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: DropdownButtonFormField<String>(
+                initialValue: null,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  isDense: true,
+                  border: OutlineInputBorder(),
+                  hintText: 'eksen sec',
+                ),
+                items: [
+                  for (final a in _d.axes)
+                    DropdownMenuItem(
+                        value: a,
+                        child: Text(_d.labels[a] ?? a,
+                            style: const TextStyle(fontSize: 12))),
+                  for (final a in _d.backAxes)
+                    DropdownMenuItem(
+                        value: a,
+                        child: Text('${_d.backLabels[a] ?? a}  (arka)',
+                            style: const TextStyle(fontSize: 12))),
+                ],
+                onChanged: _busy ? null : (a) => a == null ? null : _eksenHepsine(a),
               ),
+            ),
           ],
         ),
       );
 
   Widget _liste() {
-    final rutbeler = _d.templates.keys.toList();
+    final rutbeler = _d.slots.isNotEmpty
+        ? _d.slots
+        : _d.templates.keys.toList();
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView.separated(
@@ -327,7 +453,7 @@ class _CardTemplatesScreenState extends State<CardTemplatesScreen> {
           final r = rutbeler[i];
           final t = _d.templates[r] ?? const CardTemplate();
           final ozet = [
-            for (final a in _d.axes)
+            for (final a in _d.axesFor(r))
               if ((t.axes[a] ?? '').isNotEmpty) t.axes[a]!
           ].join(' · ');
           return ListTile(
@@ -355,9 +481,14 @@ class _CardTemplatesScreenState extends State<CardTemplatesScreen> {
                 if (t.locked.isNotEmpty)
                   Icon(Icons.lock, size: 14, color: AppColors.accent),
                 IconButton(
-                  tooltip: 'Bu satiri karistir',
+                  tooltip: 'Bu yuvayi karistir',
                   icon: const Icon(Icons.casino_outlined, size: 18),
                   onPressed: _busy ? null : () => _satiriKaristir(r),
+                ),
+                IconButton(
+                  tooltip: 'Bu yuvayi uret',
+                  icon: const Icon(Icons.play_arrow, size: 18),
+                  onPressed: _busy ? null : () => _yuvayiUret(r),
                 ),
               ],
             ),

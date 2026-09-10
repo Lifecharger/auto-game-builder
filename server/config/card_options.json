@@ -368,5 +368,64 @@
    "wink": "playful wink at the viewer, slight head tilt, confident smirk",
    "smile": "warm delighted smile at the viewer, small nod"
   }
+ },
+ "back": {
+  "sablon": "ornate playing card back design, {}, ABSTRACT ORNAMENT ONLY - the whole card is filled edge to edge with a perfectly symmetrical kaleidoscopic pattern, intricate filigree border, repeating motif, centered medallion, flat graphic illustration with crisp clean edges, vertical 2:3 card proportions, NO people, no woman, no face, no figure, no character, no playing card pips, no suit symbols, no text, no letters, no numbers",
+  "negatif": "person, woman, man, face, portrait, figure, body, hands, text, letters, numbers, watermark, logo, signature, photo, photorealistic, 3d render, cgi, blurry, low quality, asymmetric, off-center, cropped pattern, empty space, gradient banding, spade, heart, club, diamond, pip, suit symbol, card face, character, illustration of a person, vampire, cape, corset",
+  "secenekler": {
+   "motif": [
+    "fleur-de-lis lattice",
+    "art deco fan rays",
+    "baroque scrollwork",
+    "celtic knotwork",
+    "victorian damask",
+    "moorish tile mosaic",
+    "rose window tracery",
+    "peacock feather eyes",
+    "geometric diamond grid",
+    "laurel wreath medallion",
+    "spade and crown crest",
+    "vine and thorn filigree",
+    "sunburst mandala"
+   ],
+   "palette": [
+    "deep crimson and gold",
+    "royal purple and gold",
+    "midnight navy and silver",
+    "emerald green and gold",
+    "black and blood red",
+    "ivory and rose gold",
+    "burgundy and antique brass",
+    "teal and copper",
+    "charcoal and platinum",
+    "wine red and cream"
+   ],
+   "finish": [
+    "gold foil embossing",
+    "matte velvet finish",
+    "glossy lacquer sheen",
+    "engraved metal relief",
+    "satin sheen",
+    "antique patina",
+    "pearlescent shimmer",
+    "linen texture",
+    "enamel inlay",
+    "brushed metallic"
+   ]
+  },
+  "alanlar": [
+   [
+    "motif",
+    "Motif"
+   ],
+   [
+    "palette",
+    "Palet"
+   ],
+   [
+    "finish",
+    "Yuzey"
+   ]
+  ]
  }
 }

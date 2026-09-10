@@ -324,32 +324,57 @@ class CardTemplate {
 /// #347: `/api/card/flow/templates` cevabi.
 class CardTemplates {
   final String theme;
-  final List<String> axes;              // eksen sirasi
-  final Map<String, String> labels;     // eksen -> Turkce etiket
+  /// #348: 16 yuva - 13 rutbe + J1 + J2 + BACK (kart arkasi).
+  final List<String> slots;
+  final String backRank;
+  final List<String> axes;              // kart eksenleri
+  final Map<String, String> labels;
   final Map<String, List<String>> mixers;
-  final Map<String, CardTemplate> templates;   // RUTBE -> sablon
-  final Map<String, String> preview;           // RUTBE -> tam prompt onizlemesi
+  /// Kart ARKASI kadin degil desen: kendi eksenleri (motif/palet/yuzey).
+  final List<String> backAxes;
+  final Map<String, String> backLabels;
+  final Map<String, List<String>> backMixers;
+  final Map<String, CardTemplate> templates;   // YUVA -> sablon
+  final Map<String, String> preview;           // YUVA -> prompt onizlemesi
 
   const CardTemplates({
     this.theme = '',
+    this.slots = const [],
+    this.backRank = 'BACK',
     this.axes = const [],
     this.labels = const {},
     this.mixers = const {},
+    this.backAxes = const [],
+    this.backLabels = const {},
+    this.backMixers = const {},
     this.templates = const {},
     this.preview = const {},
   });
 
+  bool isBack(String slot) => slot.toUpperCase() == backRank.toUpperCase();
+  List<String> axesFor(String slot) => isBack(slot) ? backAxes : axes;
+  Map<String, String> labelsFor(String slot) => isBack(slot) ? backLabels : labels;
+  Map<String, List<String>> mixersFor(String slot) =>
+      isBack(slot) ? backMixers : mixers;
+
+  static Map<String, List<String>> _mix(dynamic v) => {
+        for (final e in (v as Map? ?? const {}).entries)
+          '${e.key}': (e.value as List? ?? const []).map((x) => '$x').toList()
+      };
+
+  static Map<String, String> _lab(dynamic v) =>
+      {for (final e in (v as Map? ?? const {}).entries) '${e.key}': '${e.value}'};
+
   factory CardTemplates.fromJson(Map<String, dynamic> j) => CardTemplates(
         theme: '${j['theme'] ?? ''}',
+        slots: (j['slots'] as List? ?? const []).map((e) => '$e').toList(),
+        backRank: '${j['back_rank'] ?? 'BACK'}',
+        backAxes: (j['back_axes'] as List? ?? const []).map((e) => '$e').toList(),
+        backLabels: _lab(j['back_labels']),
+        backMixers: _mix(j['back_mixers']),
         axes: (j['axes'] as List? ?? const []).map((e) => '$e').toList(),
-        labels: {
-          for (final e in (j['labels'] as Map? ?? const {}).entries)
-            '${e.key}': '${e.value}'
-        },
-        mixers: {
-          for (final e in (j['mixers'] as Map? ?? const {}).entries)
-            '${e.key}': (e.value as List? ?? const []).map((x) => '$x').toList()
-        },
+        labels: _lab(j['labels']),
+        mixers: _mix(j['mixers']),
         templates: {
           for (final e in (j['templates'] as Map? ?? const {}).entries)
             '${e.key}': CardTemplate.fromJson(Map<String, dynamic>.from(e.value as Map))

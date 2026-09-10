@@ -1635,7 +1635,7 @@ class _CardCollectionPageState extends State<CardCollectionPage> {
               _act(Icons.movie_creation_outlined, '2 Video', () => _animate()),
               _act(Icons.content_cut, '3 WebP', () => _cut()),
               _act(Icons.edit_outlined, 'Duzenle', _edit),
-              _act(Icons.tune, 'Sablon', _sablonlariAc),
+              _act(Icons.style, 'Kart', _sablonlariAc),
             ],
           ),
         ),
