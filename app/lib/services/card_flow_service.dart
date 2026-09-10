@@ -130,6 +130,9 @@ class CardCollection {
   /// Kapak = A rutbesinin thumb'i. Sunucu vermezse ekran A'ya duser.
   final String cover;
   final int rev;
+  /// #353: kart ARKASI - rutbe degildir (animasyon/kesim/push'a girmez), ama
+  /// izgarada 16. hucre olarak gorunur; null = eski sunucu.
+  final CardRankState? back;
 
   const CardCollection({
     required this.id,
@@ -140,7 +143,10 @@ class CardCollection {
     this.jokers = 0,
     this.cover = '',
     this.rev = 0,
+    this.back,
   });
+
+  static const backRank = 'BACK';
 
   factory CardCollection.fromJson(Map<String, dynamic> j) {
     final ham = j['ranks'];
@@ -167,6 +173,9 @@ class CardCollection {
       jokers: (j['jokers'] is num) ? (j['jokers'] as num).toInt() : 0,
       cover: '${j['cover'] ?? ''}',
       rev: (j['rev'] is num) ? (j['rev'] as num).toInt() : 0,
+      back: j['back'] is Map
+          ? CardRankState.fromJson(Map<String, dynamic>.from(j['back'] as Map))
+          : null,
     );
   }
 

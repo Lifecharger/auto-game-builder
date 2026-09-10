@@ -8,6 +8,7 @@ import '../services/jigsaw_flow_service.dart' show FlowCollection, FlowOp;
 import '../services/mode_service.dart';
 import '../widgets/bottom_inset.dart';
 import '../widgets/network_video.dart';
+import '../widgets/flow_kind_switch.dart' show kindSwitchBottom;
 import '../theme.dart';
 
 /// Asset Mod - CBN (Color-By-Number) yayin hatti (2-3-4. akis).
@@ -294,9 +295,7 @@ class _CbnFlowScreenState extends State<CbnFlowScreen>
                 icon: const Icon(Icons.close),
                 onPressed: () => setState(_sel.clear))
             : null,
-        title: _selecting
-            ? Text('${_sel.length} secili')
-            : (widget.kindSwitch ?? const Text('CBN hatti')),
+        title: Text(_selecting ? '${_sel.length} secili' : 'CBN hatti'),
         actions: [
           if (!_selecting)
             IconButton(
@@ -307,9 +306,13 @@ class _CbnFlowScreenState extends State<CbnFlowScreen>
           IconButton(
               icon: const Icon(Icons.refresh), tooltip: 'Yenile', onPressed: _load),
         ],
-        bottom: TabBar(
-          controller: _tabs,
-          tabs: [for (final t in _titles) Tab(text: t)],
+        // #353: hat anahtari app bar'in altinda tam genislikte (Uretilenler kalibi).
+        bottom: kindSwitchBottom(
+          widget.kindSwitch,
+          tabs: TabBar(
+            controller: _tabs,
+            tabs: [for (final t in _titles) Tab(text: t)],
+          ),
         ),
       ),
       body: Column(

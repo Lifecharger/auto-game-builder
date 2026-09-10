@@ -824,6 +824,17 @@ def collection(collection_id: str, kind: str = "") -> dict:
         tek = cards[0] if cards else {}
         out["gesture"] = tek.get("gesture") or (m.get("gesture") or DEFAULT_GESTURE)
         out["state"] = {a: tek.get(a) for a in ("still", "video", "sheet", "pushed", "verdict")}
+    else:
+        # #353: kart ARKASI ayri alanda - rutbe degildir (animasyon/kesim/push'a
+        # girmez) ama istemci izgarada 16. hucre olarak gosterir ve buradan
+        # uretir/duzenler. Klasor yoksa bos bir kayit doner (bayraklar false).
+        try:
+            arka = _rank_row(collection_id, k, BACK_RANK.lower(), pushed)
+            out["back"] = {a: arka.get(a) for a in ("still", "rev", "prompt", "candidates")}
+            out["back"]["rank"] = BACK_RANK
+        except Exception:
+            out["back"] = {"still": False, "rev": 0, "prompt": "", "candidates": [],
+                           "rank": BACK_RANK}
     return out
 
 

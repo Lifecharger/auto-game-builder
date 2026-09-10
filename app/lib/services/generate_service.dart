@@ -116,6 +116,8 @@ class GenerateTask {
     required this.height,
     required this.duration,
     this.inputs = const [],
+    this.prompt2 = '',
+    this.negative = '',
   });
 
   final String id;
@@ -125,6 +127,10 @@ class GenerateTask {
   final int width;
   final int height;
   final int duration;
+  /// #353: gorevin kendi sablonu/negatifi (manifest) - kipin/derecenin sablonu
+  /// yoksa bu kullanilir (anime gorevi foto sablonuyla calismaz).
+  final String prompt2;
+  final String negative;
 
   /// Is akisinin girdi yuvalari. Eski sunucularda bos gelir - o zaman eski
   /// tek gorsellik akis kullanilir.
@@ -145,6 +151,8 @@ class GenerateTask {
         inputs: ((j['inputs'] ?? const []) as List)
             .map((e) => GenerateInputSlot.fromJson(e as Map<String, dynamic>))
             .toList(),
+        prompt2: '${j['prompt2'] ?? ''}',
+        negative: '${j['negative'] ?? ''}',
       );
 }
 

@@ -22,6 +22,24 @@
    "enabled": true
   },
   {
+   "id": "image_anime",
+   "label": "Metinden anime (One Obsession)",
+   "workflow": "T2I Anima One Obsession.json",
+   "needs_image": false,
+   "is_video": false,
+   "width": 832,
+   "height": 1216,
+   "enabled": true,
+   "modes": [
+    "free",
+    "jigsaw",
+    "cbn"
+   ],
+   "prompt2": "masterpiece, best quality, very aesthetic, highres, 1girl, adult woman, anime style, {}, beautiful detailed face, detailed eyes, full body vertical 9:16 composition, cinematic lighting",
+   "negative": "worst quality, bad anatomy, watermark, low quality, text, blurry, jpeg artifacts, child, loli, chibi, huge breasts, gigantic breasts",
+   "_not": "#353: gorev sablonu - kipin/derecenin kendi sablonu YOKSA (hot) bu kullanilir; kid'in aile dostu sablonu oncelikli kalir. Anima 2.9B fine-tune, 832x1216 / 896x1600 (jigsaw 9:16)."
+  },
+  {
    "id": "edit_qwen",
    "label": "Gorsel duzenle (kimlik korur)",
    "workflow": "Image Qwen Image.json",

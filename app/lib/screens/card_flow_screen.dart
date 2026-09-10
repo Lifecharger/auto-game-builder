@@ -11,6 +11,7 @@ import '../widgets/bottom_inset.dart';
 import '../widgets/network_video.dart';
 import 'character_flow_screen.dart' show errorView;
 import 'card_templates_screen.dart';
+import '../widgets/flow_kind_switch.dart' show kindSwitchBottom;
 
 /// Asset Mod - Kart hatti (#323, design/kart_modu.md).
 ///
@@ -949,7 +950,9 @@ class _CardFlowScreenState extends State<CardFlowScreen>
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(
-          title: widget.kindSwitch ?? const Text('Kart hatti'),
+          title: const Text('Kart hatti'),
+          // #353: hat anahtari app bar'in altinda tam genislikte.
+          bottom: kindSwitchBottom(widget.kindSwitch),
           actions: [
             IconButton(
               icon: const Icon(Icons.code),
@@ -1767,15 +1770,68 @@ class _CardCollectionPageState extends State<CardCollectionPage> {
           mainAxisSpacing: 8,
           childAspectRatio: 2 / 3,
         ),
-        itemCount: _ranks.length,
-        itemBuilder: (_, i) => _cell(c, _ranks[i]),
+        // #353: son hucre kart ARKASI (sunucu `back` veriyorsa). Secime
+        // girmez - yalniz still/duzenle/aday; video/kesim/push'a dahil degil.
+        itemCount: _ranks.length + (c.back != null ? 1 : 0),
+        itemBuilder: (_, i) => i < _ranks.length
+            ? _cell(c, _ranks[i])
+            : _cell(c, CardCollection.backRank, arka: true),
       ),
     );
   }
 
-  Widget _cell(CardCollection c, String rank) {
-    final s = c.stateOf(rank);
-    final secili = _sel.contains(rank);
+  Widget _cell(CardCollection c, String rank, {bool arka = false}) {
+    final s = arka ? (c.back ?? const CardRankState()) : c.stateOf(rank);
+    final secili = !arka && _sel.contains(rank);
+    if (arka) {
+      final url = CardFlowService.thumbUrl(c.id, rank,
+          kind: 'still', size: 300, v: s.rev > 0 ? s.rev : c.rev);
+      return GestureDetector(
+        onTap: () => _open(rank),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.white24),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(7),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                const ColoredBox(color: Colors.black26),
+                if (s.still)
+                  Image.network(url,
+                      headers: CardFlowService.authHeaders,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, _, _) => Container(color: Colors.white10))
+                else
+                  Container(
+                    color: Colors.white10,
+                    alignment: Alignment.center,
+                    child: const Icon(Icons.style_outlined, size: 22, color: Colors.grey),
+                  ),
+                Positioned(
+                  left: 3,
+                  top: 3,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: s.still ? Colors.deepPurple.shade400 : Colors.white10,
+                      borderRadius: BorderRadius.circular(5),
+                    ),
+                    child: Text('ARKA',
+                        style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: s.still ? Colors.white : Colors.grey)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
     final url = CardFlowService.thumbUrl(c.id, rank,
         kind: 'still', size: 300, v: s.rev > 0 ? s.rev : c.rev);
     return GestureDetector(
@@ -1923,6 +1979,8 @@ class _CardDetailPageState extends State<CardDetailPage> {
   String _anim = 'idle';
 
   bool get _dealer => widget.kind == 'dealer';
+  /// #353: kart ARKASI - yalniz still / duzenle / aday (video-kesim yok).
+  bool get _arka => !_dealer && widget.rank.toUpperCase() == CardCollection.backRank;
   List<String> get _gestures =>
       _dealer ? _profiles.dealerGestures : _profiles.gestures;
 
@@ -1953,7 +2011,9 @@ class _CardDetailPageState extends State<CardDetailPage> {
         }
       } else {
         final c = await CardFlowService.collection(widget.collection);
-        s = c?.stateOf(widget.rank) ?? const CardRankState();
+        s = _arka
+            ? (c?.back ?? const CardRankState())
+            : (c?.stateOf(widget.rank) ?? const CardRankState());
       }
       var adaylar = const <String>[];
       try {
@@ -2148,10 +2208,13 @@ class _CardDetailPageState extends State<CardDetailPage> {
                       Padding(
                         padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
                         child: SegmentedButton<String>(
-                          segments: const [
-                            ButtonSegment(value: 'still', label: Text('Still')),
-                            ButtonSegment(value: 'video', label: Text('Video')),
-                            ButtonSegment(value: 'cut', label: Text('Kesim')),
+                          segments: [
+                            const ButtonSegment(value: 'still', label: Text('Still')),
+                            // #353: kart arkasinin videosu/kesimi yoktur.
+                            if (!_arka) ...const [
+                              ButtonSegment(value: 'video', label: Text('Video')),
+                              ButtonSegment(value: 'cut', label: Text('Kesim')),
+                            ],
                           ],
                           selected: {_view},
                           showSelectedIcon: false,
@@ -2167,7 +2230,7 @@ class _CardDetailPageState extends State<CardDetailPage> {
                       ),
                       Expanded(child: _preview()),
                       _info(),
-                      _animSeridi(),
+                      if (!_arka) _animSeridi(),        // #353: arkada animasyon yok
                       _adaylarSeridi(),
                       _buttons(),
                     ],
@@ -2501,16 +2564,19 @@ class _CardDetailPageState extends State<CardDetailPage> {
                   onPressed: _redoStill,
                   icon: const Icon(Icons.refresh, size: 16),
                   label: const Text('1 Still')),
-              const SizedBox(width: 8),
-              FilledButton.tonalIcon(
-                  onPressed: _redoAnim,
-                  icon: const Icon(Icons.movie_creation_outlined, size: 16),
-                  label: const Text('2 Video')),
-              const SizedBox(width: 8),
-              FilledButton.tonalIcon(
-                  onPressed: _redoCut,
-                  icon: const Icon(Icons.content_cut, size: 16),
-                  label: const Text('3 WebP')),
+              // #353: kart arkasinin videosu/kesimi yoktur.
+              if (!_arka) ...[
+                const SizedBox(width: 8),
+                FilledButton.tonalIcon(
+                    onPressed: _redoAnim,
+                    icon: const Icon(Icons.movie_creation_outlined, size: 16),
+                    label: const Text('2 Video')),
+                const SizedBox(width: 8),
+                FilledButton.tonalIcon(
+                    onPressed: _redoCut,
+                    icon: const Icon(Icons.content_cut, size: 16),
+                    label: const Text('3 WebP')),
+              ],
             ],
           ),
         ),

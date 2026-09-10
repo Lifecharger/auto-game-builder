@@ -5,6 +5,7 @@ import 'asset_flow_screen.dart';
 import 'card_flow_screen.dart';
 import 'cbn_flow_screen.dart';
 import 'character_flow_screen.dart';
+import 'free_flow_screen.dart';
 import '../widgets/flow_kind_switch.dart';
 
 /// "Hat" sekmesi: dort yayin hatti arasinda gecis - Jigsaw (jpg + mp4 + webp),
@@ -27,8 +28,11 @@ class _FlowHubState extends State<FlowHub> {
   String _kind = 'jigsaw';
 
   // #327: ortak anahtar - dar ekranda sarmaz, sigmazsa olcekle kuculur.
+  // #353: Free de bir hat (basit: duzenle / video uret) - Uretilenler'deki
+  // anahtarla ayni sira: Free | Jigsaw | CBN | Kart | Karakter.
   Widget _switch() => FlowKindSwitch(
         items: const {
+          'free': 'Free',
           'jigsaw': 'Jigsaw',
           'cbn': 'CBN',
           'card': 'Kart',
@@ -43,6 +47,7 @@ class _FlowHubState extends State<FlowHub> {
 
   @override
   Widget build(BuildContext context) => switch (_kind) {
+        'free' => FreeFlowScreen(key: const ValueKey('free'), kindSwitch: _switch()),
         'cbn' => CbnFlowScreen(key: const ValueKey('cbn'), kindSwitch: _switch()),
         'card' => CardFlowScreen(key: const ValueKey('card'), kindSwitch: _switch()),
         'character' => CharacterFlowScreen(

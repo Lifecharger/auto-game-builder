@@ -3,6 +3,8 @@ import 'dart:math';
 
 import 'package:flutter/services.dart' show rootBundle;
 
+import 'jigsaw_flow_service.dart' show JigsawFlowService;
+
 /// Jigsaw kipinin derece profilleri (Hot Jigsaw / Kid Jigsaw).
 ///
 /// Masaustundeki Uretim Studyosu ile ayni mantik: her derecenin kendi detay
@@ -99,9 +101,13 @@ class JigsawProfiles {
   static Future<Map<String, JigsawProfile>> load() async {
     if (_cache != null) return _cache!;
     try {
-      final raw = json.decode(
-          await rootBundle.loadString('assets/jigsaw_secenekler.json'))
-          as Map<String, dynamic>;
+      // #353: once SUNUCU (C:/ComfyUI/scripts/jigsaw_secenekler.json - studyo ve
+      // sunucu karistiricisiyla ayni dosya); alinamazsa gomulu kopya. Boylece
+      // listeye eklenen secenek build beklemeden telefona gelir.
+      final sunucu = await JigsawFlowService.profilesRaw();
+      final raw = sunucu ??
+          json.decode(await rootBundle.loadString('assets/jigsaw_secenekler.json'))
+              as Map<String, dynamic>;
       final out = <String, JigsawProfile>{};
       final eksik = <String>[];
       ratings.forEach((id, label) {
@@ -165,7 +171,28 @@ class DetailState {
   bool isLocked(String key) => locks[key] ?? false;
   String valueOf(String key) => values[key] ?? '';
 
+  /// Kilitli alanlarin adlari (sunucu karistiricisina gider).
+  List<String> get lockedKeys =>
+      [for (final f in profile.fields) if (isLocked(f.key)) f.key];
+
+  /// #353: TUTARLI karistirma - sunucu (`/api/jigsaw/roll`) etiket/kurallarla
+  /// celismeyen secim doner; sunucu eskiyse/ulasilamazsa yerel `roll()`.
+  Future<List<Map<String, String>>> rollServer({int n = 1}) async {
+    try {
+      final r = await JigsawFlowService.roll(
+          rating: profile.id,
+          values: Map<String, String>.from(values),
+          locks: lockedKeys,
+          n: n);
+      if (r.length == n) return r;
+    } catch (_) {
+      // yerel karistirmaya dus
+    }
+    return [for (var i = 0; i < n; i++) roll()];
+  }
+
   /// Kilitsiz alanlari yeniden ceker, kilitliler oldugu gibi kalir.
+  /// (Yerel yedek - sunucu ulasilamazsa; kural gozetmez.)
   Map<String, String> roll() {
     final out = <String, String>{};
     for (final f in profile.fields) {

@@ -9,6 +9,7 @@ import '../services/generate_service.dart';
 import '../services/jigsaw_profiles.dart';
 import '../theme.dart';
 import '../services/mode_service.dart';
+import '../widgets/flow_kind_switch.dart';   // #353
 
 /// Asset Mod - Uretim ekrani.
 ///
@@ -211,9 +212,14 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
     final isVideo = _task?.isVideo ?? false;
     var p2 = isVideo ? m.motion2 : m.prompt2;
     var neg = m.negative;
+    // #353: gorevin kendi sablonu (anime) kip sablonundan once gelir...
+    final t = _task;
+    if (t != null && !isVideo && t.prompt2.isNotEmpty) p2 = t.prompt2;
+    if (t != null && t.negative.isNotEmpty) neg = t.negative;
     if (_hasProfiles) {
       final p = _profiles[_rating];
       if (p != null) {
+        // ...ama derecenin KENDI sablonu (kid: aile dostu) her ikisini de ezer.
         if (!isVideo && p.template.isNotEmpty) p2 = p.template;
         if (p.negative.isNotEmpty) neg = p.negative;
       }
@@ -797,7 +803,12 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
               children: [
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () => setState(() => d.apply(d.roll())),
+                    // #353: tutarli karistirma sunucuda (kilitler korunur).
+                    onPressed: () async {
+                      final r = await d.rollServer();
+                      if (!mounted) return;
+                      setState(() => d.apply(r.first));
+                    },
                     icon: const Icon(Icons.casino, size: 18),
                     label: const Text('Karistir'),
                   ),
@@ -902,8 +913,10 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
     var n = 0;
     Map<String, String>? last;
     try {
-      for (var i = 0; i < _randomCount; i++) {
-        last = d.roll();
+      // #353: N tutarli secim tek istekle sunucudan (eski sunucuda yerel).
+      final cekilisler = await d.rollServer(n: _randomCount);
+      for (var i = 0; i < cekilisler.length; i++) {
+        last = cekilisler[i];
         final p1 = d.promptWith(_p1.text, last);
         final p2 = d.templateFor(_p2.text,
             isVideo: t.isVideo, v: last);
@@ -939,40 +952,19 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
     }
   }
 
+  /// #353: kip anahtari Uretilenler'dekiyle AYNI widget (FlowKindSwitch) -
+  /// kisa etiketler (Free / Jigsaw / CBN / Kart / Karakter), tam genislik.
   Widget _modeSwitch() {
     if (_modes.length < 2) return const SizedBox.shrink();
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: Colors.white10,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        children: _modes.map((m) {
-          final on = m.id == _mode;
-          return Expanded(
-            child: GestureDetector(
-              onTap: () => _setMode(m.id),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 160),
-                padding: const EdgeInsets.symmetric(vertical: 11),
-                decoration: BoxDecoration(
-                  color: on ? AppColors.accent : Colors.transparent,
-                  borderRadius: BorderRadius.circular(11),
-                ),
-                child: Text(
-                  m.label,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: on ? Colors.white : Colors.grey,
-                  ),
-                ),
-              ),
-            ),
-          );
-        }).toList(),
+    return SizedBox(
+      width: double.infinity,
+      child: FlowKindSwitch(
+        items: {
+          for (final m in _modes)
+            m.id: m.label.replaceAll(' Mod', '').replaceAll(' Modu', ''),
+        },
+        selected: _mode,
+        onChanged: _setMode,
       ),
     );
   }

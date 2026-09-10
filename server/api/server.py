@@ -5813,6 +5813,26 @@ def jigsaw_profiles():
     return _flow().profiles()
 
 
+class JigsawRollRequest(BaseModel):
+    """#353: tutarli karistirma - kilitli alanlar aynen kalir, n adet secim doner."""
+    rating: str = "hot"
+    values: dict = {}
+    locks: list[str] = []
+    n: int = 1
+
+
+@app.post("/api/jigsaw/roll")
+def jigsaw_roll(body: JigsawRollRequest):
+    """#353: secenek dosyasindaki etiket/kurallarla CELISMEYEN rastgele secim
+    (mekan-hava-kimlik-kiyafet-poz uyumu). Uygulama, studyo ve LAN ayni ucu
+    kullanir; eski istemciler yerel karistirmaya duser."""
+    from core import jigsaw_roll as JR
+    try:
+        return {"rating": body.rating, "rolls": JR.roll(body.rating, body.values, body.locks, body.n)}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
 @app.get("/api/jigsaw/flow/ratings")
 def jigsaw_flow_ratings():
     f = _flow()

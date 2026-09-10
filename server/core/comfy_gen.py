@@ -116,6 +116,10 @@ def _load_manifest() -> list[dict]:
                     "height": int(t.get("height", 0)),
                     "duration": int(t.get("duration", 5)),
                     "modes": t.get("modes") or list(MODES),
+                    # #353: gorev sablonu/negatifi - kipin/derecenin kendi sablonu
+                    # yoksa bu kullanilir (anime gorevi foto sablonuyla calismaz).
+                    "prompt2": str(t.get("prompt2") or ""),
+                    "negative": str(t.get("negative") or ""),
                 })
         except Exception as e:  # bozuk manifest sunucuyu dusurmesin
             print("[comfy_gen] manifest okunamadi, yedek liste kullaniliyor: %s" % e)
@@ -929,6 +933,7 @@ def tasks(mode: str = "") -> list[dict]:
                     "needs_image": task_needs_image(t, slots),
                     "is_video": t["is_video"], "default_width": t["width"],
                     "default_height": t["height"], "default_duration": t["duration"],
+                    "prompt2": t.get("prompt2") or "", "negative": t.get("negative") or "",  # #353
                     # gorevin girdi yuvalari - istemci her biri icin bir secici gosterir
                     "inputs": [{k: s[k] for k in
                                 ("slot", "kind", "label", "title", "default", "required")}
@@ -1334,6 +1339,12 @@ def submit(task: str, prompt: str, *, prompt2: str = "", negative: str = "",
     # talimatidir - "a breathtakingly beautiful young woman, {}" kalibina
     # sarilmasi anlamsiz olur (goruntuleyicideki Duzenle dugmesi, gorev #274).
     is_edit = need_img and not is_vid
+    # #353: gorevin kendi sablonu (manifest prompt2/negative) kip sablonundan
+    # once gelir - istemci bos gonderdiyse.
+    if not prompt2 and spec.get("prompt2") and not is_edit and not is_vid:
+        prompt2 = spec["prompt2"]
+    if not negative and spec.get("negative"):
+        negative = spec["negative"]
     if not prompt2 and mode in ("jigsaw", "character", "card") and not is_edit:   # #321
         prompt2 = md["motion2"] if is_vid else md["prompt2"]
     if not negative:

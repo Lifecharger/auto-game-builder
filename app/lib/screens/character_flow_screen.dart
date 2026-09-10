@@ -11,6 +11,7 @@ import '../widgets/bottom_inset.dart';
 import '../widgets/network_video.dart';
 import '../widgets/equip_panel.dart';           // #331
 import '../widgets/outfit_extract_dialog.dart'; // #329
+import '../widgets/flow_kind_switch.dart' show kindSwitchBottom;  // #353
 
 /// Asset Mod - Karakter hatti (#306, design/karakter_hatti_v2.md).
 ///
@@ -104,7 +105,9 @@ class _CharacterFlowScreenState extends State<CharacterFlowScreen> {
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(
-          title: widget.kindSwitch ?? const Text('Karakter hatti'),
+          title: const Text('Karakter hatti'),
+          // #353: hat anahtari app bar'in altinda tam genislikte.
+          bottom: kindSwitchBottom(widget.kindSwitch),
           actions: [
             IconButton(
               icon: const Icon(Icons.code),

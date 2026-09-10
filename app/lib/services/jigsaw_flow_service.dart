@@ -364,4 +364,39 @@ class JigsawFlowService {
 
   static Future<FlowOp> op(String opId) async =>
       FlowOp.fromJson(await _get('/api/jigsaw/flow/op/$opId'));
+
+  /// #353: TUTARLI karistirma sunucuda (etiket/kurallar secenek dosyasinda).
+  /// Kilitli alanlar aynen doner; n adet secim listesi gelir. Eski sunucuda
+  /// (404) bos liste doner - cagiran yerel karistirmaya duser.
+  static Future<List<Map<String, String>>> roll(
+      {required String rating,
+      Map<String, String> values = const {},
+      List<String> locks = const [],
+      int n = 1}) async {
+    final r = await http
+        .post(Uri.parse('${ApiService.baseUrl}/api/jigsaw/roll'),
+            headers: _headers,
+            body: json.encode(
+                {'rating': rating, 'values': values, 'locks': locks, 'n': n}))
+        .timeout(_timeout);
+    if (r.statusCode == 404) return const [];
+    if (r.statusCode != 200) _fail(r, 'Karistirma basarisiz');
+    final d = json.decode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>;
+    return [
+      for (final x in (d['rolls'] as List? ?? const []))
+        if (x is Map) {for (final e in x.entries) '${e.key}': '${e.value ?? ''}'}
+    ];
+  }
+
+  /// #353: secenek profilleri SUNUCUDAN (tek dosya: jigsaw_secenekler.json).
+  /// Eski sunucu / cevrimdisi durumda null doner, uygulama gomulu kopyaya duser.
+  static Future<Map<String, dynamic>?> profilesRaw() async {
+    try {
+      final d = await _get('/api/jigsaw/profiles');
+      final p = d['profiles'];
+      return (p is Map && p.isNotEmpty) ? Map<String, dynamic>.from(p) : null;
+    } catch (_) {
+      return null;
+    }
+  }
 }
