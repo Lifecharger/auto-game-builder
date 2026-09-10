@@ -6363,6 +6363,7 @@ class CardEditRequest(BaseModel):
     rank: str
     prompt: str
     kind: str = "card"
+    nsfw: bool = False      # #361: MCNL LoRA'li duzenleme (sinirsiz)
 
 
 class CardAnimDeleteRequest(BaseModel):
@@ -6661,7 +6662,8 @@ def card_flow_collection_delete(id: str, kind: str = "card"):
 @app.post("/api/card/flow/edit")
 def card_flow_edit(body: CardEditRequest):
     """Duzenle: kabul edilmis still'i kisa bir cumleyle duzeltir (edit_qwen)."""
-    return {"op": _flow_call(_card().edit, body.collection, body.rank, body.prompt, body.kind)}
+    return {"op": _flow_call(_card().edit, body.collection, body.rank, body.prompt, body.kind,
+                             body.nsfw)}
 
 
 @app.post("/api/card/flow/animate")

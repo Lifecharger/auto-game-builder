@@ -142,6 +142,7 @@ STILL_TASK = "image_zimage"
 MODELLER = {"zimage": "image_zimage", "qwen": "wf_t2i_qwen_image"}
 DEFAULT_MODEL = "zimage"
 EDIT_TASK = "edit_qwen"
+EDIT_TASK_NSFW = "edit_qwen_nsfw"     # #361: MCNL LoRA - Qwen'in reddettigi duzenlemeler (etek kisaltma vb.)
 VIDEO_TASK = "video_ltx"
 # Kart videosu bir DONGUDUR (sprite sheet 6 sn basa sarar): FLF2V ile ayni still
 # hem ilk hem son kare olarak verilir - klip basladigi kadrajla bitmek zorunda
@@ -508,9 +509,11 @@ def thumb(rel: str, size: int = 360) -> str | None:
     try:
         if os.path.splitext(src)[1].lower() in VIDEO_EXT:
             ff = G._ffmpeg() or "ffmpeg"
+            # #361: hedef ".jpg.tmp" uzantili - ffmpeg bicimi uzantidan cikaramaz,
+            # "-f image2" olmadan sessizce basarisiz oluyordu (video kucuk resmi hep 404).
             subprocess.run([ff, "-y", "-loglevel", "error", "-i", src, "-frames:v", "1",
-                            "-vf", "scale=%d:-1" % size, tmp], check=True, timeout=300,
-                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+                            "-vf", "scale=%d:-1" % size, "-f", "image2", tmp], check=True,
+                           timeout=300, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         else:
             from PIL import Image
             with Image.open(src) as f:
@@ -617,11 +620,16 @@ def ranks_of(kind: str, jokers: int = 0) -> list[str]:
 
 # --------------------------------------------------- gorunum rotasyonu (v4/v5)
 def _tohum(metin: str) -> int:
-    """Sabit (surumler arasi degismeyen) tam sayi tohum - hash() rastgeledir."""
-    h = 0
-    for ch in metin or "":
-        h = (h * 131 + ord(ch)) & 0xFFFFFFFF
-    return h
+    """Sabit (surumler arasi degismeyen) tam sayi tohum - hash() rastgeledir.
+
+    #359: eskiden dogrusal polinom hash'ti: "neon_nurse|9" ile "neon_nurse|8"
+    ardisik sayilar veriyordu; _sablonlar_oku bunun ustune yuva indeksini
+    ekleyince 9,8,7,6,5,4,3,2 rutbelerinin TOHUMU AYNI cikti -> ayni sablon,
+    ayni prompt, ayni kadin (Neon Nurse). sha1 ile ardisik metinler ilgisiz
+    tohumlar verir.
+    """
+    import hashlib
+    return int.from_bytes(hashlib.sha1((metin or "").encode("utf-8")).digest()[:4], "big")
 
 
 def look_for(collection: str, kind: str, rank: str, index: int) -> dict:
@@ -1617,7 +1625,8 @@ def _sablonlar_oku(collection: str, kind: str, m: dict, ranks: list[str]) -> dic
         R = str(r).upper()
         t = ham.get(R)
         if not isinstance(t, dict):
-            t = _sablon_uret(kind, _tohum("%s|%s" % (collection, R)) + i, is_back(R))
+            # #359: indeks EKLENMEZ - tohum yalniz koleksiyon+rutbeden turer.
+            t = _sablon_uret(kind, _tohum("%s|%s" % (collection, R)), is_back(R))
             t["locked"] = []
             t["manual"] = ""
         t.setdefault("locked", [])
@@ -1927,12 +1936,15 @@ def stage(collection: str, rank: str = "", job_id: str = "", kind: str = "",
             "still": _rel(os.path.join(d, "still.png"))}
 
 
-def edit(collection: str, rank: str, prompt: str, kind: str = "") -> str:
+def edit(collection: str, rank: str, prompt: str, kind: str = "", nsfw: bool = False) -> str:
     """op `card-edit`: kabul edilmis still'i kisa bir cumleyle duzeltir (edit_qwen).
 
     Sonuc OTOMATIK kabul edilir; eski still aday olarak saklanir (geri alinabilir).
+    #361: `nsfw` = MCNL LoRA'li akis (edit_qwen_nsfw) - temel Qwen bir noktadan
+    sonra "etegi kisalt" gibi duzenlemeleri reddediyor; kurulu degilse normale duser.
     """
     k = kind_id(kind)
+    gorev = EDIT_TASK_NSFW if (nsfw and G._task(EDIT_TASK_NSFW)) else EDIT_TASK
     prompt = (prompt or "").strip()
     if not prompt:
         raise ValueError("duzeltme cumlesi bos")
@@ -1948,7 +1960,7 @@ def edit(collection: str, rank: str, prompt: str, kind: str = "") -> str:
         _op(op_id, message="duzenle: %s %s" % (collection, str(rank).upper()))
         jid, tasindi = "", False
         try:
-            job = G.submit(EDIT_TASK, "%s %s" % (prompt, keep), negative=_negative(k),
+            job = G.submit(gorev, "%s %s" % (prompt, keep), negative=_negative(k),
                            seed=random.randint(1, 2 ** 31), turbo=True, image_path=src,
                            mode="free", client="flow", category=collection)
             jid = job["id"]

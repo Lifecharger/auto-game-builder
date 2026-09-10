@@ -50,6 +50,37 @@
    "enabled": true
   },
   {
+   "id": "image_qwen_nsfw",
+   "label": "Metinden gorsel NSFW (Qwen Edit 2511 + MCNL LoRA)",
+   "workflow": "T2I Qwen Edit 2511 NSFW.json",
+   "needs_image": false,
+   "is_video": false,
+   "width": 832,
+   "height": 1248,
+   "modes": [
+    "free",
+    "jigsaw"
+   ],
+   "negative": "child, loli, teen, underage, minor, chibi, deformed, extra fingers, bad anatomy, watermark, text, blurry",
+   "enabled": true
+  },
+  {
+   "id": "edit_qwen_nsfw",
+   "label": "Gorsel duzenle NSFW (kimlik korur, MCNL LoRA)",
+   "workflow": "I2I Qwen Edit 2511 NSFW.json",
+   "needs_image": true,
+   "is_video": false,
+   "width": 0,
+   "height": 0,
+   "modes": [
+    "free",
+    "jigsaw",
+    "card"
+   ],
+   "negative": "child, loli, teen, underage, minor, chibi, deformed, extra fingers, bad anatomy, watermark, text, blurry",
+   "enabled": true
+  },
+  {
    "id": "video_ltx",
    "label": "Gorselden video (sesli)",
    "workflow": "LTX2.5 I2V.json",

@@ -443,48 +443,71 @@ Future<String?> cutModeDialog(BuildContext context, List<String> modes) async {
 }
 
 /// ✎ Duzenle penceresi - kisa duzeltme cumlesi (karakter hattiyla ayni kalip).
-Future<String?> cardEditDialog(BuildContext context, String baslik) async {
+/// #361: duzenleme istegi - cumle + sinirsiz (NSFW LoRA) anahtari.
+class CardEditIstek {
+  const CardEditIstek(this.prompt, {this.nsfw = false});
+  final String prompt;
+  final bool nsfw;
+}
+
+Future<CardEditIstek?> cardEditDialog(BuildContext context, String baslik) async {
   final ctl = TextEditingController();
+  var nsfw = false;
   final ok = await showDialog<bool>(
     context: context,
-    builder: (c) => AlertDialog(
-      scrollable: true,
-      title: Text('Duzenle - $baslik'),
-      content: SizedBox(
-        width: 440,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            TextField(
-              controller: ctl,
-              autofocus: true,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'Duzeltme cumlesi',
-                hintText: 'orn. sacini kisalt / eldivenleri cikar',
-                border: OutlineInputBorder(),
+    builder: (c) => StatefulBuilder(
+      builder: (c, setLocal) => AlertDialog(
+        scrollable: true,
+        title: Text('Duzenle - $baslik'),
+        content: SizedBox(
+          width: 440,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: ctl,
+                autofocus: true,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  labelText: 'Duzeltme cumlesi',
+                  hintText: 'orn. sacini kisalt / eldivenleri cikar',
+                  border: OutlineInputBorder(),
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-                'Kabul edilen still bu cumleyle duzenlenir; kimlik, poz ve '
-                'fon korunur. Yeni gorsel otomatik kabul edilir.',
-                style: TextStyle(fontSize: 11, color: Colors.grey)),
-          ],
+              const SizedBox(height: 8),
+              const Text(
+                  'Kabul edilen still bu cumleyle duzenlenir; kimlik, poz ve '
+                  'fon korunur. Yeni gorsel otomatik kabul edilir.',
+                  style: TextStyle(fontSize: 11, color: Colors.grey)),
+              // #361: temel Qwen bir noktadan sonra reddediyor (etek kisaltma
+              // vb.); MCNL LoRA'li akis sinirsiz duzenler.
+              SwitchListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                value: nsfw,
+                title: const Text('Sinirsiz duzenleme (NSFW LoRA)',
+                    style: TextStyle(fontSize: 13)),
+                subtitle: const Text(
+                    'Qwen reddederse ac - MCNL LoRA, 20 adim, biraz daha yavas',
+                    style: TextStyle(fontSize: 10, color: Colors.grey)),
+                onChanged: (v) => setLocal(() => nsfw = v),
+              ),
+            ],
+          ),
         ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(c, false), child: const Text('Vazgec')),
+          FilledButton(
+              onPressed: () => Navigator.pop(c, true), child: const Text('Duzenle')),
+        ],
       ),
-      actions: [
-        TextButton(
-            onPressed: () => Navigator.pop(c, false), child: const Text('Vazgec')),
-        FilledButton(
-            onPressed: () => Navigator.pop(c, true), child: const Text('Duzenle')),
-      ],
     ),
   );
   if (ok != true) return null;
   final t = ctl.text.trim();
-  return t.isEmpty ? null : t;
+  return t.isEmpty ? null : CardEditIstek(t, nsfw: nsfw);
 }
 
 /// Kuyruk bildirimi - ev kurali: "Siraya eklendi (N is) - Sira sekmesinden izle".
@@ -1672,11 +1695,11 @@ class _CardCollectionPageState extends State<CardCollectionPage> {
       return;
     }
     final rank = _sel.first;
-    final prompt = await cardEditDialog(context, '${widget.title} $rank');
-    if (prompt == null) return;
+    final ist = await cardEditDialog(context, '${widget.title} $rank');
+    if (ist == null) return;
     try {
       final op = await CardFlowService.edit(
-          collection: widget.id, rank: rank, prompt: prompt);
+          collection: widget.id, rank: rank, prompt: ist.prompt, nsfw: ist.nsfw);
       setState(_sel.clear);
       _watch(op);
       _snack(queueSnackText(1));
@@ -2298,15 +2321,16 @@ class _CardDetailPageState extends State<CardDetailPage> {
   }
 
   Future<void> _edit() async {
-    final prompt = await cardEditDialog(context, widget.title);
-    if (prompt == null) return;
+    final ist = await cardEditDialog(context, widget.title);
+    if (ist == null) return;
     await _run(
         'Duzenle',
         () => CardFlowService.edit(
             collection: widget.collection,
             rank: widget.rank,
-            prompt: prompt,
-            kind: widget.kind));
+            prompt: ist.prompt,
+            kind: widget.kind,
+            nsfw: ist.nsfw));
   }
 
   Future<void> _redoStill() async => _run(
@@ -2741,6 +2765,12 @@ class _CardDetailPageState extends State<CardDetailPage> {
                 ? errorView(_error!, _load)
                 : Column(
                     children: [
+                      // #361: govde KAYDIRILIR - havuz + animasyon kutulari +
+                      // adaylar eklenince onizleme minicik kaliyordu.
+                      Expanded(
+                        child: ListView(
+                          padding: EdgeInsets.zero,
+                          children: [
                       if (_op != null && _op!.running)
                         Padding(
                           padding: const EdgeInsets.symmetric(
@@ -2788,11 +2818,20 @@ class _CardDetailPageState extends State<CardDetailPage> {
                           ],
                         ),
                       ),
-                      Expanded(child: _preview()),
+                      // Onizleme: ekranin yarisi (en fazla 2:3 kadraj).
+                      SizedBox(
+                        height: (MediaQuery.sizeOf(context).height * 0.5)
+                            .clamp(240.0, MediaQuery.sizeOf(context).width * 1.5),
+                        child: _preview(),
+                      ),
                       _info(),
                       if (!_arka) _videolarSeridi(),    // #357: havuz
                       if (!_arka) _animSeridi(),        // #353: arkada animasyon yok
                       _adaylarSeridi(),
+                      const SizedBox(height: 8),
+                          ],
+                        ),
+                      ),
                       _buttons(),
                     ],
                   ),

@@ -1036,12 +1036,14 @@ class CardFlowService {
     required String rank,
     required String prompt,
     String kind = 'card',
+    bool nsfw = false,           // #361: MCNL LoRA'li sinirsiz duzenleme
   }) async =>
       '${(await _post('/api/card/flow/edit', {
             'collection': collection,
             'rank': rank,
             'prompt': prompt,
             'kind': kind,
+            if (nsfw) 'nsfw': true,
           }))['op'] ?? ''}';
 
   /// 2. asama: LTX-2.5 i2v, 6 sn, jest secimli.
