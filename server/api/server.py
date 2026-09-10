@@ -6235,6 +6235,35 @@ class CardRewriteRequest(BaseModel):
     theme: str = ""
 
 
+class CardTemplateRequest(BaseModel):
+    collection: str
+    rank: str
+    kind: str = "card"
+    template: dict = {}          # eksen degerleri + locked[] + manual
+
+
+class CardAxisRequest(BaseModel):
+    collection: str
+    axis: str
+    value: str
+    kind: str = "card"
+    lock: bool = True
+    ranks: list[str] = []
+
+
+class CardRollRequest(BaseModel):
+    collection: str
+    kind: str = "card"
+    ranks: list[str] = []        # bos = hepsi
+    axes: list[str] = []         # bos = butun eksenler
+
+
+class CardThemeRequest(BaseModel):
+    collection: str
+    theme: str
+    kind: str = "card"
+
+
 class PromptSmithRequest(BaseModel):
     """#337: butun kiplerin ortak prompt yazari - tek uc, bes is."""
     op: str                      # enrich | normalize | variants | motion | looks
@@ -6396,6 +6425,39 @@ def card_flow_stage(body: CardStageRequest):
 def card_flow_stills(body: CardStillsRequest):
     """Asama 1: secili rutbeler icin still uretir, otomatik kabul eder."""
     return {"op": _flow_call(_card().stills, body.collection, body.ranks, body.kind, body.n)}
+
+
+@app.get("/api/card/flow/templates")
+def card_flow_templates(collection: str, kind: str = "card"):
+    """#347: koleksiyonun 13 sablonu + karistirici listeleri + onizleme."""
+    return _flow_call(_card().templates, collection, kind)
+
+
+@app.post("/api/card/flow/templates/axis")
+def card_flow_set_axis(body: CardAxisRequest):
+    """#347: bir ekseni butun rutbelere yazar ve (varsayilan) kilitler."""
+    return _flow_call(_card().set_axis, body.collection, body.axis, body.value,
+                      body.kind, body.lock, body.ranks)
+
+
+@app.post("/api/card/flow/templates/roll")
+def card_flow_roll(body: CardRollRequest):
+    """#347: kilitli OLMAYAN eksenleri yeniden karistirir."""
+    return _flow_call(_card().roll_templates, body.collection, body.kind,
+                      body.ranks, body.axes)
+
+
+@app.post("/api/card/flow/templates")
+def card_flow_set_template(body: CardTemplateRequest):
+    """#347: tek sablonu yazar (eksenler, kilitler, manuel metin)."""
+    return _flow_call(_card().set_template, body.collection, body.rank,
+                      body.template, body.kind)
+
+
+@app.post("/api/card/flow/theme")
+def card_flow_set_theme(body: CardThemeRequest):
+    """#346: koleksiyonun temasini degistirir (promptlara dokunmaz)."""
+    return _flow_call(_card().set_theme, body.collection, body.theme, body.kind)
 
 
 @app.post("/api/card/flow/rewrite-looks")

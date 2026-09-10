@@ -1091,10 +1091,20 @@ def _media(p: str) -> str:
 # ------------------------------------------------------------------ 1 Still
 def _still_job(collection: str, kind: str, rank: str, index: int, m: dict) -> dict:
     """Tek rutbenin still isi (image_zimage, mode 'card')."""
-    look = (m.get("ranks") or {}).get(str(rank).upper()) or {}
-    if not look:
-        look = look_for(collection, kind, rank, index)
-    metin = look.get("prompt") or look_text(m.get("theme") or "", look)
+    # #347: Pozitif 1 (tema) + Pozitif 3 (sablon eksenleri + manuel metin).
+    # Pozitif 2 (guzellik) ve negatif asagida prompt2/negative olarak gider.
+    tpl = _sablonlar_oku(collection, kind, m,
+                         _collection_ranks(collection, kind) or [str(rank).lower()])
+    t = tpl.get(str(rank).upper()) or {}
+    p3 = template_text(t)
+    if p3:
+        metin = look_text(m.get("theme") or "", {"look": p3})
+    else:
+        # Sablon yoksa eski yol: rutbeye yazilmis gorunus, o da yoksa rotasyon.
+        look = (m.get("ranks") or {}).get(str(rank).upper()) or {}
+        if not look:
+            look = look_for(collection, kind, rank, index)
+        metin = look.get("prompt") or look_text(m.get("theme") or "", look)
     olcu = still_size(kind)
     return G.submit(STILL_TASK, metin, prompt2=_prompt2(kind), negative=_negative(kind),
                     width=olcu[0], height=olcu[1],
@@ -1240,6 +1250,173 @@ def stills(collection: str, ranks: list[str] | None = None, kind: str = "", n: i
     return op_id
 
 
+# --------------------------------------------------- 13 sablon + karistiricilar
+# #347: LLM prompt yazari BIRAKILDI - "llm yazinca bozuyor". Yerine jigsaw'daki
+# gibi katmanli kurulum:
+#   Pozitif 1  koleksiyonun temasi (topluca, tek metin)
+#   Pozitif 2  guzellik sablonu (card_options `sablon`, {} ile sarar)
+#   Pozitif 3  bu rutbenin SABLONU - karistiricilardan gelen eksenler
+#   Manuel     kullanicinin serbest yazdigi ek
+#   Negatif    sacma seyleri engelleyen liste
+# Her eksen ayri ayri KILITLENEBILIR: kilitli eksen karistirmada degismez.
+EKSENLER = ("race", "skin", "hair", "eyes", "outfit_style", "outfit", "outfit_color",
+            "pose", "expression")
+# Prompt'ta bu sirayla dizilir - kimlik once, kiyafet ortada, poz/ifade sonda.
+EKSEN_SIRA = ("race", "skin", "hair", "eyes", "outfit_style", "outfit_color", "outfit",
+              "pose", "expression")
+
+
+def mixers(kind: str = "") -> dict:
+    """Karistiricilarin secenek listeleri (card_options `secenekler`)."""
+    prof = (_options().get(KINDS[kind_id(kind)]["profile"]) or {})
+    sec = prof.get("secenekler") or {}
+    return {a: [x for x in (sec.get(a) or []) if isinstance(x, str)] for a in EKSENLER}
+
+
+def _sablon_uret(kind: str, tohum: int | None = None) -> dict:
+    """Bos bir sablonu karistiricilardan rastgele doldurur."""
+    ms = mixers(kind)
+    rnd = random.Random(tohum) if tohum is not None else random
+    return {a: (rnd.choice(ms[a]) if ms.get(a) else "") for a in EKSENLER}
+
+
+def template_text(t: dict) -> str:
+    """Sablondan Pozitif 3 metnini kurar (kilit/manuel alanlari disarida kalir)."""
+    parca = []
+    for a in EKSEN_SIRA:
+        v = str((t or {}).get(a) or "").strip()
+        if v:
+            parca.append(v)
+    el = str((t or {}).get("manual") or "").strip()
+    if el:
+        parca.append(el)
+    return ", ".join(parca)
+
+
+def _sablonlar_oku(collection: str, kind: str, m: dict, ranks: list[str]) -> dict:
+    """Koleksiyonun 13 sablonu; eksik olan rutbe RASTGELE doldurulur.
+
+    Tohum koleksiyon+rutbeden turer, yani ayni koleksiyon acildiginda ayni
+    dizilim cikar (tekrarlanabilir) - kullanici karistirana kadar sabit kalir.
+    """
+    ham = m.get("templates")
+    if not isinstance(ham, dict):
+        ham = {}
+    out = {}
+    for i, r in enumerate(ranks):
+        R = str(r).upper()
+        t = ham.get(R)
+        if not isinstance(t, dict):
+            t = _sablon_uret(kind, _tohum("%s|%s" % (collection, R)) + i)
+            t["locked"] = []
+            t["manual"] = ""
+        t.setdefault("locked", [])
+        t.setdefault("manual", "")
+        out[R] = t
+    return out
+
+
+def templates(collection: str, kind: str = "") -> dict:
+    """#347: koleksiyonun sablonlari + karistirici listeleri (istemci bunu cizer)."""
+    k = kind_id(kind)
+    m = collection_meta(collection, k)
+    ranks = _collection_ranks(collection, k) or         [r.lower() for r in ranks_of(k, m.get("jokers", 0))]
+    tpl = _sablonlar_oku(collection, k, m, ranks)
+    if m.get("templates") != tpl:                 # ilk acilista diske yazilir
+        m["templates"] = tpl
+        _save_collection(collection, k, m)
+    return {"collection": collection, "kind": k, "theme": m.get("theme") or "",
+            "axes": list(EKSENLER), "labels": dict(EKSEN_ETIKET),
+            "mixers": mixers(k), "templates": tpl,
+            "preview": {R: look_text(m.get("theme") or "", {"look": template_text(t)})
+                        for R, t in tpl.items()}}
+
+
+EKSEN_ETIKET = {"race": "Irk", "skin": "Ten", "hair": "Sac", "eyes": "Goz",
+                "outfit_style": "Kiyafet stili", "outfit": "Kiyafet",
+                "outfit_color": "Kiyafet rengi", "pose": "Poz", "expression": "Ifade"}
+
+
+def roll_templates(collection: str, kind: str = "", ranks: list[str] | None = None,
+                   axes: list[str] | None = None) -> dict:
+    """#347: KILITLI OLMAYAN eksenleri yeniden karistirir.
+
+    `ranks` bos = hepsi, `axes` bos = butun eksenler. Kilitli eksene ve manuel
+    metne DOKUNULMAZ.
+    """
+    k = kind_id(kind)
+    m = collection_meta(collection, k)
+    tum = _collection_ranks(collection, k) or         [r.lower() for r in ranks_of(k, m.get("jokers", 0))]
+    hedef = {str(r).upper() for r in (_sec(ranks, tum) or tum)}
+    ekseni = [a for a in (axes or EKSENLER) if a in EKSENLER]
+    tpl = _sablonlar_oku(collection, k, m, tum)
+    ms = mixers(k)
+    for R, t in tpl.items():
+        if R not in hedef:
+            continue
+        kilit = set(t.get("locked") or [])
+        for a in ekseni:
+            if a in kilit or not ms.get(a):
+                continue
+            t[a] = random.choice(ms[a])
+    m["templates"] = tpl
+    _save_collection(collection, k, m)
+    return {"collection": collection, "kind": k, "templates": tpl,
+            "rolled": sorted(hedef), "axes": ekseni}
+
+
+def set_axis(collection: str, axis: str, value: str, kind: str = "",
+             lock: bool = True, ranks: list[str] | None = None) -> dict:
+    """#347: BIR ekseni butun rutbelere birden yazar (ve istege bagli kilitler).
+
+    Tema bir ekseni zaten belirliyorsa (ornek: gothic'te ten "porselen beyaz")
+    karistiricinin ona rastgele "bronzed skin" atmasi temayla catisir. Bu uc o
+    ekseni tek hamlede sabitler - 13 rutbeyi tek tek duzenlemek gerekmez.
+    """
+    k = kind_id(kind)
+    if axis not in EKSENLER:
+        raise ValueError("bilinmeyen eksen: %s" % axis)
+    m = collection_meta(collection, k)
+    tum = _collection_ranks(collection, k) or         [r.lower() for r in ranks_of(k, m.get("jokers", 0))]
+    hedef = {str(r).upper() for r in (_sec(ranks, tum) or tum)}
+    tpl = _sablonlar_oku(collection, k, m, tum)
+    for R, t in tpl.items():
+        if R not in hedef:
+            continue
+        t[axis] = str(value or "").strip()
+        kilit = set(t.get("locked") or [])
+        kilit.add(axis) if lock else kilit.discard(axis)
+        t["locked"] = sorted(kilit)
+    m["templates"] = tpl
+    _save_collection(collection, k, m)
+    return {"collection": collection, "kind": k, "axis": axis, "value": value,
+            "locked": bool(lock), "ranks": sorted(hedef)}
+
+
+def set_template(collection: str, rank: str, data: dict, kind: str = "") -> dict:
+    """#347: tek bir sablonu yazar - eksen degerleri, kilitler ve manuel metin."""
+    k = kind_id(kind)
+    m = collection_meta(collection, k)
+    tum = _collection_ranks(collection, k) or         [r.lower() for r in ranks_of(k, m.get("jokers", 0))]
+    R = str(rank).upper()
+    if R not in {str(x).upper() for x in tum}:
+        raise ValueError("rutbe yok: %s" % rank)
+    tpl = _sablonlar_oku(collection, k, m, tum)
+    t = tpl.get(R) or {}
+    for a in EKSENLER:
+        if a in (data or {}):
+            t[a] = str(data[a] or "").strip()
+    if "manual" in (data or {}):
+        t["manual"] = str(data["manual"] or "").strip()
+    if "locked" in (data or {}):
+        t["locked"] = [a for a in (data["locked"] or []) if a in EKSENLER]
+    tpl[R] = t
+    m["templates"] = tpl
+    _save_collection(collection, k, m)
+    return {"collection": collection, "kind": k, "rank": R, "template": t,
+            "preview": look_text(m.get("theme") or "", {"look": template_text(t)})}
+
+
 def _looks_yaz(collection: str, kind: str, theme: str, ranks: list[str]) -> tuple[dict, str]:
     """Rutbe gorunusleri: once yerel LLM (#337), olmazsa jenerik rotasyon.
 
@@ -1265,6 +1442,23 @@ def _looks_yaz(collection: str, kind: str, theme: str, ranks: list[str]) -> tupl
         look["prompt"] = look_text(theme, look)
         out[r] = look
     return out, yazan
+
+
+def set_theme(collection: str, theme: str, kind: str = "") -> dict:
+    """#346: koleksiyonun temasini degistirir - promptlara DOKUNMAZ.
+
+    Tema koleksiyonun kimligidir ve sonradan fikir degisebilir. Yalniz metni
+    yazar; yeni temaya gore gorunusleri uretmek icin ayrica rewrite_looks
+    calistirilir (istemci "Kaydet" / "Kaydet + promptlari yaz" olarak sunar).
+    """
+    k = kind_id(kind)
+    m = collection_meta(collection, k)
+    t = (theme or "").strip()
+    if not t:
+        raise ValueError("tema bos olamaz")
+    m["theme"] = _deanime(t)
+    _save_collection(collection, k, m)
+    return {"collection": collection, "kind": k, "theme": m["theme"]}
 
 
 def rewrite_looks(collection: str, kind: str = "", theme: str = "") -> dict:

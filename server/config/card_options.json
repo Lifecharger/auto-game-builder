@@ -7,12 +7,24 @@
     "Tema"
    ],
    [
+    "race",
+    "Irk"
+   ],
+   [
     "skin",
     "Ten"
    ],
    [
     "hair",
     "Sac"
+   ],
+   [
+    "eyes",
+    "Goz"
+   ],
+   [
+    "outfit_style",
+    "Kiyafet stili"
    ],
    [
     "outfit",
@@ -27,12 +39,16 @@
     "Poz"
    ],
    [
+    "expression",
+    "Ifade"
+   ],
+   [
     "gesture",
     "Jest"
    ]
   ],
-  "sablon": "ultra realistic glamour photography, breathtakingly beautiful 21 year old adult woman, youthful fresh face, smooth taut line-free skin, bright clear eyes, captivating gorgeous face, flawless symmetrical face, perfect makeup, big expressive eyes, full lips, long silky hair, slim toned figure, radiant glowing skin, supermodel looks, photorealistic, professional fashion photography, detailed realistic skin texture, high detail, playful seductive smile, alluring pin-up model look, daring revealing outfit, deep neckline, lots of bare skin, cinematic studio lighting, 85mm lens, {}, full body, entire figure visible head to feet including high heels, vertical 2:3 composition, centered, standing in front of a plain solid flat uniform light gray seamless studio background, even studio lighting on the subject only, no shadows cast on the background, no floor shadow, no gradient, sharp focus",
-  "negatif": "child, teen, minor, chibi, anime, cartoon, illustration, drawing, painting, 3d render, cgi, deformed, disfigured, extra limbs, extra fingers, bad hands, bad anatomy, watermark, text, logo, cluttered background, furniture, cropped head, camera pan, camera zoom, props, cropped feet, motion blur, depth of field, vignette, zoom in, push in, dolly in, camera moves closer, camera moves back, scale change, subject grows larger, reframing, mature woman, middle aged, older woman, 30 years old, 35 years old, 40 years old, 50 years old, wrinkles, crow's feet, nasolabial folds, forehead lines, aged skin, leathery skin, sagging jawline, tired eyes, heavy aging makeup, trousers, jeans, leggings, pantsuit, blazer, coat, cardigan, closed long skirt, unslit floor-length gown, turtleneck, modest outfit, covered up, ugly face, asymmetric face, blurry, low quality, vehicle, police car, patrol car, motorcycle, machine, monitor, screen, medical equipment, stretcher, hospital bed, objects in the scene, leaning on an object",
+  "sablon": "ultra realistic glamour photography, breathtakingly beautiful 21 year old adult woman, youthful fresh face, smooth taut line-free skin, bright clear eyes, captivating gorgeous face, flawless symmetrical face, perfect makeup, big expressive eyes, full lips, long silky hair, slim toned figure, radiant glowing skin, supermodel looks, photorealistic, professional fashion photography, detailed realistic skin texture, high detail, playful seductive smile, alluring pin-up model look, daring revealing outfit, deep neckline, lots of bare skin, cinematic studio lighting, 85mm lens, {}, ALWAYS FULL BODY - the entire figure from the top of her head down to her shoes is inside the frame, nothing cropped, her feet and heels fully visible, vertical 2:3 composition, centered, SHE IS THE ONLY THING IN THE PICTURE - there is NO background, no scenery, no location, no room, no street, no props and nothing behind her except an empty flat uniform light gray seamless studio backdrop, even studio lighting on her only, no shadow cast behind her, no floor shadow, no gradient, sharp focus",
+  "negatif": "child, teen, minor, chibi, anime, cartoon, illustration, drawing, painting, 3d render, cgi, deformed, disfigured, extra limbs, extra fingers, bad hands, bad anatomy, watermark, text, logo, cluttered background, furniture, cropped head, camera pan, camera zoom, props, cropped feet, motion blur, depth of field, vignette, zoom in, push in, dolly in, camera moves closer, camera moves back, scale change, subject grows larger, reframing, mature woman, middle aged, older woman, 30 years old, 35 years old, 40 years old, 50 years old, wrinkles, crow's feet, nasolabial folds, forehead lines, aged skin, leathery skin, sagging jawline, tired eyes, heavy aging makeup, trousers, jeans, leggings, pantsuit, blazer, coat, cardigan, closed long skirt, unslit floor-length gown, turtleneck, modest outfit, covered up, ugly face, asymmetric face, blurry, low quality, vehicle, police car, patrol car, motorcycle, machine, monitor, screen, medical equipment, stretcher, hospital bed, objects in the scene, leaning on an object, background scenery, location, room interior, outdoor scene, street, landscape, wall, window, environment, backdrop pattern, cropped feet, cropped legs, close-up",
   "video_sablon": "{}, locked static camera, no camera movement, no zoom, no push in, no dolly, framing never changes, same scale, the woman stays fully inside the frame at all times, the plain light gray background stays flat and unchanged, the clip is a seamless loop: the last frame matches the first frame exactly, the woman returns to her starting pose, same scale and same position in frame",
   "secenekler": {
    "theme": [
@@ -136,6 +152,66 @@
     "deal",
     "wink",
     "smile"
+   ],
+   "race": [
+    "caucasian",
+    "scandinavian",
+    "slavic eastern european",
+    "mediterranean",
+    "latina",
+    "brazilian",
+    "middle eastern",
+    "south asian indian",
+    "east asian japanese",
+    "east asian korean",
+    "chinese",
+    "black african",
+    "mixed race"
+   ],
+   "eyes": [
+    "deep blue eyes",
+    "emerald green eyes",
+    "hazel eyes",
+    "dark brown eyes",
+    "amber eyes",
+    "grey eyes",
+    "light brown eyes",
+    "ice blue eyes",
+    "jet black eyes",
+    "violet eyes",
+    "green-gold eyes",
+    "steel blue eyes",
+    "warm honey eyes"
+   ],
+   "expression": [
+    "playful seductive smile",
+    "confident smirk",
+    "warm genuine smile",
+    "sultry half-lidded gaze",
+    "bright delighted grin",
+    "cool challenging stare",
+    "biting her lip playfully",
+    "soft inviting smile",
+    "mischievous raised eyebrow",
+    "serene calm gaze",
+    "flirty wink",
+    "proud chin-up look",
+    "teasing side glance"
+   ],
+   "outfit_style": [
+    "corset and mini skirt",
+    "micro dress",
+    "bodysuit with sheer tights",
+    "crop top and hot pants",
+    "high-slit floor-length gown",
+    "bustier with garter belt",
+    "wrap dress with deep V",
+    "halter mini dress",
+    "lace-up leather two-piece",
+    "sequin leotard",
+    "off-shoulder satin mini",
+    "strapless corset dress",
+    "cropped jacket over bralette and skirt"
    ]
   },
   "jestler": {
@@ -173,8 +249,8 @@
     "Jest"
    ]
   ],
-  "sablon": "ultra realistic glamour photography, breathtakingly beautiful 21 year old adult woman, youthful fresh face, smooth taut line-free skin, bright clear eyes, captivating gorgeous face, flawless symmetrical face, perfect makeup, big expressive eyes, full lips, long silky hair, slim toned figure, radiant glowing skin, supermodel looks, photorealistic, professional fashion photography, detailed realistic skin texture, high detail, playful seductive smile, alluring pin-up model look, daring revealing outfit, deep neckline, lots of bare skin, cinematic studio lighting, 85mm lens, {}, facing camera, medium shot, waist up, her body squared to the camera, shoulders parallel to the frame, looking straight into the lens, holding a small fan of playing cards in ONE hand raised out to her side away from her body, her chest and neckline completely unobstructed with nothing held in front of them, nothing in front of her, no table, no desk, no counter, vertical 2:3 composition, centered, standing in front of a plain solid flat uniform light gray seamless studio background, even studio lighting on the subject only, no shadows cast on the background, no floor shadow, no gradient, sharp focus",
-  "negatif": "child, teen, minor, chibi, anime, cartoon, illustration, drawing, painting, 3d render, cgi, deformed, disfigured, extra limbs, extra fingers, bad hands, bad anatomy, watermark, text, logo, cluttered background, furniture, cropped head, camera pan, camera zoom, full body, legs visible, zoom in, push in, dolly in, camera moves closer, camera moves back, scale change, subject grows larger, reframing, mature woman, middle aged, older woman, 30 years old, 35 years old, 40 years old, 50 years old, wrinkles, crow's feet, nasolabial folds, forehead lines, aged skin, leathery skin, sagging jawline, tired eyes, heavy aging makeup, table, desk, counter, casino table, furniture in front of the subject, trousers, jeans, leggings, pantsuit, blazer, coat, cardigan, closed long skirt, unslit floor-length gown, turtleneck, modest outfit, covered up, full length shot, feet visible, shoes visible, knees visible, wide shot, distant subject, small in frame, vertical composition, portrait orientation, tall narrow framing, turned away, looking away, profile view, side view, three quarter turn, back to camera, over the shoulder, twisting, walking away, ugly face, asymmetric face, blurry, low quality, vehicle, police car, patrol car, motorcycle, machine, monitor, screen, medical equipment, stretcher, hospital bed, props, objects in the scene, leaning on an object",
+  "sablon": "ultra realistic glamour photography, breathtakingly beautiful 21 year old adult woman, youthful fresh face, smooth taut line-free skin, bright clear eyes, captivating gorgeous face, flawless symmetrical face, perfect makeup, big expressive eyes, full lips, long silky hair, slim toned figure, radiant glowing skin, supermodel looks, photorealistic, professional fashion photography, detailed realistic skin texture, high detail, playful seductive smile, alluring pin-up model look, daring revealing outfit, deep neckline, lots of bare skin, cinematic studio lighting, 85mm lens, {}, facing camera, ALWAYS a medium shot from the waist up - NEVER full body, never her legs or feet, her body squared to the camera, shoulders parallel to the frame, looking straight into the lens, holding a small fan of playing cards in ONE hand raised out to her side away from her body, her chest and neckline completely unobstructed with nothing held in front of them, nothing in front of her, no table, no desk, no counter, vertical 2:3 composition, centered, SHE IS THE ONLY THING IN THE PICTURE - there is NO background, no scenery, no location, no room, no street, no props and nothing behind her except an empty flat uniform light gray seamless studio backdrop, even studio lighting on her only, no shadow cast behind her, no floor shadow, no gradient, sharp focus",
+  "negatif": "child, teen, minor, chibi, anime, cartoon, illustration, drawing, painting, 3d render, cgi, deformed, disfigured, extra limbs, extra fingers, bad hands, bad anatomy, watermark, text, logo, cluttered background, furniture, cropped head, camera pan, camera zoom, full body, legs visible, zoom in, push in, dolly in, camera moves closer, camera moves back, scale change, subject grows larger, reframing, mature woman, middle aged, older woman, 30 years old, 35 years old, 40 years old, 50 years old, wrinkles, crow's feet, nasolabial folds, forehead lines, aged skin, leathery skin, sagging jawline, tired eyes, heavy aging makeup, table, desk, counter, casino table, furniture in front of the subject, trousers, jeans, leggings, pantsuit, blazer, coat, cardigan, closed long skirt, unslit floor-length gown, turtleneck, modest outfit, covered up, full length shot, feet visible, shoes visible, knees visible, wide shot, distant subject, small in frame, vertical composition, portrait orientation, tall narrow framing, turned away, looking away, profile view, side view, three quarter turn, back to camera, over the shoulder, twisting, walking away, ugly face, asymmetric face, blurry, low quality, vehicle, police car, patrol car, motorcycle, machine, monitor, screen, medical equipment, stretcher, hospital bed, props, objects in the scene, leaning on an object, background scenery, location, room interior, outdoor scene, street, landscape, wall, window, environment, backdrop pattern",
   "video_sablon": "{}, locked static camera, horizontal landscape framing preserved, no camera movement, no zoom, no push in, no dolly, framing never changes, same scale, the dealer stays fully inside the frame at all times, the plain light gray background stays flat and unchanged, the clip is a seamless loop: the last frame matches the first frame exactly, the woman returns to her starting pose, same scale and same position in frame",
   "secenekler": {
    "theme": [
@@ -223,6 +299,66 @@
     "deal",
     "wink",
     "smile"
+   ],
+   "race": [
+    "caucasian",
+    "scandinavian",
+    "slavic eastern european",
+    "mediterranean",
+    "latina",
+    "brazilian",
+    "middle eastern",
+    "south asian indian",
+    "east asian japanese",
+    "east asian korean",
+    "chinese",
+    "black african",
+    "mixed race"
+   ],
+   "eyes": [
+    "deep blue eyes",
+    "emerald green eyes",
+    "hazel eyes",
+    "dark brown eyes",
+    "amber eyes",
+    "grey eyes",
+    "light brown eyes",
+    "ice blue eyes",
+    "jet black eyes",
+    "violet eyes",
+    "green-gold eyes",
+    "steel blue eyes",
+    "warm honey eyes"
+   ],
+   "expression": [
+    "playful seductive smile",
+    "confident smirk",
+    "warm genuine smile",
+    "sultry half-lidded gaze",
+    "bright delighted grin",
+    "cool challenging stare",
+    "biting her lip playfully",
+    "soft inviting smile",
+    "mischievous raised eyebrow",
+    "serene calm gaze",
+    "flirty wink",
+    "proud chin-up look",
+    "teasing side glance"
+   ],
+   "outfit_style": [
+    "corset and mini skirt",
+    "micro dress",
+    "bodysuit with sheer tights",
+    "crop top and hot pants",
+    "high-slit floor-length gown",
+    "bustier with garter belt",
+    "wrap dress with deep V",
+    "halter mini dress",
+    "lace-up leather two-piece",
+    "sequin leotard",
+    "off-shoulder satin mini",
+    "strapless corset dress",
+    "cropped jacket over bralette and skirt"
    ]
   },
   "jestler": {

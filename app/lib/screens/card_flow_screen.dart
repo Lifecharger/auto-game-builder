@@ -10,6 +10,7 @@ import '../theme.dart';
 import '../widgets/bottom_inset.dart';
 import '../widgets/network_video.dart';
 import 'character_flow_screen.dart' show errorView;
+import 'card_templates_screen.dart';
 
 /// Asset Mod - Kart hatti (#323, design/kart_modu.md).
 ///
@@ -1445,11 +1446,136 @@ class _CardCollectionPageState extends State<CardCollectionPage> {
                 : Column(
                     children: [
                       if (_op != null && _op!.running) _opBar(),
+                      _temaSeridi(),
                       _stageButtons(),
                       Expanded(child: _grid()),
                     ],
                   ),
       );
+
+  /// #347: sablon ekrani - 13 rutbenin eksenleri, kilitleri ve manuel metni.
+  Future<void> _sablonlariAc() async {
+    await Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => CardTemplatesScreen(
+          collection: widget.id, title: widget.title, kind: 'card'),
+    ));
+    if (mounted) _load();
+  }
+
+  /// #346: koleksiyonun KARTI - temasi en ustte durur ve dokununca degisir.
+  /// Koleksiyonla ilgili fikir degisirse buradan duzeltilir; yalniz olusturma
+  /// penceresinde kalmasi yetmiyordu.
+  Widget _temaSeridi() {
+    final tema = _c?.theme ?? '';
+    return InkWell(
+      onTap: _temaDuzenle,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.style_outlined, size: 15, color: Colors.grey),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                  tema.isEmpty ? 'Tema yok - dokun ve yaz' : tema,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      fontSize: 11,
+                      color: tema.isEmpty ? AppColors.error : Colors.grey)),
+            ),
+            const Icon(Icons.edit, size: 14, color: Colors.grey),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _temaDuzenle() async {
+    final c = TextEditingController(text: _c?.theme ?? '');
+    final sablonlar = await CardFlowService.presets();
+    if (!mounted) return;
+    final secim = await showDialog<String>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          scrollable: true,
+          title: const Text('Koleksiyon karti'),
+          content: SizedBox(
+            width: 440,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (sablonlar.isNotEmpty) ...[
+                  const Text('Hazir kart (dokun, sonra elle duzenle)',
+                      style: TextStyle(fontSize: 11, color: Colors.grey)),
+                  const SizedBox(height: 4),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: [
+                      for (final sb in sablonlar)
+                        ActionChip(
+                          label: Text(sb.label,
+                              style: const TextStyle(fontSize: 11)),
+                          onPressed: () => setLocal(() => c.text = sb.theme),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                ],
+                TextField(
+                  controller: c,
+                  maxLines: 6,
+                  decoration: const InputDecoration(
+                    labelText: 'Tema',
+                    helperText:
+                        'Formul: kimlik + STRICT PALETTE + Signature pieces',
+                    helperMaxLines: 2,
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx), child: const Text('Vazgec')),
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, 'kaydet'),
+                child: const Text('Kaydet')),
+            FilledButton(
+                onPressed: () => Navigator.pop(ctx, 'yaz'),
+                child: const Text('Kaydet + prompt yaz')),
+          ],
+        ),
+      ),
+    );
+    if (secim == null) return;
+    final t = c.text.trim();
+    if (t.isEmpty) {
+      _snack('Tema bos olamaz');
+      return;
+    }
+    try {
+      await CardFlowService.setTheme(widget.id, t, kind: 'card');
+      if (secim == 'yaz') {
+        _snack('Promptlar yaziliyor - yerel LLM biraz surebilir');
+        final d = await CardFlowService.rewriteLooks(widget.id, kind: 'card');
+        if (!mounted) return;
+        _snack('Promptlar yazildi (${d['written_by'] ?? 'llm'})');
+      } else {
+        _snack('Tema kaydedildi');
+      }
+      await _load();
+    } catch (e) {
+      if (!mounted) return;
+      _snack(e.toString().replaceFirst('Exception: ', ''));
+    }
+  }
 
   Widget _opBar() => Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -1509,7 +1635,7 @@ class _CardCollectionPageState extends State<CardCollectionPage> {
               _act(Icons.movie_creation_outlined, '2 Video', () => _animate()),
               _act(Icons.content_cut, '3 WebP', () => _cut()),
               _act(Icons.edit_outlined, 'Duzenle', _edit),
-              _act(Icons.auto_awesome, 'Prompt', _rewriteLooks),
+              _act(Icons.tune, 'Sablon', _sablonlariAc),
             ],
           ),
         ),

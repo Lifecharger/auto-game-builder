@@ -282,6 +282,85 @@ class CardAnim {
   bool get isIdle => name == 'idle';
 }
 
+/// #347: bir rutbenin SABLONU - 9 eksen + kilitler + manuel metin.
+/// LLM'in yerini aldi: Pozitif 3 bu sablondan kurulur.
+class CardTemplate {
+  final Map<String, String> axes;   // race, skin, hair, eyes, outfit_style, ...
+  final Set<String> locked;         // karistirmada degismeyecek eksenler
+  final String manual;              // kullanicinin serbest yazdigi ek
+
+  const CardTemplate({
+    this.axes = const {},
+    this.locked = const {},
+    this.manual = '',
+  });
+
+  factory CardTemplate.fromJson(Map<String, dynamic> j) {
+    final a = <String, String>{};
+    for (final e in j.entries) {
+      if (e.key == 'locked' || e.key == 'manual') continue;
+      a[e.key] = '${e.value ?? ''}';
+    }
+    return CardTemplate(
+      axes: a,
+      locked: (j['locked'] is List)
+          ? (j['locked'] as List).map((e) => '$e').toSet()
+          : const {},
+      manual: '${j['manual'] ?? ''}',
+    );
+  }
+
+  Map<String, dynamic> toJson() =>
+      {...axes, 'locked': locked.toList(), 'manual': manual};
+
+  CardTemplate copyWith(
+          {Map<String, String>? axes, Set<String>? locked, String? manual}) =>
+      CardTemplate(
+          axes: axes ?? this.axes,
+          locked: locked ?? this.locked,
+          manual: manual ?? this.manual);
+}
+
+/// #347: `/api/card/flow/templates` cevabi.
+class CardTemplates {
+  final String theme;
+  final List<String> axes;              // eksen sirasi
+  final Map<String, String> labels;     // eksen -> Turkce etiket
+  final Map<String, List<String>> mixers;
+  final Map<String, CardTemplate> templates;   // RUTBE -> sablon
+  final Map<String, String> preview;           // RUTBE -> tam prompt onizlemesi
+
+  const CardTemplates({
+    this.theme = '',
+    this.axes = const [],
+    this.labels = const {},
+    this.mixers = const {},
+    this.templates = const {},
+    this.preview = const {},
+  });
+
+  factory CardTemplates.fromJson(Map<String, dynamic> j) => CardTemplates(
+        theme: '${j['theme'] ?? ''}',
+        axes: (j['axes'] as List? ?? const []).map((e) => '$e').toList(),
+        labels: {
+          for (final e in (j['labels'] as Map? ?? const {}).entries)
+            '${e.key}': '${e.value}'
+        },
+        mixers: {
+          for (final e in (j['mixers'] as Map? ?? const {}).entries)
+            '${e.key}': (e.value as List? ?? const []).map((x) => '$x').toList()
+        },
+        templates: {
+          for (final e in (j['templates'] as Map? ?? const {}).entries)
+            '${e.key}': CardTemplate.fromJson(Map<String, dynamic>.from(e.value as Map))
+        },
+        preview: {
+          for (final e in (j['preview'] as Map? ?? const {}).entries)
+            '${e.key}': '${e.value}'
+        },
+      );
+}
+
 /// `/api/card/flow/profiles` cevabi - jest listeleri ve rutbe sirasi.
 /// Uc yoksa sabit listelere duser (dokuman §4 `gesture_prompts`).
 class CardProfilesInfo {
@@ -563,6 +642,48 @@ class CardFlowService {
           {String kind = 'card'}) async =>
       _delete('/api/card/flow/anim?collection=${_q(collection)}&rank=${_q(rank)}'
           '&anim=${_q(anim)}&kind=${_q(kind)}');
+
+  /// #347: koleksiyonun 13 sablonu + karistirici listeleri.
+  static Future<CardTemplates> templates(String collection,
+          {String kind = 'card'}) async =>
+      CardTemplates.fromJson(await _get(
+          '/api/card/flow/templates?collection=${_q(collection)}&kind=${_q(kind)}'));
+
+  /// #347: kilitli OLMAYAN eksenleri yeniden karistirir.
+  static Future<void> rollTemplates(String collection,
+          {String kind = 'card',
+          List<String> ranks = const [],
+          List<String> axes = const []}) async =>
+      _post('/api/card/flow/templates/roll',
+          {'collection': collection, 'kind': kind, 'ranks': ranks, 'axes': axes});
+
+  /// #347: tek sablonu yazar (eksenler + kilitler + manuel metin).
+  static Future<void> setTemplate(
+          String collection, String rank, CardTemplate t,
+          {String kind = 'card'}) async =>
+      _post('/api/card/flow/templates', {
+        'collection': collection,
+        'rank': rank,
+        'kind': kind,
+        'template': t.toJson(),
+      });
+
+  /// #347: bir ekseni BUTUN rutbelere yazar ve (varsayilan) kilitler.
+  static Future<void> setAxis(String collection, String axis, String value,
+          {String kind = 'card', bool lock = true}) async =>
+      _post('/api/card/flow/templates/axis', {
+        'collection': collection,
+        'axis': axis,
+        'value': value,
+        'kind': kind,
+        'lock': lock,
+      });
+
+  /// #346: koleksiyonun temasini degistirir (promptlara dokunmaz).
+  static Future<void> setTheme(String collection, String theme,
+          {String kind = 'card'}) async =>
+      _post('/api/card/flow/theme',
+          {'collection': collection, 'theme': theme, 'kind': kind});
 
   /// #337: koleksiyonun rutbe promptlarini yerel LLM'e yeniden yazdirir.
   /// Dosyalara dokunmaz - sonra "1 Still" ile yeniden uretilir.
