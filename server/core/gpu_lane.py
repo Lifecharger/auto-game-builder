@@ -27,6 +27,39 @@ _waiting: list[dict] = []          # FIFO biletler
 _current: dict | None = None
 _history: list[dict] = []          # son 30 tamamlanan
 
+# #349: serit el degistirirken bellek birakma.
+# Kullanicinin tarifi: "islem ve model degistikce free eder". Ayni turden
+# arka arkaya gelen isler (ornegin 75 still) ARADA BOSALTMAZ - yalnizca tur
+# degisince bir kez cagrilir, yani model yeniden yukleme bedeli en aza iner.
+# gpu_lane hicbir uretim modulunu IMPORT ETMEZ (dairesel bagimlilik olmasin):
+# bosaltmayi yapan taraf kendini buraya kaydeder.
+_last_kind: str = ""
+_release_hook = None
+_lock_hook = threading.Lock()
+
+
+def set_release_hook(fn) -> None:
+    """Tur degisiminde cagrilacak bellek birakma islevi (fn(eski, yeni))."""
+    global _release_hook
+    with _lock_hook:
+        _release_hook = fn
+
+
+def _tur_degisti(yeni: str) -> None:
+    global _last_kind
+    eski = _last_kind
+    _last_kind = yeni
+    if not eski or eski == yeni:
+        return
+    with _lock_hook:
+        fn = _release_hook
+    if fn is None:
+        return
+    try:
+        fn(eski, yeni)
+    except Exception as e:                       # bosaltma ASLA isi dusurmez
+        print("[gpu_lane] bellek birakma atlandi (%s -> %s): %s" % (eski, yeni, str(e)[:150]))
+
 
 def _ticket(label: str, kind: str, op_id: str = "", job_id: str = "", total: int = 0) -> dict:
     # #299: bilet artik hangi op/isten geldigini tasir - Sira ekrani ilerlemeyi
@@ -52,6 +85,8 @@ def hold(label: str, kind: str = "gpu", *, op_id: str = "", job_id: str = "", to
         t["started_at"] = datetime.now().isoformat(timespec="seconds")
         t["t1"] = time.time()
         _current = t
+    # Serit alindi, is HENUZ baslamadi: onceki turden kalan bellek burada birakilir.
+    _tur_degisti(kind)
     try:
         yield t
     finally:

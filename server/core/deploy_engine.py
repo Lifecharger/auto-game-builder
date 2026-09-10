@@ -365,6 +365,28 @@ class DeployEngine:
             self._emit("deploy_status", app_id, self._active_deploys[app_id])
 
     def _run_deploy(self, app: App, track: str, build_target: str, upload: bool, max_retries: int):
+        """#349: build ARTIK gpu_lane'den gecer.
+
+        Build ekran kartina dokunmaz ama ayni RAM'i kullanir ve gun boyu bellek
+        biriktiren ComfyUI ile ayni anda calisinca sistem 32 GB'da tikaniyordu
+        (bugun uc kez oldu; bir kez build'i, iki kez izleyiciyi oldurdu).
+        Seride alinca: kuyruk bos olana kadar bekler, sirasi gelince tur degisimi
+        kancasi ComfyUI/Ollama bellegini birakir, build temiz RAM ile baslar ve
+        bu sure boyunca yeni uretim isi baslamaz. Ayrica Sira ekraninda gorunur -
+        "her agir is seritten gecer" kurali artik build'i de kapsiyor.
+        """
+        etiket = "build: %s %s" % (app.name or app.id, build_target)
+        try:
+            from . import gpu_lane
+        except Exception:
+            gpu_lane = None
+        if gpu_lane is None:
+            return self._run_deploy_inner(app, track, build_target, upload, max_retries)
+        with gpu_lane.hold(etiket, kind="build"):
+            return self._run_deploy_inner(app, track, build_target, upload, max_retries)
+
+    def _run_deploy_inner(self, app: App, track: str, build_target: str, upload: bool,
+                          max_retries: int):
         try:
 
             targets = BUILD_TARGETS.get(app.app_type, {})

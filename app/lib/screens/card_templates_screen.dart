@@ -290,6 +290,7 @@ class _CardTemplatesScreenState extends State<CardTemplatesScreen> {
                     children: [
                       if (_busy) const LinearProgressIndicator(minHeight: 2),
                       _temaSatiri(),
+                      _ayarSeridi(),
                       _eksenSeridi(),
                       const Divider(height: 1),
                       Expanded(child: _liste()),
@@ -403,6 +404,55 @@ class _CardTemplatesScreenState extends State<CardTemplatesScreen> {
         () => CardFlowService.setTheme(widget.collection, t, kind: widget.kind),
         'Tema kaydedildi');
   }
+
+  /// #353: uretim ayarlari - model acilir listesi + yuz rotusu anahtari.
+  /// Kullanici ikisini deneyip kendi karar verecek.
+  Widget _ayarSeridi() => Padding(
+        padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 170,
+              child: DropdownButtonFormField<String>(
+                initialValue: _d.models.contains(_d.model) ? _d.model : null,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                    isDense: true, border: OutlineInputBorder(), labelText: 'Model'),
+                items: [
+                  for (final m in _d.models)
+                    DropdownMenuItem(
+                        value: m, child: Text(m, style: const TextStyle(fontSize: 12))),
+                ],
+                onChanged: _busy
+                    ? null
+                    : (v) => v == null
+                        ? null
+                        : _sarmala(
+                            () => CardFlowService.setSettings(widget.collection,
+                                kind: widget.kind, model: v),
+                            'Model: $v'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: SwitchListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                value: _d.faceDetail,
+                title: const Text('Yuz rotusu', style: TextStyle(fontSize: 12)),
+                subtitle: const Text('+15 sn/kart - yuzu ayri gecisten gecirir',
+                    style: TextStyle(fontSize: 10, color: Colors.grey)),
+                onChanged: _busy
+                    ? null
+                    : (v) => _sarmala(
+                        () => CardFlowService.setSettings(widget.collection,
+                            kind: widget.kind, faceDetail: v),
+                        v ? 'Yuz rotusu acik' : 'Yuz rotusu kapali'),
+              ),
+            ),
+          ],
+        ),
+      );
 
   /// #348: eksen secici artik CIP degil ACILIR LISTE - "hepsine uygula".
   Widget _eksenSeridi() => Padding(

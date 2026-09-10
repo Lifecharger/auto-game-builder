@@ -48,7 +48,7 @@
    ]
   ],
   "sablon": "ultra realistic glamour photography, breathtakingly beautiful 21 year old adult woman, youthful fresh face, smooth taut line-free skin, bright clear eyes, captivating gorgeous face, flawless symmetrical face, perfect makeup, big expressive eyes, full lips, long silky hair, slim toned figure, radiant glowing skin, supermodel looks, photorealistic, professional fashion photography, detailed realistic skin texture, high detail, playful seductive smile, alluring pin-up model look, daring revealing outfit, deep neckline, lots of bare skin, cinematic studio lighting, 85mm lens, {}, ALWAYS FULL BODY - the entire figure from the top of her head down to her shoes is inside the frame, nothing cropped, her feet and heels fully visible, vertical 2:3 composition, centered, SHE IS THE ONLY THING IN THE PICTURE - there is NO background, no scenery, no location, no room, no street, no props and nothing behind her except an empty flat uniform light gray seamless studio backdrop, even studio lighting on her only, no shadow cast behind her, no floor shadow, no gradient, sharp focus",
-  "negatif": "child, teen, minor, chibi, anime, cartoon, illustration, drawing, painting, 3d render, cgi, deformed, disfigured, extra limbs, extra fingers, bad hands, bad anatomy, watermark, text, logo, cluttered background, furniture, cropped head, camera pan, camera zoom, props, cropped feet, motion blur, depth of field, vignette, zoom in, push in, dolly in, camera moves closer, camera moves back, scale change, subject grows larger, reframing, mature woman, middle aged, older woman, 30 years old, 35 years old, 40 years old, 50 years old, wrinkles, crow's feet, nasolabial folds, forehead lines, aged skin, leathery skin, sagging jawline, tired eyes, heavy aging makeup, trousers, jeans, leggings, pantsuit, blazer, coat, cardigan, closed long skirt, unslit floor-length gown, turtleneck, modest outfit, covered up, ugly face, asymmetric face, blurry, low quality, vehicle, police car, patrol car, motorcycle, machine, monitor, screen, medical equipment, stretcher, hospital bed, objects in the scene, leaning on an object, background scenery, location, room interior, outdoor scene, street, landscape, wall, window, environment, backdrop pattern, cropped feet, cropped legs, close-up",
+  "negatif": "child, teen, minor, chibi, anime, cartoon, illustration, drawing, painting, 3d render, cgi, deformed, disfigured, extra limbs, extra fingers, bad hands, bad anatomy, watermark, text, logo, cluttered background, furniture, cropped head, camera pan, camera zoom, props, cropped feet, motion blur, depth of field, vignette, zoom in, push in, dolly in, camera moves closer, camera moves back, scale change, subject grows larger, reframing, mature woman, middle aged, older woman, 30 years old, 35 years old, 40 years old, 50 years old, wrinkles, crow's feet, nasolabial folds, forehead lines, aged skin, leathery skin, sagging jawline, tired eyes, heavy aging makeup, trousers, jeans, leggings, pantsuit, blazer, coat, cardigan, closed long skirt, unslit floor-length gown, turtleneck, modest outfit, covered up, ugly face, asymmetric face, blurry, low quality, vehicle, police car, patrol car, motorcycle, machine, monitor, screen, medical equipment, stretcher, hospital bed, objects in the scene, leaning on an object, background scenery, location, room interior, outdoor scene, street, landscape, wall, window, environment, backdrop pattern, cropped feet, cropped legs, close-up, photo studio, studio set, light stand, softbox, tripod, camera equipment, backdrop frame, backdrop stand, seam on the wall, floor line, horizon line, visible studio floor, cyclorama edge, reflector, boom arm, cables",
   "video_sablon": "{}, locked static camera, no camera movement, no zoom, no push in, no dolly, framing never changes, same scale, the woman stays fully inside the frame at all times, the plain light gray background stays flat and unchanged, the clip is a seamless loop: the last frame matches the first frame exactly, the woman returns to her starting pose, same scale and same position in frame",
   "secenekler": {
    "theme": [
@@ -69,18 +69,18 @@
    ],
    "skin": [
     "porcelain pale skin",
-    "fair freckled ginger skin",
-    "sun-kissed latina skin",
-    "deep brown skin, stunning black woman",
-    "east asian beauty with clear fair skin",
-    "olive mediterranean skin",
-    "caramel skin",
-    "golden-tan skin",
-    "bronzed skin",
-    "warm brown skin",
+    "very fair skin",
+    "fair freckled skin",
     "light olive skin",
-    "very pale skin",
-    "honey-toned skin"
+    "olive skin",
+    "warm beige skin",
+    "golden tan skin",
+    "sun-kissed skin",
+    "bronzed skin",
+    "caramel skin",
+    "warm brown skin",
+    "deep brown skin",
+    "rich ebony skin"
    ],
    "hair": [
     "long wavy jet-black hair",
@@ -250,7 +250,7 @@
    ]
   ],
   "sablon": "ultra realistic glamour photography, breathtakingly beautiful 21 year old adult woman, youthful fresh face, smooth taut line-free skin, bright clear eyes, captivating gorgeous face, flawless symmetrical face, perfect makeup, big expressive eyes, full lips, long silky hair, slim toned figure, radiant glowing skin, supermodel looks, photorealistic, professional fashion photography, detailed realistic skin texture, high detail, playful seductive smile, alluring pin-up model look, daring revealing outfit, deep neckline, lots of bare skin, cinematic studio lighting, 85mm lens, {}, facing camera, ALWAYS a medium shot from the waist up - NEVER full body, never her legs or feet, her body squared to the camera, shoulders parallel to the frame, looking straight into the lens, holding a small fan of playing cards in ONE hand raised out to her side away from her body, her chest and neckline completely unobstructed with nothing held in front of them, nothing in front of her, no table, no desk, no counter, vertical 2:3 composition, centered, SHE IS THE ONLY THING IN THE PICTURE - there is NO background, no scenery, no location, no room, no street, no props and nothing behind her except an empty flat uniform light gray seamless studio backdrop, even studio lighting on her only, no shadow cast behind her, no floor shadow, no gradient, sharp focus",
-  "negatif": "child, teen, minor, chibi, anime, cartoon, illustration, drawing, painting, 3d render, cgi, deformed, disfigured, extra limbs, extra fingers, bad hands, bad anatomy, watermark, text, logo, cluttered background, furniture, cropped head, camera pan, camera zoom, full body, legs visible, zoom in, push in, dolly in, camera moves closer, camera moves back, scale change, subject grows larger, reframing, mature woman, middle aged, older woman, 30 years old, 35 years old, 40 years old, 50 years old, wrinkles, crow's feet, nasolabial folds, forehead lines, aged skin, leathery skin, sagging jawline, tired eyes, heavy aging makeup, table, desk, counter, casino table, furniture in front of the subject, trousers, jeans, leggings, pantsuit, blazer, coat, cardigan, closed long skirt, unslit floor-length gown, turtleneck, modest outfit, covered up, full length shot, feet visible, shoes visible, knees visible, wide shot, distant subject, small in frame, vertical composition, portrait orientation, tall narrow framing, turned away, looking away, profile view, side view, three quarter turn, back to camera, over the shoulder, twisting, walking away, ugly face, asymmetric face, blurry, low quality, vehicle, police car, patrol car, motorcycle, machine, monitor, screen, medical equipment, stretcher, hospital bed, props, objects in the scene, leaning on an object, background scenery, location, room interior, outdoor scene, street, landscape, wall, window, environment, backdrop pattern",
+  "negatif": "child, teen, minor, chibi, anime, cartoon, illustration, drawing, painting, 3d render, cgi, deformed, disfigured, extra limbs, extra fingers, bad hands, bad anatomy, watermark, text, logo, cluttered background, furniture, cropped head, camera pan, camera zoom, full body, legs visible, zoom in, push in, dolly in, camera moves closer, camera moves back, scale change, subject grows larger, reframing, mature woman, middle aged, older woman, 30 years old, 35 years old, 40 years old, 50 years old, wrinkles, crow's feet, nasolabial folds, forehead lines, aged skin, leathery skin, sagging jawline, tired eyes, heavy aging makeup, table, desk, counter, casino table, furniture in front of the subject, trousers, jeans, leggings, pantsuit, blazer, coat, cardigan, closed long skirt, unslit floor-length gown, turtleneck, modest outfit, covered up, full length shot, feet visible, shoes visible, knees visible, wide shot, distant subject, small in frame, vertical composition, portrait orientation, tall narrow framing, turned away, looking away, profile view, side view, three quarter turn, back to camera, over the shoulder, twisting, walking away, ugly face, asymmetric face, blurry, low quality, vehicle, police car, patrol car, motorcycle, machine, monitor, screen, medical equipment, stretcher, hospital bed, props, objects in the scene, leaning on an object, background scenery, location, room interior, outdoor scene, street, landscape, wall, window, environment, backdrop pattern, photo studio, studio set, light stand, softbox, tripod, camera equipment, backdrop frame, backdrop stand, seam on the wall, floor line, horizon line, visible studio floor, cyclorama edge, reflector, boom arm, cables",
   "video_sablon": "{}, locked static camera, horizontal landscape framing preserved, no camera movement, no zoom, no push in, no dolly, framing never changes, same scale, the dealer stays fully inside the frame at all times, the plain light gray background stays flat and unchanged, the clip is a seamless loop: the last frame matches the first frame exactly, the woman returns to her starting pose, same scale and same position in frame",
   "secenekler": {
    "theme": [
@@ -263,11 +263,18 @@
    ],
    "skin": [
     "porcelain pale skin",
-    "deep brown skin, stunning black woman",
-    "east asian beauty with clear fair skin",
-    "sun-kissed latina skin",
-    "olive mediterranean skin",
-    "caramel skin"
+    "very fair skin",
+    "fair freckled skin",
+    "light olive skin",
+    "olive skin",
+    "warm beige skin",
+    "golden tan skin",
+    "sun-kissed skin",
+    "bronzed skin",
+    "caramel skin",
+    "warm brown skin",
+    "deep brown skin",
+    "rich ebony skin"
    ],
    "hair": [
     "sleek long jet-black hair",

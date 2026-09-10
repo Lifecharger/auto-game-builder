@@ -693,6 +693,47 @@ MODES = {
 }
 
 
+def free_memory(reason: str = "") -> dict:
+    """#349: ComfyUI'nin modellerini ve VRAM/RAM'ini birakmasini ister.
+
+    ComfyUI gun boyunca bellek biriktiriyor (bugun 18-20 GB'a cikti); serit el
+    degistirirken bir kez cagrilinca sonraki is temiz baslar. Basarisiz olmasi
+    isi DUSURMEZ - sadece bildirilir.
+    """
+    import urllib.request
+    out = {"comfy": False, "ollama": False, "reason": reason}
+    try:
+        req = urllib.request.Request(
+            COMFY + "/free",
+            data=json.dumps({"unload_models": True, "free_memory": True}).encode(),
+            headers={"Content-Type": "application/json"})
+        urllib.request.urlopen(req, timeout=20).read()
+        out["comfy"] = True
+    except Exception:
+        pass
+    try:
+        from . import jigsaw_flow as JF
+        JF.ollama_unload()
+        out["ollama"] = True
+    except Exception:
+        pass
+    return out
+
+
+def _lane_release(eski: str, yeni: str) -> None:
+    """gpu_lane tur degistirdiginde cagrilir (kanca acilista baglanir)."""
+    r = free_memory("%s -> %s" % (eski, yeni))
+    print("[gpu_lane] bellek birakildi %s -> %s (comfy=%s, ollama=%s)"
+          % (eski, yeni, r["comfy"], r["ollama"]))
+
+
+try:
+    from . import gpu_lane as _lane
+    _lane.set_release_hook(_lane_release)
+except Exception as _e:                          # serit yoksa uretim yine calisir
+    print("[comfy_gen] gpu_lane kancasi baglanamadi: %s" % str(_e)[:120])
+
+
 def modes() -> list[dict]:
     return list(MODES.values())
 

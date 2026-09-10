@@ -6258,6 +6258,13 @@ class CardRollRequest(BaseModel):
     axes: list[str] = []         # bos = butun eksenler
 
 
+class CardSettingsRequest(BaseModel):
+    collection: str
+    kind: str = "card"
+    model: str | None = None          # zimage | qwen
+    face_detail: bool | None = None   # yuz rotusu acik/kapali
+
+
 class CardThemeRequest(BaseModel):
     collection: str
     theme: str
@@ -6452,6 +6459,13 @@ def card_flow_set_template(body: CardTemplateRequest):
     """#347: tek sablonu yazar (eksenler, kilitler, manuel metin)."""
     return _flow_call(_card().set_template, body.collection, body.rank,
                       body.template, body.kind)
+
+
+@app.post("/api/card/flow/settings")
+def card_flow_settings(body: CardSettingsRequest):
+    """#353: koleksiyonun uretim ayarlari - model (zimage|qwen) ve yuz rotusu."""
+    return _flow_call(_card().set_settings, body.collection, body.kind,
+                      body.model, body.face_detail)
 
 
 @app.post("/api/card/flow/theme")

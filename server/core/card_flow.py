@@ -134,6 +134,12 @@ MAIN = "main"          # krupiyenin tek ogesinin rutbe adi (#323 istemcisi bunu 
 CUT_MODES = ("sam", "hybrid")
 
 STILL_TASK = "image_zimage"
+# #353: koleksiyon basina MODEL secimi. Kullanici ikisini deneyip kendi karar
+# verecek: Z-Image hizli (8 adim, cfg 1 - negatif prompt ETKISIZ) ve fonu temiz;
+# Qwen yavas (20 adim, cfg 4 - negatifi KULLANIR) ve kostum sadakati daha iyi
+# ama arka plana studyo ekipmani koymaya egilimli.
+MODELLER = {"zimage": "image_zimage", "qwen": "wf_t2i_qwen_image"}
+DEFAULT_MODEL = "zimage"
 EDIT_TASK = "edit_qwen"
 VIDEO_TASK = "video_ltx"
 # Kart videosu bir DONGUDUR (sprite sheet 6 sn basa sarar): FLF2V ile ayni still
@@ -1112,6 +1118,34 @@ def _media(p: str) -> str:
 
 
 # ------------------------------------------------------------------ 1 Still
+def collection_model(m: dict) -> str:
+    """Koleksiyonun secili modeli (gecersizse varsayilana duser)."""
+    a = str((m or {}).get("model") or "").strip().lower()
+    return a if a in MODELLER else DEFAULT_MODEL
+
+
+def face_detail_on(m: dict) -> bool:
+    """Yuz rotusu acik mi (koleksiyon ayari)."""
+    return bool((m or {}).get("face_detail"))
+
+
+def set_settings(collection: str, kind: str = "", model: str | None = None,
+                 face_detail: bool | None = None) -> dict:
+    """#353: koleksiyonun uretim ayarlari - model ve yuz rotusu."""
+    k = kind_id(kind)
+    m = collection_meta(collection, k)
+    if model is not None:
+        a = str(model).strip().lower()
+        if a not in MODELLER:
+            raise ValueError("bilinmeyen model: %s (%s)" % (model, ", ".join(MODELLER)))
+        m["model"] = a
+    if face_detail is not None:
+        m["face_detail"] = bool(face_detail)
+    _save_collection(collection, k, m)
+    return {"collection": collection, "kind": k, "model": collection_model(m),
+            "face_detail": face_detail_on(m), "models": list(MODELLER)}
+
+
 def _still_job(collection: str, kind: str, rank: str, index: int, m: dict) -> dict:
     """Tek rutbenin still isi (image_zimage, mode 'card')."""
     # #347: Pozitif 1 (tema) + Pozitif 3 (sablon eksenleri + manuel metin).
@@ -1126,7 +1160,7 @@ def _still_job(collection: str, kind: str, rank: str, index: int, m: dict) -> di
         # yalniz kendi eksenlerinden (motif/palet/yuzey) + manuel metinden kurulur.
         metin = template_text(t, True)
         olcu = still_size(kind)
-        return G.submit(STILL_TASK, metin, prompt2=_back_prompt2(),
+        return G.submit(MODELLER[collection_model(m)], metin, prompt2=_back_prompt2(),
                         negative=_back_negative(),
                         width=olcu[0], height=olcu[1],
                         seed=random.randint(1, 2 ** 31), mode="card",
@@ -1141,7 +1175,8 @@ def _still_job(collection: str, kind: str, rank: str, index: int, m: dict) -> di
             look = look_for(collection, kind, rank, index)
         metin = look.get("prompt") or look_text(m.get("theme") or "", look)
     olcu = still_size(kind)
-    return G.submit(STILL_TASK, metin, prompt2=_prompt2(kind), negative=_negative(kind),
+    return G.submit(MODELLER[collection_model(m)], metin,
+                    prompt2=_prompt2(kind), negative=_negative(kind),
                     width=olcu[0], height=olcu[1],
                     seed=random.randint(1, 2 ** 31), mode="card",
                     client="flow", category=collection)
@@ -1231,6 +1266,58 @@ def delete_candidate(collection: str, rank: str, file: str, kind: str = "") -> d
     return {"deleted": 1, "candidates": candidates(collection, rank, k)}
 
 
+def _yuz_rotus(collection: str, kind: str, rank: str, op_id: str, etiket: str) -> bool:
+    """#353: kabul edilmis still'in YUZUNU ayri bir gecisle netlestirir.
+
+    Tam boy karede yuz ~100x130 piksele dusuyor; kirp -> 1024'e buyut ->
+    edit_qwen (kimlik korur) -> yumusak kenarla geri yapistir. Basarisiz olursa
+    still'e DOKUNULMAZ, op defterine not dusulur.
+
+    SIRALAMA: video still'den, sheet de videodan uretildigi icin rotus BURADA
+    (still asamasinda) yapilmali - sonra yapilirsa bosa gider.
+    """
+    try:
+        from . import face_detail as FD
+    except Exception as e:
+        _op(op_id, log="%s: yuz rotusu modulu yok (%s)" % (etiket, str(e)[:80]))
+        return False
+    d = rank_dir(collection, rank, kind)
+    still = os.path.join(d, "still.png")
+    if not os.path.isfile(still):
+        return False
+    kutu = FD.face_box(still)
+    if not kutu:
+        _op(op_id, log="%s: yuz bulunamadi, rotus atlandi" % etiket)
+        return False
+    gecici = os.path.join(d, "_face_in.png")
+    jid = ""
+    try:
+        FD.crop_face(still, gecici, kutu)
+        job = G.submit(EDIT_TASK, FD.FACE_PROMPT, negative=FD.FACE_NEG,
+                       seed=random.randint(1, 2 ** 31), turbo=True, image_path=gecici,
+                       mode="free", client="flow", category=collection)
+        jid = job["id"]
+        out = _await_job(jid, op_id, "yuz %s" % etiket)
+        FD.paste_face(still, out, tuple(kutu))
+        try:
+            _still_webp(still, os.path.join(d, "still.webp"), kind)
+        except Exception:
+            pass
+        _op(op_id, log="%s -> yuz rotusu uygulandi" % etiket)
+        return True
+    except Exception as e:
+        _op(op_id, log="%s: yuz rotusu basarisiz (%s)" % (etiket, str(e)[:120]))
+        return False
+    finally:
+        if jid:
+            _is_sil(jid, False)
+        for f in (gecici,):
+            try:
+                os.remove(f)
+            except OSError:
+                pass
+
+
 def stills(collection: str, ranks: list[str] | None = None, kind: str = "", n: int = 1) -> str:
     """op `card-still`: secili rutbeler icin yeni still uretir, OTOMATIK kabul eder.
 
@@ -1278,6 +1365,10 @@ def stills(collection: str, ranks: list[str] | None = None, kind: str = "", n: i
                 src = _await_job(jid, op_id, etiket)
                 if kabul:
                     yol = _kabul_still(collection, k, r, src, jid)
+                    # #353: koleksiyon ayari acikken yuz ayri gecisten gecer.
+                    # Kart ARKASI desen oldugu icin atlanir.
+                    if face_detail_on(m) and not is_back(r):
+                        _yuz_rotus(collection, k, r, op_id, etiket)
                 else:
                     yol = _to_png(src, _serbest_ad(rank_dir(collection, r, k, create=True),
                                                    "still_%02d.png"))
@@ -1391,6 +1482,9 @@ def templates(collection: str, kind: str = "") -> dict:
         _save_collection(collection, k, m)
     tema = m.get("theme") or ""
     return {"collection": collection, "kind": k, "theme": tema,
+            # #353: uretim ayarlari - istemci bunlari acilir liste + anahtar cizer
+            "model": collection_model(m), "models": list(MODELLER),
+            "face_detail": face_detail_on(m),
             "slots": yuvalar, "back_rank": BACK_RANK,
             "axes": list(EKSENLER), "labels": dict(EKSEN_ETIKET),
             "back_axes": list(BACK_EKSENLER), "back_labels": dict(BACK_ETIKET),

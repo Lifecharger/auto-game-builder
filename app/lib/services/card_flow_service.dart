@@ -324,6 +324,12 @@ class CardTemplate {
 /// #347: `/api/card/flow/templates` cevabi.
 class CardTemplates {
   final String theme;
+  /// #353: uretim modeli - 'zimage' (hizli, temiz fon) | 'qwen' (kostum
+  /// sadakati iyi, arka plana studyo ekipmani koyabilir).
+  final String model;
+  final List<String> models;
+  /// #353: yuz rotusu - tam boy karede yuz kucuk kaliyor, ayri gecis netlestirir.
+  final bool faceDetail;
   /// #348: 16 yuva - 13 rutbe + J1 + J2 + BACK (kart arkasi).
   final List<String> slots;
   final String backRank;
@@ -339,6 +345,9 @@ class CardTemplates {
 
   const CardTemplates({
     this.theme = '',
+    this.model = 'zimage',
+    this.models = const ['zimage', 'qwen'],
+    this.faceDetail = false,
     this.slots = const [],
     this.backRank = 'BACK',
     this.axes = const [],
@@ -367,6 +376,11 @@ class CardTemplates {
 
   factory CardTemplates.fromJson(Map<String, dynamic> j) => CardTemplates(
         theme: '${j['theme'] ?? ''}',
+        model: '${j['model'] ?? 'zimage'}',
+        models: (j['models'] as List? ?? const ['zimage', 'qwen'])
+            .map((e) => '$e')
+            .toList(),
+        faceDetail: j['face_detail'] == true,
         slots: (j['slots'] as List? ?? const []).map((e) => '$e').toList(),
         backRank: '${j['back_rank'] ?? 'BACK'}',
         backAxes: (j['back_axes'] as List? ?? const []).map((e) => '$e').toList(),
@@ -702,6 +716,16 @@ class CardFlowService {
         'value': value,
         'kind': kind,
         'lock': lock,
+      });
+
+  /// #353: koleksiyonun uretim ayarlari - model ve yuz rotusu.
+  static Future<void> setSettings(String collection,
+          {String kind = 'card', String? model, bool? faceDetail}) async =>
+      _post('/api/card/flow/settings', {
+        'collection': collection,
+        'kind': kind,
+        if (model != null) 'model': model,
+        if (faceDetail != null) 'face_detail': faceDetail,
       });
 
   /// #346: koleksiyonun temasini degistirir (promptlara dokunmaz).
