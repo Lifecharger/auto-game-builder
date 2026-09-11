@@ -614,5 +614,9 @@
   "workerUrlHelp": "Obtenha este URL na app de desktop ou junto do administrador do seu servidor",
   "workerUrlSaved": "URL do Worker guardado",
   "workerUrlSetHint": "Defina cloudflare.worker_url em server/config/settings.json",
-  "youreAllSet": "Está Tudo Pronto!"
+  "youreAllSet": "Está Tudo Pronto!",
+  "agentsMdTitle": "AGENTS.md - {app}",
+  "noAgentsMdYet": "Ainda não há AGENTS.md. Toque em Adicionar para definir as instruções do projeto para a IA.",
+  "cannotSaveEmptyAgentsMd": "Não é possível guardar um AGENTS.md vazio",
+  "agentsMdSaved": "AGENTS.md guardado"
 }

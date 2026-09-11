@@ -7,6 +7,7 @@ import '../services/mode_service.dart';
 import '../theme.dart';
 import '../widgets/flow_kind_switch.dart' show kindSwitchBottom;
 import '../widgets/network_video.dart';
+import '../widgets/generated_audio.dart';
 
 /// #353: Asset Mod - FREE hatti (basit).
 ///
@@ -81,7 +82,7 @@ class _FreeFlowScreenState extends State<FreeFlowScreen> {
 
   /// Gorseller kart, videolar kaynak gorselin uzerinde oynatma isareti.
   List<GenerateJob> get _cards {
-    final gorseller = _jobs.where((j) => !j.isVideo).map((j) => j.id).toSet();
+    final gorseller = _jobs.where((j) => j.isImage).map((j) => j.id).toSet();
     return _jobs
         .where((j) => !(j.isVideo && gorseller.contains(j.sourceJob)))
         .toList();
@@ -119,7 +120,7 @@ class _FreeFlowScreenState extends State<FreeFlowScreen> {
   /// Duzenle: edit motoru (Qwen Image Edit, kimlik korur) - yeni is acar.
   Future<void> _edit() async {
     final j = _sel;
-    if (j == null || !j.isDone || j.isVideo) {
+    if (j == null || !j.isDone || !j.isImage) {
       _snack('Tamamlanmis bir gorsel sec');
       return;
     }
@@ -141,7 +142,7 @@ class _FreeFlowScreenState extends State<FreeFlowScreen> {
   /// Video uret: Free kipindeki ilk gorselden-video gorevi (LTX), hareket cumlesi.
   Future<void> _video() async {
     final j = _sel;
-    if (j == null || !j.isDone || j.isVideo) {
+    if (j == null || !j.isDone || !j.isImage) {
       _snack('Tamamlanmis bir gorsel sec');
       return;
     }
@@ -204,7 +205,9 @@ class _FreeFlowScreenState extends State<FreeFlowScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Flexible(
-              child: v != null
+              child: j.isAudio
+                  ? GeneratedAudio(job: j)
+                  : v != null
                   ? NetworkVideo(url: v.fileUrl, headers: GenerateService.authHeaders)
                   : InteractiveViewer(
                       child: Image.network(j.fileUrl, headers: GenerateService.authHeaders),
@@ -282,7 +285,9 @@ class _FreeFlowScreenState extends State<FreeFlowScreen> {
             fit: StackFit.expand,
             children: [
               const ColoredBox(color: Colors.black),
-              if (j.isDone)
+              if (j.isDone && j.isAudio)
+                const Center(child: Icon(Icons.music_note, size: 48))
+              else if (j.isDone)
                 Image.network(j.thumbUrl(),
                     headers: GenerateService.authHeaders,
                     fit: BoxFit.contain,
@@ -330,8 +335,8 @@ class _FreeFlowScreenState extends State<FreeFlowScreen> {
           color: Theme.of(context).colorScheme.surface,
           child: Row(
             children: [
-              _act(Icons.auto_fix_high, 'Duzenle', _busy ? null : _edit),
-              _act(Icons.movie_creation_outlined, 'Video uret', _busy ? null : _video),
+              _act(Icons.auto_fix_high, 'Duzenle', _busy || _sel?.isImage != true ? null : _edit),
+              _act(Icons.movie_creation_outlined, 'Video uret', _busy || _sel?.isImage != true ? null : _video),
               _act(Icons.zoom_in, 'Buyut', _sel == null ? null : () => _big(_sel!)),
               _act(Icons.delete_outline, 'Sil', _delete),
             ],

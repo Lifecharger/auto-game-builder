@@ -779,6 +779,7 @@ def _snapshot(job: dict) -> dict:
     if j.get("file"):
         j["file_name"] = os.path.basename(j["file"])
         j["has_file"] = os.path.isfile(j["file"])
+        j["is_audio"] = os.path.splitext(j["file"])[1].lower() in _KIND_EXT["audio"]
     jid = j.get("id")
     if jid == _current:
         j["position"] = 0            # 0 = simdi calisiyor
@@ -838,7 +839,7 @@ def _bootstrap() -> None:
             if os.path.normcase(path) in known:
                 continue
             stem, ext = os.path.splitext(fn)
-            if ext.lower() not in (".png", ".jpg", ".jpeg", ".webp", ".mp4", ".webm"):
+            if ext.lower() not in sum(_KIND_EXT.values(), ()):
                 continue
             if stem in _jobs:
                 _jobs[stem]["file"] = path
@@ -1026,7 +1027,6 @@ def cancel_job(job_id: str) -> bool:
             j.pop("_args", None)
             _persist_locked()
             return True
-        pid = j.get("comfy_prompt_id")
     # #356: dispatcher bu isin biletiyle seridi bekliyor olabilir - bileti
     # iptal et ki bekleyis LaneCancelled ile bitsin (serit alinmissa zararsiz).
     try:
@@ -1034,17 +1034,8 @@ def cancel_job(job_id: str) -> bool:
         gpu_lane.cancel_ticket(job_id=job_id)
     except Exception:
         pass
-    if pid:
-        try:
-            _post("/queue", {"delete": [pid]})
-        except Exception:
-            pass
-        try:
-            running = _get("/queue").get("queue_running", [])
-            if any(pid in json.dumps(r) for r in running):
-                _post("/interrupt", {})
-        except Exception:
-            pass
+    # The worker owns remote cancellation, including a prompt response arriving
+    # AFTER this request. It keeps gpu_lane until ComfyUI confirms the stop.
     return True
 
 
@@ -1080,12 +1071,17 @@ def move_job(job_id: str, delta: int) -> bool:
 def clear_queue() -> int:
     """Bekleyen tum isleri iptal eder; calisan is devam eder."""
     with _cv:
-        ids, _queue[:] = list(_queue), []
+        # Include the dispatcher-selected job still waiting for gpu_lane.
+        ids = [jid for jid, j in _jobs.items()
+               if j.get("status") == "queued" and jid != _current]
+        _queue[:] = []
         for jid in ids:
             _drop_ticket_locked(jid)
+            from . import gpu_lane
+            gpu_lane.cancel_ticket(job_id=jid)
             j = _jobs.get(jid)
             if j:
-                j.update(status="cancelled", error="kuyruk temizlendi",
+                j.update(status="cancelled", cancel=True, error="kuyruk temizlendi",
                          finished_at=datetime.now().isoformat())
                 j.pop("_args", None)
         _persist_locked()
@@ -1188,6 +1184,8 @@ def thumb(job_id: str, size: int = 360) -> str | None:
     """
     src = job_file(job_id)
     if not src:
+        return None
+    if os.path.splitext(src)[1].lower() in _KIND_EXT["audio"]:
         return None
     dst = _thumb_path(job_id)
     try:
@@ -1439,6 +1437,28 @@ def submit(task: str, prompt: str, *, prompt2: str = "", negative: str = "",
     return snap
 
 
+def _stop_prompt(pid: str, upd) -> None:
+    """Keep the GPU lane until this submitted prompt is absent from both queues.
+
+    Network failures are not evidence that the GPU is free. Show the pending
+    stop to clients and retry; never let a build unload a still-running model.
+    """
+    upd(node="ComfyUI iptal onayi bekleniyor")
+    while True:
+        try:
+            # ComfyUI's job endpoint atomically checks the running prompt id;
+            # a global /interrupt can hit the next job during a queue race.
+            _post("/api/jobs/%s/cancel" % pid, {})
+            q = _get("/queue")
+            running = any(len(r) > 1 and r[1] == pid for r in q["queue_running"])
+            pending = any(len(r) > 1 and r[1] == pid for r in q["queue_pending"])
+            if not running and not pending:
+                return
+        except Exception as e:
+            upd(node="ComfyUI iptal onayi bekleniyor: %s" % str(e)[:160])
+        time.sleep(2)
+
+
 def _run_job(job_id: str, task: str, a: dict) -> None:
     """Tek bir isi bastan sona calistirir. Dispatcher tarafindan cagrilir."""
     import random
@@ -1447,6 +1467,8 @@ def _run_job(job_id: str, task: str, a: dict) -> None:
     with _lock:
         mode = (_jobs.get(job_id, {}).get("mode") or "free")
     t0 = time.time()
+    pid = None
+    remote_finished = False
 
     def upd(**kw):
         with _lock:
@@ -1459,6 +1481,8 @@ def _run_job(job_id: str, task: str, a: dict) -> None:
 
     upd(status="running", started_at=datetime.now().isoformat())
     try:
+        if cancelled():
+            raise RuntimeError("kullanici iptal etti")
         # ComfyUI kapaliysa is kuyrukta olmeye devam etmesin - kisa sure bekle
         if not comfy_up():
             upd(node="ComfyUI bekleniyor")
@@ -1471,7 +1495,8 @@ def _run_job(job_id: str, task: str, a: dict) -> None:
             upd(node="")
         w2a = _wf2api()
         convert = w2a.convert
-        wf = json.load(open(os.path.join(WFDIR, wf_name), encoding="utf-8"))
+        with open(os.path.join(WFDIR, wf_name), encoding="utf-8") as wf_file:
+            wf = json.load(wf_file)
         seed = a["seed"] if a["seed"] is not None else random.randint(1, 2 ** 31)
         upd(seed=seed)
         ov = {"seed": seed, "noise_seed": seed, "width": a["width"], "height": a["height"]}
@@ -1506,7 +1531,7 @@ def _run_job(job_id: str, task: str, a: dict) -> None:
 
         for n in graph.values():
             ct = n["class_type"]
-            if ct.startswith(("SaveImage", "SaveVideo")):
+            if ct.startswith(("SaveImage", "SaveVideo", "SaveAudio")):
                 n["inputs"]["filename_prefix"] = "agb_gen"
 
         # Grafigi GONDERMEDEN once denetle (gorev #326): ComfyUI'nin 400'u
@@ -1518,6 +1543,8 @@ def _run_job(job_id: str, task: str, a: dict) -> None:
                                % (wf_name, " | ".join(sorun[:4])))
 
         cid = "agb-" + job_id
+        if cancelled():
+            raise RuntimeError("kullanici iptal etti")
         threading.Thread(target=_watch_progress, args=(job_id, cid), daemon=True).start()
         pid = _post("/prompt", {"prompt": graph, "client_id": cid})["prompt_id"]
         upd(comfy_prompt_id=pid)
@@ -1534,11 +1561,12 @@ def _run_job(job_id: str, task: str, a: dict) -> None:
             if pid not in hist:
                 continue
             st = hist[pid].get("status", {})
+            remote_finished = True  # ComfyUI publishes history after execution.
             if st.get("status_str") == "error":
                 msgs = [m for m in st.get("messages", []) if m and m[0] == "execution_error"]
                 raise RuntimeError(json.dumps(msgs, ensure_ascii=False)[:400])
             for _k, o in hist[pid].get("outputs", {}).items():
-                for key in ("images", "videos", "gifs"):
+                for key in ("images", "videos", "gifs", "audio"):
                     for f in o.get(key, []) or []:
                         src = os.path.join(COMFY_OUT, f.get("subfolder", ""), f["filename"])
                         if os.path.isfile(src):
@@ -1553,12 +1581,19 @@ def _run_job(job_id: str, task: str, a: dict) -> None:
 
         if not out:
             raise RuntimeError("cikti alinamadi (zaman asimi olabilir)")
-        upd(status="done", file=out, finished_at=datetime.now().isoformat(),
+        if cancelled():
+            raise RuntimeError("kullanici iptal etti")
+        upd(status="done", file=out,
+            is_audio=os.path.splitext(out)[1].lower() in _KIND_EXT["audio"],
+            finished_at=datetime.now().isoformat(),
             progress=100, node="", seconds=round(time.time() - t0, 1))
         threading.Thread(target=thumb, args=(job_id,), daemon=True).start()
     except Exception as e:  # noqa: BLE001
+        if pid and not remote_finished:
+            _stop_prompt(pid, upd)
         cancel = cancelled()
         upd(status="cancelled" if cancel else "error",
+            node="",
             error=("iptal edildi" if cancel else str(e)[:500]),
             finished_at=datetime.now().isoformat(), seconds=round(time.time() - t0, 1))
     finally:

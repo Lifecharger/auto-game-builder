@@ -1134,5 +1134,14 @@
   "workerUrlHelp": "Get this URL from the desktop app or your server admin",
   "workerUrlSaved": "Worker URL saved",
   "workerUrlSetHint": "Set cloudflare.worker_url in server/config/settings.json",
-  "youreAllSet": "You're All Set!"
+  "youreAllSet": "You're All Set!",
+  "agentsMdTitle": "AGENTS.md - {app}",
+  "@agentsMdTitle": {
+    "placeholders": {
+      "app": {}
+    }
+  },
+  "noAgentsMdYet": "No AGENTS.md yet. Tap Add to set project instructions for AI.",
+  "cannotSaveEmptyAgentsMd": "Cannot save empty AGENTS.md",
+  "agentsMdSaved": "AGENTS.md saved"
 }

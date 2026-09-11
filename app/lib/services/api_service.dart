@@ -969,6 +969,50 @@ class ApiService {
     }
   }
 
+  // Agents.md
+  static Future<ApiResult<String>> getAgentsMd(int appId) async {
+    try {
+      final response = await _getWithRetry(Uri.parse('$_base/api/apps/$appId/agents-md'));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(utf8.decode(response.bodyBytes));
+        return ApiResult.success((data['content'] as String?) ?? '');
+      }
+      return ApiResult.failure(_detailOrHttpError(response));
+    } catch (e) {
+      return ApiResult.failure(_friendlyError(e));
+    }
+  }
+
+  static Future<ApiResult<bool>> updateAgentsMd(int appId, String content) async {
+    try {
+      final response = await http
+          .put(
+            Uri.parse('$_base/api/apps/$appId/agents-md'),
+            headers: _headers,
+            body: jsonEncode({'content': content}),
+          )
+          .timeout(const Duration(seconds: 60));
+      if (response.statusCode == 200) return const ApiResult.success(true);
+      return ApiResult.failure(_detailOrHttpError(response));
+    } catch (e) {
+      return ApiResult.failure(_friendlyError(e));
+    }
+  }
+
+  static Future<ApiResult<bool>> enhanceAgentsMd(int appId, String currentContent) async {
+    try {
+      final response = await http
+          .post(Uri.parse('$_base/api/apps/$appId/enhance'),
+              headers: _headers,
+              body: jsonEncode({'type': 'agents-md'}))
+          .timeout(const Duration(seconds: 15));
+      if (response.statusCode == 200) return const ApiResult.success(true);
+      return ApiResult.failure(_detailOrHttpError(response));
+    } catch (e) {
+      return ApiResult.failure(_friendlyError(e));
+    }
+  }
+
   // Art Bible
   static Future<ApiResult<String>> getArtBible(int appId) async {
     try {

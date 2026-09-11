@@ -204,6 +204,19 @@ class DeliveryService {
     return (j['updated'] is num) ? (j['updated'] as num).toInt() : 0;
   }
 
+  /// #363b: bucket'ta EXIF'i degisen gorselleri yeniden okut. `names` bos ve
+  /// `all` true = butun havuz (50'lik partiler, sunucu gezer).
+  static Future<Map<String, dynamic>> reindex(
+      {List<String> names = const [], bool all = false, String collection = 'generic'}) async {
+    final r = await http
+        .post(Uri.parse('${ApiService.baseUrl}/api/delivery/reindex'),
+            headers: _headers,
+            body: jsonEncode({'collection': collection, 'names': names, 'all': all}))
+        .timeout(const Duration(minutes: 10));
+    if (r.statusCode >= 400) throw Exception(_detail(r));
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
   static Future<DeliveryRuleSet> preset(String name) async =>
       DeliveryRuleSet.fromJson(await _get('/api/delivery/preset?name=$name'));
 }

@@ -158,7 +158,10 @@ class DeployEngine:
         # daemon (and Unity additionally on its single-editor project lock).
         self._engine_build_lock = threading.Lock()
         self._deploy_queue: list[tuple] = []  # sequential deploy queue
-        self._deploy_queue_lock = threading.Lock()
+        self._deploy_queue_lock = threading.RLock()
+        # A popped job still owns its app while waiting on gpu_lane or cleaning
+        # up cancellation. A retry must not clear that job's cancellation flag.
+        self._inflight: set[int] = set()
         self._deploy_worker_running = False
         self._callbacks: dict[str, list[Callable]] = {
             "deploy_status": [],
@@ -180,6 +183,8 @@ class DeployEngine:
         op in the event log so any connected dashboard flips the card
         colour immediately. The log persists the op — reconnecting clients
         catch up by seq instead of missing the transition."""
+        if self._is_cancelled(app_id) and status != "idle":
+            return
         self.db.update_app(app_id, status=status, **extra)
         event_log.append(
             "app.status_changed",
@@ -188,7 +193,13 @@ class DeployEngine:
 
     def cancel(self, app_id: int) -> dict:
         """Cancel an active deploy/build for the given app."""
+        with self._deploy_queue_lock:
+            return self._cancel_locked(app_id)
+
+    def _cancel_locked(self, app_id: int) -> dict:
         self._cancelled.add(app_id)
+        from . import gpu_lane
+        gpu_lane.cancel_ticket(job_id=f"build:{app_id}")
 
         # Drop any jobs still waiting in the queue for this app. Leaving them
         # in place resurrected cancelled deploys: the stale tuple kept its
@@ -264,6 +275,13 @@ class DeployEngine:
     def deploy(self, app: App, track: str = "internal", build_target: str = "aab",
                upload: bool = False, max_retries: int = 2) -> dict:
         """Start build (and optional deploy) in background."""
+        with self._deploy_queue_lock:
+            return self._enqueue_deploy(app, track, build_target, upload, max_retries)
+
+    def _enqueue_deploy(self, app: App, track: str, build_target: str,
+                        upload: bool, max_retries: int) -> dict:
+        if self._shutting_down:
+            return {"error": "Build service is shutting down"}
         if upload and track not in VALID_TRACKS:
             return {"error": f"Invalid track: {track}. Must be one of {VALID_TRACKS}"}
 
@@ -275,8 +293,8 @@ class DeployEngine:
             return {"error": "App has no package_name set"}
 
         if app_id := app.id:
-            # Clear any previous cancellation for this app
-            self._cancelled.discard(app_id)
+            if app_id in self._inflight:
+                return {"error": "Build still active or finishing cancellation; retry when it stops"}
             if app_id in self._active_deploys and self._active_deploys[app_id].get("phase") not in ("done", "failed"):
                 return {"error": "Build already in progress"}
             # A queued tuple can outlive its visible status (e.g. after a
@@ -286,6 +304,9 @@ class DeployEngine:
             with self._deploy_queue_lock:
                 if any(job[0].id == app_id for job in self._deploy_queue):
                     return {"error": "Build already queued"}
+            # All previous work is now finished; only this accepted request
+            # may reset cancellation.
+            self._cancelled.discard(app_id)
 
         target_label = targets[build_target]["label"]
         status = {
@@ -342,6 +363,7 @@ class DeployEngine:
                     self._deploy_worker_running = False
                     return
                 job = self._deploy_queue.pop(0)
+                self._inflight.add(job[0].id)
                 remaining = list(self._deploy_queue)
             # Refresh queued-position messages for items still waiting.
             # Positions shift down as each job is popped; without this
@@ -358,8 +380,15 @@ class DeployEngine:
             except Exception as e:
                 import logging
                 logging.getLogger(__name__).error("deploy worker error: %s", e)
+                self._update_status(job[0].id, phase="failed", message=str(e))
+                self._set_app_status(job[0].id, "idle")
+            finally:
+                with self._deploy_queue_lock:
+                    self._inflight.discard(job[0].id)
 
     def _update_status(self, app_id: int, **kwargs):
+        if self._is_cancelled(app_id) and kwargs.get("phase") != "failed":
+            return
         if app_id in self._active_deploys:
             self._active_deploys[app_id].update(kwargs)
             self._emit("deploy_status", app_id, self._active_deploys[app_id])
@@ -376,14 +405,19 @@ class DeployEngine:
         "her agir is seritten gecer" kurali artik build'i de kapsiyor.
         """
         etiket = "build: %s %s" % (app.name or app.id, build_target)
+        from . import gpu_lane
+        with self._deploy_queue_lock:
+            if self._is_cancelled(app.id):
+                return
+            ticket = gpu_lane.reserve(etiket, kind="build", job_id=f"build:{app.id}")
         try:
-            from . import gpu_lane
-        except Exception:
-            gpu_lane = None
-        if gpu_lane is None:
-            return self._run_deploy_inner(app, track, build_target, upload, max_retries)
-        with gpu_lane.hold(etiket, kind="build"):
-            return self._run_deploy_inner(app, track, build_target, upload, max_retries)
+            with gpu_lane.hold_reserved(ticket):
+                if self._is_cancelled(app.id):
+                    return
+                return self._run_deploy_inner(app, track, build_target, upload, max_retries)
+        except gpu_lane.LaneCancelled:
+            self._update_status(app.id, phase="failed", message="Build cancelled by user")
+            self._set_app_status(app.id, "idle")
 
     def _run_deploy_inner(self, app: App, track: str, build_target: str, upload: bool,
                           max_retries: int):

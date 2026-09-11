@@ -330,6 +330,13 @@ class CacheService {
     await Hive.box<String>(CacheBoxes.appDocs).put('claudemd_$appId', content);
   }
 
+  String? getAgentsMd(int appId) =>
+      Hive.box<String>(CacheBoxes.appDocs).get('agentsmd_$appId');
+
+  Future<void> setAgentsMd(int appId, String content) async {
+    await Hive.box<String>(CacheBoxes.appDocs).put('agentsmd_$appId', content);
+  }
+
   String? getArtBible(int appId) =>
       Hive.box<String>(CacheBoxes.appDocs).get('artbible_$appId');
 

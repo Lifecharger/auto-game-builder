@@ -3797,6 +3797,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'You\'re All Set!'**
   String get youreAllSet;
+
+  /// No description provided for @agentsMdTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'AGENTS.md - {app}'**
+  String agentsMdTitle(Object app);
+
+  /// No description provided for @noAgentsMdYet.
+  ///
+  /// In en, this message translates to:
+  /// **'No AGENTS.md yet. Tap Add to set project instructions for AI.'**
+  String get noAgentsMdYet;
+
+  /// No description provided for @cannotSaveEmptyAgentsMd.
+  ///
+  /// In en, this message translates to:
+  /// **'Cannot save empty AGENTS.md'**
+  String get cannotSaveEmptyAgentsMd;
+
+  /// No description provided for @agentsMdSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'AGENTS.md saved'**
+  String get agentsMdSaved;
 }
 
 class _AppLocalizationsDelegate

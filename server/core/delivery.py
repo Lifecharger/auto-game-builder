@@ -209,3 +209,32 @@ def preset(name: str) -> dict:
     if not p:
         raise ValueError("bilinmeyen on ayar: %s (%s)" % (name, ", ".join(PRESETS)))
     return {"enabled": True, "untagged": True, "values": json.loads(json.dumps(p["values"]))}
+
+
+def reindex(collection: str = "generic", names: list[str] | None = None, all_: bool = False) -> dict:
+    """#363b: bucket'taki EXIF'i degisen gorselleri yeniden okutur (worker /serve-reindex).
+
+    Worker isleyicisi yalniz KV'de adi olmayan (yeni) gorselleri okur; mevcut bir
+    gorselin EXIF'i degisince KV ve sunulan manifest DEGISMEZDI. Bu cagri KV'yi
+    ezer, kompakt indeksi dusurur ve kural damgasini yeniler -> her uygulamanin
+    manifesti sonraki istekte yeniden filtrelenir. all_=True butun koleksiyonu
+    50'lik partilerle gezer.
+    """
+    col = (collection or "generic").lower()
+    if not all_:
+        adlar = [str(n).strip() for n in (names or []) if str(n).strip()]
+        if not adlar:
+            raise ValueError("ad listesi bos (names) ya da all=true ver")
+        out = _call("/serve-reindex", {"collection": col, "names": adlar}, method="POST", timeout=180)
+        return {"collection": col, "reindexed": out.get("reindexed", 0), "missing": out.get("missing") or []}
+    toplam, eksik, off = 0, [], 0
+    while True:
+        out = _call("/serve-reindex", {"collection": col, "all": True, "offset": off, "limit": 50},
+                    method="POST", timeout=180)
+        toplam += int(out.get("reindexed") or 0)
+        eksik += out.get("missing") or []
+        if out.get("next_offset") is None:
+            break
+        off = int(out["next_offset"])
+    return {"collection": col, "reindexed": toplam, "missing": eksik, "total": out.get("total")}
+

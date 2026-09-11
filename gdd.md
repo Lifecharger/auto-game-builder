@@ -215,3 +215,23 @@ Mobile App  ──►  Cloudflare Worker Proxy
 | PixelLab | Pixel art generation for games (MCP + Python SDK) |
 | ElevenLabs | Sound effects and music generation (MCP) |
 | GitHub | Source control link per app (URL stored, not managed directly) |
+
+## Queue and media correctness (task #365, 2026-09-11)
+
+- GPU reservations retain FIFO slots across work kinds. Reordering pending Comfy jobs changes only their own tickets; the ticket already selected by the single dispatcher stays in place.
+- A build owns its app until the worker finishes, including cancellation cleanup. A retry during that interval is rejected without clearing cancellation. Build tickets carry `job_id: build:<app_id>` so the unified queue can cancel them through the build engine.
+- Cancelling a submitted Comfy job uses its prompt ID with ComfyUI's atomic `/api/jobs/{id}/cancel` endpoint. The worker holds the lane until `/queue` confirms that prompt is neither running nor pending. Connection failures leave a visible pending confirmation message and keep the lane reserved.
+- Clearing generation jobs includes the dispatcher-selected waiter but preserves the running job. `/api/queue` reports `can_move_up` / `can_move_down` on waiting tickets; clients show controls from these capabilities. Bulk clear applies to waiting generation jobs.
+- `/api/sync` captures its timestamp and event sequence before reading records. Delta queries overlap the timestamp's second (`>=`), so concurrent changes remain eligible for replay. Clients upsert repeated records.
+- Comfy `audio` outputs are retained as completed media and recovered after restart. The phone and desktop studio show audio separately from images; the phone downloads authenticated audio on demand and opens the device player. Image edit, outfit and source-selection actions exclude audio.
+- Collection metadata and rank state use per-file read-modify-write locks and unique atomic temporary files. Long generators update their owned fields instead of replacing stale metadata snapshots.
+- Work on This includes the task title in the prompt file and quotes the file path for each agent. Build verification always goes through AGB; a timeout or artifact timestamp alone does not prove success.
+
+Regression checks: `python -m unittest discover -s server/tests -v` and `flutter test --no-pub --concurrency=1` from `app/`. The optional external studio test uses `AGB_STUDIO_PATH` (the local installation is the default). Live generation, a device player launch, and server restarts are not performed by these tests.
+
+
+### Project instruction documents (task #366)
+
+The mobile project detail screen shows AGENTS.md alongside CLAUDE.md. Both support cached previews, creating/editing the project-root file, retrying failed reads and explicit AI enhancement. Each file is saved independently; edits retain the draft when a save fails. AGENTS.md uses authenticated GET/PUT agents-md endpoints and atomic UTF-8 writes. Enhancement accepts agents-md and rejects another document while an enhancement for that project is running. Android delivery defaults to AAB on the internal channel with upload enabled through the AGB pipeline.
+
+Validation for #366 covers create, edit, failed-save retry, Unicode round trips, independent CLAUDE.md content and atomic-save failures. Instruction sheet controllers live until the closing route is removed. Project metadata chips and the upload label wrap at narrow phone widths.

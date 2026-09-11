@@ -501,6 +501,10 @@ def sync_delta(since: str = ""):
     """Return all records changed since the given ISO timestamp.
     If since is empty, returns everything (full sync)."""
     _reconcile_tasklist_mtimes()
+    # Capture replay watermarks BEFORE the snapshot reads. Updates made while
+    # reading must remain eligible for the next delta / SSE replay.
+    snapshot_time = _utc_now_str()
+    snapshot_seq = event_log.current_seq
     counts = db().count_issues_by_app(status="open")
     if since:
         apps = [_app_dict(a, issue_counts=counts) for a in db().get_apps_since(since)]
@@ -520,8 +524,8 @@ def sync_delta(since: str = ""):
         "builds": builds,
         "sessions": sessions,
         "deleted": deleted,
-        "server_time": _utc_now_str(),
-        "event_seq": event_log.current_seq,
+        "server_time": snapshot_time,
+        "event_seq": snapshot_seq,
     }
 
 
@@ -3033,6 +3037,45 @@ def update_claude_md(app_id: int, body: GddUpdate):
     return {"status": "ok"}
 
 
+# ── AGENTS.md (Project Instructions) ────────────────────────
+
+@app.get("/api/apps/{app_id}/agents-md")
+def get_agents_md(app_id: int):
+    a = db().get_app(app_id)
+    if not a:
+        raise HTTPException(404, "App not found")
+    agents_path = os.path.join(a.project_path, "AGENTS.md")
+    if os.path.isfile(agents_path):
+        with open(agents_path, "r", encoding="utf-8") as f:
+            return {"content": f.read(), "exists": True}
+    return {"content": "", "exists": False}
+
+
+@app.put("/api/apps/{app_id}/agents-md")
+def update_agents_md(app_id: int, body: GddUpdate):
+    a = db().get_app(app_id)
+    if not a:
+        raise HTTPException(404, "App not found")
+    if not os.path.isdir(a.project_path):
+        raise HTTPException(404, "Project directory not found")
+    _write_instruction_doc(os.path.join(a.project_path, "AGENTS.md"), body.content)
+    return {"status": "ok"}
+
+
+def _write_instruction_doc(path: str, content: str):
+    """Replace a document atomically, preserving the previous file on failure."""
+    import tempfile
+
+    fd, temp_path = tempfile.mkstemp(prefix=".instructions-", suffix=".tmp", dir=os.path.dirname(path))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as f:
+            f.write(content)
+        os.replace(temp_path, path)
+    finally:
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+
+
 # ── Art Bible (Visual Identity Anchor) ───────────────────────
 
 @app.get("/api/apps/{app_id}/art-bible")
@@ -3062,10 +3105,11 @@ def update_art_bible(app_id: int, body: GddUpdate):
 # ── Async Enhance (background thread, no timeout issues) ─────
 
 _enhance_status: dict[int, dict] = {}  # app_id -> {type, status, error}
+_enhance_lock = threading.Lock()
 
 
 class EnhanceRequest(BaseModel):
-    type: str = "gdd"  # "gdd", "claude-md", or "art-bible"
+    type: str = "gdd"  # "gdd", "claude-md", "agents-md", or "art-bible"
 
 
 @app.post("/api/apps/{app_id}/enhance")
@@ -3080,10 +3124,12 @@ def enhance_doc(app_id: int, body: EnhanceRequest):
         doc_path = os.path.join(a.project_path, "gdd.md")
     elif doc_type == "claude-md":
         doc_path = os.path.join(a.project_path, "CLAUDE.md")
+    elif doc_type == "agents-md":
+        doc_path = os.path.join(a.project_path, "AGENTS.md")
     elif doc_type == "art-bible":
         doc_path = os.path.join(a.project_path, "design", "art-bible.md")
     else:
-        raise HTTPException(400, "type must be 'gdd', 'claude-md', or 'art-bible'")
+        raise HTTPException(400, "type must be 'gdd', 'claude-md', 'agents-md', or 'art-bible'")
 
     if not os.path.isfile(doc_path):
         raise HTTPException(404, f"{doc_type} file not found")
@@ -3093,12 +3139,14 @@ def enhance_doc(app_id: int, body: EnhanceRequest):
     if not content:
         raise HTTPException(400, "Document is empty — nothing to enhance")
 
-    # Check if already running
-    existing = _enhance_status.get(app_id)
-    if existing and existing.get("status") == "running" and existing.get("type") == doc_type:
-        return {"ok": True, "status": "already_running"}
-
-    _enhance_status[app_id] = {"type": doc_type, "status": "running", "error": None}
+    # One status slot and one client poller per project.
+    with _enhance_lock:
+        existing = _enhance_status.get(app_id)
+        if existing and existing.get("status") == "running":
+            if existing.get("type") == doc_type:
+                return {"ok": True, "status": "already_running"}
+            raise HTTPException(409, "Another document is being enhanced for this project")
+        _enhance_status[app_id] = {"type": doc_type, "status": "running", "error": None}
 
     def _enhance_worker():
         try:
@@ -3138,7 +3186,8 @@ Current art bible:
 
 Return ONLY the enhanced art bible content. No extra commentary."""
             else:
-                prompt = f"""Enhance and restructure the following CLAUDE.md project instructions file. Make it well-organized with clear sections, better structure, and more detail. Preserve all existing rules and conventions.
+                doc_name = os.path.basename(doc_path)
+                prompt = f"""Enhance and restructure the following {doc_name} project instructions file. Make it well-organized with clear sections, better structure, and more detail. Preserve all existing rules and conventions.
 
 Apply these Game Studio standards if not already present:
 - Player Experience First: think like a player, not a developer
@@ -3150,10 +3199,10 @@ Apply these Game Studio standards if not already present:
 
 Also, identify any gaps or missing areas that would help an AI assistant work more effectively on this project. For each gap, write a relevant suggestion and provide recommended content.
 
-Current CLAUDE.md:
+Current {doc_name}:
 {content}
 
-Return ONLY the enhanced CLAUDE.md content. No extra commentary."""
+Return ONLY the enhanced {doc_name} content. No extra commentary."""
 
             claude_bin = _get_tool_paths()["claude_bin"]
             bash_exe = _get_tool_paths()["bash_exe"]
@@ -3181,8 +3230,7 @@ Return ONLY the enhanced CLAUDE.md content. No extra commentary."""
 
             if response_text and len(response_text.strip()) > 50:
                 # Save enhanced content
-                with open(doc_path, "w", encoding="utf-8") as f:
-                    f.write(response_text.strip())
+                _write_instruction_doc(doc_path, response_text.strip())
                 _enhance_status[app_id] = {"type": doc_type, "status": "done", "error": None}
             else:
                 _enhance_status[app_id] = {"type": doc_type, "status": "failed", "error": "AI returned empty or too short response"}
@@ -3959,7 +4007,7 @@ Project path: {a.project_path}
 {gdd_section}{art_bible_section}
 YOU HAVE ONE SPECIFIC TASK TO DO:
 
-Task #{task_id}: in progress
+Task #{task_id}: {task_title}
 Type: {task_type}
 Description: {task_desc}
 
@@ -3977,7 +4025,7 @@ INSTRUCTIONS:
    - Write blocker/error details in the "response" field
    - Set "completed_by" to "{ai_agent}"
 5. Do not leave this task in "in_progress" at the end of the run.
-6. If this is a buildable project, verify the build still works. ALWAYS wrap build commands in `timeout 300` (e.g. `timeout 300 <godot/flutter build command> 2>&1 | tail -50`) — Godot's Android export on Windows can hang after producing the APK, and Flutter/Gradle daemons can stall. If the timeout fires but the output artifact (APK/AAB) exists with a recent mtime, treat the build as successful. Do NOT bump the app version — the deploy pipeline handles version bumping.
+6. Run appropriate lightweight checks for the change. If a build is needed, request it through the AGB build pipeline, which owns gpu_lane scheduling and version changes. Never start Flutter, Godot, Unity or Gradle builds directly. Report the pipeline's actual result; a timeout or a recent artifact alone is not proof of success. Do not wait synchronously for another pipeline build when this agent is already running inside a build's repair step.
 7. If this task is too large to finish in one session: FIRST create the sub-tasks as new entries in tasklist.json with status "pending" and SAVE. THEN mark this task "divided" with response listing the sub-task IDs. Sub-tasks MUST exist before marking divided.{idea_generation_rules}{coding_rules_section}"""
     automation_instructions = _load_automation_instructions()
     prompt = f"""{prompt}
@@ -4075,7 +4123,7 @@ def _build_ai_command(ai_agent: str, timeout: int, claude_bin: str, gemini_bin: 
         2>&1 | tee "$LOG_FILE"'''
     elif ai_agent == "gemini":
         return f'''GEMINI_NO_EXTENSIONS=1 timeout {timeout} "{gemini_bin}" \\
-        -p "$(cat $PROMPT_FILE)" \\
+        -p "$(cat "$PROMPT_FILE")" \\
         --sandbox=off \\
         --yolo \\
         2>&1 | tee "$LOG_FILE"'''
@@ -4086,14 +4134,14 @@ def _build_ai_command(ai_agent: str, timeout: int, claude_bin: str, gemini_bin: 
         -c approval_policy="never" \\
         --skip-git-repo-check \\
         -C "{project_path_unix}" \\
-        "$(cat $PROMPT_FILE)" \\
+        "$(cat "$PROMPT_FILE")" \\
         2>&1 | tee "$LOG_FILE"'''
     elif ai_agent == "local":
         ollama_url = get_settings().get("ollama_url", "http://localhost:11434")
         return f'''export OLLAMA_API_BASE="{ollama_url}" && \\
         timeout {timeout} "{aider_bin}" \\
         --model {local_model} \\
-        --message "$(cat $PROMPT_FILE)" \\
+        --message "$(cat "$PROMPT_FILE")" \\
         --yes-always \\
         --no-git \\
         --no-show-release-notes \\
@@ -6031,6 +6079,7 @@ GENERATED_MEDIA_TYPES = {
     ".webp": "image/webp", ".gif": "image/gif",
     ".mp4": "video/mp4", ".webm": "video/webm", ".mov": "video/quicktime",
     ".mp3": "audio/mpeg", ".wav": "audio/wav", ".flac": "audio/flac",
+    ".ogg": "audio/ogg", ".opus": "audio/ogg", ".m4a": "audio/mp4", ".aac": "audio/aac",
 }
 
 
@@ -6101,6 +6150,18 @@ def delivery_preview(app: str = ""):
     return _flow_call(_delivery().preview, app)
 
 
+class DeliveryReindexRequest(BaseModel):
+    collection: str = "generic"
+    names: list[str] = []
+    all: bool = False
+
+
+@app.post("/api/delivery/reindex")
+def delivery_reindex(body: DeliveryReindexRequest):
+    """#363b: bucket'ta EXIF'i degisen gorselleri yeniden okut (ad listesi ya da hepsi)."""
+    return _flow_call(_delivery().reindex, body.collection, body.names, body.all)
+
+
 @app.get("/api/delivery/preset")
 def delivery_preset(name: str):
     """Hizli on ayar govdesi (istemci bunu bir kural setine yazar)."""
@@ -6147,7 +6208,12 @@ def unified_queue_cancel(body: QueueCancelRequest):
                 op_id, job_id = w.get("op_id") or "", w.get("job_id") or ""
                 break
     out = {"ok": False, "job": False, "op": None, "ticket": None}
-    if job_id:
+    if job_id.startswith("build:"):
+        try:
+            out["job"] = bool(deploy_engine().cancel(int(job_id.split(":", 1)[1])).get("ok"))
+        except ValueError:
+            raise HTTPException(400, "gecersiz build kimligi")
+    elif job_id:
         try:
             out["job"] = bool(_gen_ready().cancel_job(job_id))
         except Exception:

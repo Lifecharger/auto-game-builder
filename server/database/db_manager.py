@@ -97,7 +97,7 @@ class DBManager:
     def get_deleted_since(self, since: str) -> list[dict]:
         conn = self._get_conn()
         rows = conn.execute(
-            "SELECT table_name, record_id, app_id, deleted_at FROM deleted_records WHERE deleted_at > ?",
+            "SELECT table_name, record_id, app_id, deleted_at FROM deleted_records WHERE deleted_at >= ?",
             (_normalize_since(since),),
         ).fetchall()
         return [{"table": r["table_name"], "record_id": r["record_id"], "app_id": r["app_id"], "deleted_at": r["deleted_at"]} for r in rows]
@@ -106,7 +106,7 @@ class DBManager:
         conn = self._get_conn()
         s = _normalize_since(since)
         rows = conn.execute(
-            "SELECT * FROM apps WHERE updated_at > ? OR created_at > ?", (s, s)
+            "SELECT * FROM apps WHERE updated_at >= ? OR created_at >= ?", (s, s)
         ).fetchall()
         return [self._row_to_app(r) for r in rows]
 
@@ -114,7 +114,7 @@ class DBManager:
         conn = self._get_conn()
         s = _normalize_since(since)
         rows = conn.execute(
-            "SELECT * FROM issues WHERE updated_at > ? OR created_at > ?", (s, s)
+            "SELECT * FROM issues WHERE updated_at >= ? OR created_at >= ?", (s, s)
         ).fetchall()
         return [self._row_to_issue(r) for r in rows]
 
@@ -122,7 +122,7 @@ class DBManager:
         conn = self._get_conn()
         s = _normalize_since(since)
         rows = conn.execute(
-            "SELECT * FROM builds WHERE updated_at > ? OR created_at > ?", (s, s)
+            "SELECT * FROM builds WHERE updated_at >= ? OR created_at >= ?", (s, s)
         ).fetchall()
         return [self._row_to_build(r) for r in rows]
 
@@ -130,7 +130,7 @@ class DBManager:
         conn = self._get_conn()
         s = _normalize_since(since)
         rows = conn.execute(
-            "SELECT * FROM autofix_sessions WHERE updated_at > ? OR created_at > ?", (s, s)
+            "SELECT * FROM autofix_sessions WHERE updated_at >= ? OR created_at >= ?", (s, s)
         ).fetchall()
         return [self._row_to_session(r) for r in rows]
 

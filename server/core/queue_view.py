@@ -82,6 +82,11 @@ def snapshot() -> dict:
         pending = (G.queue_state() or {}).get("pending") or []
     except Exception:
         pending = []
+    positions = {p["id"]: i for i, p in enumerate(pending)}
+    for w in waiting:
+        i = positions.get(w.get("job_id"))
+        w["can_move_up"] = i is not None and i > 0
+        w["can_move_down"] = i is not None and i < len(pending) - 1
     # #356: bekleyen comfy isleri artik kuyruga girerken serit bileti aliyor;
     # bilet olarak "waiting" icinde GERCEK siralariyla gorunurler. Burada yalniz
     # bileti olmayan (eski kayit) isler kalir - cift gosterim olmasin.

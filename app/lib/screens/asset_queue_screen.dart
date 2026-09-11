@@ -119,7 +119,7 @@ class _AssetQueueScreenState extends State<AssetQueueScreen> {
       context: context,
       builder: (c) => AlertDialog(
         title: const Text('Sirayi temizle'),
-        content: const Text('Bekleyen tum isler iptal edilsin mi? '
+        content: const Text('Bekleyen uretim isleri iptal edilsin mi? '
             'Calisan is devam eder.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Vazgec')),
@@ -139,7 +139,7 @@ class _AssetQueueScreenState extends State<AssetQueueScreen> {
     final bos = u != null ? u.isEmpty : eski.isEmpty;
     // "Bekleyenleri iptal et" yalniz comfy kuyrugunu bosaltir.
     final temizlenebilir =
-        u != null ? u.comfyPending.isNotEmpty : eski.length > 1;
+        u != null ? u.hasPendingGeneration : (q?.pending.isNotEmpty ?? false);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Sira'),
@@ -312,6 +312,26 @@ class _AssetQueueScreenState extends State<AssetQueueScreen> {
               ),
             ],
             const SizedBox(height: 6),
+            if (!running && (t.canMoveUp || t.canMoveDown))
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  IconButton(
+                    tooltip: 'Yukari tasi',
+                    icon: const Icon(Icons.arrow_upward, size: 18),
+                    onPressed: t.canMoveUp
+                        ? () => _act(() => GenerateService.move(t.jobId, -1))
+                        : null,
+                  ),
+                  IconButton(
+                    tooltip: 'Asagi tasi',
+                    icon: const Icon(Icons.arrow_downward, size: 18),
+                    onPressed: t.canMoveDown
+                        ? () => _act(() => GenerateService.move(t.jobId, 1))
+                        : null,
+                  ),
+                ],
+              ),
             Row(
               children: [
                 if (t.total > 0)

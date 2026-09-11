@@ -2,6 +2,9 @@
 server/config/settings.json
 server/config/mcp_servers.json
 
+# Atomic instruction-document writes (including interrupted saves)
+.instructions-*.tmp
+
 # Database
 server/*.db
 server/*.db-wal

@@ -477,7 +477,7 @@ Future<GenerateJob?> pickGeneratedImage(BuildContext context) async {
   List<GenerateJob> jobs;
   try {
     jobs = (await GenerateService.list(limit: 60))
-        .where((j) => j.isDone && !j.isVideo)
+        .where((j) => j.isDone && j.isImage)
         .toList();
   } catch (e) {
     if (context.mounted) {

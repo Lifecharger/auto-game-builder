@@ -13,6 +13,7 @@ import '../theme.dart';
 import '../services/mode_service.dart';
 import '../widgets/bottom_inset.dart';
 import '../widgets/network_video.dart';
+import '../widgets/generated_audio.dart';
 import '../widgets/flow_kind_switch.dart';
 import '../widgets/outfit_extract_dialog.dart';  // #329
 
@@ -27,7 +28,7 @@ class AssetGalleryScreen extends StatefulWidget {
   State<AssetGalleryScreen> createState() => _AssetGalleryScreenState();
 }
 
-enum _Filter { all, image, video, favorite }
+enum _Filter { all, image, video, audio, favorite }
 
 class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
   List<GenerateJob> _jobs = [];
@@ -71,7 +72,7 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
   /// kartta bir oynat dugmesi cikar. Kaynagi listede olmayan video kendi
   /// karti olarak gorunur ki kaybolmasin.
   Map<String, List<GenerateJob>> get _videosByImage {
-    final gorseller = _jobs.where((j) => !j.isVideo).map((j) => j.id).toSet();
+    final gorseller = _jobs.where((j) => j.isImage).map((j) => j.id).toSet();
     final out = <String, List<GenerateJob>>{};
     for (final j in _jobs) {
       if (j.isVideo && gorseller.contains(j.sourceJob)) {
@@ -82,7 +83,7 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
   }
 
   List<GenerateJob> get _cards {
-    final gorseller = _jobs.where((j) => !j.isVideo).map((j) => j.id).toSet();
+    final gorseller = _jobs.where((j) => j.isImage).map((j) => j.id).toSet();
     return _jobs
         .where((j) => !(j.isVideo && gorseller.contains(j.sourceJob)))
         .toList();
@@ -102,10 +103,11 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
     return switch (_filter) {
       _Filter.all => c,
       _Filter.image => c
-          .where((j) => j.isDone && !j.isVideo && _videosOf(j).isEmpty)
+          .where((j) => j.isDone && j.isImage && _videosOf(j).isEmpty)
           .toList(),
       _Filter.video =>
         c.where((j) => _playable(j) != null && j.isDone).toList(),
+      _Filter.audio => c.where((j) => j.isDone && j.isAudio).toList(),
       _Filter.favorite => c.where((j) => j.favorite).toList(),
     };
   }
@@ -206,7 +208,7 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
   List<GenerateJob> get _selectedImages => _sel
       .map((id) => _jobs.where((j) => j.id == id).firstOrNull)
       .whereType<GenerateJob>()
-      .where((j) => j.isDone && !j.isVideo)
+      .where((j) => j.isDone && j.isImage)
       .toList();
 
   /// #329: her kipte - secili TEK gorseldeki kiyafeti gardirop kutuphanesine
@@ -480,7 +482,7 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
     final gorseller = _sel
         .map((id) => _jobs.where((j) => j.id == id).firstOrNull)
         .whereType<GenerateJob>()
-        .where((j) => j.isDone && !j.isVideo)
+        .where((j) => j.isDone && j.isImage)
         .toList();
     if (gorseller.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -642,6 +644,7 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
                   _chip('Hepsi', _Filter.all),
                   _chip('Gorsel', _Filter.image),
                   _chip('Video', _Filter.video),
+                  _chip('Ses', _Filter.audio),
                   _chip('Favori', _Filter.favorite),
                 ],
               ),
@@ -700,7 +703,9 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
           children: [
             // Sigdir, kirpma: yatay/kare ciktilar hucrede butun gorunsun.
             const ColoredBox(color: Colors.black),
-            if (j.isDone)
+            if (j.isDone && j.isAudio)
+              const Center(child: Icon(Icons.music_note, size: 48))
+            else if (j.isDone)
               Image.network(
                 j.thumbUrl(),
                 headers: GenerateService.authHeaders,
@@ -898,7 +903,7 @@ class _ViewerPageState extends State<_ViewerPage> {
   /// tek eleme icin (gorev #273 - "Havuza ekle" yerine Kabul / Red).
   Future<void> _accept() async {
     final j = _job;
-    if (!j.isDone || j.isVideo) return;
+    if (!j.isDone || !j.isImage) return;
     final cbn = j.mode == 'cbn';
     final ratings = cbn ? CbnFlowService.ratings : JigsawProfiles.ratings;
     final rating = await showDialog<String>(
@@ -968,7 +973,7 @@ class _ViewerPageState extends State<_ViewerPage> {
   /// galerisine duser (gorev #274).
   Future<void> _edit() async {
     final j = _job;
-    if (!j.isDone || j.isVideo) return;
+    if (!j.isDone || !j.isImage) return;
     final ctl = TextEditingController();
     final text = await showDialog<String>(
       context: context,
@@ -1047,7 +1052,7 @@ class _ViewerPageState extends State<_ViewerPage> {
               } catch (_) {}
             },
           ),
-          if (j.isDone && !j.isVideo)
+          if (j.isDone && j.isImage)
             IconButton(
               icon: const Icon(Icons.auto_fix_high),
               tooltip: 'Duzenle - edit motoruyla yeni uretim',
@@ -1065,6 +1070,7 @@ class _ViewerPageState extends State<_ViewerPage> {
               onPageChanged: (i) => setState(() => _i = i),
               itemBuilder: (_, i) {
                 final job = widget.jobs[i];
+                if (job.isAudio) return GeneratedAudio(key: ValueKey(job.id), job: job);
                 return job.isVideo
                     ? NetworkVideo(
                         key: ValueKey(job.id),
@@ -1114,7 +1120,7 @@ class _ViewerPageState extends State<_ViewerPage> {
           const SizedBox(height: 6),
           Text(bits.join('  ·  '),
               style: const TextStyle(fontSize: 11, color: Colors.grey)),
-          if ((j.mode == 'jigsaw' || j.mode == 'cbn') && j.isDone && !j.isVideo) ...[
+          if ((j.mode == 'jigsaw' || j.mode == 'cbn') && j.isDone && j.isImage) ...[
             const SizedBox(height: 10),
             Row(
               children: [

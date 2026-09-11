@@ -43,7 +43,7 @@ Every task you generate MUST be completable in a SINGLE session (max 30 minutes 
 These rules MUST be followed as you write code. Do NOT write sloppy code and expect a later code review to clean it up — write it correctly the first time. A later review is a safety net, not an excuse.
 
 ### General
-- Always verify the project builds after your changes — ALWAYS wrap build commands in `timeout 300` (e.g. `timeout 300 <build cmd> 2>&1 | tail -50`). Godot's Android export on Windows can hang post-APK, and Gradle daemons can stall. If the timeout fires but the artifact (APK/AAB) exists with a recent mtime, the build succeeded.
+- Run appropriate lightweight checks after changes. Request any necessary build through the AGB build pipeline; all builds and heavy local work must use its gpu_lane queue. Never run Flutter, Godot, Unity or Gradle builds directly. A timeout or recently modified artifact alone is not proof of success: report the pipeline result. Inside a pipeline repair step, finish the code fix and let the owning pipeline retry; do not wait for a nested build on the same lane.
 - Do NOT leave debug prints or placeholder comments
 - Do NOT add features that aren't described in the task
 - Stay focused — one task, one change, move on

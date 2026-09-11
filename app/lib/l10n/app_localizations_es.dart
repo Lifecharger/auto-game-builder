@@ -2124,4 +2124,20 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get youreAllSet => '¡Ya está todo listo!';
+
+  @override
+  String agentsMdTitle(Object app) {
+    return 'AGENTS.md - $app';
+  }
+
+  @override
+  String get noAgentsMdYet =>
+      'Aún no hay AGENTS.md. Toca Añadir para definir las instrucciones del proyecto para la IA.';
+
+  @override
+  String get cannotSaveEmptyAgentsMd =>
+      'No se puede guardar un AGENTS.md vacío';
+
+  @override
+  String get agentsMdSaved => 'AGENTS.md guardado';
 }

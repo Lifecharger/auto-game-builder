@@ -125,10 +125,13 @@ def reorder(kind: str, ordered_ids: list[str]) -> None:
     id sirasina dizer (comfy_gen.move_job kuyrugu oynatinca serit de oynar;
     yoksa dispatcher bir bileti beklerken serit basinda baska bir bilet durur)."""
     with _cv:
-        yerler = [i for i, w in enumerate(_waiting) if w["kind"] == kind]
+        # Unlisted tickets may already be owned by a dispatcher waiting for
+        # the lane. Moving those behind its pending work deadlocks that worker.
+        ids = set(ordered_ids)
+        yerler = [i for i, w in enumerate(_waiting)
+                  if w["kind"] == kind and w["id"] in ids]
         havuz = {_waiting[i]["id"]: _waiting[i] for i in yerler}
-        sira = [havuz[i] for i in ordered_ids if i in havuz]
-        sira += [havuz[_waiting[i]["id"]] for i in yerler if havuz[_waiting[i]["id"]] not in sira]
+        sira = [havuz[i] for i in dict.fromkeys(ordered_ids) if i in havuz]
         for i, t in zip(yerler, sira):
             _waiting[i] = t
         _cv.notify_all()
@@ -149,20 +152,18 @@ def hold_reserved(t: dict):
     bitince birak. Bilet dusurulmus ya da iptal edilmisse LaneCancelled."""
     global _current
     with _cv:
-        if t not in _waiting:
-            raise LaneCancelled("bilet siradan dusurulmus: %s" % t.get("label"))
-        while _current is not None or _waiting[0] is not t:
+        while True:
+            if t not in _waiting:
+                raise LaneCancelled("bilet siradan dusurulmus: %s" % t.get("label"))
             if t.get("cancelled"):
                 # #352: kullanici Sira ekranindan bekleyen bileti dusurdu -
                 # serit hic alinmaz, is govdesi hic baslamaz.
                 _waiting.remove(t)
                 _cv.notify_all()
                 raise LaneCancelled("sirada iptal edildi: %s" % t.get("label"))
+            if _current is None and _waiting[0] is t:
+                break
             _cv.wait()
-        if t.get("cancelled"):
-            _waiting.remove(t)
-            _cv.notify_all()
-            raise LaneCancelled("sirada iptal edildi: %s" % t.get("label"))
         _waiting.remove(t)
         t["started_at"] = datetime.now().isoformat(timespec="seconds")
         t["t1"] = time.time()

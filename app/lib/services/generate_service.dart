@@ -243,6 +243,9 @@ class GenerateJob {
   final String? exported;
 
   bool get isDone => status == 'done';
+  bool get isAudio => const ['mp3', 'wav', 'flac', 'ogg', 'm4a', 'aac', 'opus']
+      .contains((fileName ?? '').split('.').last.toLowerCase());
+  bool get isImage => !isVideo && !isAudio;
   bool get isFailed => status == 'error' || status == 'cancelled';
   bool get isBusy => status == 'queued' || status == 'running';
   bool get isRunning => position == 0;
@@ -557,6 +560,8 @@ class QueueTicket {
     this.total = 0,
     this.done = 0,
     this.message = '',
+    this.canMoveUp = false,
+    this.canMoveDown = false,
   });
 
   final String id;
@@ -572,6 +577,8 @@ class QueueTicket {
   final int total;
   final int done;
   final String message;
+  final bool canMoveUp;
+  final bool canMoveDown;
 
   static double _d(dynamic v) => (v is num) ? v.toDouble() : 0;
 
@@ -588,6 +595,8 @@ class QueueTicket {
         total: (j['total'] is num) ? (j['total'] as num).toInt() : 0,
         done: (j['done'] is num) ? (j['done'] as num).toInt() : 0,
         message: '${j['message'] ?? ''}',
+        canMoveUp: j['can_move_up'] == true,
+        canMoveDown: j['can_move_down'] == true,
       );
 
   /// Op ilerlemesi (yoksa null - belirsiz cubuk).
@@ -622,6 +631,9 @@ class UnifiedQueue {
 
   bool get isEmpty =>
       running == null && waiting.isEmpty && comfyPending.isEmpty;
+
+  bool get hasPendingGeneration => comfyPending.isNotEmpty ||
+      waiting.any((t) => t.kind == 'comfy' && t.jobId.isNotEmpty);
 
   static List<Map<String, dynamic>> _list(dynamic v) => v is List
       ? v.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList()

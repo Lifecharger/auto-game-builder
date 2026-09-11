@@ -160,7 +160,7 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
       List<GenerateJob> srcs = [];
       try {
         final jobs = await GenerateService.list(limit: 60);
-        srcs = jobs.where((j) => j.isDone && !j.isVideo).toList();
+        srcs = jobs.where((j) => j.isDone && j.isImage).toList();
       } catch (_) {
         // kaynak listesi alinamazsa gorev ekrani yine acilsin
       }
@@ -1209,7 +1209,7 @@ class _GalleryPickerSheetState extends State<_GalleryPickerSheet> {
     return switch (widget.slot.kind) {
       'video' => j.isVideo && !ses,
       'audio' => ses,
-      _ => !j.isVideo && !ses,
+      _ => j.isImage && !ses,
     };
   }
 

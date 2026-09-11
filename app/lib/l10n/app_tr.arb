@@ -614,5 +614,9 @@
   "workerUrlHelp": "Bu adresi masaüstü uygulamasından veya sunucu yöneticinizden alın",
   "workerUrlSaved": "Worker adresi kaydedildi",
   "workerUrlSetHint": "server/config/settings.json içinde cloudflare.worker_url değerini ayarlayın",
-  "youreAllSet": "Her Şey Hazır!"
+  "youreAllSet": "Her Şey Hazır!",
+  "agentsMdTitle": "AGENTS.md - {app}",
+  "noAgentsMdYet": "Henüz AGENTS.md yok. Yapay zekâ için proje talimatlarını belirlemek üzere Ekle düğmesine dokunun.",
+  "cannotSaveEmptyAgentsMd": "Boş AGENTS.md kaydedilemez",
+  "agentsMdSaved": "AGENTS.md kaydedildi"
 }

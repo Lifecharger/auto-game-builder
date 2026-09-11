@@ -614,5 +614,9 @@
   "workerUrlHelp": "このURLはデスクトップアプリまたはサーバー管理者から取得してください",
   "workerUrlSaved": "Worker URLを保存しました",
   "workerUrlSetHint": "server/config/settings.jsonでcloudflare.worker_urlを設定してください",
-  "youreAllSet": "準備完了です!"
+  "youreAllSet": "準備完了です!",
+  "agentsMdTitle": "AGENTS.md - {app}",
+  "noAgentsMdYet": "AGENTS.mdはまだありません。「追加」をタップしてAI向けのプロジェクト指示を設定してください。",
+  "cannotSaveEmptyAgentsMd": "空のAGENTS.mdは保存できません",
+  "agentsMdSaved": "AGENTS.mdを保存しました"
 }

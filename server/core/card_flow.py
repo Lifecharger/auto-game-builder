@@ -53,6 +53,8 @@ import shutil
 import subprocess
 import sys
 import time
+import tempfile
+import threading
 from datetime import datetime
 
 from . import comfy_gen as G
@@ -562,12 +564,27 @@ def _read_json(p: str, default=None):
         return default
 
 
+_json_locks: dict[str, threading.RLock] = {}
+_json_locks_guard = threading.Lock()
+
+
+def _json_lock(p: str):
+    key = os.path.normcase(os.path.abspath(p))
+    with _json_locks_guard:
+        return _json_locks.setdefault(key, threading.RLock())
+
+
 def _write_json(p: str, data) -> None:
     os.makedirs(os.path.dirname(p), exist_ok=True)
-    tmp = p + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as fh:
-        json.dump(data, fh, ensure_ascii=False, indent=1)
-    os.replace(tmp, p)
+    with _json_lock(p):
+        fd, tmp = tempfile.mkstemp(dir=os.path.dirname(p), suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                json.dump(data, fh, ensure_ascii=False, indent=1)
+            os.replace(tmp, p)
+        finally:
+            if os.path.exists(tmp):
+                os.remove(tmp)
 
 
 def _serbest_ad(dest_dir: str, kalip: str) -> str:
@@ -699,17 +716,27 @@ def _save_collection(collection: str, kind: str, m: dict) -> dict:
     return m
 
 
+def _update_collection(collection: str, kind: str, **fields) -> dict:
+    # Long-running generators commit only the fields they own. Never write an
+    # old full snapshot over settings edited while the generator was running.
+    with _json_lock(os.path.join(col_dir(collection, kind), "collection.json")):
+        m = collection_meta(collection, kind)
+        m.update(fields)
+        return _save_collection(collection, kind, m)
+
+
 def state(collection: str, rank: str, kind: str = "") -> dict:
     return _read_json(os.path.join(rank_dir(collection, rank, kind), "state.json"), {}) or {}
 
 
 def _set_state(collection: str, rank: str, kind: str, **kw) -> dict:
     p = os.path.join(rank_dir(collection, rank, kind, create=True), "state.json")
-    s = _read_json(p, {}) or {}
-    s.update(kw)
-    s["rank"] = str(rank).upper()
-    _write_json(p, s)
-    return s
+    with _json_lock(p):
+        s = _read_json(p, {}) or {}
+        s.update(kw)
+        s["rank"] = str(rank).upper()
+        _write_json(p, s)
+        return s
 
 
 # ------------------------------------------------------------------ listeleme
@@ -1236,24 +1263,25 @@ def video_engines() -> list[dict]:
 def set_settings(collection: str, kind: str = "", model: str | None = None,
                  face_detail: bool | None = None, video_engine: str | None = None) -> dict:
     """#353: koleksiyonun uretim ayarlari - model ve yuz rotusu. #357: video motoru."""
-    k = kind_id(kind)
-    m = collection_meta(collection, k)
-    if model is not None:
-        a = str(model).strip().lower()
-        if a not in MODELLER:
-            raise ValueError("bilinmeyen model: %s (%s)" % (model, ", ".join(MODELLER)))
-        m["model"] = a
-    if face_detail is not None:
-        m["face_detail"] = bool(face_detail)
-    if video_engine is not None:
-        e = str(video_engine).strip().lower()
-        if e not in VIDEO_ENGINES:
-            raise ValueError("bilinmeyen video motoru: %s (%s)" % (video_engine, ", ".join(VIDEO_ENGINES)))
-        m["video_engine"] = e
-    _save_collection(collection, k, m)
-    return {"collection": collection, "kind": k, "model": collection_model(m),
-            "face_detail": face_detail_on(m), "models": list(MODELLER),
-            "video_engine": collection_engine(m), "video_engines": video_engines()}
+    with _json_lock(os.path.join(col_dir(collection, kind), "collection.json")):
+        k = kind_id(kind)
+        m = collection_meta(collection, k)
+        if model is not None:
+            a = str(model).strip().lower()
+            if a not in MODELLER:
+                raise ValueError("bilinmeyen model: %s (%s)" % (model, ", ".join(MODELLER)))
+            m["model"] = a
+        if face_detail is not None:
+            m["face_detail"] = bool(face_detail)
+        if video_engine is not None:
+            e = str(video_engine).strip().lower()
+            if e not in VIDEO_ENGINES:
+                raise ValueError("bilinmeyen video motoru: %s (%s)" % (video_engine, ", ".join(VIDEO_ENGINES)))
+            m["video_engine"] = e
+        _save_collection(collection, k, m)
+        return {"collection": collection, "kind": k, "model": collection_model(m),
+                "face_detail": face_detail_on(m), "models": list(MODELLER),
+                "video_engine": collection_engine(m), "video_engines": video_engines()}
 
 
 def _still_job(collection: str, kind: str, rank: str, index: int, m: dict) -> dict:
@@ -1521,7 +1549,7 @@ def stills(collection: str, ranks: list[str] | None = None, kind: str = "", n: i
                                and r.lower() not in [x.lower() for x in tum]]
             if int(m.get("jokers") or 0) < 2:
                 m["jokers"] = 2
-                _save_collection(collection, k, m)
+                m = _update_collection(collection, k, jokers=2)
         if any(is_back(r) for r in istek):
             tum = list(tum) + [BACK_RANK]
     hedef = _sec(ranks, tum)
@@ -1660,29 +1688,30 @@ def _sablonlar_oku(collection: str, kind: str, m: dict, ranks: list[str]) -> dic
 
 def templates(collection: str, kind: str = "") -> dict:
     """#347: koleksiyonun sablonlari + karistirici listeleri (istemci bunu cizer)."""
-    k = kind_id(kind)
-    m = collection_meta(collection, k)
-    # #348: 16 yuva - 13 rutbe + 2 joker + kart arkasi.
-    yuvalar = slots_of(k, m.get("jokers", 0))
-    tpl = _sablonlar_oku(collection, k, m, yuvalar)
-    if m.get("templates") != tpl:                 # ilk acilista diske yazilir
-        m["templates"] = tpl
-        _save_collection(collection, k, m)
-    tema = m.get("theme") or ""
-    return {"collection": collection, "kind": k, "theme": tema,
-            # #353: uretim ayarlari - istemci bunlari acilir liste + anahtar cizer
-            "model": collection_model(m), "models": list(MODELLER),
-            "face_detail": face_detail_on(m),
-            # #357: video motoru (ltx | wan) - koleksiyon kartindan secilir
-            "video_engine": collection_engine(m), "video_engines": video_engines(),
-            "slots": yuvalar, "back_rank": BACK_RANK,
-            "axes": list(EKSENLER), "labels": dict(EKSEN_ETIKET),
-            "back_axes": list(BACK_EKSENLER), "back_labels": dict(BACK_ETIKET),
-            "mixers": mixers(k), "back_mixers": mixers(k, True),
-            "templates": tpl,
-            "preview": {R: (template_text(t, True) if is_back(R)
-                            else look_text(tema, {"look": template_text(t)}))
-                        for R, t in tpl.items()}}
+    with _json_lock(os.path.join(col_dir(collection, kind), "collection.json")):
+        k = kind_id(kind)
+        m = collection_meta(collection, k)
+        # #348: 16 yuva - 13 rutbe + 2 joker + kart arkasi.
+        yuvalar = slots_of(k, m.get("jokers", 0))
+        tpl = _sablonlar_oku(collection, k, m, yuvalar)
+        if m.get("templates") != tpl:                 # ilk acilista diske yazilir
+            m["templates"] = tpl
+            _save_collection(collection, k, m)
+        tema = m.get("theme") or ""
+        return {"collection": collection, "kind": k, "theme": tema,
+                # #353: uretim ayarlari - istemci bunlari acilir liste + anahtar cizer
+                "model": collection_model(m), "models": list(MODELLER),
+                "face_detail": face_detail_on(m),
+                # #357: video motoru (ltx | wan) - koleksiyon kartindan secilir
+                "video_engine": collection_engine(m), "video_engines": video_engines(),
+                "slots": yuvalar, "back_rank": BACK_RANK,
+                "axes": list(EKSENLER), "labels": dict(EKSEN_ETIKET),
+                "back_axes": list(BACK_EKSENLER), "back_labels": dict(BACK_ETIKET),
+                "mixers": mixers(k), "back_mixers": mixers(k, True),
+                "templates": tpl,
+                "preview": {R: (template_text(t, True) if is_back(R)
+                                else look_text(tema, {"look": template_text(t)}))
+                            for R, t in tpl.items()}}
 
 
 EKSEN_ETIKET = {"race": "Irk", "skin": "Ten", "hair": "Sac", "eyes": "Goz",
@@ -1697,28 +1726,29 @@ def roll_templates(collection: str, kind: str = "", ranks: list[str] | None = No
     `ranks` bos = hepsi, `axes` bos = butun eksenler. Kilitli eksene ve manuel
     metne DOKUNULMAZ.
     """
-    k = kind_id(kind)
-    m = collection_meta(collection, k)
-    tum = slots_of(k, m.get("jokers", 0))
-    hedef = {str(r).upper() for r in (_sec(ranks, tum) or tum)}
-    tpl = _sablonlar_oku(collection, k, m, tum)
-    ms, msb = mixers(k), mixers(k, True)
-    for R, t in tpl.items():
-        if R not in hedef:
-            continue
-        arka = is_back(R)
-        havuz = msb if arka else ms
-        ekseni = [a for a in (axes or (BACK_EKSENLER if arka else EKSENLER))
-                  if a in (BACK_EKSENLER if arka else EKSENLER)]
-        kilit = set(t.get("locked") or [])
-        for a in ekseni:
-            if a in kilit or not havuz.get(a):
+    with _json_lock(os.path.join(col_dir(collection, kind), "collection.json")):
+        k = kind_id(kind)
+        m = collection_meta(collection, k)
+        tum = slots_of(k, m.get("jokers", 0))
+        hedef = {str(r).upper() for r in (_sec(ranks, tum) or tum)}
+        tpl = _sablonlar_oku(collection, k, m, tum)
+        ms, msb = mixers(k), mixers(k, True)
+        for R, t in tpl.items():
+            if R not in hedef:
                 continue
-            t[a] = random.choice(havuz[a])
-    m["templates"] = tpl
-    _save_collection(collection, k, m)
-    return {"collection": collection, "kind": k, "templates": tpl,
-            "rolled": sorted(hedef)}
+            arka = is_back(R)
+            havuz = msb if arka else ms
+            ekseni = [a for a in (axes or (BACK_EKSENLER if arka else EKSENLER))
+                      if a in (BACK_EKSENLER if arka else EKSENLER)]
+            kilit = set(t.get("locked") or [])
+            for a in ekseni:
+                if a in kilit or not havuz.get(a):
+                    continue
+                t[a] = random.choice(havuz[a])
+        m["templates"] = tpl
+        _save_collection(collection, k, m)
+        return {"collection": collection, "kind": k, "templates": tpl,
+                "rolled": sorted(hedef)}
 
 
 def set_axis(collection: str, axis: str, value: str, kind: str = "",
@@ -1729,52 +1759,54 @@ def set_axis(collection: str, axis: str, value: str, kind: str = "",
     karistiricinin ona rastgele "bronzed skin" atmasi temayla catisir. Bu uc o
     ekseni tek hamlede sabitler - 13 rutbeyi tek tek duzenlemek gerekmez.
     """
-    k = kind_id(kind)
-    if axis not in EKSENLER and axis not in BACK_EKSENLER:
-        raise ValueError("bilinmeyen eksen: %s" % axis)
-    m = collection_meta(collection, k)
-    tum = slots_of(k, m.get("jokers", 0))
-    hedef = {str(r).upper() for r in (_sec(ranks, tum) or tum)}
-    tpl = _sablonlar_oku(collection, k, m, tum)
-    for R, t in tpl.items():
-        if R not in hedef:
-            continue
-        if is_back(R) != (axis in BACK_EKSENLER):
-            continue                  # kart ekseni arkaya, arka ekseni karta yazilmaz
-        t[axis] = str(value or "").strip()
-        kilit = set(t.get("locked") or [])
-        kilit.add(axis) if lock else kilit.discard(axis)
-        t["locked"] = sorted(kilit)
-    m["templates"] = tpl
-    _save_collection(collection, k, m)
-    return {"collection": collection, "kind": k, "axis": axis, "value": value,
-            "locked": bool(lock), "ranks": sorted(hedef)}
+    with _json_lock(os.path.join(col_dir(collection, kind), "collection.json")):
+        k = kind_id(kind)
+        if axis not in EKSENLER and axis not in BACK_EKSENLER:
+            raise ValueError("bilinmeyen eksen: %s" % axis)
+        m = collection_meta(collection, k)
+        tum = slots_of(k, m.get("jokers", 0))
+        hedef = {str(r).upper() for r in (_sec(ranks, tum) or tum)}
+        tpl = _sablonlar_oku(collection, k, m, tum)
+        for R, t in tpl.items():
+            if R not in hedef:
+                continue
+            if is_back(R) != (axis in BACK_EKSENLER):
+                continue                  # kart ekseni arkaya, arka ekseni karta yazilmaz
+            t[axis] = str(value or "").strip()
+            kilit = set(t.get("locked") or [])
+            kilit.add(axis) if lock else kilit.discard(axis)
+            t["locked"] = sorted(kilit)
+        m["templates"] = tpl
+        _save_collection(collection, k, m)
+        return {"collection": collection, "kind": k, "axis": axis, "value": value,
+                "locked": bool(lock), "ranks": sorted(hedef)}
 
 
 def set_template(collection: str, rank: str, data: dict, kind: str = "") -> dict:
     """#347: tek bir sablonu yazar - eksen degerleri, kilitler ve manuel metin."""
-    k = kind_id(kind)
-    m = collection_meta(collection, k)
-    tum = slots_of(k, m.get("jokers", 0))
-    R = str(rank).upper()
-    if R not in {str(x).upper() for x in tum}:
-        raise ValueError("rutbe yok: %s" % rank)
-    tpl = _sablonlar_oku(collection, k, m, tum)
-    t = tpl.get(R) or {}
-    for a in (BACK_EKSENLER if is_back(R) else EKSENLER):
-        if a in (data or {}):
-            t[a] = str(data[a] or "").strip()
-    if "manual" in (data or {}):
-        t["manual"] = str(data["manual"] or "").strip()
-    if "locked" in (data or {}):
-        gecerli = BACK_EKSENLER if is_back(R) else EKSENLER
-        t["locked"] = [a for a in (data["locked"] or []) if a in gecerli]
-    tpl[R] = t
-    m["templates"] = tpl
-    _save_collection(collection, k, m)
-    return {"collection": collection, "kind": k, "rank": R, "template": t,
-            "preview": (template_text(t, True) if is_back(R)
-                        else look_text(m.get("theme") or "", {"look": template_text(t)}))}
+    with _json_lock(os.path.join(col_dir(collection, kind), "collection.json")):
+        k = kind_id(kind)
+        m = collection_meta(collection, k)
+        tum = slots_of(k, m.get("jokers", 0))
+        R = str(rank).upper()
+        if R not in {str(x).upper() for x in tum}:
+            raise ValueError("rutbe yok: %s" % rank)
+        tpl = _sablonlar_oku(collection, k, m, tum)
+        t = tpl.get(R) or {}
+        for a in (BACK_EKSENLER if is_back(R) else EKSENLER):
+            if a in (data or {}):
+                t[a] = str(data[a] or "").strip()
+        if "manual" in (data or {}):
+            t["manual"] = str(data["manual"] or "").strip()
+        if "locked" in (data or {}):
+            gecerli = BACK_EKSENLER if is_back(R) else EKSENLER
+            t["locked"] = [a for a in (data["locked"] or []) if a in gecerli]
+        tpl[R] = t
+        m["templates"] = tpl
+        _save_collection(collection, k, m)
+        return {"collection": collection, "kind": k, "rank": R, "template": t,
+                "preview": (template_text(t, True) if is_back(R)
+                            else look_text(m.get("theme") or "", {"look": template_text(t)}))}
 
 
 def _rotasyon_look(collection: str, kind: str, theme: str, rank: str, index: int) -> dict:
@@ -1818,14 +1850,15 @@ def set_theme(collection: str, theme: str, kind: str = "") -> dict:
     yazar; yeni temaya gore gorunusleri uretmek icin ayrica rewrite_looks
     calistirilir (istemci "Kaydet" / "Kaydet + promptlari yaz" olarak sunar).
     """
-    k = kind_id(kind)
-    m = collection_meta(collection, k)
-    t = (theme or "").strip()
-    if not t:
-        raise ValueError("tema bos olamaz")
-    m["theme"] = _deanime(t)
-    _save_collection(collection, k, m)
-    return {"collection": collection, "kind": k, "theme": m["theme"]}
+    with _json_lock(os.path.join(col_dir(collection, kind), "collection.json")):
+        k = kind_id(kind)
+        m = collection_meta(collection, k)
+        t = (theme or "").strip()
+        if not t:
+            raise ValueError("tema bos olamaz")
+        m["theme"] = _deanime(t)
+        _save_collection(collection, k, m)
+        return {"collection": collection, "kind": k, "theme": m["theme"]}
 
 
 def rewrite_looks(collection: str, kind: str = "", theme: str = "") -> dict:
@@ -1851,7 +1884,8 @@ def rewrite_looks(collection: str, kind: str = "", theme: str = "") -> dict:
     # arama iskalar ve sessizce jenerik rotasyona duserdi.
     m["ranks"] = {str(r).upper(): yeni[r] for r in ranks}
     m["prompts_by"] = "%s (%s)" % (PS.model_adi(), datetime.now().isoformat(timespec="seconds"))
-    _save_collection(collection, k, m)
+    m = _update_collection(collection, k, theme=m["theme"],
+                           ranks=m["ranks"], prompts_by=m["prompts_by"])
     return {"collection": collection, "kind": k, "ranks": list(ranks),
             "written_by": m["prompts_by"],
             "sample": (yeni.get(ranks[0]) or {}).get("prompt", "")[:300]}
@@ -2254,11 +2288,11 @@ def animate_set(collection: str, ranks: list[str] | None = None, kind: str = "",
     eng = engine_of(collection, k, engine)
     op_id = _op_new("card-video", len(hedef) * len(ANIM_SET))
 
-    def calis():
-        for i, (tag, jest) in enumerate(ANIM_SET):
-            _animate_body(op_id, collection, k, hedef, jest, "2/4 video %s" % tag,
-                          anim_id(tag), pool_only=False, engine=eng, offset=i * len(hedef))
-    _run(op_id, calis)
+    # #362b: (rutbe, jest, etiket) uclulari - kart sirasiyla idle, victory, idle, ... ;
+    # 26 is birden kuyruga girer, kartlar ciftler halinde tamamlanir.
+    ucluler = [(r, jest, anim_id(tag)) for r in hedef for tag, jest in ANIM_SET]
+    _run(op_id, lambda: _animate_body(op_id, collection, k, ucluler, DEFAULT_GESTURE,
+                                      "2/4 video", IDLE_ANIM, pool_only=False, engine=eng))
     return op_id
 
 
@@ -2270,22 +2304,27 @@ def _animate_body(op_id: str, collection: str, kind: str, hedef: list[str],
     gpu_lane BURADA ALINMAZ - comfy_gen dispatcher'i her isi kendi bileti ile
     calistirir; serit burada tutulursa kilitlenir (#299).
     """
+    # #362b: `hedef` ogesi rutbe (str) YA DA (rutbe, jest, etiket) uclusu olabilir -
+    # toplu "2 Video" 13 kart x 2 animasyonun 26 isini de BASTAN kuyruga birakir
+    # (eskiden ikinci animasyon ilk 13 bitince siraya giriyordu; Sira ekraninda
+    # "13 is kayboldu" gibi gorunuyordu).
     isler = []
-    for r in hedef:
-        etiket = "%s %s" % (collection, str(r).upper())
+    for it in hedef:
+        r, g, a = it if isinstance(it, tuple) else (it, gesture, anim)
+        etiket = "%s %s%s" % (collection, str(r).upper(), "" if a == anim_id(anim) and not isinstance(it, tuple) else " [%s]" % a)
         try:
-            job = _video_job(collection, kind, r, gesture, engine)
+            job = _video_job(collection, kind, r, g, engine)
         except Exception as e:
             with _ops_lock:
                 _ops[op_id]["failed"] += 1
             _op(op_id, log="%s kuyruga girmedi: %s" % (etiket, str(e)[:200]))
             continue
         _op_job(op_id, job["id"])                           # #352 iptal defteri
-        isler.append((job["id"], r, etiket))
+        isler.append((job["id"], r, etiket, g, a))
         _op(op_id, log="%s i2v kuyrukta (%s)" % (etiket, job["id"][:8]))
     _op(op_id, message="%s  %d is kuyruga girdi" % (etiket_on, len(isler)))
     olanlar = []
-    for i, (jid, r, etiket) in enumerate(isler, 1):
+    for i, (jid, r, etiket, g_, a_) in enumerate(isler, 1):
         i += offset                     # #362: cok animasyonlu op'ta sayac geri sarmasin
         _op(op_id, message="%s %d/%d  %s" % (etiket_on, i, len(isler) + offset, etiket))
         tasindi = False
@@ -2294,25 +2333,26 @@ def _animate_body(op_id: str, collection: str, kind: str, hedef: list[str],
             d = rank_dir(collection, r, kind, create=True)
             # #357: once HAVUZ - guard rutbenin still'ine gore havuz dosyasinda olculur.
             vid, yol = _havuza_koy(collection, r, kind, src, {
-                "job": jid, "gesture": gesture, "prompt": gesture_text(kind, gesture),
+                "job": jid, "gesture": g_, "prompt": gesture_text(kind, g_),
                 "engine": engine or engine_of(collection, kind, ""),
                 "at": datetime.now().isoformat(timespec="seconds")})
             tasindi = not os.path.isfile(src)
             g = guard_video(os.path.join(d, "still.png"), yol)
             _havuz_meta_yaz(collection, r, kind, vid, guard=g)
             if not pool_only:
-                assign_video(collection, r, kind, vid, anim)
+                assign_video(collection, r, kind, vid, a_)
         except Exception as e:
             with _ops_lock:
                 _ops[op_id]["failed"] += 1
             _op(op_id, done=i, log="%s: %s" % (etiket, str(e)[:200]))
         else:
-            olanlar.append(r)
+            olanlar.append((r, a_))     # #362b: (rutbe, etiket) - kesim bunu kullanir
             with _ops_lock:
                 _ops[op_id]["ok"] += 1
-            _op(op_id, done=i, log="%s -> havuz %s%s (guard %s %s)"
-                % (etiket, vid, "" if pool_only else " -> %s" % anim,
-                   g.get("verdict"), g.get("score")))
+            _op(op_id, done=i, log="%s -> havuz %s%s (guard %s %s%s)"
+                % (etiket, vid, "" if pool_only else " -> %s" % a_,
+                   g.get("verdict"), g.get("score"),
+                   "  DONUK %.1f" % g["motion"] if g.get("frozen") else ""))
         _is_sil(jid, tasindi)
     return olanlar
 
@@ -2947,15 +2987,16 @@ def _mark_realistic(collection: str, kind: str) -> dict:
 
     id ve name AYNEN KALIR (kullanici: "Neon Nurse" adi degismesin).
     """
-    m = collection_meta(collection, kind)
-    m["style"] = "realistic"
-    if m.get("theme"):
-        m["theme"] = _deanime(m["theme"])
-    for r, look in (m.get("ranks") or {}).items():
-        if isinstance(look, dict) and look.get("prompt"):
-            look["prompt"] = _deanime(look["prompt"])
-    m["realified"] = datetime.now().isoformat(timespec="seconds")
-    return _save_collection(collection, kind, m)
+    with _json_lock(os.path.join(col_dir(collection, kind), "collection.json")):
+        m = collection_meta(collection, kind)
+        m["style"] = "realistic"
+        if m.get("theme"):
+            m["theme"] = _deanime(m["theme"])
+        for r, look in (m.get("ranks") or {}).items():
+            if isinstance(look, dict) and look.get("prompt"):
+                look["prompt"] = _deanime(look["prompt"])
+        m["realified"] = datetime.now().isoformat(timespec="seconds")
+        return _save_collection(collection, kind, m)
 
 
 def realify(collection: str, kind: str = "card", ranks: list[str] | None = None) -> str:
@@ -3104,11 +3145,11 @@ def reanimate(collection: str = "all", gesture: str = DEFAULT_GESTURE, kind: str
         # jest yalniz idle etiketine uygulanir; victory kendi sablonuyla gider.
         ozel = (gesture or "").strip()
         for (c, k), rs in gruplar.items():
-            for tag, jest in ANIM_SET:
-                j = ozel if (ozel and ozel != DEFAULT_GESTURE and tag == IDLE_ANIM) else jest
-                olan = _animate_body(op_id, c, k, rs, j, "2/4 video %s [%s]" % (c, tag), anim_id(tag))
-                if olan:
-                    kesilecek.setdefault((c, k), []).extend((r, anim_id(tag)) for r in olan)
+            ucluler = [(r, (ozel if (ozel and ozel != DEFAULT_GESTURE and tag == IDLE_ANIM) else jest),
+                        anim_id(tag)) for r in rs for tag, jest in ANIM_SET]
+            olan = _animate_body(op_id, c, k, ucluler, DEFAULT_GESTURE, "2/4 video %s" % c, IDLE_ANIM)
+            if olan:                    # (rutbe, etiket) ciftleri - kesim ikisini de keser
+                kesilecek.setdefault((c, k), []).extend(olan)
 
         # --- 3/4 webp: butun kesimler TEK gpu_lane bileti (koleksiyon basina)
         for (c, k), rs in kesilecek.items():

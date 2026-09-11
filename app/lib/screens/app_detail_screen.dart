@@ -36,6 +36,10 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
   String? _claudeMdContent;
   bool _claudeMdLoading = true;
   String? _claudeMdError;
+  String? _agentsMdContent;
+  bool _agentsMdLoading = true;
+  String? _agentsMdError;
+  bool _agentsMdEnhancing = false;
   String? _artBibleContent;
   bool _artBibleLoading = true;
   String? _artBibleError;
@@ -82,6 +86,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
     final cachedBuilds = cache.getBuilds(appId: widget.appId);
     final cachedGdd = cache.getGdd(widget.appId);
     final cachedClaudeMd = cache.getClaudeMd(widget.appId);
+    final cachedAgentsMd = cache.getAgentsMd(widget.appId);
     final cachedArtBible = cache.getArtBible(widget.appId);
 
     setState(() {
@@ -100,6 +105,10 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
       if (cachedClaudeMd != null) {
         _claudeMdContent = cachedClaudeMd;
         _claudeMdLoading = false;
+      }
+      if (cachedAgentsMd != null) {
+        _agentsMdContent = cachedAgentsMd;
+        _agentsMdLoading = false;
       }
       if (cachedArtBible != null) {
         _artBibleContent = cachedArtBible;
@@ -120,6 +129,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
       ApiService.getAppMcp(widget.appId),
       ApiService.getClaudeMd(widget.appId),
       ApiService.getArtBible(widget.appId),
+      ApiService.getAgentsMd(widget.appId),
     ]);
 
     final appResult = results[0] as ApiResult<AppModel>;
@@ -130,6 +140,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
     final appMcpResult = results[5] as ApiResult<List<String>>;
     final claudeMdResult = results[6] as ApiResult<String>;
     final artBibleResult = results[7] as ApiResult<String>;
+    final agentsMdResult = results[8] as ApiResult<String>;
 
     if (!mounted) return;
 
@@ -154,6 +165,9 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
     }
     if (claudeMdResult.ok) {
       await cache.setClaudeMd(widget.appId, claudeMdResult.data ?? '');
+    }
+    if (agentsMdResult.ok) {
+      await cache.setAgentsMd(widget.appId, agentsMdResult.data ?? '');
     }
     if (artBibleResult.ok) {
       await cache.setArtBible(widget.appId, artBibleResult.data ?? '');
@@ -187,6 +201,13 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
         _claudeMdError = claudeMdResult.error;
       }
       _claudeMdLoading = false;
+      if (agentsMdResult.ok) {
+        _agentsMdContent = agentsMdResult.data;
+        _agentsMdError = null;
+      } else if (_agentsMdContent == null) {
+        _agentsMdError = agentsMdResult.error;
+      }
+      _agentsMdLoading = false;
       if (artBibleResult.ok) {
         _artBibleContent = artBibleResult.data;
         _artBibleError = null;
@@ -380,7 +401,9 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                         },
                       ),
                       const SizedBox(height: 16),
-                      _buildClaudeMdCard(),
+                      _buildInstructionCard(),
+                      const SizedBox(height: 16),
+                      _buildInstructionCard(agents: true),
                       const SizedBox(height: 16),
                       _buildGddCard(),
                       const SizedBox(height: 16),
@@ -565,10 +588,11 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
               ],
             ),
             const SizedBox(height: 16),
-            Row(
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
                 _infoChip(l10n.version, l10n.versionWithNumber(app.currentVersion), AppColors.info),
-                const SizedBox(width: 8),
                 Tooltip(
                   message: l10n.tapToRedetectEngine,
                   child: InkWell(
@@ -581,7 +605,6 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
                 _infoChip(
                   l10n.status,
                   app.status,
@@ -968,6 +991,25 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
     }
   }
 
+  Future<void> _retryAgentsMd() async {
+    setState(() { _agentsMdLoading = true; _agentsMdError = null; });
+    final result = await ApiService.getAgentsMd(widget.appId);
+    if (result.ok) {
+      await CacheService.instance.setAgentsMd(widget.appId, result.data ?? '');
+    }
+    if (mounted) {
+      setState(() {
+        _agentsMdLoading = false;
+        if (result.ok) {
+          _agentsMdContent = result.data;
+          _agentsMdError = null;
+        } else {
+          _agentsMdError = result.error;
+        }
+      });
+    }
+  }
+
   Future<void> _retryGdd() async {
     setState(() { _gddLoading = true; _gddError = null; });
     final result = await ApiService.getGdd(widget.appId);
@@ -1006,10 +1048,16 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
     }
   }
 
-  Widget _buildClaudeMdCard() {
-    final hasContent = _claudeMdContent != null && _claudeMdContent!.trim().isNotEmpty;
-    final hasError = _claudeMdError != null;
+  Widget _buildInstructionCard({bool agents = false}) {
+    final filename = agents ? 'AGENTS.md' : 'CLAUDE.md';
+    final content = agents ? _agentsMdContent : _claudeMdContent;
+    final error = agents ? _agentsMdError : _claudeMdError;
+    final loading = agents ? _agentsMdLoading : _claudeMdLoading;
+    final enhancing = agents ? _agentsMdEnhancing : _claudeMdEnhancing;
+    final hasContent = content != null && content.trim().isNotEmpty;
+    final hasError = error != null;
     return Card(
+      key: ValueKey(filename),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -1019,9 +1067,9 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
               children: [
                 Icon(Icons.terminal, color: AppColors.info),
                 const SizedBox(width: 8),
-                const Expanded(
+                Expanded(
                   child: Text(
-                    'CLAUDE.md',
+                    filename,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -1030,7 +1078,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                     ),
                   ),
                 ),
-                if (_claudeMdEnhancing)
+                if (enhancing)
                   Padding(
                     padding: const EdgeInsets.only(right: 8),
                     child: SizedBox(
@@ -1038,47 +1086,44 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                       child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.warning),
                     ),
                   ),
-                if (!hasError && hasContent && !_claudeMdEnhancing)
+                if (!hasError && hasContent && !enhancing)
                   IconButton(
                     tooltip: l10n.enhance,
-                    visualDensity: VisualDensity.compact,
-                    onPressed: () => _fireAndForgetEnhance(type: 'claude-md'),
+                    onPressed: () => _fireAndForgetEnhance(type: agents ? 'agents-md' : 'claude-md'),
                     icon: const Icon(Icons.auto_awesome, size: 20),
                   ),
                 if (!hasError)
                   IconButton(
                     tooltip: hasContent ? l10n.edit : l10n.add,
-                    visualDensity: VisualDensity.compact,
-                    onPressed: () => _showClaudeMdSheet(),
+                    onPressed: loading || enhancing ? null : () => _showInstructionSheet(agents: agents),
                     icon: Icon(hasContent ? Icons.edit : Icons.add, size: 20),
                   ),
                 if (hasError)
                   IconButton(
                     tooltip: l10n.retry,
-                    visualDensity: VisualDensity.compact,
-                    onPressed: _retryClaudeMd,
+                    onPressed: agents ? _retryAgentsMd : _retryClaudeMd,
                     icon: const Icon(Icons.refresh, size: 20),
                   ),
               ],
             ),
             const SizedBox(height: 8),
-            if (_claudeMdLoading)
+            if (loading)
               const Center(child: CircularProgressIndicator())
             else if (hasError)
               Text(
-                l10n.failedToLoadWithError('$_claudeMdError'),
+                l10n.failedToLoadWithError(error),
                 style: TextStyle(fontSize: 13, color: AppColors.error),
               )
             else if (hasContent)
               Text(
-                _claudeMdContent!.trim(),
+                content.trim(),
                 maxLines: 8,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(fontSize: 13, color: Colors.grey.shade300),
               )
             else
               Text(
-                l10n.noClaudeMdYet,
+                agents ? l10n.noAgentsMdYet : l10n.noClaudeMdYet,
                 style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
               ),
           ],
@@ -1087,9 +1132,11 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
     );
   }
 
-  void _showClaudeMdSheet() {
-    final controller = TextEditingController(text: _claudeMdContent?.trim() ?? '');
+  void _showInstructionSheet({bool agents = false}) {
+    final content = agents ? _agentsMdContent : _claudeMdContent;
+    final controller = TextEditingController(text: content ?? '');
     bool saving = false;
+    ModalRoute<dynamic>? sheetRoute;
 
     showModalBottomSheet(
       context: context,
@@ -1101,6 +1148,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (ctx) {
+        sheetRoute = ModalRoute.of(ctx);
         return StatefulBuilder(
           builder: (ctx, setSheetState) {
             final mq = MediaQuery.of(ctx);
@@ -1113,7 +1161,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(l10n.claudeMdTitle(_app?.name ?? l10n.appFallback),
+                  Text(agents ? l10n.agentsMdTitle(_app?.name ?? l10n.appFallback) : l10n.claudeMdTitle(_app?.name ?? l10n.appFallback),
                       style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 4),
                   Text(l10n.claudeMdSubtitle,
@@ -1135,25 +1183,42 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                         final text = controller.text.trim();
                         if (text.isEmpty) {
                           ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-                            content: Text(l10n.cannotSaveEmptyClaudeMd),
+                            content: Text(agents ? l10n.cannotSaveEmptyAgentsMd : l10n.cannotSaveEmptyClaudeMd),
                             backgroundColor: AppColors.error,
                           ));
                           return;
                         }
                         setSheetState(() => saving = true);
-                        final result = await ApiService.updateClaudeMd(
-                            widget.appId, controller.text);
+                        final savedText = controller.text;
+                        final result = agents
+                            ? await ApiService.updateAgentsMd(widget.appId, savedText)
+                            : await ApiService.updateClaudeMd(widget.appId, savedText);
                         if (result.ok) {
-                          await CacheService.instance
-                              .setClaudeMd(widget.appId, controller.text);
+                          if (agents) {
+                            await CacheService.instance.setAgentsMd(widget.appId, savedText);
+                          } else {
+                            await CacheService.instance.setClaudeMd(widget.appId, savedText);
+                          }
                         }
-                        if (ctx.mounted) Navigator.pop(ctx);
+                        if (ctx.mounted) {
+                          if (result.ok) {
+                            Navigator.pop(ctx);
+                          } else {
+                            setSheetState(() => saving = false);
+                          }
+                        }
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                            content: Text(result.ok ? l10n.claudeMdSaved : result.error ?? l10n.failed),
+                            content: Text(result.ok ? (agents ? l10n.agentsMdSaved : l10n.claudeMdSaved) : result.error ?? l10n.failed),
                             backgroundColor: result.ok ? AppColors.success : AppColors.error));
                           if (result.ok) {
-                            setState(() => _claudeMdContent = controller.text);
+                            setState(() {
+                              if (agents) {
+                                _agentsMdContent = savedText;
+                              } else {
+                                _claudeMdContent = savedText;
+                              }
+                            });
                           }
                         }
                       },
@@ -1170,7 +1235,11 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
           },
         );
       },
-    ).whenComplete(() => controller.dispose());
+    ).whenComplete(() async {
+      // The pop result arrives before the closing animation removes TextField.
+      await sheetRoute?.completed;
+      controller.dispose();
+    });
   }
 
   Widget _buildGddCard() {
@@ -1507,7 +1576,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
     ).whenComplete(() => controller.dispose());
   }
 
-  /// Fire-and-forget enhance for GDD, CLAUDE.md, and Art Bible.
+  /// Fire-and-forget enhance for GDD, CLAUDE.md, AGENTS.md, and Art Bible.
   /// Triggers background enhance on server, polls for completion.
   void _fireAndForgetEnhance({required String type}) async {
     String? content;
@@ -1516,6 +1585,10 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
       case 'gdd':
         content = _gddContent;
         label = l10n.designDocShort;
+        break;
+      case 'agents-md':
+        content = _agentsMdContent;
+        label = 'AGENTS.md';
         break;
       case 'claude-md':
         content = _claudeMdContent;
@@ -1550,6 +1623,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
     setState(() {
       switch (type) {
         case 'gdd': _gddEnhancing = true; break;
+        case 'agents-md': _agentsMdEnhancing = true; break;
         case 'claude-md': _claudeMdEnhancing = true; break;
         case 'art-bible': _artBibleEnhancing = true; break;
       }
@@ -1564,6 +1638,9 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
     switch (type) {
       case 'gdd':
         future = ApiService.enhanceGdd(widget.appId, content);
+        break;
+      case 'agents-md':
+        future = ApiService.enhanceAgentsMd(widget.appId, content);
         break;
       case 'claude-md':
         future = ApiService.enhanceClaudeMd(widget.appId, content);
@@ -1601,6 +1678,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
   void _clearEnhancingFlag(String type) {
     switch (type) {
       case 'gdd': _gddEnhancing = false; break;
+      case 'agents-md': _agentsMdEnhancing = false; break;
       case 'claude-md': _claudeMdEnhancing = false; break;
       case 'art-bible': _artBibleEnhancing = false; break;
     }
@@ -1625,6 +1703,12 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
               await CacheService.instance.setGdd(widget.appId, refreshed.data ?? '');
             }
             break;
+          case 'agents-md':
+            refreshed = await ApiService.getAgentsMd(widget.appId);
+            if (refreshed.ok) {
+              await CacheService.instance.setAgentsMd(widget.appId, refreshed.data ?? '');
+            }
+            break;
           case 'claude-md':
             refreshed = await ApiService.getClaudeMd(widget.appId);
             if (refreshed.ok) {
@@ -1646,6 +1730,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
           if (refreshed.ok) {
             switch (type) {
               case 'gdd': _gddContent = refreshed.data; break;
+              case 'agents-md': _agentsMdContent = refreshed.data; break;
               case 'claude-md': _claudeMdContent = refreshed.data; break;
               case 'art-bible': _artBibleContent = refreshed.data; break;
             }

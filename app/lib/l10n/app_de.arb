@@ -614,5 +614,9 @@
   "workerUrlHelp": "Diese URL erhältst du von der Desktop-App oder deinem Server-Administrator",
   "workerUrlSaved": "Worker-URL gespeichert",
   "workerUrlSetHint": "Setze cloudflare.worker_url in server/config/settings.json",
-  "youreAllSet": "Alles bereit!"
+  "youreAllSet": "Alles bereit!",
+  "agentsMdTitle": "AGENTS.md - {app}",
+  "noAgentsMdYet": "Noch keine AGENTS.md. Tippe auf Hinzufügen, um Projektanweisungen für die KI festzulegen.",
+  "cannotSaveEmptyAgentsMd": "Leere AGENTS.md kann nicht gespeichert werden",
+  "agentsMdSaved": "AGENTS.md gespeichert"
 }

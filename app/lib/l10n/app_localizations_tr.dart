@@ -2108,4 +2108,19 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get youreAllSet => 'Her Şey Hazır!';
+
+  @override
+  String agentsMdTitle(Object app) {
+    return 'AGENTS.md - $app';
+  }
+
+  @override
+  String get noAgentsMdYet =>
+      'Henüz AGENTS.md yok. Yapay zekâ için proje talimatlarını belirlemek üzere Ekle düğmesine dokunun.';
+
+  @override
+  String get cannotSaveEmptyAgentsMd => 'Boş AGENTS.md kaydedilemez';
+
+  @override
+  String get agentsMdSaved => 'AGENTS.md kaydedildi';
 }

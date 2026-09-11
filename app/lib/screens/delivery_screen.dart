@@ -87,6 +87,54 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
     }
   }
 
+  /// #363b: worker yalniz YENI gorsellerin EXIF'ini okur; degistirilen bir
+  /// gorsel icin KV ezilmeli. Ad listesi (virgulle) ya da bos = hepsi.
+  Future<void> _reindex() async {
+    final c = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Metadata'yi yeniden oku"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+                "Bucket'ta EXIF'i degisen gorseller icin. Dosya adlarini virgulle "
+                "yaz (orn. 12.jpg, 340.jpg); bos birakirsan Generic'in TAMAMI "
+                'yeniden okunur (~1500 dosya, birkac dakika).',
+                style: TextStyle(fontSize: 12)),
+            const SizedBox(height: 8),
+            TextField(
+              controller: c,
+              decoration: const InputDecoration(
+                  isDense: true, border: OutlineInputBorder(), labelText: 'Dosya adlari'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Vazgec')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Oku')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final adlar = c.text.split(',').map((x) => x.trim()).where((x) => x.isNotEmpty).toList();
+    setState(() => _saving = true);
+    try {
+      final r = await DeliveryService.reindex(names: adlar, all: adlar.isEmpty);
+      if (!mounted) return;
+      final eksik = (r['missing'] as List? ?? const []).length;
+      _snack('${r['reindexed']} gorsel yeniden okundu'
+          '${eksik > 0 ? ', $eksik bulunamadi' : ''} - manifestler tazelendi');
+      await _load();
+    } catch (e) {
+      if (mounted) _snack(e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
   Future<void> _preset(String name) async {
     try {
       final p = await DeliveryService.preset(name);
@@ -128,6 +176,11 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
                 onPressed: () => ModeService.setMode(ModeService.asset)),
             IconButton(
                 icon: const Icon(Icons.refresh), tooltip: 'Yenile', onPressed: _load),
+            // #363b: bucket'ta EXIF degistiyse worker KV'sini yeniden oku
+            IconButton(
+                icon: const Icon(Icons.manage_search),
+                tooltip: "Metadata'yi yeniden oku (EXIF degistiyse)",
+                onPressed: _saving ? null : _reindex),
           ],
         ),
         body: _loading
