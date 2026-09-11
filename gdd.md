@@ -235,3 +235,8 @@ Regression checks: `python -m unittest discover -s server/tests -v` and `flutter
 The mobile project detail screen shows AGENTS.md alongside CLAUDE.md. Both support cached previews, creating/editing the project-root file, retrying failed reads and explicit AI enhancement. Each file is saved independently; edits retain the draft when a save fails. AGENTS.md uses authenticated GET/PUT agents-md endpoints and atomic UTF-8 writes. Enhancement accepts agents-md and rejects another document while an enhancement for that project is running. Android delivery defaults to AAB on the internal channel with upload enabled through the AGB pipeline.
 
 Validation for #366 covers create, edit, failed-save retry, Unicode round trips, independent CLAUDE.md content and atomic-save failures. Instruction sheet controllers live until the closing route is removed. Project metadata chips and the upload label wrap at narrow phone widths.
+
+
+### Unity editor review lane (task #367)
+
+A registered Unity project can run a bounded static editor review via POST /api/apps/{app_id}/unity-review. The shared GPU lane owns the Unity process until exit or timeout cleanup. The endpoint returns an operation id; GET /api/unity-reviews/{op_id} reports status and a project-local review log. The method must exit Unity explicitly after its asynchronous assertions/captures. This workflow does not increase versions, create a mobile build, commit/push, or upload. Keep the server alive while an editor review is active. Backend worker tests cover command validation, existing-editor rejection, nonzero exit, timeout and lane release. Two initial live reviews completed successfully; separate game visual review found additional game issues, illustrating that process success alone is insufficient.

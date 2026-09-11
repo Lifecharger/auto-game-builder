@@ -111,6 +111,11 @@ No circular dependencies. The app never holds authoritative state — always re-
 | POST | `/api/apps/{app_id}/deploy/retry-upload` | — (retry AAB upload, no rebuild) |
 | GET | `/api/apps/{app_id}/deploy/status` | — |
 
+### Unity editor reviews
+
+- `POST /api/apps/{app_id}/unity-review` with `{method, timeout_seconds}` queues a bounded batch editor review in the shared GPU lane and returns `op_id`. The project static method must exit Unity with a meaningful code. No version increment, commit, build artifact, or upload is performed.
+- `GET /api/unity-reviews/{op_id}` returns queued/running/completed/failed and the project review log path. Completion means exit code zero; inspect the project assertions and screenshots too. Active review operations are held in memory and must finish before restarting AGB.
+
 ### Automations
 | Method | Path | Body / Params |
 |--------|------|---------------|

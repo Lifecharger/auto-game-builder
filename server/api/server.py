@@ -6109,6 +6109,34 @@ def gpu_queue():
     return gpu_lane.status()
 
 
+class UnityReviewRequest(BaseModel):
+    method: str = Field(min_length=3, max_length=200)
+    timeout_seconds: int = Field(default=900, ge=60, le=1800)
+
+
+@app.post("/api/apps/{app_id}/unity-review")
+def start_unity_review(app_id: int, body: UnityReviewRequest):
+    from core import unity_review
+    a = db().get_app(app_id)
+    if a is None:
+        raise HTTPException(404, "App not found")
+    if a.app_type != "unity":
+        raise HTTPException(400, "App is not a Unity project")
+    try:
+        return unity_review.start(app_id, a.name, a.project_path, body.method, body.timeout_seconds)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.get("/api/unity-reviews/{op_id}")
+def unity_review_status(op_id: str):
+    from core import unity_review
+    try:
+        return unity_review.get(op_id)
+    except KeyError as exc:
+        raise HTTPException(404, "Unity review not found") from exc
+
+
 # ------------------------------------------------- Delivery Mod (gorev #363)
 # Uygulamalara ne sunulacaginin ac/kapa anahtarlari (rating / safety / voyeur ...).
 # Kurallar hotjigsaw-scanner worker'inda (KV) yasar; buradan okunur/yazilir,
