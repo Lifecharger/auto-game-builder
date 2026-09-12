@@ -7,6 +7,11 @@
 - Idle uses one moderate gesture over 6 seconds. Victory uses one compact celebration
   over 2 seconds. Hands remain below shoulders, elbows near the torso, and all visible
   body parts remain within the reference framing. The final pose returns to the reference.
+- Live review: head-only and shoulder-only idle variants were too subtle. Defaults now use
+  a visible hand wave for idle and one chest-level clap for victory. Pose-specific weak
+  results receive targeted retries and visual approval before WebP processing.
+  Pose-specific prompts preserve scepters/card fans, existing lean and raised-leg stances;
+  arm-height limits apply to the gesture while the bookend poses match the reference.
 - MiniMax's native 17k+5 frame grid is mapped from the requested duration at 24 fps;
   final tag videos are timed to exactly 6/2 seconds. WebP victory sheets contain 24 frames
   at 12 fps in a 12x2 grid. Idle uses 72 frames in a 12x6 grid.

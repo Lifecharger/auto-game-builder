@@ -33,7 +33,7 @@
   ],
   "sablon": "ultra realistic glamour photography, breathtakingly beautiful young woman in her mid 20s, captivating gorgeous face, playful seductive smile, alluring pin-up model look, cinematic studio lighting, 85mm lens, {}, full body, entire figure visible head to feet including high heels, vertical 2:3 composition, centered, standing in front of a plain solid flat uniform light gray seamless studio background, even studio lighting on the subject only, no shadows cast on the background, no floor shadow, no gradient, sharp focus",
   "negatif": "child, teen, minor, chibi, anime, cartoon, illustration, drawing, painting, 3d render, cgi, deformed, disfigured, extra limbs, extra fingers, bad hands, bad anatomy, watermark, text, logo, cluttered background, furniture, cropped head, camera pan, camera zoom, props, cropped feet, motion blur, depth of field, vignette",
-  "video_sablon": "{}, one readable controlled gesture at a natural pace, moderate motion, identity and outfit preserved. Locked camera, original framing and subject scale preserved. Head, hair, elbows, hands and all originally visible body parts remain inside the image throughout, with a clear margin from every edge. Elbows close to the torso, hands below shoulder height. Feet stay planted, no jumping, no spins, no sweeping arms, no forward lean. Flat unchanged studio background. Ease back into the exact reference pose at the end for a seamless loop.",
+  "video_sablon": "{}, one readable controlled gesture at a natural pace, moderate motion, identity and outfit preserved. Locked camera, original framing and subject scale preserved. Head, hair, elbows, hands and all originally visible body parts remain inside the image throughout, with a clear margin from every edge. During the gesture keep elbows close to the torso and hands below shoulder height; the starting and ending arm positions match the reference. Preserve the original stance and body angle, with the supporting foot fixed. No jumping, spins, sweeping arms or additional forward lean. Preserve held props in their original hand. Flat unchanged studio background. Ease back into the exact reference pose at the end for a seamless loop.",
   "secenekler": {
    "theme": [
     "gorgeous woman in sexy police costume with badge and duty belt, high heels",
@@ -139,7 +139,7 @@
    ]
   },
   "jestler": {
-   "idle": "She makes one relaxed, clearly visible gesture: {mix}. A gentle weight shift accompanies the gesture; movement stays close to her body. She returns smoothly to her starting pose.",
+   "idle": "She performs one clearly readable friendly greeting: {mix}. Her moving forearm makes a visible journey between waist and chest height. She smiles during the greeting and returns smoothly to her exact starting pose.",
    "victory": "A clear two-second victory reaction: {mix}. Both forearms visibly travel between waist and chest height in one decisive celebration, accompanied by a broad delighted grin and a brief shoulder bounce. The action peaks halfway through; she then returns to the exact starting pose. Keep hands below shoulders, elbows near the torso and feet on the ground.",
    "wave": "she raises one hand high and waves energetically at the viewer, her whole body leans and bounces with the wave, hair swinging, then settles back into the exact starting pose so the clip loops seamlessly",
    "wink": "she leans toward the viewer, tilts her head, gives a big playful wink and a confident smirk, her shoulders and hips shift with the lean, then settles back into the exact starting pose so the clip loops seamlessly",
@@ -153,16 +153,12 @@
    "idle": {
     "n": 1,
     "parcalar": [
-     "she tilts her head slightly, smiles and gives one playful wink",
-     "she gently shifts her shoulders from side to side and smiles at the viewer",
-     "she gives a small friendly wave beside her chest with her elbow tucked in",
-     "she lightly touches a strand of hair beside her cheek, then lowers her hand"
+     "she lowers one hand beside her waist, lifts that hand to chest height, and gives one friendly open-palmed side-to-side wave before returning her arm to its original position"
     ]
    },
    "victory": {
     "n": 1,
     "parcalar": [
-     "she raises both closed fists together from waist to chest height in one emphatic double fist pump",
      "she brings both hands together for one clearly visible clap at chest height, then lowers both forearms"
     ]
    }
@@ -197,7 +193,7 @@
   ],
   "sablon": "ultra realistic glamour photography, breathtakingly beautiful young woman in her mid 20s, captivating gorgeous face, playful seductive smile, alluring pin-up model look, cinematic studio lighting, 85mm lens, {}, waist-up framing, seen from the waist up behind a casino table, hands resting on the table, facing the camera, vertical 2:3 composition, centered, standing in front of a plain solid flat uniform light gray seamless studio background, even studio lighting on the subject only, no shadows cast on the background, no floor shadow, no gradient, sharp focus",
   "negatif": "child, teen, minor, chibi, anime, cartoon, illustration, drawing, painting, 3d render, cgi, deformed, disfigured, extra limbs, extra fingers, bad hands, bad anatomy, watermark, text, logo, cluttered background, furniture, cropped head, camera pan, camera zoom, full body, legs visible",
-  "video_sablon": "{}, one readable controlled gesture at a natural pace, moderate motion, identity and outfit preserved. Locked camera, original framing and subject scale preserved. Head, hair, elbows, hands and all originally visible body parts remain inside the image throughout, with a clear margin from every edge. Elbows close to the torso, hands below shoulder height. Feet stay planted, no jumping, no spins, no sweeping arms, no forward lean. Flat unchanged studio background. Ease back into the exact reference pose at the end for a seamless loop.",
+  "video_sablon": "{}, one readable controlled gesture at a natural pace, moderate motion, identity and outfit preserved. Locked camera, original framing and subject scale preserved. Head, hair, elbows, hands and all originally visible body parts remain inside the image throughout, with a clear margin from every edge. During the gesture keep elbows close to the torso and hands below shoulder height; the starting and ending arm positions match the reference. Preserve the original stance and body angle, with the supporting foot fixed. No jumping, spins, sweeping arms or additional forward lean. Preserve held props in their original hand. Flat unchanged studio background. Ease back into the exact reference pose at the end for a seamless loop.",
   "secenekler": {
    "theme": [
     "elegant casino dealer at the blackjack table",
@@ -248,7 +244,7 @@
    ]
   },
   "jestler": {
-   "idle": "She makes one relaxed, clearly visible gesture: {mix}. A gentle weight shift accompanies the gesture; movement stays close to her body. She returns smoothly to her starting pose.",
+   "idle": "She performs one clearly readable friendly greeting: {mix}. Her moving forearm makes a visible journey between waist and chest height. She smiles during the greeting and returns smoothly to her exact starting pose.",
    "victory": "A clear two-second victory reaction: {mix}. Both forearms visibly travel between waist and chest height in one decisive celebration, accompanied by a broad delighted grin and a brief shoulder bounce. The action peaks halfway through; she then returns to the exact starting pose. Keep hands below shoulders, elbows near the torso and feet on the ground.",
    "shuffle": "she shuffles a deck of playing cards over the table with both hands in a big expert flourish, cards visibly moving, then settles back into the exact starting pose so the clip loops seamlessly",
    "deal": "she deals playing cards across the table toward the viewer with wide sweeping arm motions, one card after another, then settles back into the exact starting pose so the clip loops seamlessly",
@@ -260,16 +256,12 @@
    "idle": {
     "n": 1,
     "parcalar": [
-     "she tilts her head slightly, smiles and gives one playful wink",
-     "she gently shifts her shoulders from side to side and smiles at the viewer",
-     "she gives a small friendly wave beside her chest with her elbow tucked in",
-     "she lightly touches a strand of hair beside her cheek, then lowers her hand"
+     "she lowers one hand beside her waist, lifts that hand to chest height, and gives one friendly open-palmed side-to-side wave before returning her arm to its original position"
     ]
    },
    "victory": {
     "n": 1,
     "parcalar": [
-     "she raises both closed fists together from waist to chest height in one emphatic double fist pump",
      "she brings both hands together for one clearly visible clap at chest height, then lowers both forearms"
     ]
    }
