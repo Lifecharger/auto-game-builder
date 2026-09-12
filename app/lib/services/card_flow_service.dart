@@ -151,7 +151,7 @@ class CardCollection {
     this.cover = '',
     this.rev = 0,
     this.back,
-    this.videoEngine = 'ltx',
+    this.videoEngine = 'minimax',
     this.videoEngines = const [],
   });
 
@@ -185,7 +185,7 @@ class CardCollection {
       back: j['back'] is Map
           ? CardRankState.fromJson(Map<String, dynamic>.from(j['back'] as Map))
           : null,
-      videoEngine: '${j['video_engine'] ?? 'ltx'}',
+      videoEngine: '${j['video_engine'] ?? 'minimax'}',
       videoEngines: CardEngine.list(j['video_engines']),
     );
   }
@@ -321,7 +321,7 @@ class CardEngine {
               available: e['available'] != false))
           .where((e) => e.id.isNotEmpty)
           .toList()
-      : const [CardEngine('ltx', 'LTX-2.5')];
+      : const [CardEngine('minimax', 'MiniMax H3')];
 }
 
 /// #357: havuzdaki bir video - prompt, motor, guard ve atandigi etiketler.
@@ -436,7 +436,7 @@ class CardTemplates {
     this.model = 'zimage',
     this.models = const ['zimage', 'qwen'],
     this.faceDetail = false,
-    this.videoEngine = 'ltx',
+    this.videoEngine = 'minimax',
     this.videoEngines = const [],
     this.slots = const [],
     this.backRank = 'BACK',
@@ -471,7 +471,7 @@ class CardTemplates {
             .map((e) => '$e')
             .toList(),
         faceDetail: j['face_detail'] == true,
-        videoEngine: '${j['video_engine'] ?? 'ltx'}',
+        videoEngine: '${j['video_engine'] ?? 'minimax'}',
         videoEngines: CardEngine.list(j['video_engines']),
         slots: (j['slots'] as List? ?? const []).map((e) => '$e').toList(),
         backRank: '${j['back_rank'] ?? 'BACK'}',

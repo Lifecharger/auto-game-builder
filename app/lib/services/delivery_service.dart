@@ -186,13 +186,13 @@ class DeliveryService {
     return 'HTTP ${r.statusCode}';
   }
 
-  static Future<DeliveryOverview> overview() async =>
-      DeliveryOverview.fromJson(await _get('/api/delivery/overview'));
+  static Future<DeliveryOverview> overview({String pool = 'jigsaw'}) async =>
+      DeliveryOverview.fromJson(await _get('/api/delivery/overview?pool=$pool'));
 
   static Future<int> saveRules(
-      DeliveryRuleSet def, Map<String, DeliveryRuleSet> apps) async {
+      DeliveryRuleSet def, Map<String, DeliveryRuleSet> apps, {String pool = 'jigsaw'}) async {
     final r = await http
-        .put(Uri.parse('${ApiService.baseUrl}/api/delivery/rules'),
+        .put(Uri.parse('${ApiService.baseUrl}/api/delivery/rules?pool=$pool'),
             headers: _headers,
             body: jsonEncode({
               'default': def.toJson(),

@@ -240,3 +240,11 @@ Validation for #366 covers create, edit, failed-save retry, Unicode round trips,
 ### Unity editor review lane (task #367)
 
 A registered Unity project can run a bounded static editor review via POST /api/apps/{app_id}/unity-review. The shared GPU lane owns the Unity process until exit or timeout cleanup. The endpoint returns an operation id; GET /api/unity-reviews/{op_id} reports status and a project-local review log. The method must exit Unity explicitly after its asynchronous assertions/captures. This workflow does not increase versions, create a mobile build, commit/push, or upload. Keep the server alive while an editor review is active. Backend worker tests cover command validation, existing-editor rejection, nonzero exit, timeout and lane release. Two initial live reviews completed successfully; separate game visual review found additional game issues, illustrating that process success alone is insufficient.
+
+## Card animation and delivery update (2026-09-12)
+Card animation defaults to MiniMax H3 with one controlled gesture. Idle is 6 seconds;
+victory is 2 seconds, packed into 24 frames at 12 fps. Pool records keep the exact
+submitted prompt. Card delivery is a separate pool in the phone and desktop clients.
+Push tags the current still through the GPU lane using the shared r2manager schema;
+state and manifest carry the tags. Scanner administration and the actual asset worker
+share the same rules, and consumers request application-specific manifests.

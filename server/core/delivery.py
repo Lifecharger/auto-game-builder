@@ -78,7 +78,19 @@ PRESETS = {
 }
 
 
-def worker_url() -> str:
+CARD_APPS = [
+    {"package": "com.lifecharger.hotcardgames", "name": "Hot Card Games"},
+    {"package": "com.lifecharger.hotidle", "name": "Hot Idle"},
+    {"package": "com.lifecharger.sentience", "name": "Sentience"},
+]
+
+
+def worker_url(pool: str = "jigsaw") -> str:
+    if pool == "cards":
+        return (_CF._setting("delivery.card_worker_url") or
+                "https://hotcardgames-scanner.lifecharger.workers.dev").rstrip("/")
+    if pool != "jigsaw":
+        raise ValueError("Unknown delivery pool: " + pool)
     return (_CF._setting("delivery.worker_url") or DEFAULT_WORKER).rstrip("/")
 
 
@@ -117,12 +129,12 @@ class _IPv4HTTPSHandler(urllib.request.HTTPSHandler):
 _opener = urllib.request.build_opener(_IPv4HTTPSHandler())
 
 
-def _call(path: str, body: dict | None = None, method: str | None = None, timeout: int = 60) -> dict:
+def _call(path: str, body: dict | None = None, method: str | None = None, timeout: int = 60, pool: str = "jigsaw") -> dict:
     key = admin_key()
     if not key:
         raise ValueError("delivery yonetim anahtari yok (delivery.admin_key_file)")
     data = json.dumps(body).encode() if body is not None else None
-    req = urllib.request.Request(worker_url() + path, data=data,
+    req = urllib.request.Request(worker_url(pool) + path, data=data,
                                  headers={"X-Admin-Key": key, "Content-Type": "application/json",
                                           "User-Agent": "agb-delivery/1"},
                                  method=method or ("PUT" if data is not None else "GET"))
@@ -133,14 +145,14 @@ def _call(path: str, body: dict | None = None, method: str | None = None, timeou
         raise ValueError("worker %s: %s" % (e.code, (e.read() or b"")[:200].decode("utf-8", "replace")))
 
 
-def rules() -> dict:
-    r = _call("/serve-rules")
+def rules(pool: str = "jigsaw") -> dict:
+    r = _call("/serve-rules", pool=pool)
     r.setdefault("default", {"enabled": True, "untagged": True, "values": {}})
     r.setdefault("apps", {})
     return r
 
 
-def save_rules(body: dict) -> dict:
+def save_rules(body: dict, pool: str = "jigsaw") -> dict:
     """Kurallari worker'a yazar (updated damgasini worker koyar) - anlik canli."""
     if not isinstance(body, dict):
         raise ValueError("kural govdesi sozluk olmali")
@@ -148,7 +160,7 @@ def save_rules(body: dict) -> dict:
     for pk, rs in (body.get("apps") or {}).items():
         if isinstance(rs, dict):
             temiz["apps"][str(pk)] = _ruleset(rs)
-    out = _call("/serve-rules", temiz)
+    out = _call("/serve-rules", temiz, pool=pool)
     return {"ok": True, "updated": out.get("updated"), "rules": dict(temiz, updated=out.get("updated"))}
 
 
@@ -166,9 +178,9 @@ def _ruleset(rs) -> dict:
             "values": values}
 
 
-def values(collection: str = "generic") -> dict:
+def values(collection: str = "generic", pool: str = "jigsaw") -> dict:
     """Alan -> deger -> sayi (Generic havuzunun gercek EXIF dagilimi)."""
-    d = _call("/serve-values?collection=" + urllib.parse.quote(collection))
+    d = _call("/serve-values?collection=" + urllib.parse.quote(collection), pool=pool)
     sira = [f for f, _ in FIELDS]
     alanlar = d.get("fields") or {}
     d["order"] = [f for f in sira if f in alanlar] + sorted(a for a in alanlar if a not in sira)
@@ -176,30 +188,31 @@ def values(collection: str = "generic") -> dict:
     return d
 
 
-def preview(app: str = "") -> dict:
-    return _call("/serve-preview?app=" + urllib.parse.quote(app or ""), timeout=120)
+def preview(app: str = "", pool: str = "jigsaw") -> dict:
+    return _call("/serve-preview?app=" + urllib.parse.quote(app or ""), timeout=120, pool=pool)
 
 
-def preview_all() -> dict:
+def preview_all(pool: str = "jigsaw") -> dict:
     """Varsayilan + butun uygulamalar TEK cagrida (worker metadata'yi bir kez yukler)."""
-    q = ",".join([""] + [a["package"] for a in APPS])
-    return (_call("/serve-preview?apps=" + urllib.parse.quote(q), timeout=120) or {}).get("apps") or {}
+    q = ",".join([""] + [a["package"] for a in (CARD_APPS if pool == "cards" else APPS)])
+    return (_call("/serve-preview?apps=" + urllib.parse.quote(q), timeout=120, pool=pool) or {}).get("apps") or {}
 
 
-def overview() -> dict:
+def overview(pool: str = "jigsaw") -> dict:
     """Tek ekran icin her sey: kurallar, degerler, uygulama listesi, on izleme sayilari."""
-    r = rules()
-    v = values()
+    worker_url(pool)
+    r = rules(pool)
+    v = values(pool=pool)
     try:
-        pv = preview_all()
+        pv = preview_all(pool)
     except Exception as e:  # noqa: BLE001
         pv = {"_error": str(e)[:120]}
     apps = []
-    for a in APPS:
+    for a in (CARD_APPS if pool == "cards" else APPS):
         st = pv.get(a["package"]) or {}
         apps.append(dict(a, custom=a["package"] in (r.get("apps") or {}),
                          served=st.get("served"), total=st.get("total"), blocked=st.get("blocked") or {}))
-    return {"worker": worker_url(), "rules": r, "values": v, "apps": apps,
+    return {"pool": pool, "worker": worker_url(pool), "rules": r, "values": v, "apps": apps,
             "default_stats": pv.get("default") or {},
             "presets": {k: {"label": p["label"]} for k, p in PRESETS.items()}}
 

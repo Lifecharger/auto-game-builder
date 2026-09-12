@@ -173,6 +173,11 @@ Available agents: `claude`, `gemini`, `codex`, `local`
 | GET | `/api/logs` | `?app_id=int&limit=50` |
 
 ### Asset Pipeline
+
+Delivery endpoints `/api/delivery/overview`, `/rules`, `/values`, and `/preview` accept
+`pool=jigsaw|cards` (default jigsaw). Rules PUT uses the same query parameter. Card
+metadata is created during push, not through the Jigsaw EXIF reindex endpoint.
+
 ```
 GET  /api/pipeline/scan
 POST /api/pipeline/sessions              {source_folder, rating}

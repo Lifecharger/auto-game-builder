@@ -6152,30 +6152,30 @@ class DeliveryRulesRequest(BaseModel):
 
 
 @app.get("/api/delivery/overview")
-def delivery_overview():
+def delivery_overview(pool: str = "jigsaw"):
     """Kurallar + gercek deger dagilimi + uygulama basina sunulan/toplam."""
-    return _flow_call(_delivery().overview)
+    return _flow_call(_delivery().overview, pool)
 
 
 @app.get("/api/delivery/rules")
-def delivery_rules():
-    return _flow_call(_delivery().rules)
+def delivery_rules(pool: str = "jigsaw"):
+    return _flow_call(_delivery().rules, pool)
 
 
 @app.put("/api/delivery/rules")
-def delivery_rules_save(body: DeliveryRulesRequest):
+def delivery_rules_save(body: DeliveryRulesRequest, pool: str = "jigsaw"):
     """Kurallari worker'a yazar - anlik canli (uygulama guncellemesi gerekmez)."""
-    return _flow_call(_delivery().save_rules, {"default": body.default, "apps": body.apps})
+    return _flow_call(_delivery().save_rules, {"default": body.default, "apps": body.apps}, pool)
 
 
 @app.get("/api/delivery/values")
-def delivery_values(collection: str = "generic"):
-    return _flow_call(_delivery().values, collection)
+def delivery_values(collection: str = "generic", pool: str = "jigsaw"):
+    return _flow_call(_delivery().values, collection, pool)
 
 
 @app.get("/api/delivery/preview")
-def delivery_preview(app: str = ""):
-    return _flow_call(_delivery().preview, app)
+def delivery_preview(app: str = "", pool: str = "jigsaw"):
+    return _flow_call(_delivery().preview, app, pool)
 
 
 class DeliveryReindexRequest(BaseModel):

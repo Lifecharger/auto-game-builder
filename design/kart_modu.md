@@ -1,5 +1,27 @@
 # Kart Modu — Hot Card Games koleksiyon kartları, yerel hat (2026-09-08, AGB #321-#324)
 
+## Current animation and delivery contract (2026-09-12, #363, #368-#370)
+
+- MiniMax H3 is the default engine. Explicit collection engine choices remain supported;
+  unavailable engines fail visibly instead of silently using another model.
+- Idle uses one moderate gesture over 6 seconds. Victory uses one compact celebration
+  over 2 seconds. Hands remain below shoulders, elbows near the torso, and all visible
+  body parts remain within the reference framing. The final pose returns to the reference.
+- MiniMax's native 17k+5 frame grid is mapped from the requested duration at 24 fps;
+  final tag videos are timed to exactly 6/2 seconds. WebP victory sheets contain 24 frames
+  at 12 fps in a 12x2 grid. Idle uses 72 frames in a 12x6 grid.
+- Pool metadata stores the exact submitted combined prompt and engine. Temporary Windows
+  preview locks during file moves are retried. Prior pool videos remain available.
+- Card push tags the current still with local Ollama using the shared r2manager schema,
+  inside the GPU lane. Metadata is cached by the still's SHA-256 in state.json and included
+  in the manifest; there is no remote backfill and no EXIF mutation of card sources.
+- Delivery's `cards` pool is administered by hotcardgames-scanner. Its CARD_ASSETS binding
+  reads the hotcardgames bucket; the actual hotcardgames-assets manifest route shares the
+  same rules KV. Hot Card Games, Hot Idle and Sentience send their `app` package and honor
+  authoritative empty filtered catalogs. Direct R2 remains available for binary assets only.
+- The September 12 regeneration excludes the Joker collection and all Joker ranks.
+  Generation and WebP processing stop before the separate manual R2 push stage.
+
 AGB'nin 5. kipi. Sıra: **Jigsaw | CBN | Kart | Karakter** (Kart, Karakter'den ÖNCE; Karakter sonda). Grok'a bağlı `Hot Card Games/tools/cardpipe`
 hattının yerine geçer; çıktı sözleşmesi (R2 `hotcardgames`, manifest, sprite sheet) DEĞİŞMEZ. Anime koleksiyonu yok, hepsi realistic.
 

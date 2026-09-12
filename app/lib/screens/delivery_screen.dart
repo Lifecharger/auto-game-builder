@@ -40,13 +40,15 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
     _load();
   }
 
+  String _pool = 'jigsaw';
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      final o = await DeliveryService.overview();
+      final o = await DeliveryService.overview(pool: _pool);
       if (!mounted) return;
       setState(() {
         _o = o;
@@ -75,7 +77,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   Future<void> _save() async {
     setState(() => _saving = true);
     try {
-      final t = await DeliveryService.saveRules(_def, _apps);
+      final t = await DeliveryService.saveRules(_def, _apps, pool: _pool);
       if (!mounted) return;
       _snack('Kaydedildi ve CANLI (${_zaman(t)}) - sayilar yenileniyor');
       await _load();
@@ -164,7 +166,22 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(
-          title: const Text('Dagitim (Delivery Mod)'),
+          title: DropdownButton<String>(
+            value: _pool,
+            items: const [
+              DropdownMenuItem(value: 'jigsaw', child: Text('Jigsaw havuzu')),
+              DropdownMenuItem(value: 'cards', child: Text('Kart havuzu')),
+            ],
+            onChanged: _loading || _saving ? null : (value) async {
+              if (value == null || value == _pool) return;
+              if (_dirty) {
+                _snack('Havuz degistirmeden once degisiklikleri kaydet.');
+                return;
+              }
+              setState(() { _pool = value; _sel = ''; });
+              await _load();
+            },
+          ),
           actions: [
             IconButton(
                 icon: const Icon(Icons.code),
@@ -180,7 +197,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
             IconButton(
                 icon: const Icon(Icons.manage_search),
                 tooltip: "Metadata'yi yeniden oku (EXIF degistiyse)",
-                onPressed: _saving ? null : _reindex),
+                onPressed: _saving || _pool == 'cards' ? null : _reindex),
           ],
         ),
         body: _loading
@@ -231,7 +248,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Generic havuzu: ${o.total} gorsel, ${o.tagged} etiketli, ${o.untagged} etiketsiz',
+            Text('${_pool == 'cards' ? 'Kart' : 'Generic'} havuzu: ${o.total} gorsel, ${o.tagged} etiketli, ${o.untagged} etiketsiz',
                 style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
             const SizedBox(height: 4),
             Text('Son kural: ${_zaman(o.updated)}  ·  varsayilan sunulan: '

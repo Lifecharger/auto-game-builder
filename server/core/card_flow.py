@@ -162,7 +162,7 @@ VIDEO_ENGINES = {
     "minimax": {"task": "video_minimax_flf",
                 "label": "MiniMax H3 (sesli, 576x864, 6.6 sn, ~10 dk/kart, LISANS: AB/UK/ABD/Kore dagitim yasak)"},
 }
-DEFAULT_ENGINE = "ltx"
+DEFAULT_ENGINE = "minimax"
 VIDEOS_DIR = "videos"          # #357: rutbenin video HAVUZU (<vid>.mp4 + <vid>.json)
 
 GUARD_THRESHOLD = 25.0          # guard_firstframe.py ile ayni esik
@@ -1008,9 +1008,18 @@ def _tasi(src: str, dest: str) -> str:
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     if os.path.abspath(src) == os.path.abspath(dest):
         return dest
-    if os.path.isfile(dest):
-        os.remove(dest)
-    shutil.move(src, dest)
+    # The generation preview can briefly hold the completed file open on Windows.
+    # A cross-volume move copies successfully before its source unlink gets WinError 32.
+    for attempt in range(40):
+        try:
+            if os.path.isfile(dest):
+                os.remove(dest)
+            shutil.move(src, dest)
+            break
+        except PermissionError as error:
+            if getattr(error, "winerror", None) not in (32, 33) or attempt == 39:
+                raise
+            time.sleep(0.25)
     return dest
 
 
@@ -2112,9 +2121,9 @@ def _probe_pixels(p: str, w: int = 64, h: int = 96):
 def motion_score(video: str) -> float | None:
     """#362: hareket olcusu - 5 ornek kare arasinda ortalama mutlak fark (0-255, 208x312).
 
-    Kullanicinin sikayeti: "kartlar kucuk, bu kadar hareketsiz cikinca hic belli
-    olmuyor." < 8 = donuk (LTX/H3 'subtle idle' ciktilarinda 6-11 olculdu),
-    ~15+ gorunur hareket. None = olculemedi.
+    Whole-frame scores include the static background. Controlled card gestures
+    can score 4-8 despite clear hand movement; below 1 is nearly static.
+    None = olculemedi.
     """
     if not (video and os.path.isfile(video)):
         return None
@@ -2123,7 +2132,9 @@ def motion_score(video: str) -> float | None:
         from PIL import Image, ImageChops, ImageStat
         ff = G._ffmpeg() or "ffmpeg"
         kareler = []
-        for t in (0.1, 1.5, 3.0, 4.5, 5.9):
+        duration = _video_duration(video)
+        for fraction in (0.02, 0.25, 0.5, 0.75, 0.98):
+            t = fraction * duration
             r = subprocess.run([ff, "-v", "error", "-ss", str(t), "-i", video, "-frames:v", "1",
                                 "-f", "image2pipe", "-vcodec", "png", "-"], capture_output=True,
                                timeout=120, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
@@ -2147,9 +2158,10 @@ def guard_video(still: str, video: str) -> dict:
     try:
         h = motion_score(video)
         out["motion"] = h
-        if h is not None and h < 8:
-            out["frozen"] = True
-            out["note"] = "donuk: hareket %.1f (< 8)" % h
+        if h is not None and h < 4:
+            out["frozen"] = h < 1
+            out["low_motion"] = True
+            out["note"] = "%s: hareket %.1f" % ("donuk" if h < 1 else "az hareket", h)
     except Exception:
         pass
     if not (still and os.path.isfile(still) and video and os.path.isfile(video)):
@@ -2222,7 +2234,51 @@ def engine_of(collection: str, kind: str, engine: str = "") -> str:
     return collection_engine(collection_meta(collection, kind_id(kind)))
 
 
-def _video_job(collection: str, kind: str, rank: str, gesture: str, engine: str = "") -> dict:
+def animation_seconds(anim: str = "") -> int:
+    return 2 if anim_id(anim) == "victory" else SECONDS
+
+
+def _video_duration(video: str) -> float:
+    ff = G._ffmpeg() or "ffmpeg"
+    probe = os.path.join(os.path.dirname(ff), "ffprobe.exe" if os.name == "nt" else "ffprobe")
+    result = subprocess.run([probe, "-v", "error", "-select_streams", "v:0",
+                             "-show_entries", "stream=duration", "-of", "json", video],
+                            capture_output=True, text=True, timeout=30,
+                            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    result.check_returncode()
+    duration = float(json.loads(result.stdout)["streams"][0]["duration"])
+    if duration <= 0:
+        raise ValueError("Video duration must be positive")
+    return duration
+
+
+def _normalize_animation(video: str, seconds: int) -> None:
+    """Fit the model frame grid to the tag duration without dropping the return pose."""
+    duration = _video_duration(video)
+    if abs(duration - seconds) < 0.005:
+        return
+    dest = video + ".timed.mp4"
+    ratio = (seconds - 1 / 24) / max(duration - 1 / 24, 1 / 24)
+    ff = G._ffmpeg() or "ffmpeg"
+    try:
+        result = subprocess.run([ff, "-v", "error", "-y", "-i", video,
+                                 "-vf", "setpts=%.10f*(PTS-STARTPTS),fps=24" % ratio,
+                                 "-af", "atempo=%.10f" % (1 / ratio), "-c:a", "aac",
+                                 "-t", str(seconds), "-frames:v", str(seconds * 24), "-c:v", "libx264",
+                                 "-preset", "fast", "-crf", "18", "-threads", "2", dest],
+                                capture_output=True, timeout=120,
+                                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        result.check_returncode()
+        if abs(_video_duration(dest) - seconds) > 1 / 24:
+            raise ValueError("Animation duration verification failed")
+        os.replace(dest, video)
+    finally:
+        if os.path.isfile(dest):
+            os.remove(dest)
+
+
+def _video_job(collection: str, kind: str, rank: str, gesture: str, engine: str = "",
+               anim: str = "") -> dict:
     """Tek rutbenin FLF2V isi (ilk kare = son kare = still, 832x1248, kilitli kamera).
 
     #357: motor koleksiyon ayarindan (ltx | wan); is akisi kurulu degilse LTX'e duser.
@@ -2237,14 +2293,15 @@ def _video_job(collection: str, kind: str, rank: str, gesture: str, engine: str 
     eng = engine_of(collection, kind, engine)
     gorev = VIDEO_ENGINES[eng]["task"]
     if not G._task(gorev):
-        gorev = VIDEO_TASK_LOOP if G._task(VIDEO_TASK_LOOP) else VIDEO_TASK
+        raise ValueError("Video engine workflow is unavailable: %s" % eng)
     # image_path TEK basina verilir: comfy_gen is akisindaki BUTUN gorsel
     # yuvalarini onunla doldurur, yani FLF2V'de ilk ve son kare ayni still olur.
     olcu = still_size(kind)
-    return G.submit(gorev, jest, prompt2=_motion2(kind), negative=_negative(kind),
-                    width=olcu[0], height=olcu[1], duration=SECONDS,
+    job = G.submit(gorev, jest, prompt2=_motion2(kind), negative=_negative(kind),
+                    width=olcu[0], height=olcu[1], duration=animation_seconds(anim),
                     seed=random.randint(1, 2 ** 31), image_path=still, mode="card",
                     client="flow", category=collection)
+    return {**job, "motion_prompt": job["combined"]}
 
 
 def animate(collection: str, ranks: list[str] | None = None, gesture: str = DEFAULT_GESTURE,
@@ -2313,18 +2370,18 @@ def _animate_body(op_id: str, collection: str, kind: str, hedef: list[str],
         r, g, a = it if isinstance(it, tuple) else (it, gesture, anim)
         etiket = "%s %s%s" % (collection, str(r).upper(), "" if a == anim_id(anim) and not isinstance(it, tuple) else " [%s]" % a)
         try:
-            job = _video_job(collection, kind, r, g, engine)
+            job = _video_job(collection, kind, r, g, engine, a)
         except Exception as e:
             with _ops_lock:
                 _ops[op_id]["failed"] += 1
             _op(op_id, log="%s kuyruga girmedi: %s" % (etiket, str(e)[:200]))
             continue
         _op_job(op_id, job["id"])                           # #352 iptal defteri
-        isler.append((job["id"], r, etiket, g, a))
+        isler.append((job["id"], r, etiket, g, a, job["motion_prompt"]))
         _op(op_id, log="%s i2v kuyrukta (%s)" % (etiket, job["id"][:8]))
     _op(op_id, message="%s  %d is kuyruga girdi" % (etiket_on, len(isler)))
     olanlar = []
-    for i, (jid, r, etiket, g_, a_) in enumerate(isler, 1):
+    for i, (jid, r, etiket, g_, a_, prompt) in enumerate(isler, 1):
         i += offset                     # #362: cok animasyonlu op'ta sayac geri sarmasin
         _op(op_id, message="%s %d/%d  %s" % (etiket_on, i, len(isler) + offset, etiket))
         tasindi = False
@@ -2333,10 +2390,13 @@ def _animate_body(op_id: str, collection: str, kind: str, hedef: list[str],
             d = rank_dir(collection, r, kind, create=True)
             # #357: once HAVUZ - guard rutbenin still'ine gore havuz dosyasinda olculur.
             vid, yol = _havuza_koy(collection, r, kind, src, {
-                "job": jid, "gesture": g_, "prompt": gesture_text(kind, g_),
+                "job": jid, "gesture": g_, "prompt": prompt,
+                "seconds": animation_seconds(a_),
                 "engine": engine or engine_of(collection, kind, ""),
                 "at": datetime.now().isoformat(timespec="seconds")})
             tasindi = not os.path.isfile(src)
+            with gpu_lane.hold("kart video zamanlama: %s" % etiket, "card", op_id=op_id):
+                _normalize_animation(yol, animation_seconds(a_))
             g = guard_video(os.path.join(d, "still.png"), yol)
             _havuz_meta_yaz(collection, r, kind, vid, guard=g)
             if not pool_only:
@@ -2613,7 +2673,8 @@ def still_size(kind: str) -> tuple[int, int]:
 
 
 def _cut_call(tool, video: str, out_dir: str, mode: str, concept: str,
-              frame: tuple, thumb_size: tuple, still: str = "", kind: str = "card") -> dict:
+              frame: tuple, thumb_size: tuple, still: str = "", kind: str = "card",
+              anim: str = "") -> dict:
     """#322 arayuzu: cut_video(video, out_dir, mode, concept, fps, seconds, still,
     frame, grid, thumb_size, still_size, quality) -> {frames_dir, sheet, thumb,
     still, metrics}.
@@ -2623,8 +2684,9 @@ def _cut_call(tool, video: str, out_dir: str, mode: str, concept: str,
     atlanir - #322 ile paralel gelistirildigi icin imza kontrol edilir.
     """
     import inspect
-    kw = {"mode": mode, "concept": concept, "fps": FPS, "seconds": SECONDS,
-          "still": still or None, "frame": tuple(frame), "grid": (COLS, ROWS),
+    seconds = animation_seconds(anim)
+    kw = {"mode": mode, "concept": concept, "fps": FPS, "seconds": seconds,
+          "still": still or None, "frame": tuple(frame), "grid": (COLS, math.ceil(seconds * FPS / COLS)),
           "thumb_size": tuple(thumb_size), "still_size": tuple(still_size(kind)),
           "quality": SHEET_QUALITY}
     try:
@@ -2656,7 +2718,7 @@ def _cut_one(tool, collection: str, kind: str, rank: str, mode: str, v3: bool,
     frame = frame_size(kind, v3)
     still = os.path.join(kok, "still.png")
     res = _cut_call(tool, video, d, mode, KINDS[kind_id(kind)]["concept"], frame,
-                    thumb_size(kind), still if os.path.isfile(still) else "", kind)
+                    thumb_size(kind), still if os.path.isfile(still) else "", kind, anim)
 
     sheet = res.get("sheet") or os.path.join(d, "sheet.webp")
     th = res.get("thumb") or os.path.join(d, "thumb.webp")
@@ -3359,6 +3421,9 @@ def _card_entry(collection: str, kind: str, rank: str) -> dict | None:
         "thumbH": int(s.get("thumbH") or THUMB_V3[1]),
         "sheetBytes": os.path.getsize(sheet),
     }
+    metadata = state(collection, rank, kind).get("metadata")
+    if metadata:
+        girdi["metadata"] = metadata
     if os.path.isfile(os.path.join(d, "still.webp")):
         girdi["still"] = r2_key(collection, kind, rank, "still")
     # #338: animasyon deposu. Ust duzey sheet/thumb alanlari idle'i gosterir
@@ -3523,6 +3588,11 @@ def push(collection: str, kind: str = "", ranks: list[str] | None = None,
             d = rank_dir(collection, r, k)
             cid = card_id(collection, r, k)
             _op(op_id, message="4/4 push %d/%d  %s" % (i, len(hedef), cid))
+            # Tag the current still before uploading any card assets; never backfill R2.
+            from .card_metadata import tag_still
+            metadata = tag_still(os.path.join(d, "still.png"),
+                                 state(collection, r, k).get("metadata"), op_id)
+            _set_state(collection, r, k, metadata=metadata)
             isler = [("sheet", os.path.join(d, "sheet.webp")),
                      ("thumb", os.path.join(d, "thumb.webp"))]
             if os.path.isfile(os.path.join(d, "still.webp")):

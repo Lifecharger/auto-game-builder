@@ -327,7 +327,7 @@ Future<String?> gestureDialog(BuildContext context, List<String> gestures,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                  'LTX-2.5 i2v, 6 sn. Kamera kilitli kalir - kadraj, olcek ve '
+                  'MiniMax H3: idle 6 sn, victory 2 sn. Kamera kilitli kalir - kadraj, olcek ve '
                   'fon degismez.',
                   style: TextStyle(fontSize: 11, color: Colors.grey)),
               const SizedBox(height: 10),
@@ -1660,8 +1660,8 @@ class _CardCollectionPageState extends State<CardCollectionPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('Her karta 2 animasyon uretilir ve etiketine atanir:\n'
-                  '• idle - dans, salinim, sac, goz kirpma, opucuk (karisik)\n'
-                  '• victory - zafer ziplamasi, yahoo sevinci\n'
+                  '• idle - 6 sn, tek kontrollu jest\n'
+                  '• victory - 2 sn, kadraj icinde kisa sevinme\n'
                   'Toplam ${r.length * 2} video; eskileri havuzda kalir.',
                   style: const TextStyle(fontSize: 12)),
               if (motorlar.length > 1) ...[

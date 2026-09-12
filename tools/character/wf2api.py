@@ -15,6 +15,7 @@ Canonical dosya: C:/ComfyUI/scripts/wf2api.py
 AGB deposundaki tools/character/wf2api.py bunun birebir kopyasidir.
 """
 import itertools
+import math
 import json
 import os
 import tempfile
@@ -597,6 +598,12 @@ def _apply_overrides(api: dict, overrides: dict, specs: dict) -> None:
     if isinstance(w, int) and isinstance(h, int) and w > 0 and h > 0:
         for uid in list(api):
             ct = api[uid]["class_type"]
+            if ct == "MiniMaxH3ImageToVideo":
+                # Preserve portrait/landscape framing within the card workflow's VRAM budget.
+                scale = min(1.0, math.sqrt((576 * 864) / (w * h)))
+                yaz(uid, "width", max(32, int(w * scale / 32) * 32))
+                yaz(uid, "height", max(32, int(h * scale / 32) * 32))
+                continue
             if not (ct.startswith("Empty") or ct.endswith("Scheduler") or ct.startswith("Wan")):
                 continue
             ws = widgets(uid)
@@ -611,6 +618,10 @@ def _apply_overrides(api: dict, overrides: dict, specs: dict) -> None:
         for uid in list(api):
             if api[uid]["class_type"].startswith("Wan") and "length" in widgets(uid):
                 yaz(uid, "length", kare)
+            if api[uid]["class_type"] == "MiniMaxH3ImageToVideo" and "length" in widgets(uid):
+                # MiniMax uses 17k+5 frames at 24 fps; preserve its VRAM-safe dimensions.
+                frames = 5 + 17 * max(0, math.ceil((24 * float(d) - 5) / 17))
+                yaz(uid, "length", min(158, frames))
 
 
 # ------------------------------------------------------------- dogrulama
