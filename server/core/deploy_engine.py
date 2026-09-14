@@ -1551,10 +1551,9 @@ INSTRUCTIONS (Lead Programmer + Engine Specialist Knowledge):
                 # googleapiclient.http.build_http does (resumable uploads
                 # answer chunks with 308, which bare httplib2 treats as a
                 # broken redirect).
-                import httplib2
+                from core.play_http import PlayHttp
                 import google_auth_httplib2
-                raw_http = httplib2.Http(timeout=540)
-                raw_http.redirect_codes = raw_http.redirect_codes - {308}
+                raw_http = PlayHttp()
                 authed_http = google_auth_httplib2.AuthorizedHttp(credentials, http=raw_http)
                 service = google_build("androidpublisher", "v3", http=authed_http)
 
