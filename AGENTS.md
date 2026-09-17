@@ -178,6 +178,38 @@ Delivery endpoints `/api/delivery/overview`, `/rules`, `/values`, and `/preview`
 `pool=jigsaw|cards` (default jigsaw). Rules PUT uses the same query parameter. Card
 metadata is created during push, not through the Jigsaw EXIF reindex endpoint.
 
+### R2 buckets ("Kovalar", task #381)
+
+The buckets themselves — browse, headers, guarded delete, server-side copy, diffs. Registry
+(bucket → files domain, role, legacy twin and the key mapping) in `server/config/r2_buckets.json`;
+logic in `server/core/r2_control.py`; credentials path from `settings.json` → `r2.credentials_file`.
+Design note: `design/r2_kontrol.md`.
+
+| Method | Path | Body / Params |
+|--------|------|---------------|
+| GET | `/api/r2/buckets` | `?refresh=bool&bucket=str` — registry + object count / total bytes (cached on disk) |
+| GET | `/api/r2/list` | `?bucket&prefix&cursor&limit` — folder-style browse; each object carries a `preview` flag |
+| GET | `/api/r2/head` | `?bucket&key` — headers + cache-standard verdict + twin key |
+| GET | `/api/r2/thumb` | `?bucket&key&size` — small JPEG; 415 + typed "no preview" for video / animated WebP / >2 MB |
+| POST | `/api/r2/delete-plan` | `{bucket, keys[]}` — which keys go in which bucket, before anything is deleted |
+| POST | `/api/r2/delete` | `{bucket, keys[], takedown, confirm}` — `confirm` must equal the bucket name; max 500 keys; `takedown` also clears the legacy twin; appends to `server/data/r2_audit.log` |
+| POST | `/api/r2/copy` | `{src_bucket, dst_bucket, src_key\|src_prefix, dst_key\|dst_prefix}` → `{op}` (runs inside Cloudflare) |
+| POST | `/api/r2/fix-headers` | `{bucket, prefix}` → `{op}` — rewrites Cache-Control that drifted from the standard, keeping Content-Type |
+| GET | `/api/r2/diff` | `?rating=hot\|kid&collection=` — local "Pushed" folder vs the bucket |
+| GET | `/api/r2/twin-diff` | `?bucket=` — new bucket vs its legacy twin (retirement checklist) |
+| GET | `/api/r2/audit` | `?limit=` — tail of the audit log |
+| GET | `/api/r2/ops`, `/api/r2/op/{op_id}` | background operations (same body as the flow ops) |
+| POST | `/api/r2/op/{op_id}/cancel` | cancel a running operation |
+
+The server never deletes "by prefix": the client lists, the user selects, keys are sent. A thumb
+may download an image once but never a video, an animated WebP or anything over 2 MB — clients
+request previews lazily and only for rows the server flagged `preview: true`.
+
+Jigsaw flow additions from the same task: `POST /api/jigsaw/flow/match` (pair orphan videos with
+their images by first-frame similarity), `GET /api/jigsaw/flow/bundle` (every file a reject would
+delete, extras included), `GET /api/jigsaw/flow/webp` (how many videos still lack a WebP twin) and
+`keep_names` on `POST /api/jigsaw/flow/accept` (keep the original file name instead of renumbering).
+
 ```
 GET  /api/pipeline/scan
 POST /api/pipeline/sessions              {source_folder, rating}

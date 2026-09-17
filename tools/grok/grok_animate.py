@@ -45,7 +45,11 @@ from playwright.sync_api import sync_playwright
 
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 HISTORY_FILE = os.path.join(_SCRIPT_DIR, "grok_download_history.json")
-PROFILE_DIR = str(Path.home() / ".grok-playwright")
+# GROK_PROFILE_DIR points the driver at another logged-in Playwright profile
+# (a second Grok account). The cached sso cookies belong to the default
+# account, so they are only injected into the default profile.
+DEFAULT_PROFILE_DIR = str(Path.home() / ".grok-playwright")
+PROFILE_DIR = os.environ.get("GROK_PROFILE_DIR") or DEFAULT_PROFILE_DIR
 IMAGINE_URL = "https://grok.com/imagine"
 
 # Rendered videos land in the r2manager Incoming folder, same as generated images.
@@ -55,6 +59,8 @@ OUTPUT_DIR = os.environ.get("GROK_OUTPUT_DIR") or os.path.join(
 
 
 def _load_sso_cookies():
+    if PROFILE_DIR != DEFAULT_PROFILE_DIR:
+        return None
     if not os.path.isfile(HISTORY_FILE):
         return None
     with open(HISTORY_FILE, encoding="utf-8") as f:
@@ -495,6 +501,11 @@ def animate(image_path: str, prompt: str, video_length: int = 6,
         dest.parent.mkdir(parents=True, exist_ok=True)
 
         # Newest first: the prompted render finishes after the auto baseline clip.
+        # The first verified render becomes `dest`; every other verified render
+        # of the same submission is kept beside it in `_alts/<stem>_altN.mp4`,
+        # so the user can swap in the take he prefers.
+        saved = None
+        alt_n = 0
         for url in reversed(candidates):
             short = url.split("/generated/")[-1][:36]
             try:
@@ -524,16 +535,25 @@ def animate(image_path: str, prompt: str, video_length: int = 6,
                 else:
                     print(f"  [{short}] MSE {mse:.0f} — verified match")
 
-                dest.write_bytes(body)
+                if saved is None:
+                    target = dest
+                else:
+                    alt_n += 1
+                    target = dest.parent / "_alts" / f"{dest.stem}_alt{alt_n}{dest.suffix}"
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(body)
             finally:
                 tmp.unlink(missing_ok=True)
 
-            print(f"Saved {len(body) // 1024} KB -> {dest}")
-            ctx.close()
-            return str(dest)
+            print(f"Saved {len(body) // 1024} KB -> {target}")
+            if saved is None:
+                saved = str(dest)
+
+        ctx.close()
+        if saved:
+            return saved
 
         print("\nFAILED: new renders appeared but none came from this image.")
-        ctx.close()
         return None
 
 

@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import 'api_service.dart';
+import 'lifecharger_analytics.dart';
 import '../config.dart';
 
 /// Uretim kipi. Free Mod serbest uretim, Jigsaw Modu Hot Jigsaw is akisi.
@@ -409,6 +410,8 @@ class GenerateService {
     }
   }
 
+  /// Reported as one anonymous `generate` ping - never the prompt, the task,
+  /// the category or any path that went with it.
   static Future<GenerateJob> submit({
     required String task,
     required String prompt,
@@ -430,6 +433,7 @@ class GenerateService {
     bool enrich = false,
     bool normalize = false,
   }) async {
+    Analytics.log('feature_use', {'feature': 'generate'});
     final d = await _post('/api/generate', {
       if (inputs.isNotEmpty)
         'inputs': {for (final e in inputs.entries) e.key: e.value.toJson()},

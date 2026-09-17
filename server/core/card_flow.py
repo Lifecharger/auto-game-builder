@@ -1,7 +1,7 @@
 """Kart Modu - uretim hattinin 5. kipi (gorev #321).
 
 Hot Card Games'in koleksiyon kartlari. Grok'a bagli `Hot Card Games/tools/cardpipe`
-hattinin yerine gecer; cikti sozlesmesi (R2 kovasi `hotcardgames`, manifest semasi,
+hattinin yerine gecer; cikti sozlesmesi (R2 kovasi `cards`, manifest semasi,
 sprite sheet geometrisi) DEGISMEZ - yalniz uretim tamamen yerellesir.
 
 Kullanicinin tanimladigi DORT ASAMA (design/kart_modu.md §0):
@@ -72,7 +72,7 @@ DEFAULT_ROOT = r"D:\Asset Generation Pipeline\Hot Card Games"
 DEFAULT_GROK = r"C:\Projects\Hot Card Games\design\characters"
 DEFAULT_ROSTER = r"C:\Projects\Hot Card Games\tools\cardpipe\roster.json"
 DEFAULT_MANIFEST_SRC = r"C:\Projects\Hot Card Games\tools\cardpipe\out\manifest.json"
-DEFAULT_BUCKET = "hotcardgames"
+DEFAULT_BUCKET = "cards"
 
 INCOMING = "_Incoming Kart"
 

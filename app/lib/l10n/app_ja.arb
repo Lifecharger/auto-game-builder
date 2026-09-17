@@ -410,6 +410,8 @@
   "reopen": "再オープン",
   "reportBugOrSuggestion": "バグ/提案を報告",
   "reportBugSubtitle": "修正・追加してほしいことを教えてください",
+  "shareUsageStats": "匿名の利用統計を共有",
+  "shareUsageStatsDesc": "セッション数と開いた画面の匿名な集計のみ。プロジェクト名やタスクの文面、パスは送信しません。",
   "reportConsent": "問題解決のため、このレポートを端末情報 (機種、OS、アプリバージョン) とともに開発者に送信することに同意します。",
   "reportHint": "何が起きましたか、またはどんな機能が欲しいですか?",
   "reportSentThanks": "ありがとうございます! レポートを送信しました。",

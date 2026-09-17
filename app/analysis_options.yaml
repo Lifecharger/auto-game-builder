@@ -13,6 +13,10 @@ analyzer:
     - android/**
     - web/**
     - windows/**
+    # Verbatim copy of the shared Lifecharger analytics client. It is kept
+    # byte-identical to its canonical source so every app reports the same
+    # vocabulary, so it is not re-styled to this project's lint set.
+    - lib/services/lifecharger_analytics.dart
 include: package:flutter_lints/flutter.yaml
 
 linter:

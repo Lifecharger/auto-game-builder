@@ -5643,6 +5643,7 @@ class FlowItemsRequest(BaseModel):
     negative: str = ""          # bos = derecenin varsayilan video negatifi
     rotate_templates: bool = False   # "Que All": sablonlari sirayla dagit
     task: str = ""              # bos = LTX'i sec
+    keep_names: bool = False    # #381: kabulde ozgun dosya adini koru (renumbering yok)
 
 
 class FlowMusicRequest(BaseModel):
@@ -5947,10 +5948,30 @@ def jigsaw_flow_video(body: FlowItemsRequest):
 
 @app.post("/api/jigsaw/flow/accept")
 def jigsaw_flow_accept(body: FlowItemsRequest):
-    """2 -> 3. Koleksiyona <n>.jpg / .mp4 / .webp olarak tasir."""
+    """2 -> 3. Koleksiyona <n>.jpg / .mp4 / .webp olarak tasir.
+
+    keep_names=true numaralandirmaz, ozgun adi korur (#381, r2manager "Save
+    Accept"): kovadaki mevcut <n>.jpg icin uretilen video <n>.mp4 olarak doner.
+    """
     if not body.ids:
         raise HTTPException(400, "varlik secilmedi")
-    return {"op": _flow_call(_flow().accept, body.rating, body.ids, body.collection)}
+    return {"op": _flow_call(_flow().accept, body.rating, body.ids, body.collection,
+                             body.keep_names)}
+
+
+@app.post("/api/jigsaw/flow/match")
+def jigsaw_flow_match(body: FlowItemsRequest):
+    """#381: 2. akistaki videolari ilk karelerine bakarak gorselleriyle esler."""
+    return {"op": _flow_call(_flow().match_videos, body.rating)}
+
+
+@app.get("/api/jigsaw/flow/bundle")
+def jigsaw_flow_bundle(rating: str, stage: str, ids: str):
+    """#381: secili varliklarla birlikte SILINECEK dosyalar (onay penceresi icin)."""
+    liste = [x for x in (ids or "").split(",") if x.strip()]
+    if not liste:
+        raise HTTPException(400, "varlik secilmedi")
+    return _flow_call(_flow().bundle, rating, stage, liste)
 
 
 @app.post("/api/jigsaw/flow/push")
@@ -5965,6 +5986,12 @@ def jigsaw_flow_push(body: FlowItemsRequest):
 def jigsaw_flow_webp(body: FlowItemsRequest):
     """3. akista videosu olup webp'i olmayanlar icin webp uretir."""
     return {"op": _flow_call(_flow().webp_missing, body.rating, body.collection)}
+
+
+@app.get("/api/jigsaw/flow/webp")
+def jigsaw_flow_webp_status(rating: str = "hot", collection: str = ""):
+    """#381: webp ikizi eksik video sayisi - dugmeyi bosuna basmamak icin."""
+    return _flow_call(_flow().webp_status, rating, collection)
 
 
 @app.post("/api/jigsaw/flow/retag")
@@ -6139,7 +6166,7 @@ def unity_review_status(op_id: str):
 
 # ------------------------------------------------- Delivery Mod (gorev #363)
 # Uygulamalara ne sunulacaginin ac/kapa anahtarlari (rating / safety / voyeur ...).
-# Kurallar hotjigsaw-scanner worker'inda (KV) yasar; buradan okunur/yazilir,
+# Kurallar gallery-hot worker'inda (KV) yasar; buradan okunur/yazilir,
 # degisiklik sonraki manifest isteginde canli. Bkz. core/delivery.py.
 def _delivery():
     from core import delivery
@@ -6194,6 +6221,154 @@ def delivery_reindex(body: DeliveryReindexRequest):
 def delivery_preset(name: str):
     """Hizli on ayar govdesi (istemci bunu bir kural setine yazar)."""
     return _flow_call(_delivery().preset, name)
+
+
+# ------------------------------------------------- Kovalar (gorev #381)
+# R2 kovalarinin kendisi: gezinme, basliklar, onizleme, silme/takedown, sunucu
+# tarafi kopya, baslik onarimi ve farklar. Kayit defteri config/r2_buckets.json,
+# is mantigi core/r2_control.py; kimlik dosyasi ayardan okunur, depoya girmez.
+def _r2():
+    from core import r2_control
+    return r2_control
+
+
+def _r2_client(request: Request, verilen: str = "") -> str:
+    """Denetim defterine yazilan istemci adi (anahtar/gizli bilgi degil)."""
+    return (verilen or request.headers.get("User-Agent", "") or "bilinmiyor")[:120]
+
+
+class R2DeleteRequest(BaseModel):
+    """Silme/takedown - yazili onay zorunlu, tek cagrida en fazla 500 anahtar."""
+    bucket: str
+    keys: list[str] = []
+    takedown: bool = False       # ikiz (ESKI) kovadaki karsiligini da sil
+    confirm: str = ""            # kullanicinin yazdigi kova adi
+    client: str = ""
+
+
+class R2CopyRequest(BaseModel):
+    """Sunucu tarafi kopya: tek anahtar ya da onek agaci."""
+    src_bucket: str
+    dst_bucket: str
+    src_key: str = ""
+    dst_key: str = ""
+    src_prefix: str = ""
+    dst_prefix: str = ""
+    client: str = ""
+
+
+class R2HeaderRequest(BaseModel):
+    bucket: str
+    prefix: str = ""
+    client: str = ""
+
+
+@app.get("/api/r2/buckets")
+def r2_buckets(refresh: bool = False, bucket: str = ""):
+    """Kova kayit defteri + nesne sayisi / toplam bayt (diskte onbellekli).
+
+    `refresh=true` sayimi yeniden yapar (yalniz listeleme - bayt inmez);
+    `bucket=` verilirse yalniz o kova sayilir.
+    """
+    return _flow_call(_r2().buckets, refresh, bucket)
+
+
+@app.get("/api/r2/list")
+def r2_list(bucket: str, prefix: str = "", cursor: str = "", limit: int = 200):
+    """Klasor gibi gezinme: alt klasorler + nesneler (genel adres ve onizleme bayragi ile)."""
+    return _flow_call(_r2().list_prefix, bucket, prefix, cursor, limit)
+
+
+@app.get("/api/r2/head")
+def r2_head(bucket: str, key: str):
+    """Bir nesnenin basliklari + onbellek standardina uygunlugu + ikiz anahtari."""
+    return _flow_call(_r2().head, bucket, key)
+
+
+@app.get("/api/r2/thumb")
+def r2_thumb(bucket: str, key: str, size: int = 220):
+    """Kucuk JPEG onizleme. Video / hareketli webp / 2 MB ustu nesne INDIRILMEZ:
+    415 ile tipli bir "onizleme yok" yaniti doner, istemci ikon + boyut gosterir."""
+    r2 = _r2()
+    try:
+        t = _flow_call(r2.thumb, bucket, key, max(64, min(512, size)))
+    except r2.NoPreview as e:
+        return JSONResponse(status_code=415,
+                            content={"detail": "onizleme yok (%s)" % e.reason,
+                                     "preview": "none", "reason": e.reason,
+                                     "size": e.size, "content_type": e.content_type})
+    return FileResponse(t, media_type="image/jpeg",
+                        headers={"Cache-Control": "public, max-age=604800"})
+
+
+@app.post("/api/r2/delete-plan")
+def r2_delete_plan(body: R2DeleteRequest):
+    """Silmeden ONCE: hangi kovada hangi anahtarlar gidecek (onay penceresi)."""
+    return _flow_call(_r2().takedown_plan, body.bucket, body.keys)
+
+
+@app.post("/api/r2/delete")
+def r2_delete(body: R2DeleteRequest, request: Request):
+    """Nesneleri siler. GERI ALINAMAZ.
+
+    `confirm` kova adiyla birebir ayni olmali; tek cagrida en fazla 500 anahtar.
+    `takedown=true` ayrica ESKI ikizdeki karsiligini da siler - strike yaniti
+    YENI ve ESKI kopyayi birlikte dusurmek zorunda. Her cagri denetim defterine
+    (server/data/r2_audit.log) yazilir.
+    """
+    return _flow_call(_r2().delete, body.bucket, body.keys, body.takedown,
+                      body.confirm, _r2_client(request, body.client))
+
+
+@app.post("/api/r2/copy")
+def r2_copy(body: R2CopyRequest, request: Request):
+    """Sunucu tarafi kopya (Cloudflare icinde calisir - bu hattan bayt gecmez)."""
+    return {"op": _flow_call(_r2().copy, body.src_bucket, body.dst_bucket,
+                             body.src_key, body.dst_key, body.src_prefix,
+                             body.dst_prefix, _r2_client(request, body.client))}
+
+
+@app.post("/api/r2/fix-headers")
+def r2_fix_headers(body: R2HeaderRequest, request: Request):
+    """Onbellek standardindan sapan Cache-Control'u yerinde duzeltir (arka plan)."""
+    return {"op": _flow_call(_r2().fix_headers, body.bucket, body.prefix,
+                             _r2_client(request, body.client))}
+
+
+@app.get("/api/r2/diff")
+def r2_diff(rating: str = "hot", collection: str = ""):
+    """Yerel "Push edilmis" klasoru <-> kova: kovada eksik, yerelde eksik, boyut farki."""
+    return _flow_call(_r2().diff, rating, collection)
+
+
+@app.get("/api/r2/twin-diff")
+def r2_twin_diff(bucket: str):
+    """YENI kova <-> ESKI ikizi (ay sonu emeklilik listesinin ihtiyaci olan fark)."""
+    return _flow_call(_r2().twin_diff, bucket)
+
+
+@app.get("/api/r2/audit")
+def r2_audit(limit: int = 50):
+    """Denetim defterinin sonu - en yeni kayit basta."""
+    return {"entries": _flow_call(_r2().audit_tail, limit)}
+
+
+@app.get("/api/r2/ops")
+def r2_ops():
+    return {"ops": _r2().ops()}
+
+
+@app.get("/api/r2/op/{op_id}")
+def r2_op(op_id: str):
+    o = _r2().op_status(op_id)
+    if not o:
+        raise HTTPException(404, "Islem bulunamadi")
+    return o
+
+
+@app.post("/api/r2/op/{op_id}/cancel")
+def r2_op_cancel(op_id: str):
+    return _r2().cancel_op(op_id)
 
 
 @app.get("/api/queue")
@@ -6914,7 +7089,7 @@ def card_flow_manifest(body: CardManifestRequest):
 
 @app.post("/api/card/flow/push")
 def card_flow_push(body: CardPushRequest):
-    """Asama 4: once dosyalar sonra manifest, R2 hotcardgames. GERI ALINAMAZ."""
+    """Asama 4: once dosyalar sonra manifest, R2 cards. GERI ALINAMAZ."""
     return {"op": _flow_call(_card().push, body.collection, body.kind, body.ranks,
                              body.dealers_v3)}
 

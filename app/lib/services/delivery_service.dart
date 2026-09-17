@@ -6,7 +6,7 @@ import 'api_service.dart';
 
 /// #363 Delivery Mod: uygulamalara ne sunulacaginin ac/kapa anahtarlari.
 ///
-/// Kurallar hotjigsaw-scanner worker'inda yasar; AGB sunucusu araci
+/// Kurallar gallery-hot worker'inda yasar; AGB sunucusu araci
 /// (`/api/delivery/*`). Kaydet = anlik canli: worker manifesti uygulama
 /// basina filtreler ve kenar onbellegini kendisi dusurur.
 class DeliveryApp {

@@ -208,15 +208,20 @@ def _clean(mask: np.ndarray, keep: np.ndarray | None = None) -> np.ndarray:
 
 
 def alpha_from(mask: np.ndarray, matte: np.ndarray | None, refine: bool,
-               keep: np.ndarray | None = None) -> np.ndarray:
+               keep: np.ndarray | None = None, edge_mode: str = "soft") -> np.ndarray:
     """SAM maskesi -> 0..255 alfa. Kenar seridinde isnet matte'i yumusatir."""
     import cv2
+    if edge_mode not in ("soft", "strict"):
+        raise ValueError("Unknown edge refinement mode: %s" % edge_mode)
+    if edge_mode == "strict" and (not refine or matte is None):
+        raise RuntimeError("Strict edge refinement requires an ISNet matte")
     m = _clean(mask, keep)
     soft = cv2.GaussianBlur(m.astype(np.float32), (0, 0), 1.2)
     if refine and matte is not None:
         k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * BAND + 1, 2 * BAND + 1))
         band = (cv2.dilate(m, k) > 127) & (cv2.erode(m, k) < 128)
-        blend = np.minimum(soft, np.maximum(matte, soft * 0.35))
+        blend = np.minimum(soft, matte if edge_mode == "strict"
+                           else np.maximum(matte, soft * 0.35))
         soft = np.where(band, blend, soft)
     return np.clip(soft, 0, 255)
 
@@ -312,9 +317,14 @@ def cut(im, alpha: np.ndarray, bg) -> "object":
 # -------------------------------------------------------------------- akis
 def extract(video, out_dir, fps: int = 15, prompt: str = "woman", height: int = 0,
             mirror: bool = False, refine: bool = True, chunk: int = 48,
-            bg: tuple | None = None, crop: float = 0.0, canvas: int = 0, log=print) -> dict:
+            bg: tuple | None = None, crop: float = 0.0, canvas: int = 0, log=print,
+            edge_mode: str = "soft") -> dict:
     """Video -> RGBA kareler + anim.webp + sheet.png + sprite.json. Ozet doner."""
     from PIL import Image
+    if edge_mode not in ("soft", "strict"):
+        raise ValueError("Unknown edge refinement mode: %s" % edge_mode)
+    if edge_mode == "strict" and (not refine or isnet_session() is None):
+        raise RuntimeError("Strict edge refinement requires the ISNet runtime and model")
     video, out_dir = Path(video), Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     raw = out_dir / "_raw"
@@ -366,7 +376,7 @@ def extract(video, out_dir, fps: int = 15, prompt: str = "woman", height: int = 
                 al = np.clip(matte, 0, 255)
                 method.append("isnet")
         else:
-            al = alpha_from(masks[i], matte, refine, extras[i])
+            al = alpha_from(masks[i], matte, refine, extras[i], edge_mode=edge_mode)
             method.append("sam" + ("+edge" if (refine and matte is not None) else ""))
         rgba = cut(im, al, bg)
         if mirror:
@@ -394,6 +404,7 @@ def extract(video, out_dir, fps: int = 15, prompt: str = "woman", height: int = 
             # pivot: yatayda tuval merkezi (uretim ekseni), dikeyde ayak cizgisi
             "pivot": [w // 2, bbox[3]], "feet": bbox[3], "mirror": mirror, "bg": list(bg),
             "cutout": "sam3", "prompt": ", ".join(concepts), "refine": bool(refine),
+            "edge_mode": edge_mode,
             "fallback_frames": suspect, "method": method,
             "coverage": round(float((A > 8).mean()), 4),
             "src": video.name, "at": time.strftime("%Y-%m-%dT%H:%M:%S")}

@@ -3,7 +3,7 @@
 Source: original (pre-recompress) MP4 backups at D:/Backup/hotjigsaw_r2/
         (flat names: collections__<id>__videos__N.mp4)
 Output: D:/Backup/hotjigsaw_r2_webp/ (same flat names, .webp)
-R2 key: collections/<id>/videos_webp/N.webp  (hotjigsaw bucket)
+R2 key: collections/<id>/videos_webp/N.webp  (gallery-hot bucket)
 
 The r2-scanner worker ignores .webp files outside images//thumbs/, so these
 uploads never appear in the manifest; the app derives the URL from the MP4
@@ -58,7 +58,7 @@ QUALITY = 80
 PARALLEL = max(2, (os.cpu_count() or 4) // 2)
 
 ACC = "25d974e94beddd70f6923d50e7222e68"
-BUCKET = "hotjigsaw"
+BUCKET = "gallery-hot"
 KEY_FILE = r"D:/keys/cloudflare_global_api_key.txt"
 EMAIL = "koplayer17@gmail.com"
 

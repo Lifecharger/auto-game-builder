@@ -1428,6 +1428,13 @@ class AppLocalizationsDe extends AppLocalizations {
       'Sag uns, was behoben oder hinzugefügt werden soll';
 
   @override
+  String get shareUsageStats => 'Anonyme Nutzungsstatistik teilen';
+
+  @override
+  String get shareUsageStatsDesc =>
+      'Anonyme Zähler für Sitzungen und geöffnete Bildschirme. Keine Projektnamen, keine Aufgabentexte, keine Pfade.';
+
+  @override
   String get reportConsent =>
       'Ich stimme zu, diesen Bericht mit meinen Geräteinfos (Modell, Betriebssystem und App-Version) an den Entwickler zu senden, um bei der Fehlerbehebung zu helfen.';
 

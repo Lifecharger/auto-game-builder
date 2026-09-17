@@ -15,6 +15,7 @@ import '../services/theme_service.dart';
 import '../theme.dart';
 import 'report_screen.dart';
 import '../theme/palette.dart';
+import '../services/lifecharger_analytics.dart';
 import '../widgets/settings/server_config_section.dart';
 import '../l10n/app_localizations.dart';
 
@@ -535,6 +536,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ],
                     ),
                     const SizedBox(height: 4),
+                    // Anonymous usage reporting. The switch is owned by the
+                    // analytics client: it persists the choice itself and
+                    // drops its queue the moment it is switched off.
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(l10n.shareUsageStats),
+                      subtitle: Text(
+                        l10n.shareUsageStatsDesc,
+                        style: TextStyle(
+                            fontSize: 12, color: Colors.grey.shade500),
+                      ),
+                      value: Analytics.instance.enabled,
+                      activeTrackColor: AppColors.accent,
+                      onChanged: (value) async {
+                        await Analytics.setEnabled(value);
+                        if (mounted) setState(() {});
+                      },
+                    ),
                     ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: const Icon(Icons.bug_report_outlined),

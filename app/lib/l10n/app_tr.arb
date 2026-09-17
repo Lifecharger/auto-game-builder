@@ -410,6 +410,8 @@
   "reopen": "Yeniden Aç",
   "reportBugOrSuggestion": "Hata / Öneri Bildir",
   "reportBugSubtitle": "Neyi düzeltmemizi veya eklememizi istediğinizi yazın",
+  "shareUsageStats": "Anonim kullanım istatistiklerini paylaş",
+  "shareUsageStatsDesc": "Oturumların ve açılan ekranların anonim sayımları. Proje adı, görev metni veya yol bilgisi gönderilmez.",
   "reportConsent": "Bu raporun cihaz bilgilerimle (model, işletim sistemi ve uygulama sürümü) birlikte, sorunların giderilmesine yardımcı olmak üzere geliştiriciye gönderilmesini kabul ediyorum.",
   "reportHint": "Ne oldu ya da ne görmek istersiniz?",
   "reportSentThanks": "Teşekkürler! Raporunuz gönderildi.",

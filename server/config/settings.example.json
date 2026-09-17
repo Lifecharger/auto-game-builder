@@ -73,6 +73,10 @@
     "pool_root": "D:/Asset Generation Pipeline/Hot Jigsaw",
     "pushed_root": "D:/Asset Generation Pipeline/Hot Jigsaw - Pushed"
   },
+  "r2": {
+    "_comment": "Kovalar kipi (#381): R2'nin S3 uyumlu erisim bilgileri. Dosya DEPO DISINDA durur; R2_CREDENTIALS_FILE ortam degiskeni onceliklidir. Icerigi: endpoint, access_key_id, secret_access_key, account_id.",
+    "credentials_file": "D:/keys/cloudflare_r2_s3_credentials.json"
+  },
   "comfyui": {
     "_comment": "ComfyUI kurulum koku ve adresi. COMFYUI_ROOT / COMFYUI_URL ortam degiskenleri onceliklidir.",
     "root": "C:/ComfyUI",

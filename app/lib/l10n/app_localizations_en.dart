@@ -1408,6 +1408,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get reportBugSubtitle => 'Tell us what to fix or add';
 
   @override
+  String get shareUsageStats => 'Share anonymous usage statistics';
+
+  @override
+  String get shareUsageStatsDesc =>
+      'Anonymous counts of sessions and which screens are opened. No project names, no task text, no paths.';
+
+  @override
   String get reportConsent =>
       'I agree to send this report with my device info (model, OS and app version) to the developer to help fix issues.';
 

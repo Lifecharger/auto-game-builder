@@ -2568,6 +2568,18 @@ abstract class AppLocalizations {
   /// **'Tell us what to fix or add'**
   String get reportBugSubtitle;
 
+  /// No description provided for @shareUsageStats.
+  ///
+  /// In en, this message translates to:
+  /// **'Share anonymous usage statistics'**
+  String get shareUsageStats;
+
+  /// No description provided for @shareUsageStatsDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Anonymous counts of sessions and which screens are opened. No project names, no task text, no paths.'**
+  String get shareUsageStatsDesc;
+
   /// No description provided for @reportConsent.
   ///
   /// In en, this message translates to:

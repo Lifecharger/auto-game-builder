@@ -9,6 +9,7 @@ import '../models/issue_model.dart';
 import '../models/build_model.dart';
 import '../models/automation_model.dart';
 import 'cache_service.dart';
+import 'lifecharger_analytics.dart';
 
 class ApiResult<T> {
   final T? data;
@@ -1076,6 +1077,9 @@ class ApiService {
     String buildTarget = 'aab',
     bool upload = false,
   }) async {
+    // Only that a build was triggered - never which app, which track, or any
+    // other detail of the work.
+    Analytics.log('feature_use', {'feature': 'deploy'});
     try {
       final response = await http
           .post(

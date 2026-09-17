@@ -1,0 +1,438 @@
+{
+  "_note": "Hot Idle Relationships stills (design/relationships.md 9). Level 1 = existing reference. Levels 2-10 = one costume each, riskier per level, store-safe ceiling (adult, no nudity; suggestiveness lives in face and pose). Expression ladder is shared and appended per level.",
+  "expression": {
+    "2": "friendly playful smile, one hand on her hip",
+    "3": "playful wink, leaning slightly toward the camera",
+    "4": "warm teasing smile, one hand touching her hair",
+    "5": "flirty smile, eyes on the camera",
+    "6": "flirty half-lidded eyes and a soft smile",
+    "7": "sultry direct gaze, lips slightly parted",
+    "8": "biting her lower lip, one hand resting at her collarbone, sultry eyes",
+    "9": "sultry gaze, lips parted, one hand running through her hair",
+    "10": "openly seductive expression, sultry half-lidded gaze, lips parted, one hand at her collarbone, hip cocked",
+    "1": "a warm friendly smile, relaxed natural pose"
+  },
+  "girls": {
+    "ava": {
+      "identity": "same young woman with long brown hair in a high ponytail, fair skin, hazel eyes and the same face",
+      "levels": {
+        "1": "a fitted cream blouse with the top buttons open and a black pencil skirt, black heels",
+        "2": "a preppy schoolgirl cosplay: white shirt with a loose tie, grey pleated mini skirt, knee socks and loafers",
+        "3": "a red off-shoulder knit mini dress and black heels",
+        "4": "__base__",
+        "5": "a sexy secretary cosplay: tight black vest over a sheer white blouse, very short skirt, black stockings and glasses",
+        "6": "a black cocktail dress with a deep neckline and a high thigh slit, strappy heels",
+        "7": "a bunny girl cosplay: black strapless bodysuit, bunny ears, fishnet stockings, cuffs and heels",
+        "8": "a white one-piece swimsuit with a plunging neckline, barefoot",
+        "9": "a black string bikini with a sheer sarong tied low on her hips",
+        "10": "a tiny red micro bikini and high heels"
+      },
+      "scenes": {
+        "1": "a modern glass office at golden hour, leaning on a desk",
+        "2": "a sunny school courtyard with lockers behind her",
+        "3": "a rooftop bar at night with city lights",
+        "4": "a bright modern office reception desk",
+        "5": "a corner office at night, sitting on the edge of the desk",
+        "6": "a luxury hotel lobby with marble floors and warm light",
+        "7": "a velvet-lined casino floor with soft spotlights",
+        "8": "a sunlit hotel pool deck, standing at the water's edge",
+        "9": "a tropical beach at sunset, waves behind her",
+        "10": "a white yacht deck on a turquoise sea"
+      }
+    },
+    "luna": {
+      "identity": "same young woman with a short pink-tipped bob haircut, glasses, fair skin, athletic figure and the same face",
+      "levels": {
+        "1": "a cropped grey hoodie, black leggings and white sneakers",
+        "2": "a nerdy librarian cosplay: tight cardigan open over a bralette, short plaid skirt, thigh-high socks",
+        "3": "a cheerleader cosplay: cropped sleeveless top and a short pleated skirt in pink and white, sneakers",
+        "4": "__base__",
+        "5": "a tight sports bra and very short running shorts, sneakers",
+        "6": "a tight black long-sleeve athletic crop top and tiny black bike shorts, sneakers",
+        "7": "a gamer girl cosplay: oversized open shirt over a lace bralette and boyshorts, headphones around her neck",
+        "8": "a pink one-piece swimsuit cut high on the hips, barefoot",
+        "9": "a sporty two-piece bikini with the top tied at the neck",
+        "10": "a tiny white micro bikini and sneakers"
+      },
+      "scenes": {
+        "1": "a city park jogging path in the morning",
+        "2": "a quiet old library between tall bookshelves",
+        "3": "a football field sideline under stadium lights",
+        "4": "a sunny city street with coffee in hand",
+        "5": "a bright modern gym with mirrors",
+        "6": "a beach volleyball court on a sunny day",
+        "7": "a neon-lit gaming room with RGB lights",
+        "8": "an outdoor lap pool at midday",
+        "9": "a rocky cove beach with clear water",
+        "10": "a sunny beach boardwalk with palm trees"
+      }
+    },
+    "sofia": {
+      "identity": "same young woman with long straight silver-white hair, pale skin, light eyes and the same face",
+      "levels": {
+        "1": "a gothic lolita cosplay: black lace dress with white frills, choker and platform boots",
+        "2": "a black turtleneck crop top, black leather mini skirt and boots",
+        "3": "a witch cosplay: black off-shoulder mini dress, pointed hat, thigh-high stockings",
+        "4": "__base__",
+        "5": "a black corset top with a short tulle skirt and fishnets",
+        "6": "a sheer black mesh top over a black bralette and tiny leather shorts",
+        "7": "a demon girl cosplay: black strapless bodysuit, small horns, thigh-high boots",
+        "8": "a black one-piece swimsuit with cut-outs at the waist, barefoot",
+        "9": "a black strappy bikini with chains at the hips",
+        "10": "a tiny black string bikini with silver chain details and heels"
+      },
+      "scenes": {
+        "1": "a gothic cathedral interior with candles",
+        "2": "a rainy neon street at night",
+        "3": "a moonlit forest clearing with mist",
+        "4": "a dark alternative clothing shop",
+        "5": "a dark ballroom with chandeliers",
+        "6": "a dim underground club with red light",
+        "7": "a ruined castle hall lit by torches",
+        "8": "a black-sand beach under an overcast sky",
+        "9": "a night pool with underwater lights",
+        "10": "a dark bedroom with silk sheets and candles"
+      }
+    },
+    "iris": {
+      "identity": "same young woman with long wavy purple hair, fair skin, a curvy figure and the same face",
+      "levels": {
+        "1": "a fitted purple sweater dress and ankle boots",
+        "2": "a maid cosplay: black dress with a white apron, headband and stockings",
+        "3": "a nurse cosplay: a short white nurse dress with a deep neckline and red cross detail, a small classic white nurse cap with a red cross pinned on top of her hair, white stockings and white heels",
+        "4": "a lavender satin slip mini dress and heels",
+        "5": "__base__",
+        "6": "a purple cocktail dress with a corset bodice and a high slit",
+        "7": "a succubus cosplay: purple strapless bodysuit, little bat wings, thigh-high boots",
+        "8": "a purple one-piece swimsuit with a deep neckline, barefoot",
+        "9": "a lilac bikini with a sheer wrap around her hips",
+        "10": "a tiny purple micro bikini and heels"
+      },
+      "scenes": {
+        "1": "a cozy autumn cafe by the window",
+        "2": "a grand mansion hallway, holding a tray",
+        "3": "a bright clinic corridor",
+        "4": "a lavender field at dusk",
+        "5": "a cozy bookshop cafe in the afternoon",
+        "6": "a rooftop lounge at sunset",
+        "7": "a gothic throne room in purple light",
+        "8": "a hotel infinity pool at dusk",
+        "9": "a purple-sky beach at twilight",
+        "10": "a private beach cabana with white curtains"
+      }
+    },
+    "chloe": {
+      "identity": "same young woman with long straight blonde hair, fair skin, blue eyes and the same face",
+      "levels": {
+        "1": "a white sundress with thin straps and sandals",
+        "2": "a cowgirl cosplay: tied plaid shirt, denim mini skirt, cowboy hat and boots",
+        "3": "a sailor cosplay: white and navy crop top, very short skirt, sailor hat",
+        "4": "__base__",
+        "5": "a pink crop top and tiny denim shorts",
+        "6": "a white lace mini dress with a plunging neckline",
+        "7": "a bunny girl cosplay: pink strapless bodysuit, bunny ears, fishnets, heels",
+        "8": "a yellow one-piece swimsuit cut high on the hips, barefoot",
+        "9": "a white triangle bikini with a sheer beach cover-up sliding off one shoulder",
+        "10": "a tiny pink micro bikini and heels"
+      },
+      "scenes": {
+        "1": "a wildflower meadow in summer",
+        "2": "a ranch fence with horses behind her",
+        "3": "a marina with white sailboats",
+        "4": "a sunny farmers market",
+        "5": "a sunny suburban street with her bike",
+        "6": "a garden wedding tent with fairy lights",
+        "7": "a glamorous Las Vegas casino floor",
+        "8": "a lake dock on a bright afternoon",
+        "9": "a golden California beach with surfboards",
+        "10": "a beach bar at sunset with cocktails"
+      }
+    },
+    "zara": {
+      "identity": "same young woman with long wavy red hair, fair skin, green eyes and the same face",
+      "levels": {
+        "1": "a green wrap dress and heels",
+        "2": "a flamenco cosplay: red ruffled dress with a high slit and a rose in her hair",
+        "3": "a black satin corset top and a leather mini skirt",
+        "4": "__base__",
+        "5": "a devil cosplay: red strapless mini dress, small horns, thigh-high boots",
+        "6": "a red mesh dress over a black bralette and shorts",
+        "7": "a cabaret cosplay: black sequined bodysuit, fishnets, long gloves, heels",
+        "8": "a red one-piece swimsuit with a plunging neckline, barefoot",
+        "9": "an emerald green bikini with a gold chain belt",
+        "10": "a tiny black micro bikini and heels"
+      },
+      "scenes": {
+        "1": "a vineyard terrace at golden hour",
+        "2": "a Spanish plaza at night with lanterns",
+        "3": "a dim jazz club stage",
+        "4": "an elegant hotel bar at dusk",
+        "5": "a Halloween party in a red-lit mansion",
+        "6": "a red-lit rooftop party at night",
+        "7": "a cabaret stage with velvet curtains",
+        "8": "a Mediterranean cliff pool at noon",
+        "9": "a rocky Mediterranean cove with emerald water",
+        "10": "a luxury beach club with white daybeds"
+      }
+    },
+    "mia": {
+      "identity": "same young woman with long straight pink hair, fair skin and the same face",
+      "levels": {
+        "1": "a pastel pink hoodie dress and sneakers",
+        "2": "a magical girl cosplay: pink frilly mini dress with a bow, gloves and boots",
+        "3": "a white crop top and a pink pleated micro skirt",
+        "4": "__base__",
+        "5": "a pink satin corset and matching ruffled mini skirt",
+        "6": "a bunny girl cosplay: white strapless bodysuit, bunny ears, sheer stockings",
+        "7": "a k-pop stage cosplay: sequined bralette, tiny shorts, thigh-high boots",
+        "8": "a pink one-piece swimsuit with a deep neckline, barefoot",
+        "9": "a pastel striped bikini with a sheer sarong",
+        "10": "a tiny white micro bikini and heels"
+      },
+      "scenes": {
+        "1": "a pastel candy shop street in Tokyo",
+        "2": "a magical park at cherry blossom season",
+        "3": "a bright shopping mall atrium",
+        "4": "a colourful Harajuku street",
+        "5": "a pastel bedroom with plush toys and fairy lights",
+        "6": "a pink-lit nightclub",
+        "7": "a k-pop concert stage with lights and confetti",
+        "8": "a water park slide pool on a sunny day",
+        "9": "a pink-sand beach at sunset",
+        "10": "a tropical beach with a pink flamingo float"
+      }
+    },
+    "nala": {
+      "identity": "same young woman with long black hair, cat ears, pale skin and the same face",
+      "levels": {
+        "1": "a black turtleneck sweater dress with cat ears and boots",
+        "2": "a cat maid cosplay: black dress with a white apron, cat ears, tail and stockings",
+        "3": "a cat burglar cosplay: black catsuit unzipped to the chest, cat ears, boots",
+        "4": "a black latex crop top and matching mini skirt, cat ears",
+        "5": "a black mesh bodysuit over a black bra and shorts, cat ears and tail",
+        "6": "a black strapless bunny-style bodysuit, cat ears, fishnets, heels",
+        "7": "__base__",
+        "8": "a black one-piece swimsuit with a keyhole cut-out, cat ears, barefoot",
+        "9": "a black strappy bikini with a cat-ear headband and a tail",
+        "10": "a tiny black micro bikini, cat ears and heels"
+      },
+      "scenes": {
+        "1": "a cozy apartment with a cat tree and warm lamps",
+        "2": "a maid cafe with pastel decor",
+        "3": "a museum rooftop at night, city lights behind",
+        "4": "a neon Tokyo alley at night",
+        "5": "a dark lounge with red neon",
+        "6": "a masquerade party in a velvet-lined hall",
+        "7": "a neon-lit cat cafe at night",
+        "8": "a rooftop pool at night with neon reflections",
+        "9": "a moonlit beach with the tide coming in",
+        "10": "a night beach party with lanterns and a bonfire"
+      }
+    },
+    "nova": {
+      "identity": "same young woman with short blue hair, glowing cyberpunk makeup, fair skin and the same face",
+      "levels": {
+        "1": "a neon-trimmed cropped bomber jacket, black crop top and cargo pants, boots",
+        "2": "a cyber nurse cosplay: white latex mini dress with glowing trim",
+        "3": "a cyber police cosplay: glowing black uniform crop top, mini skirt and boots",
+        "4": "a holographic mini dress with neon seams and platform boots",
+        "5": "__base__",
+        "6": "a black mesh top over a neon bralette and tiny shorts, glowing thigh bands",
+        "7": "a cyber bunny cosplay: black strapless bodysuit with neon edges, bunny ears, boots",
+        "8": "a neon blue one-piece swimsuit with glowing seams, barefoot",
+        "9": "a holographic bikini with glowing straps",
+        "10": "a tiny neon micro bikini and platform heels"
+      },
+      "scenes": {
+        "1": "a neon cyberpunk street in the rain",
+        "2": "a sterile cyber clinic with glowing panels",
+        "3": "a holographic police checkpoint at night",
+        "4": "a futuristic nightclub with laser lights",
+        "5": "a rainy cyberpunk street with holographic ads",
+        "6": "a rooftop above a neon megacity",
+        "7": "a cyber cabaret stage with holograms",
+        "8": "a rooftop pool lit by neon under a night sky",
+        "9": "a synthetic beach with a glowing purple ocean",
+        "10": "a neon beach club at night"
+      }
+    },
+    "yuki": {
+      "identity": "same young woman with long black hair tied with a red ribbon, fair skin and the same face",
+      "levels": {
+        "1": "a black fitted kimono-style top and black leggings, boots",
+        "2": "a schoolgirl cosplay: white shirt, red ribbon tie, very short plaid skirt, knee socks",
+        "3": "a shrine maiden cosplay: red and white miko outfit with a short skirt",
+        "4": "a black ninja crop top and tiny shorts with thigh straps",
+        "5": "__base__",
+        "6": "a red satin mini kimono open at the chest, thigh-high stockings",
+        "7": "a kunoichi cosplay: black mesh bodysuit over a bralette, red sash, fishnet sleeves",
+        "8": "a red one-piece swimsuit with a deep neckline, barefoot",
+        "9": "a black and red bikini with a sheer wrap",
+        "10": "a tiny red micro bikini and heels"
+      },
+      "scenes": {
+        "1": "a bamboo forest path in soft light",
+        "2": "a school hallway with afternoon light",
+        "3": "a shrine courtyard with red torii gates",
+        "4": "a moonlit rooftop in old Kyoto",
+        "5": "a moonlit dojo courtyard",
+        "6": "a ryokan room with paper screens and lanterns",
+        "7": "a night garden with lanterns and a koi pond",
+        "8": "an onsen pool with steam and rocks",
+        "9": "a Japanese beach with a distant mountain",
+        "10": "a tropical beach with a red parasol"
+      }
+    },
+    "isla": {
+      "identity": "same young woman with long curly brown hair, tanned skin, brown eyes and the same face",
+      "levels": {
+        "1": "a white off-shoulder blouse tied at the waist and ripped denim shorts, sandals",
+        "2": "a pirate captain cosplay: red coat over a corset, tricorn hat, short skirt, boots",
+        "3": "a brown leather corset top and a very short ragged skirt",
+        "4": "__base__",
+        "5": "a white lace-up crop top and tiny leather shorts",
+        "6": "a tavern wench cosplay: laced corset bodice pushed low, off-shoulder chemise, short skirt",
+        "7": "a mermaid cosplay: shell-style bikini top and a fitted teal scale skirt with a high slit",
+        "8": "a teal one-piece swimsuit with a plunging neckline, barefoot",
+        "9": "a red bandana-print bikini with a gold coin belt",
+        "10": "a tiny white micro bikini and sandals"
+      },
+      "scenes": {
+        "1": "a harbour dock with fishing boats",
+        "2": "a pirate ship deck under full sail",
+        "3": "a tavern by a stone harbour at dusk",
+        "4": "a pirate ship deck at sunset",
+        "5": "a treasure cave lit by lantern light",
+        "6": "a rowdy pirate tavern with barrels and lanterns",
+        "7": "a tropical lagoon on a rock by the water",
+        "8": "a hidden lagoon pool with a waterfall",
+        "9": "a white sand Caribbean beach with palms",
+        "10": "a shipwreck beach at golden hour"
+      }
+    },
+    "lilith": {
+      "identity": "same young woman with long straight white hair, very pale skin, red lips and the same face",
+      "levels": {
+        "1": "a black velvet high-neck mini dress and heels",
+        "2": "a gothic nun cosplay: black mini dress with white collar, thigh-high stockings",
+        "3": "a gothic governess outfit: a long-sleeved burgundy velvet dress with a high lace collar, fitted bodice, knee-length skirt, black stockings and black heels",
+        "4": "__base__",
+        "5": "a black lace corset top and a leather mini skirt, stockings",
+        "6": "a sheer black gown over a black bralette and shorts",
+        "7": "a black one-piece swimsuit with lace trim, barefoot",
+        "8": "a vampire bride cosplay: black lace bodysuit, veil, long gloves, thigh-high boots",
+        "9": "a black and red bikini with a sheer black wrap",
+        "10": "a tiny black micro bikini with red trim and heels"
+      },
+      "scenes": {
+        "1": "a candlelit gothic study",
+        "2": "a cathedral crypt with candles",
+        "3": "a candlelit gothic library with tall bookshelves",
+        "4": "a candlelit gothic mansion hall",
+        "5": "a dark rose garden at midnight",
+        "6": "a foggy graveyard under a full moon",
+        "7": "a moonlit castle pool with marble columns",
+        "8": "a gothic bridal chamber with black roses",
+        "9": "a black-sand beach at night under a red moon",
+        "10": "a candlelit bath chamber with black marble"
+      }
+    },
+    "elara": {
+      "identity": "same young woman with long dark purple hair, pointed elf ears, pale skin and the same face",
+      "levels": {
+        "1": "a purple velvet mage robe cinched at the waist over leggings",
+        "2": "a purple crop top with flowing sleeves and a tiny skirt",
+        "3": "a dark priestess cosplay: black and purple halter dress with side cut-outs",
+        "4": "a sorceress cosplay: purple corset dress with wide sleeves and a high slit",
+        "5": "__base__",
+        "6": "a night elf cosplay: purple bodysuit with glowing runes, thigh-high boots",
+        "7": "a sheer purple robe open over a bralette and shorts",
+        "8": "a violet one-piece swimsuit with a keyhole neckline, barefoot",
+        "9": "a purple bikini with gold elven jewelry",
+        "10": "a tiny lilac micro bikini and heels"
+      },
+      "scenes": {
+        "1": "a wizard tower library with floating books",
+        "2": "a violet enchanted forest",
+        "3": "a dark temple with purple crystals",
+        "4": "an arcane ritual circle glowing purple",
+        "5": "an arcane library with glowing runes",
+        "6": "a night elf shrine with glowing runes",
+        "7": "a moonlit elven balcony above a glowing city",
+        "8": "a crystal grotto pool glowing violet",
+        "9": "a moonlit elven beach with bioluminescent waves",
+        "10": "a magical lagoon with floating lights"
+      }
+    },
+    "sylvi": {
+      "identity": "same young woman with long red hair, pointed elf ears, fair skin and the same face",
+      "levels": {
+        "1": "a green leather ranger tunic with a belt over brown leggings and boots",
+        "2": "a forest elf cosplay: green corset dress with leaf details and boots",
+        "3": "a huntress cosplay: green halter top, tiny shorts, thigh-high boots and a quiver strap",
+        "4": "a green leather crop top and a very short ranger skirt",
+        "5": "__base__",
+        "6": "a wood nymph cosplay: leaf-covered bodysuit, flower crown, barefoot",
+        "7": "a sheer green wrap over a leaf-print bralette and shorts",
+        "8": "a green one-piece swimsuit cut high on the hips, barefoot",
+        "9": "a leaf-print bikini with a sheer wrap",
+        "10": "a tiny green micro bikini and sandals"
+      },
+      "scenes": {
+        "1": "a sunlit forest trail with tall pines",
+        "2": "an elven treehouse village",
+        "3": "a misty hunting glade",
+        "4": "a forest archery range at dawn",
+        "5": "a sunlit forest clearing with her bow",
+        "6": "a fairy glade with glowing flowers",
+        "7": "a waterfall clearing in the forest",
+        "8": "a forest river pool with smooth rocks",
+        "9": "a wild beach beside a pine forest",
+        "10": "a hidden jungle beach with a waterfall"
+      }
+    },
+    "freya": {
+      "identity": "same young woman with long blonde braided hair, pointed elf ears, fair skin and the same face",
+      "levels": {
+        "1": "a fitted leather armor vest over a white tunic and leggings, boots",
+        "2": "a shieldmaiden cosplay: fur-trimmed leather corset, tiny skirt, thigh-high boots",
+        "3": "a valkyrie cosplay: silver breastplate over a short white skirt, greaves",
+        "4": "a gold bikini-style armor top and a short leather battle skirt",
+        "5": "__base__",
+        "6": "a sheer white gown over a gold bralette and shorts",
+        "7": "a battle goddess cosplay: gold chain armor bodysuit, thigh-high boots",
+        "8": "a white one-piece swimsuit with gold trim, barefoot",
+        "9": "a gold bikini with a sheer white wrap",
+        "10": "a tiny gold micro bikini and heels"
+      },
+      "scenes": {
+        "1": "a snowy mountain fortress courtyard",
+        "2": "a longship deck on a cold sea",
+        "3": "a valkyrie hall with great pillars and fire",
+        "4": "a Viking battlefield at dawn",
+        "5": "a Viking longhouse with a roaring fire",
+        "6": "a golden throne hall with braziers",
+        "7": "a golden temple of the gods in the clouds",
+        "8": "a hot spring pool in the snowy mountains",
+        "9": "a Nordic fjord beach with cliffs",
+        "10": "a golden sunset beach with Viking ships"
+      }
+    }
+  },
+  "_makeup": "Natural makeup only. 'Blush' words were removed 2026-09-14: Qwen painted them as red clown circles on the cheeks from level 8 up.",
+  "_scene_note": "scenes[level] = where the PORTRAIT (the painting the player paints and hangs) is set; made from L<n>.png with the same outfit. gen_stills.py --scenes",
+  "_policy": "Ceiling = swimwear (bikini), never lingerie: Play precedent from Hot Jigsaw. Sheer/mesh only over opaque coverage. Store listing shows levels 1-5 only. (2026-09-14)",
+  "motion": {
+    "2": "She waves at the camera with a friendly smile, then rests a hand on her hip and sways gently from side to side, hair moving softly, always in motion.",
+    "3": "She winks at the camera and flips her hair playfully, shifting her weight from foot to foot and swaying as if to a song, always in motion.",
+    "4": "She slowly turns in place, looks back over her shoulder at the camera with a teasing smile, then turns to face front again, hair swaying.",
+    "5": "She dances playfully to an upbeat song, hips swaying, arms moving, smiling at the camera, constantly in motion.",
+    "6": "She sways slowly to a slow song with her hands on her hips, half-lidded eyes on the camera and a slow flirty smile, hips never still.",
+    "7": "She dances with a slow spin, arms raised, then settles into a pose with a sultry gaze at the camera, lips slightly parted, still swaying.",
+    "8": "She takes a slow step toward the camera, bites her lower lip and runs a hand from her collarbone down her side, swaying to a slow beat.",
+    "9": "She runs both hands through her hair while swaying slowly, sultry gaze at the camera, lips parted, and the camera drifts slowly closer.",
+    "10": "She dances a slow seductive dance, hips rolling, hands sliding along her sides, sultry half-lidded gaze locked on the camera, the camera drifting slowly."
+  },
+  "_motion_note": "motion[level] = LTX-2.5 first=last-frame loop prompt from L<n>.png (gen_stills.py --loops). Continuous motion, never static.",
+  "_naming": "2026-09-16: levels/scenes keyed by GAME level; '__base__' = the original cashier outfit (still made by --base-stills from the reference). Files <girl>/L<n>.* are game levels; order.json is the identity."
+}

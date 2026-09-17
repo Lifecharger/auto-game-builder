@@ -34,11 +34,17 @@ from playwright.sync_api import sync_playwright
 
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 HISTORY_FILE = os.path.join(_SCRIPT_DIR, "grok_download_history.json")
-PROFILE_DIR = str(Path.home() / ".grok-playwright")
+# GROK_PROFILE_DIR points the driver at another logged-in Playwright profile
+# (a second Grok account). The cached sso cookies belong to the default
+# account, so they are only injected into the default profile.
+DEFAULT_PROFILE_DIR = str(Path.home() / ".grok-playwright")
+PROFILE_DIR = os.environ.get("GROK_PROFILE_DIR") or DEFAULT_PROFILE_DIR
 LOGIN_URL = "https://grok.com/imagine"
 
 
 def _load_sso_cookies():
+    if PROFILE_DIR != DEFAULT_PROFILE_DIR:
+        return None
     """Read sso/sso-rw and other auth cookies from the existing history file."""
     if not os.path.isfile(HISTORY_FILE):
         return None

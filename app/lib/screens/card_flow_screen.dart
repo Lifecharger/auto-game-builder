@@ -1748,7 +1748,7 @@ class _CardCollectionPageState extends State<CardCollectionPage> {
     final (_, _, w, _) = _c?.progress ?? (0, 0, 0, 0);
     final ok = await _confirm(
         'Push - ${widget.title}',
-        'Sheet ve thumb dosyalari R2 (hotcardgames) uzerine yuklenir, sonra '
+        'Sheet ve thumb dosyalari R2 (cards) uzerine yuklenir, sonra '
             'manifest yazilir. Su an $w/${_ranks.length} rutbenin webp\'i hazir.'
             '\n\nBu bir YAYIN islemidir, GERI ALINAMAZ.',
         onay: 'Push');

@@ -1384,6 +1384,13 @@ class AppLocalizationsJa extends AppLocalizations {
   String get reportBugSubtitle => '修正・追加してほしいことを教えてください';
 
   @override
+  String get shareUsageStats => '匿名の利用統計を共有';
+
+  @override
+  String get shareUsageStatsDesc =>
+      'セッション数と開いた画面の匿名な集計のみ。プロジェクト名やタスクの文面、パスは送信しません。';
+
+  @override
   String get reportConsent =>
       '問題解決のため、このレポートを端末情報 (機種、OS、アプリバージョン) とともに開発者に送信することに同意します。';
 

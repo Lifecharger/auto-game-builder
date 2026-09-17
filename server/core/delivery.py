@@ -3,13 +3,13 @@
 Kullanicinin amaci: olasi bir Google Play strike'ina HIZLI tepki. Generic
 havuzundaki her gorselin EXIF'inde rating / safety / voyeur / skin / risk ...
 alanlari var; bu modul o alanlarin degerleri uzerinde uygulama basina ac/kapa
-anahtarlarini hotjigsaw-scanner worker'ina yazar. Worker manifesti uygulama
+anahtarlarini gallery-hot worker'ina yazar. Worker manifesti uygulama
 basina filtreler ve kural degisince kenar onbellegini kendiliginden dusurur -
 uygulama guncellemesi gerekmez, sonraki manifest isteginde canli.
 
 Yonetim anahtari depoya girmez: `delivery.admin_key_file` ayari (yoksa
 D:/keys/serve_admin_key.txt). Worker ucu: `delivery.worker_url` (yoksa
-hotjigsaw-scanner).
+gallery-hot).
 """
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ import urllib.request
 
 from . import card_flow as _CF
 
-DEFAULT_WORKER = "https://hotjigsaw-scanner.lifecharger.workers.dev"
+DEFAULT_WORKER = "https://gallery-hot.lifecharger.workers.dev"
 DEFAULT_KEY_FILE = r"D:\keys\serve_admin_key.txt"
 
 # Bu worker'dan manifest ceken uygulamalar (paket -> ad). Uygulama manifest

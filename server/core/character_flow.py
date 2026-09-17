@@ -3223,12 +3223,14 @@ def sprites(name: str, y: str, clips: list[str] | None = None, skin: str = "") -
                     continue
                 # rev6/rev7: kirpma payi uretimde kullanilan padding'dir (icerige
                 # gore DEGIL) - karakter olcegi ve pivot klipler arasi sabit kalir.
-                pad = float((_read_json(os.path.join(cd, r["accepted"], "wan.json")) or {}).get("padding") or 0.0)
+                clip_meta = _read_json(os.path.join(cd, r["accepted"], "wan.json")) or {}
+                pad = float(clip_meta.get("padding") or 0.0)
                 _op(op_id, message="sprite %d/%d  %s/%s" % (i, len(rows), y, r["clip"]))
                 try:
                     info = sam_frames.extract(
                         wan, cd, fps=fps, prompt=prompt, mirror=bool(cfg.get("mirror")),
                         height=0, crop=pad, canvas=canvas,
+                        edge_mode=clip_meta.get("edge_refinement", "soft"),
                         log=lambda s, _i=i, _c=r["clip"]: _op(
                             op_id, message="sprite %d/%d %s/%s: %s" % (_i, len(rows), y, _c, s)))
                 except Exception as e:

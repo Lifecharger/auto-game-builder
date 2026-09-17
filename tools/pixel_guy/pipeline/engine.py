@@ -41,8 +41,8 @@ class PipelineEngine:
     """Headless engine for asset generation pipeline operations."""
 
     RATING_CONFIGS = {
-        "kid": {"bucket": "kidfriendlybucket", "folder": "Kid Jigsaw"},
-        "teen": {"bucket": "hotjigsaw", "folder": "Hot Jigsaw"},
+        "kid": {"bucket": "gallery-family", "folder": "Kid Jigsaw"},
+        "teen": {"bucket": "gallery-hot", "folder": "Hot Jigsaw"},
         "adult": {"bucket": "steamlevel", "folder": "Adult Jigsaw"},
     }
 

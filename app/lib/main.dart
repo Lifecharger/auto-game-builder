@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'config.dart';
 import 'l10n/app_localizations.dart';
@@ -9,6 +10,7 @@ import 'services/auth_service.dart';
 import 'services/cache_service.dart';
 import 'services/event_service.dart';
 import 'services/generate_service.dart' show QueueService;
+import 'services/lifecharger_analytics.dart';
 import 'services/locale_service.dart';
 import 'services/mode_service.dart';
 import 'services/theme_service.dart';
@@ -25,6 +27,7 @@ import 'screens/asset_gallery_screen.dart';
 import 'screens/asset_queue_screen.dart';
 import 'screens/asset_flow_hub.dart';
 import 'screens/delivery_screen.dart';   // #363
+import 'screens/buckets_screen.dart';    // #381
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -53,8 +56,36 @@ void main() async {
     debugPrint('Silent sign-in failed: $e');
   }
 
+  await _startAnalytics();
+
   runApp(const AppManagerMobile());
 }
+
+/// Brings up anonymous usage reporting: how often and how long the app is
+/// used, and which mode or screen is opened. Nothing identifying the work
+/// itself is ever reported - no project names, task text, paths, server
+/// addresses or keys, only the fixed screen names in [_kCodeTabs] and friends.
+///
+/// A failure here never blocks the app: the client queues on disk and never
+/// awaits the network, and an exception is printed and stepped over.
+Future<void> _startAnalytics() async {
+  try {
+    final info = await PackageInfo.fromPlatform();
+    await Analytics.init(
+      package: 'com.lifecharger.appmanager',
+      appVersion: '${info.version}+${info.buildNumber}',
+    );
+  } catch (e) {
+    debugPrint('[analytics] disabled for this launch: $e');
+  }
+}
+
+/// Stable, unlocalized screen names, in tab order per mode. Only these fixed
+/// strings are ever reported; the tab labels the user sees are localized and
+/// would not group across languages.
+const _kCodeTabs = ['dashboard', 'tasklist', 'reports', 'control', 'settings'];
+const _kAssetTabs = ['generate', 'gallery', 'flow', 'queue', 'settings'];
+const _kDeliveryTabs = ['delivery', 'buckets', 'settings'];
 
 class AppManagerMobile extends StatelessWidget {
   const AppManagerMobile({super.key});
@@ -134,8 +165,10 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
     SettingsScreen(),
   ];
 
+  // #381: Dagitim NE sunulacagini secer, Kovalar kovada NE VAR sorusunun cevabi.
   static const _deliveryScreens = [
     DeliveryScreen(),
+    BucketsScreen(),
     SettingsScreen(),
   ];
 
@@ -145,8 +178,15 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
 
   /// ModeService degisince modu uygular. Sekme indeksi sifirlanir,
   /// yoksa yeni moddaki daha kisa listede tasar.
+  List<String> get _tabNames => _deliveryMode
+      ? _kDeliveryTabs
+      : (_assetMode ? _kAssetTabs : _kCodeTabs);
+
   void _onModeChanged() {
     HapticFeedback.mediumImpact();
+    Analytics.log('feature_use', {
+      'feature': 'mode_${ModeService.mode.value}',
+    });
     _fadeController.reverse().then((_) {
       if (!mounted) return;
       setState(() {
@@ -197,6 +237,10 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
   void _switchTab(int index) {
     if (index == _currentIndex) return;
     HapticFeedback.lightImpact();
+    final names = _tabNames;
+    if (index >= 0 && index < names.length) {
+      Analytics.log('feature_use', {'feature': names[index]});
+    }
     _fadeController.reverse().then((_) {
       setState(() => _currentIndex = index);
       context.read<AppState>().setActiveTab(index);
@@ -373,6 +417,10 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
                 BottomNavigationBarItem(
                   icon: Icon(Icons.local_shipping_outlined),
                   label: 'Dagitim',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.inventory_2_outlined),
+                  label: 'Kovalar',
                 ),
                 BottomNavigationBarItem(
                   icon: Icon(Icons.settings),

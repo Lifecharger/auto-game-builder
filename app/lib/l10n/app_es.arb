@@ -410,6 +410,8 @@
   "reopen": "Reabrir",
   "reportBugOrSuggestion": "Reportar un error o sugerencia",
   "reportBugSubtitle": "Cuéntanos qué corregir o añadir",
+  "shareUsageStats": "Compartir estadísticas de uso anónimas",
+  "shareUsageStatsDesc": "Recuentos anónimos de sesiones y pantallas abiertas. Sin nombres de proyecto, sin texto de tareas, sin rutas.",
   "reportConsent": "Acepto enviar este informe junto con la información de mi dispositivo (modelo, SO y versión de la app) al desarrollador para ayudar a solucionar problemas.",
   "reportHint": "¿Qué ha pasado o qué te gustaría ver?",
   "reportSentThanks": "¡Gracias! Tu informe se ha enviado.",

@@ -206,3 +206,6 @@ server/config/jigsaw_options.json
 # Yerinde alinan yedekler (ornek: settings.json.bak-yanservis, *.bak-v2)
 *.bak-*
 *.bak
+
+# local python envs (matting etc.)
+.venv/

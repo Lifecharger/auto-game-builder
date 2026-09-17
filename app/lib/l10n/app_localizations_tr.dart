@@ -1418,6 +1418,13 @@ class AppLocalizationsTr extends AppLocalizations {
       'Neyi düzeltmemizi veya eklememizi istediğinizi yazın';
 
   @override
+  String get shareUsageStats => 'Anonim kullanım istatistiklerini paylaş';
+
+  @override
+  String get shareUsageStatsDesc =>
+      'Oturumların ve açılan ekranların anonim sayımları. Proje adı, görev metni veya yol bilgisi gönderilmez.';
+
+  @override
   String get reportConsent =>
       'Bu raporun cihaz bilgilerimle (model, işletim sistemi ve uygulama sürümü) birlikte, sorunların giderilmesine yardımcı olmak üzere geliştiriciye gönderilmesini kabul ediyorum.';
 

@@ -779,6 +779,8 @@
   "reopen": "Reopen",
   "reportBugOrSuggestion": "Report a Bug / Suggestion",
   "reportBugSubtitle": "Tell us what to fix or add",
+  "shareUsageStats": "Share anonymous usage statistics",
+  "shareUsageStatsDesc": "Anonymous counts of sessions and which screens are opened. No project names, no task text, no paths.",
   "reportConsent": "I agree to send this report with my device info (model, OS and app version) to the developer to help fix issues.",
   "reportHint": "What happened, or what would you like to see?",
   "reportSentThanks": "Thanks! Your report was sent.",

@@ -1,0 +1,179 @@
+{
+  "_comment": "R2 bucket registry for the Kovalar controller (core/r2_control.py). Buckets are named after the CONTENT they hold. A `twin` links a live bucket to the legacy bucket that still carries the same bytes until the retirement date; `rules` translate a key from one side to the other. A placeholder {name} matches one path segment, {name...} matches the rest of the key. Public domains only - no credentials here.",
+  "legacy_retires_on": "2026-10-20",
+  "cache_standard": {
+    "asset": "public, max-age=7776000, immutable",
+    "json": "public, max-age=21600, stale-while-revalidate=86400",
+    "mutable_prefixes": [
+      "characters/*/relationships/"
+    ]
+  },
+  "buckets": [
+    {
+      "name": "gallery-hot",
+      "files_domain": "https://gallery-hot.lifechargergames.com",
+      "worker": "https://gallery-hot.lifecharger.workers.dev",
+      "role": "content",
+      "holds": "Yetiskin galeri koleksiyonlari: yapboz gorselleri, thumb'lar, videolar, canli duvar webp'leri, muzik",
+      "layout": "collections/<koleksiyon>/images|thumbs|videos|videos_webp|music/<dosya>",
+      "twin": {
+        "bucket": "hotjigsaw",
+        "rules": [
+          {
+            "new": "collections/{rest...}",
+            "legacy": "collections/{rest...}"
+          }
+        ]
+      }
+    },
+    {
+      "name": "gallery-family",
+      "files_domain": "https://gallery-family.lifechargergames.com",
+      "worker": "https://gallery-family.lifecharger.workers.dev",
+      "role": "content",
+      "holds": "Aile dostu galeri koleksiyonlari (Pro Jigsaw)",
+      "layout": "gallery-hot ile ayni duzen",
+      "twin": {
+        "bucket": "kidfriendlybucket",
+        "rules": [
+          {
+            "new": "collections/{rest...}",
+            "legacy": "collections/{rest...}"
+          }
+        ]
+      }
+    },
+    {
+      "name": "cards",
+      "files_domain": "https://cards.lifechargergames.com",
+      "worker": "https://cards.lifecharger.workers.dev",
+      "role": "content",
+      "holds": "Kart desteleri, krupiyeler, magaza karakterleri, katalog",
+      "layout": "manifest.json, collections/<deste>/..., dealers/..., shop_characters/<tema>/<id>/...",
+      "twin": {
+        "bucket": "hotcardgames",
+        "rules": [
+          {
+            "new": "manifest.json",
+            "legacy": "manifest.json"
+          },
+          {
+            "new": "collections/{rest...}",
+            "legacy": "collections/{rest...}"
+          },
+          {
+            "new": "dealers/{rest...}",
+            "legacy": "dealers/{rest...}"
+          }
+        ]
+      }
+    },
+    {
+      "name": "characters",
+      "files_domain": "https://characters.lifechargergames.com",
+      "worker": "",
+      "role": "content",
+      "holds": "Derin, seviyeli gercekci karakterler (15 merdiven kizi: kasiyer / krupiye / avatar)",
+      "layout": "<kiz>/relationships/L<n>{,_scene,_loop,_scene_loop}.{webp,mp4}",
+      "legacy_prefixes": [
+        "bella/",
+        "lumina/",
+        "nox/",
+        "saffron/",
+        "vesper/",
+        "characters.json"
+      ],
+      "twin": {
+        "bucket": "hotcardgames",
+        "rules": [
+          {
+            "new": "{girl}/relationships/{rest...}",
+            "legacy": "relationships/{girl}/{rest...}"
+          }
+        ]
+      }
+    },
+    {
+      "name": "idols",
+      "files_domain": "https://idols.lifechargergames.com",
+      "worker": "",
+      "role": "content",
+      "holds": "Anime dansci / yayinci karakterler (bella, lumina, nox, saffron, vesper)",
+      "layout": "characters.json, <idol>/manifest.json, <idol>/public|private/<kategori>/<id>.<sha8>.<uzanti>",
+      "twin": {
+        "bucket": "characters-v2",
+        "rules": [
+          {
+            "new": "{rest...}",
+            "legacy": "{rest...}"
+          }
+        ]
+      }
+    },
+    {
+      "name": "promo",
+      "files_domain": "https://promo.lifechargergames.com",
+      "worker": "https://promo.lifecharger.workers.dev",
+      "role": "content",
+      "holds": "\"Baska oyunlar\" katalogu + gorselleri; ileride ev reklami afisleri",
+      "layout": "cross-promo/manifest.json, cross-promo/<slug>_{icon,feature}_v<N>.webp, house-ads/ (ayrilmis)",
+      "twin": {
+        "bucket": "hotjigsaw",
+        "rules": [
+          {
+            "new": "cross-promo/{rest...}",
+            "legacy": "promo/{rest...}"
+          }
+        ]
+      }
+    },
+    {
+      "name": "game-reports",
+      "files_domain": "",
+      "worker": "game-reports",
+      "role": "private",
+      "holds": "Hata bildirimi yuklemeleri (worker yonetir)",
+      "layout": "worker'a ozel"
+    },
+    {
+      "name": "cbn",
+      "files_domain": "",
+      "worker": "",
+      "role": "private",
+      "holds": "Boyama (color-by-number) uygulamalari icin ayrilmis",
+      "layout": "bos"
+    },
+    {
+      "name": "hotjigsaw",
+      "files_domain": "",
+      "worker": "hotjigsaw-scanner",
+      "role": "legacy",
+      "holds": "ESKI: gallery-hot + promo'nun yerini aldigi kova; 2026-09-17 oncesi surumler hala okuyor",
+      "layout": "collections/..., promo/..."
+    },
+    {
+      "name": "kidfriendlybucket",
+      "files_domain": "",
+      "worker": "projigsaw-scanner",
+      "role": "legacy",
+      "holds": "ESKI: gallery-family'nin yerini aldigi kova; eski Pro Jigsaw surumleri okuyor",
+      "layout": "collections/..."
+    },
+    {
+      "name": "hotcardgames",
+      "files_domain": "",
+      "worker": "hotcardgames-assets",
+      "role": "legacy",
+      "holds": "ESKI: cards + characters'in yerini aldigi kova; eski Hot Idle / Sentience yapilari okuyor",
+      "layout": "manifest.json, collections/..., dealers/..., relationships/<kiz>/..."
+    },
+    {
+      "name": "characters-v2",
+      "files_domain": "",
+      "worker": "",
+      "role": "legacy",
+      "holds": "ESKI: idols'un yerini aldigi kova; kimse okumuyor",
+      "layout": "idols ile ayni anahtarlar"
+    }
+  ]
+}

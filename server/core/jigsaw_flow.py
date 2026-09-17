@@ -342,6 +342,18 @@ def next_number(rating: str, collection: str) -> int:
     return (max(nums) + 1) if nums else 1
 
 
+def _taken_name(folder: str, stem: str) -> str:
+    """Bu kokle baslayan ilk dosya (ad korunarak kabulde cakisma denetimi)."""
+    try:
+        with os.scandir(folder) as it:
+            for e in it:
+                if e.is_file() and os.path.splitext(e.name)[0] == stem:
+                    return e.name
+    except OSError:
+        pass
+    return ""
+
+
 def resolve_collection(rating: str, ad: str) -> str:
     """Yazilan adi mevcut klasore esler (buyuk/kucuk harf farkini yutar)."""
     ad = (ad or "Generic").strip() or "Generic"
@@ -877,9 +889,17 @@ def pending_videos() -> dict:
 
 
 # ------------------------------------------------------------------ 2 -> 3
-def accept(rating: str, item_ids: list[str], collection: str) -> str:
+def accept(rating: str, item_ids: list[str], collection: str,
+           keep_names: bool = False) -> str:
     """2 -> 3. Varliklari koleksiyona <n>.jpg / .mp4 / .webp olarak tasir.
-    Video zorunlu degildir; yoksa yalniz jpg yazilir."""
+    Video zorunlu degildir; yoksa yalniz jpg yazilir.
+
+    `keep_names` numaralandirmayi kapatir ve ozgun dosya adini korur (r2manager'in
+    "Save Accept"i): kovadaki mevcut <n>.jpg icin uretilmis bir video ancak
+    <n>.mp4 olarak geri giderse dogru gorselle eslesir. Numaralandirmada cakisma
+    tanim geregi olamaz, ad korunurken olabilir - o numarayi baska bir varlik
+    tutuyorsa varlik ATLANIR, uzerine yazilmaz.
+    """
     coll = resolve_collection(rating, collection)
     hedef_dir = os.path.join(paths(rating)["staging"], coll)
     op_id = _op_new("accept", len(item_ids))
@@ -897,10 +917,20 @@ def accept(rating: str, item_ids: list[str], collection: str) -> str:
                     with _ops_lock:
                         _ops[op_id]["failed"] += 1
                     continue
-                n = next_number(rating, coll)
                 stem = os.path.splitext(jpg)[0]
+                if keep_names:
+                    n = os.path.basename(stem)
+                    cakisan = _taken_name(hedef_dir, n)
+                    if cakisan:
+                        with _ops_lock:
+                            _ops[op_id]["failed"] += 1
+                        _op(op_id, done=i,
+                            log="%s atlandi: %s/%s zaten var" % (iid, coll, cakisan))
+                        continue
+                else:
+                    n = next_number(rating, coll)
                 try:
-                    shutil.move(jpg, os.path.join(hedef_dir, "%d.jpg" % n))
+                    shutil.move(jpg, os.path.join(hedef_dir, "%s.jpg" % n))
                 except Exception as e:
                     with _ops_lock:
                         _ops[op_id]["failed"] += 1
@@ -909,18 +939,18 @@ def accept(rating: str, item_ids: list[str], collection: str) -> str:
 
                 mp4 = stem + ".mp4"
                 if os.path.isfile(mp4):
-                    shutil.move(mp4, os.path.join(hedef_dir, "%d.mp4" % n))
-                    ok, err = G._encode_webp(os.path.join(hedef_dir, "%d.mp4" % n),
-                                             os.path.join(hedef_dir, "%d.webp" % n))
+                    shutil.move(mp4, os.path.join(hedef_dir, "%s.mp4" % n))
+                    ok, err = G._encode_webp(os.path.join(hedef_dir, "%s.mp4" % n),
+                                             os.path.join(hedef_dir, "%s.webp" % n))
                     if not ok:
-                        _op(op_id, log="%d.webp uretilemedi: %s" % (n, err[:120]))
+                        _op(op_id, log="%s.webp uretilemedi: %s" % (n, err[:120]))
                 js = stem + ".json"
                 if os.path.isfile(js):
-                    shutil.move(js, os.path.join(hedef_dir, "%d.json" % n))
+                    shutil.move(js, os.path.join(hedef_dir, "%s.json" % n))
                 with _ops_lock:
                     _ops[op_id]["ok"] += 1
-                _op(op_id, done=i, message="%s -> %s/%d" % (iid, coll, n),
-                    log="%s -> %s/%d" % (iid, coll, n))
+                _op(op_id, done=i, message="%s -> %s/%s" % (iid, coll, n),
+                    log="%s -> %s/%s" % (iid, coll, n))
 
     _run(op_id, calis)
     return op_id
@@ -1197,27 +1227,113 @@ def remove_video(rating: str, stage: str, item_ids: list[str]) -> dict:
     return {"deleted": silinen}
 
 
-def remove(rating: str, stage: str, item_ids: list[str]) -> dict:
-    """Varliklari tumuyle siler (jpg + mp4 + webp + json)."""
-    silinen = 0
+def bundle(rating: str, stage: str, item_ids: list[str]) -> dict:
+    """Bir varlikla birlikte SILINECEK her dosya (r2manager'in Reject demeti).
+
+    Gorselin kendisi, yan dosyasi, esli videosu ve `<kok>-extraN.mp4` fazlalari
+    ile onlarin yan dosyalari. Istemci onay penceresinde bu listeyi gosterir -
+    kullanici neyin gidecegini gormeden silmez.
+    """
+    dosyalar: list[str] = []
     for iid in item_ids:
         jpg = item_path(rating, stage, iid, "image")
         if not jpg:
             continue
-        stem = os.path.splitext(jpg)[0]
-        for uz in (".jpg", ".jpeg", ".mp4", ".webp", ".json"):
+        for p in _bundle_paths(jpg):
+            if p not in dosyalar:
+                dosyalar.append(p)
+    return {"files": [os.path.basename(p) for p in dosyalar], "count": len(dosyalar)}
+
+
+def _bundle_paths(jpg: str) -> list[str]:
+    """Gorselle birlikte gezen dosyalarin TAM yollari."""
+    klasor, ad = os.path.dirname(jpg), os.path.basename(jpg)
+    kok = os.path.splitext(ad)[0]
+    out = [jpg]
+    for uz in (".mp4", ".webp", ".json"):
+        p = os.path.join(klasor, kok + uz)
+        if os.path.isfile(p):
+            out.append(p)
+    # Fazla videolar: <kok>-extra.mp4, <kok>-extra2.mp4 ... ve yan dosyalari.
+    try:
+        with os.scandir(klasor) as it:
+            fazlalar = sorted(e.name for e in it
+                              if e.is_file() and e.name.lower().endswith(".mp4")
+                              and os.path.splitext(e.name)[0].startswith(kok + "-extra"))
+    except OSError:
+        fazlalar = []
+    for f in fazlalar:
+        out.append(os.path.join(klasor, f))
+        yan = os.path.join(klasor, os.path.splitext(f)[0] + ".json")
+        if os.path.isfile(yan):
+            out.append(yan)
+    return out
+
+
+def remove(rating: str, stage: str, item_ids: list[str]) -> dict:
+    """Varliklari tumuyle siler: gorsel + yan dosya + esli video + FAZLA videolar.
+
+    Fazlalari birakmak yetim `-extra` mp4'leri birakiyordu; r2manager'in Reject'i
+    demetin tamamini siliyor, bu da oyle.
+    """
+    silinen, kalan = 0, []
+    for iid in item_ids:
+        jpg = item_path(rating, stage, iid, "image")
+        if not jpg:
+            continue
+        for p in _bundle_paths(jpg):
             try:
-                os.remove(stem + uz)
+                os.remove(p)
                 silinen += 1
-            except OSError:
-                pass
-    return {"deleted": silinen}
+            except OSError as e:
+                kalan.append("%s: %s" % (os.path.basename(p), e))
+    return {"deleted": silinen, "failed": kalan}
+
+
+def _videos_without_webp(rating: str, collection: str = "") -> list[str]:
+    """Webp ikizi olmayan kabul edilmis videolarin yollari.
+
+    Staging KOKU dogrudan taranir: jpg'siz kalmis ya da listeleme sayfasinin
+    disinda kalan videolar da yakalanir. `-extra` videolarin webp'i olmaz -
+    uygulamaya yalniz birincil video gider.
+    """
+    kok = paths(rating)["staging"]
+    try:
+        with os.scandir(kok) as it:
+            adlar = sorted([e.name for e in it if e.is_dir()], key=str.lower)
+    except OSError:
+        return []
+    if collection and collection != "*":
+        adlar = [c for c in adlar if c.lower() == collection.lower()]
+    eksik = []
+    for c in adlar:
+        d = os.path.join(kok, c)
+        try:
+            with os.scandir(d) as it:
+                girdiler = sorted(e.name for e in it if e.is_file())
+        except OSError:
+            continue
+        varolan = {os.path.splitext(a)[0] for a in girdiler if a.lower().endswith(".webp")}
+        for a in girdiler:
+            stem, uz = os.path.splitext(a)
+            if uz.lower() == ".mp4" and "-extra" not in stem and stem not in varolan:
+                eksik.append(os.path.join(d, a))
+    return eksik
+
+
+def webp_status(rating: str, collection: str = "") -> dict:
+    """Webp ikizi eksik video sayisi (dugmenin yanindaki rakam)."""
+    eksik = _videos_without_webp(rating, collection)
+    return {"missing": len(eksik),
+            "files": [os.path.join(os.path.basename(os.path.dirname(p)),
+                                   os.path.basename(p)) for p in eksik[:200]]}
 
 
 def webp_missing(rating: str, collection: str = "") -> str:
-    """Videosu olup webp'i olmayan varliklar icin webp uretir."""
-    liste = list_items(rating, "staging", collection, limit=1000)["items"]
-    eksik = [i for i in liste if i["video"] and not i["webp"]]
+    """Videosu olup webp'i olmayan her kabul edilmis varlik icin webp uretir."""
+    eksik = _videos_without_webp(rating, collection)
+    if not eksik:
+        raise ValueError("webp ikizi eksik video yok")
     op_id = _op_new("webp", len(eksik))
 
     def calis():
@@ -1225,16 +1341,226 @@ def webp_missing(rating: str, collection: str = "") -> str:
         # #299: ffmpeg webp partisi de siraya girer (CPU serit bileti).
         with gpu_lane.hold("webp (%d)" % len(eksik), kind="cpu",
                            op_id=op_id, total=len(eksik)):
-            for i, oge in enumerate(eksik, 1):
-                jpg = item_path(rating, "staging", oge["id"], "image")
-                if not jpg:
-                    continue
-                stem = os.path.splitext(jpg)[0]
-                ok, err = G._encode_webp(stem + ".mp4", stem + ".webp")
+            for i, mp4 in enumerate(eksik, 1):
+                ad = os.path.basename(mp4)
+                _op(op_id, message="webp %d/%d  %s" % (i, len(eksik), ad))
+                ok, err = G._encode_webp(mp4, os.path.splitext(mp4)[0] + ".webp")
                 with _ops_lock:
                     _ops[op_id]["ok" if ok else "failed"] += 1
-                _op(op_id, done=i, log=("+ %s.webp" % oge["stem"]) if ok
-                    else ("%s: %s" % (oge["stem"], err[:120])))
+                _op(op_id, done=i, log=("+ %s.webp" % os.path.splitext(ad)[0]) if ok
+                    else ("%s: %s" % (ad, err[:120])))
 
     _run(op_id, calis)
     return op_id
+
+
+# ------------------------------------------------------------- video eslestirme
+# r2manager'in "Match Videos"u: elle birakilmis ya da isiyle bagi kopmus
+# videolari ILK KARESINE bakarak gorselleriyle esler. Uretim hatti videonun ilk
+# karesini kaynak gorselden uretir, bu yuzden gercek ciftlerde kare farki ~0'dir.
+_MATCH_THRESHOLD = 2000        # bunun ustu baska bir gorsel demektir
+_MATCH_WEAK = 100              # bunun ustu eslesti ama suheli - kayda dusulur
+
+
+def _gray64(path: str):
+    """64x64 gri onizleme - eslestirmenin tek olcusu."""
+    from PIL import Image
+    with Image.open(path) as f:
+        if getattr(f, "n_frames", 1) > 1:
+            f.seek(0)
+        return f.convert("L").resize((64, 64))
+
+
+def _video_gray64(mp4: str):
+    """Videonun ILK karesinden 64x64 gri onizleme (ffmpeg). Yoksa None."""
+    ff = G._ffmpeg()
+    if not ff:
+        raise ValueError("ffmpeg bulunamadi - video kareleri okunamiyor")
+    tmp = os.path.splitext(mp4)[0] + ".__frame.jpg"
+    try:
+        subprocess.run([ff, "-loglevel", "error", "-y", "-i", mp4,
+                        "-frames:v", "1", tmp], check=True, timeout=60,
+                       creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        return _gray64(tmp)
+    except Exception:
+        return None
+    finally:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+
+
+def _mse(a, b) -> float:
+    """Iki 64x64 gri goruntunun ortalama kare hatasi."""
+    from PIL import ImageChops, ImageStat
+    return ImageStat.Stat(ImageChops.difference(a, b)).sum2[0] / (64.0 * 64.0)
+
+
+def _pair(ciftler: list[tuple]) -> tuple[dict, dict, dict, set]:
+    """(hata, gorsel, video) listesinden eslestirme: (birincil, fazla, hata, sahipli).
+
+    Liste hataya gore ARTAN siralanmis gelir. Once her gorsele BIR birincil video
+    verilir; en iyi eslesme once secildigi icin videosuz kalan bir gorsel,
+    videosu olan baska bir gorselin fazlasina video kaptirmaz. Sahipsiz kalan
+    videolar en iyi eslestikleri gorselin fazlasi olur.
+    """
+    birincil: dict[str, str] = {}
+    fazla: dict[str, list[str]] = {}
+    hata_of: dict[str, float] = {}
+    sahipli: set[str] = set()
+    for hata, ad, vad in ciftler:
+        if ad in birincil or vad in sahipli:
+            continue
+        birincil[ad] = vad
+        hata_of[ad] = hata
+        sahipli.add(vad)
+    for hata, ad, vad in ciftler:
+        if vad in sahipli or ad not in birincil:
+            continue
+        fazla.setdefault(ad, []).append(vad)
+        sahipli.add(vad)
+    return birincil, fazla, hata_of, sahipli
+
+
+def match_videos(rating: str) -> str:
+    """2. akista videolari gorselleriyle esler ve demetleri 1..N yeniden adlandirir.
+
+    Sirasiyla: bayti bayta ayni gorselleri sil; her gorselin ve her videonun ilk
+    karesinden 64x64 gri onizleme cikar; esik altindaki her (gorsel, video)
+    ciftini hatasina gore sirala; en iyi eslesmeden baslayarak her gorsele BIR
+    birincil video ver (boylece videosuz kalan gorsel, videosu olan bir gorselin
+    fazlasina video kaptirmaz); artan videolar en iyi eslestikleri gorselin
+    `-extraN` fazlasi olur. Eslesmeyen videolar `orphan_N.mp4` olur, boylece
+    sayisal duzenle cakismaz. Yan dosyalar demetle birlikte tasinir.
+    """
+    kok = paths(rating)["incoming"]
+    try:
+        with os.scandir(kok) as it:
+            girdiler = sorted(e.name for e in it if e.is_file())
+    except OSError as e:
+        raise ValueError("2. akis klasoru okunamadi (%s): %s" % (kok, e))
+    gorseller = [n for n in girdiler if os.path.splitext(n)[1].lower() in (".jpg", ".jpeg")]
+    videolar = [n for n in girdiler if os.path.splitext(n)[1].lower() == ".mp4"]
+    if not videolar:
+        raise ValueError("2. akista eslestirilecek video yok")
+
+    op_id = _op_new("match", len(gorseller) + len(videolar))
+
+    def calis():
+        _match_run(op_id, kok, gorseller, videolar)
+
+    _run(op_id, calis)
+    return op_id
+
+
+def _match_run(op_id, kok, gorseller, videolar):
+    # 1) Bayti bayta ayni gorseller - videolara dokunulmaz.
+    _op(op_id, message="yinelenen gorseller araniyor")
+    gorulen: dict[tuple, str] = {}
+    silinen = 0
+    kalan_gorsel = []
+    for ad in gorseller:
+        yol = os.path.join(kok, ad)
+        h = hashlib.sha256()
+        with open(yol, "rb") as fh:
+            for blok in iter(lambda: fh.read(1024 * 1024), b""):
+                h.update(blok)
+        anahtar = (os.path.getsize(yol), h.hexdigest())
+        if anahtar in gorulen:
+            for p in _bundle_paths(yol):
+                try:
+                    os.remove(p)
+                except OSError:
+                    pass
+            silinen += 1
+            _op(op_id, log="yinelenen silindi: %s (%s ile ayni)" % (ad, gorulen[anahtar]))
+            continue
+        gorulen[anahtar] = ad
+        kalan_gorsel.append(ad)
+
+    # 2) Onizlemeler.
+    im_thumb, vid_thumb = {}, {}
+    toplam = len(kalan_gorsel) + len(videolar)
+    for i, ad in enumerate(kalan_gorsel, 1):
+        _op(op_id, done=i, message="onizleme %d/%d" % (i, toplam))
+        try:
+            im_thumb[ad] = _gray64(os.path.join(kok, ad))
+        except Exception as e:
+            _op(op_id, log="%s okunamadi: %s" % (ad, str(e)[:100]))
+    for j, ad in enumerate(videolar, 1):
+        _op(op_id, done=len(kalan_gorsel) + j, message="onizleme %d/%d" % (len(kalan_gorsel) + j, toplam))
+        k = _video_gray64(os.path.join(kok, ad))
+        if k is None:
+            _op(op_id, log="%s ilk karesi alinamadi" % ad)
+        else:
+            vid_thumb[ad] = k
+
+    # 3) Ciftleri puanla, en iyiden baslayarak birincilleri dagit, artani fazla yap.
+    _op(op_id, message="eslestiriliyor")
+    ciftler = []
+    for ad, it in im_thumb.items():
+        for vad, vt in vid_thumb.items():
+            hata = _mse(vt, it)
+            if hata < _MATCH_THRESHOLD:
+                ciftler.append((hata, ad, vad))
+    ciftler.sort(key=lambda t: t[0])
+
+    birincil, fazla, hata_of, sahipli = _pair(ciftler)
+
+    zayif = [a for a in birincil if hata_of.get(a, 0.0) > _MATCH_WEAK]
+    for a in zayif:
+        _op(op_id, log="! zayif eslesme: %s <-> %s (hata %.0f)" % (a, birincil[a], hata_of[a]))
+
+    # 4) Gecici klasor uzerinden yeniden adlandir - cakisma olmasin.
+    gecici = os.path.join(kok, "_temp_sorting")
+    shutil.rmtree(gecici, ignore_errors=True)
+    os.makedirs(gecici)
+    sira, eslesen, fazla_say = 1, 0, 0
+    for ad in kalan_gorsel:
+        # Onizlemesi cikmayan gorsel de yeniden adlandirilir: eski adiyla yerinde
+        # birakmak, sirasi ona denk gelen baska bir demetin uzerine yazmasi demek.
+        _tasima(kok, gecici, ad, "%d.jpg" % sira)
+        if ad in birincil:
+            _tasima(kok, gecici, birincil[ad], "%d.mp4" % sira)
+            eslesen += 1
+            _op(op_id, log="%d. %s <-> %s" % (sira, ad, birincil[ad]))
+            for k, vad in enumerate(fazla.get(ad, []), 1):
+                ek = "" if k == 1 else str(k)
+                _tasima(kok, gecici, vad, "%d-extra%s.mp4" % (sira, ek))
+                fazla_say += 1
+        sira += 1
+
+    yetim = 0
+    for vad in videolar:
+        if vad in sahipli or not os.path.isfile(os.path.join(kok, vad)):
+            continue
+        yetim += 1
+        _tasima(kok, gecici, vad, "orphan_%d.mp4" % yetim)
+
+    for ad in sorted(os.listdir(gecici)):
+        hedef = os.path.join(kok, ad)
+        try:
+            os.replace(os.path.join(gecici, ad), hedef)
+        except OSError as e:
+            _op(op_id, log="geri tasinamadi %s: %s" % (ad, e))
+    try:
+        os.rmdir(gecici)
+    except OSError:
+        pass
+
+    with _ops_lock:
+        _ops[op_id]["ok"] = eslesen
+    _op(op_id, done=toplam,
+        message="%d cift, %d fazla video, %d yetim video, %d yinelenen silindi"
+                % (eslesen, fazla_say, yetim, silinen))
+
+
+def _tasima(kok: str, gecici: str, ad: str, yeni: str) -> None:
+    """Dosyayi ve varsa yan dosyasini gecici klasore yeni adiyla tasir."""
+    src = os.path.join(kok, ad)
+    if os.path.isfile(src):
+        shutil.move(src, os.path.join(gecici, yeni))
+    yan = os.path.join(kok, os.path.splitext(ad)[0] + ".json")
+    if os.path.isfile(yan):
+        shutil.move(yan, os.path.join(gecici, os.path.splitext(yeni)[0] + ".json"))

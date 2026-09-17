@@ -71,8 +71,8 @@ COMFY_IN = COMFY_ROOT / "input"
 COMFY_OUT = COMFY_ROOT / "output"
 WORKFLOW = COMFY_ROOT / "user" / "default" / "workflows" / "LTX2.5 I2V.json"
 
-MANIFEST_URL = "https://hotjigsaw-scanner.lifecharger.workers.dev/collections"
-IMAGE_URL = ("https://pub-dafcf9ea956d4cc794d0af36dc2ff3f7.r2.dev"
+MANIFEST_URL = "https://gallery-hot.lifecharger.workers.dev/collections"
+IMAGE_URL = ("https://gallery-hot.lifechargergames.com"
              "/collections/Generic/images/{n}.jpg")
 COLLECTION_ID = "Generic"
 

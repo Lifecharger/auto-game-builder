@@ -4,6 +4,24 @@ r2manager - minimal asset browser for the Jigsaw R2 buckets.
 Browse the Incoming folder (newly generated assets) and the two Pushed folders
 (Hot Jigsaw = teen bucket, Kid Jigsaw = kid bucket). For any file: view
 thumbnail, read EXIF metadata, play the paired mp4, open in Explorer.
+
+SUPERSEDED BY AGB (#381) - this tool still works and is kept as-is, but every
+feature below now lives in the server and reaches the phone app and Uretim
+Studyosu as well. Prefer those; they share one queue, one GPU lane and one
+audit trail. New work goes into the server, not here.
+
+  Match Videos        -> POST /api/jigsaw/flow/match      (jigsaw_flow.match_videos)
+  Accept              -> POST /api/jigsaw/flow/accept
+  Save Accept         -> POST /api/jigsaw/flow/accept {"keep_names": true}
+  Reject (bundle)     -> GET  /api/jigsaw/flow/bundle + POST /api/jigsaw/flow/delete
+  AI Tag / Tag Sel.   -> POST /api/jigsaw/flow/stage, /api/jigsaw/flow/retag
+  Fix WebPs           -> GET/POST /api/jigsaw/flow/webp
+  Generate Music      -> POST /api/jigsaw/flow/music
+  Push                -> POST /api/jigsaw/flow/push
+  (new in AGB only)   -> /api/r2/* : the buckets themselves - browse, headers,
+                         delete + takedown of the legacy twin, server-side copy,
+                         cache-header repair, local-vs-bucket and twin diffs.
+                         See design/r2_kontrol.md.
 """
 
 import os

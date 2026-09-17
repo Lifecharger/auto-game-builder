@@ -1,5 +1,5 @@
 """characters_sync.py - mirror character asset libraries into the R2 bucket
-`characters-v2` (served at https://characters.lifechargergames.com/).
+`idols` (served at https://idols.lifechargergames.com/).
 
 Layout (one folder per character, public vs private):
 
@@ -38,8 +38,8 @@ import sys
 import tempfile
 import time
 
-BUCKET = "characters-v2"
-PUBLIC_BASE = "https://characters.lifechargergames.com"
+BUCKET = "idols"
+PUBLIC_BASE = "https://idols.lifechargergames.com"
 CACHE_IMMUTABLE = "public, max-age=7776000, immutable"
 CACHE_MANIFEST = "public, max-age=21600, stale-while-revalidate=86400"
 WRANGLER = (shutil.which("wrangler.cmd") or shutil.which("wrangler")
@@ -95,21 +95,33 @@ CHARACTERS = {
                   id_of=lambda p: "app_icon"),
             group("public", "cutouts", os.path.join(ADSC, "assets", "outfits_cutout", "*.webp")),
             group("public", "dances", os.path.join(ADSC, "assets", "dances", "*.webp")),
+            # Task 89: the second, SULTRY loop per outfit. Never bundled in
+            # the APK - the game streams these from `public/dances_sultry`,
+            # so they live in the character library, not in assets/.
+            group("public", "dances_sultry",
+                  os.path.join(BELLA, "dances_sultry_loops", "*.webp")),
             group("public", "stills", os.path.join(ADSC, "assets", "outfits", "*.webp")),
             group("public", "rooms", os.path.join(ADSC, "assets", "rooms", "*.webp")),
             group("public", "icons", os.path.join(ADSC, "assets", "ui", "cloth", "*.png")),
-            # prestige-gated Private Room story gallery (task 61)
-            group("private", "gallery", os.path.join(BELLA, "private_gallery", "beach", "*.mp4"),
-                  id_of=lambda p: "beach_" + os.path.splitext(os.path.basename(p))[0]),
-            group("private", "gallery", os.path.join(BELLA, "private_gallery", "shopping", "*.mp4"),
-                  id_of=lambda p: "shopping_" + os.path.splitext(os.path.basename(p))[0]),
-            group("private", "gallery", os.path.join(BELLA, "private_gallery", "winter", "*.mp4"),
-                  id_of=lambda p: "winter_" + os.path.splitext(os.path.basename(p))[0]),
+            # prestige-gated Private Room story gallery (tasks 61, 82, 83).
+            # One clip + one tile poster per level, per story; the poster id is
+            # the clip id plus "_poster" so a client asks for it in the same
+            # category. Adding a story = one more name in this list.
+            *[g for story in ("beach", "shopping", "winter", "catninja", "gothic")
+              for g in (
+                  group("private", "gallery",
+                        os.path.join(BELLA, "private_gallery", story, "*.mp4"),
+                        id_of=(lambda p, s=story: s + "_" + os.path.splitext(os.path.basename(p))[0])),
+                  group("private", "gallery",
+                        os.path.join(BELLA, "private_gallery", story, "*_poster.webp"),
+                        id_of=(lambda p, s=story: s + "_" + os.path.splitext(os.path.basename(p))[0])),
+              )],
             # masters (big, optional)
             group("public", "masters/outfits", os.path.join(BELLA, "outfits", "*.png"), masters=True),
             group("public", "masters/outfits_chroma", os.path.join(BELLA, "outfits_chroma", "*.png"), masters=True),
             group("public", "masters/dances_480p", os.path.join(BELLA, "dances_chroma", "*.mp4"), masters=True),
             group("public", "masters/dances_720p", os.path.join(BELLA, "dances_chroma_hd", "*.mp4"), masters=True),
+            group("public", "masters/dances_sultry_720p", os.path.join(BELLA, "dances_sultry_chroma_hd", "*.mp4"), masters=True),
             group("public", "masters/rooms", os.path.join(BELLA, "rooms", "r*.png"), masters=True),
         ],
     },
