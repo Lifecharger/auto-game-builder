@@ -271,24 +271,25 @@ def i2i(image_path: str, prompt: str, headless: bool = True,
             ctx.close()
             return []
 
-        import requests
-        with open(HISTORY_FILE, encoding="utf-8") as f:
-            cached = json.load(f).get("cached_cookies", {})
-        cookie_str = "; ".join(f"{k}={v}" for k, v in cached.items() if v)
+        # Download through the browser context, so the request carries the
+        # session of whichever profile rendered the image. The cached cookies
+        # in the history file belong to the default account only - with
+        # GROK_PROFILE_DIR they got a 403 on every asset (2026-09-18).
         save_dir = output_dir or os.getcwd()
         os.makedirs(save_dir, exist_ok=True)
         saved = []
         for i, url in enumerate(seen_srcs):
             try:
-                resp = requests.get(
-                    url, headers={"Cookie": cookie_str}, timeout=60)
-                resp.raise_for_status()
+                resp = ctx.request.get(url, timeout=60000)
+                if not resp.ok:
+                    raise RuntimeError(f"HTTP {resp.status} for {url}")
+                body = resp.body()
                 path = os.path.join(save_dir, f"i2i_{int(time.time())}_{i+1}.png")
                 with open(path, "wb") as f:
-                    f.write(resp.content)
+                    f.write(body)
                 saved.append(path)
                 print(f"  saved {os.path.basename(path)} "
-                      f"({len(resp.content)//1024} KB)")
+                      f"({len(body)//1024} KB)")
             except Exception as e:
                 print(f"  download failed: {e}")
 

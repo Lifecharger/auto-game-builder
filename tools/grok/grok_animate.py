@@ -165,6 +165,370 @@ def _dom_video_srcs(page):
     return [s for s in srcs if s.startswith("http") and ".mp4" in s.lower()]
 
 
+# Both renders of a submission are in: a short grace period is enough. With
+# only one so far, keep the long wait for the slower second render.
+def _settle_seconds(seen_count: int) -> int:
+    return 8 if seen_count >= 2 else 25
+
+
+def _launch(pw, headless: bool):
+    ctx = pw.chromium.launch_persistent_context(
+        PROFILE_DIR,
+        headless=headless,
+        viewport={"width": 1280, "height": 900},
+        args=[
+            "--disable-blink-features=AutomationControlled",
+            "--disable-features=IsolateOrigins,site-per-process",
+        ],
+        user_agent=(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"
+        ),
+    )
+
+    sso_cookies = _load_sso_cookies()
+    if sso_cookies:
+        try:
+            ctx.add_cookies(sso_cookies)
+            print(f"  Injected {len(sso_cookies)} cookies")
+        except Exception as e:
+            print(f"  Cookie inject warning: {e}")
+    return ctx
+
+
+def _submit_job(page, st: dict, image_path: str, prompt: str,
+                video_length: int, resolution: str):
+    """Drive one tab from a blank page to a submitted i2v job.
+
+    Returns True once the generation request fired; False/None on failure.
+    `st` receives the tab's URL bookkeeping (`video_urls`, `pre`), which
+    `_fresh` and `_collect` read afterwards. The context is never closed
+    here - several tabs share it in `animate_many`.
+    """
+
+    # Watch for the key requests that confirm the generation actually fired
+    seen_endpoints = set()
+    def on_request(req):
+        if req.method != "POST": return
+        for sig in ("/rest/app-chat/upload-file", "/rest/media/post/create",
+                      "/rest/app-chat/conversations/new", "/rest/media/post/like"):
+            if sig in req.url:
+                seen_endpoints.add(sig)
+    page.on("request", on_request)
+
+    # Collect every rendered .mp4 the page pulls, in arrival order. This is
+    # how we get the result without touching favorites.
+    video_urls: list[str] = []
+    def on_response(resp):
+        url = resp.url
+        if ".mp4" in url.lower() and url.startswith("http") and url not in video_urls:
+            video_urls.append(url)
+    page.on("response", on_response)
+
+    print(f"Navigating to {IMAGINE_URL}...")
+    page.goto(IMAGINE_URL, wait_until="load", timeout=60000)
+
+    # Dismiss ALL cookie consent banners. Grok keeps inventing new ones —
+    # this purges every variant we've seen plus a generic text-match fallback.
+    # Also dismiss the Radix dialog-portal overlay (upgrade/announcement modals)
+    # which intercepts pointer events and blocks every click below it.
+    # The OneTrust SDK observes the DOM and re-injects its banner after
+    # removal. Solution: kill the elements AND inject a permanent style
+    # rule that hides + disables pointer events on any future re-injections.
+    page.add_style_tag(content="""
+        #onetrust-consent-sdk, #onetrust-button-group, #onetrust-banner-sdk,
+        #CybotCookiebotDialog, [data-nosnippet="true"],
+        [data-cookie-banner="true"] { display: none !important; pointer-events: none !important; }
+        #dialog-portal { pointer-events: none !important; }
+        body { pointer-events: auto !important; overflow: auto !important; }
+    """)
+    page.evaluate("""() => {
+        ['onetrust-consent-sdk', 'onetrust-button-group', 'onetrust-banner-sdk',
+         'CybotCookiebotDialog', 'dialog-portal'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) { try { el.remove(); } catch(e) { el.style.display='none'; el.style.pointerEvents='none'; } }
+        });
+        document.querySelectorAll('[data-cookie-banner="true"]').forEach(el => el.remove());
+        document.querySelectorAll('[role="dialog"]').forEach(el => el.remove());
+        document.querySelectorAll('[data-state="open"][aria-hidden="true"]').forEach(el => el.remove());
+        document.querySelectorAll('[data-nosnippet="true"]').forEach(el => el.remove());
+        const consentTextRe = /Tümünü Reddet|Reject All|Accept All|Tüm Tanımlama|Cookie/i;
+        document.querySelectorAll('div, section, aside').forEach(el => {
+            const cs = window.getComputedStyle(el);
+            if (cs.position !== 'fixed') return;
+            if (consentTextRe.test(el.innerText || '')) {
+                const r = el.getBoundingClientRect();
+                if (r.width < 700 && r.height < 600) el.remove();
+            }
+        });
+        document.body.style.pointerEvents = 'auto';
+        document.body.style.overflow = 'auto';
+        document.body.removeAttribute('data-scroll-locked');
+    }""")
+    time.sleep(1)
+
+    body_text = page.evaluate("() => document.body.innerText")
+    if "Oturum aç" in body_text and "Üye ol" in body_text and "Imagine" not in body_text[:100]:
+        print("ERROR: Not logged in. Refresh sso cookies in grok_download_history.json")
+        return False
+
+    # Step 1: Switch to Video mode.
+    #
+    # Select the tab by aria-label, NOT by text: the mode tabs are icon-only
+    # (empty innerText), so a has_text="Video" filter matches nothing. This
+    # is also why the switch must be fatal. Failing it leaves the composer in
+    # Görsel mode, where the upload opens the image editor and the submit
+    # posts an ordinary chat message — conversations/new fires, no video job
+    # is ever created, and the run burns 240s per image waiting for a render
+    # that cannot arrive. A warning here reads as success everywhere else.
+    print("Switching to Video mode...")
+    video_toggle = page.locator(
+        '[role="radiogroup"][aria-label="Oluşturma modu"] '
+        '[role="radio"][aria-label="Video"]')
+    try:
+        # Already selected? Clicking an active radio can time out (seen
+        # 2026-08-24: aria-checked=true + click timeout killed a batch).
+        if video_toggle.get_attribute("aria-checked", timeout=5000) == "true":
+            print("  Already in Video mode")
+        else:
+            video_toggle.click(timeout=5000)
+            time.sleep(0.5)
+            print("  Switched to Video mode")
+    except Exception as e:
+        print(f"ERROR: Could not switch to Video mode ({e}). Refusing to "
+              f"generate in image mode.")
+        page.screenshot(path=str(Path.home() / "grok_animate_debug.png"))
+        return False
+
+    # Steps 2 and 3: Set duration and resolution explicitly.
+    #
+    # Never skip these by assuming the UI default matches ours — Grok's
+    # duration default is 10s, so "it's already 6s" silently bought the
+    # longer clip and charged the quota for it. The video controls only
+    # exist once Video mode is active, hence the ordering.
+    try:
+        page.locator('[role="radiogroup"][aria-label="Video Süresi"] [role="radio"]').filter(has_text=f"{video_length}s").click(timeout=3000)
+        time.sleep(0.3)
+        print(f"  Set duration to {video_length}s")
+    except Exception:
+        print(f"  WARNING: Could not set duration to {video_length}s")
+
+    try:
+        page.locator('[role="radiogroup"][aria-label="Video Çözünürlüğü"] [role="radio"]').filter(has_text=resolution).click(timeout=3000)
+        time.sleep(0.3)
+        print(f"  Set resolution to {resolution}")
+    except Exception:
+        print(f"  WARNING: Could not set resolution to {resolution}")
+
+    # Step 4: Upload the image via the file input — use the MULTI input
+    # (name="files") which is the multi-ref-i2i path for animation references.
+    # Wait for it to mount: the file input is added to the DOM by React after
+    # the Video mode switch, and .count() does NOT auto-wait.
+    print(f"Uploading {os.path.basename(image_path)}...")
+    try:
+        file_input = page.locator('input[type="file"][name="files"]').first
+        file_input.wait_for(state="attached", timeout=15000)
+        file_input.set_input_files(image_path, timeout=15000)
+        print("  Upload triggered, waiting for upload-file to complete...")
+        # Wait for upload-file to complete. media/post/create fires later
+        # as part of the submit chain, not the upload chain.
+        upload_deadline = time.time() + 30
+        while time.time() < upload_deadline:
+            if "/rest/app-chat/upload-file" in seen_endpoints:
+                break
+            time.sleep(0.3)
+        time.sleep(2)  # buffer for React state + thumbnail render
+        print("  Image attached")
+    except Exception as e:
+        print(f"  ERROR: Could not upload image: {e}")
+        page.screenshot(path=str(Path.home() / "grok_animate_debug.png"))
+        return False
+
+    # Step 5: Type the animation prompt into the contenteditable input
+    print(f"Typing prompt: {prompt!r}")
+    prompt_box = page.locator('div[contenteditable="true"]').first
+    prompt_box.click(timeout=5000)
+    time.sleep(0.3)
+    page.keyboard.type(prompt, delay=3)
+    time.sleep(1)
+
+    # Step 6: Submit. Try multiple strategies because React forms can ignore
+    # clicks if state isn't fully synced. Strategy order:
+    #   1. Click the submit button directly
+    #   2. Ctrl+Enter (chat-app standard shortcut)
+    #   3. Programmatic form.requestSubmit()
+    # Everything the page has loaded up to now is furniture: Grok's own promo
+    # clips plus the gallery of past generations. Only URLs that appear AFTER
+    # this line can be our result.
+    pre_submit_urls = set(video_urls) | set(_dom_video_srcs(page))
+    print(f"Baseline: {len(pre_submit_urls)} pre-existing video URL(s) on the page")
+
+    print("Submitting...")
+
+    def _submitted():
+        return "/rest/app-chat/conversations/new" in seen_endpoints
+
+    # Strategy 1: click the button
+    try:
+        page.locator('button[type="submit"][aria-label="Gönder"]').first.click(
+            timeout=4000, force=True
+        )
+        print("  [strategy 1] Clicked submit button")
+    except Exception as e:
+        print(f"  [strategy 1] Click failed: {e}")
+
+    time.sleep(2)
+    if not _submitted():
+        # Strategy 2: Ctrl+Enter from prompt
+        print("  [strategy 2] Ctrl+Enter in prompt input")
+        prompt_box.focus()
+        page.keyboard.press("Control+Enter")
+        time.sleep(2)
+
+    if not _submitted():
+        # Strategy 3: programmatic form submit
+        print("  [strategy 3] form.requestSubmit() via JS")
+        page.evaluate("""() => {
+            const btn = document.querySelector('button[type="submit"][aria-label="Gönder"]');
+            if (!btn) return 'no button';
+            const form = btn.closest('form');
+            if (!form) return 'no form';
+            if (form.requestSubmit) {
+                form.requestSubmit();
+                return 'requestSubmit fired';
+            } else {
+                form.submit();
+                return 'submit fired';
+            }
+        }""")
+        time.sleep(2)
+
+    # Wait for the generation request. Grok stopped auto-favoriting renders
+    # (2026-08), so /rest/media/post/like never fires; waiting on it cost a
+    # flat 30 s per submit - and in animate_many it stalled every other tab.
+    print("Waiting for generation request...")
+    deadline = time.time() + 30
+    target_endpoints = {
+        "/rest/app-chat/conversations/new",
+    }
+    while time.time() < deadline and not target_endpoints.issubset(seen_endpoints):
+        time.sleep(0.5)
+
+    for ep in ["/rest/app-chat/upload-file", "/rest/media/post/create",
+               "/rest/app-chat/conversations/new", "/rest/media/post/like"]:
+        mark = "OK" if ep in seen_endpoints else "MISSING"
+        print(f"  [{mark}] {ep}")
+
+    if "/rest/app-chat/conversations/new" not in seen_endpoints:
+        print("\nERROR: Generation request never fired. Submit failed silently.")
+        page.screenshot(path=str(Path.home() / "grok_animate_debug.png"))
+        print(f"Debug screenshot: {Path.home() / 'grok_animate_debug.png'}")
+        return None
+
+    st["video_urls"] = video_urls
+    st["pre"] = pre_submit_urls
+    return True
+
+
+def _fresh(page, st: dict) -> list[str]:
+    """Renders this tab produced after its own submit."""
+    pool = list(dict.fromkeys(st["video_urls"] + _dom_video_srcs(page)))
+    return [u for u in pool
+            if u not in st["pre"] and GENERATED_VIDEO_RE.search(u)]
+
+
+def _collect(ctx, page, st: dict, image_path: str,
+             output_path: str | None) -> str | None:
+    """Download and verify what the tab rendered; None when nothing did."""
+    candidates = _fresh(page, st)
+    if not candidates:
+        page_text = ""
+        try:
+            page_text = (page.inner_text("body") or "").lower()
+        except Exception:
+            pass
+        # Quota first: a limit message often also contains upsell wording
+        # that the refusal list would match, and the two need different
+        # handling (stop the whole run vs. skip this one prompt).
+        limit_hit = next((p for p in LIMIT_PHRASES if p in page_text), None)
+        if limit_hit:
+            print(f"\nLIMIT: Grok is out of generations (matched '{limit_hit}').")
+            page.screenshot(path=str(Path.home() / "grok_animate_debug.png"))
+            raise GrokLimitReached(limit_hit)
+
+        hit = next((p for p in REFUSAL_PHRASES if p in page_text), None)
+        if hit:
+            print(f"\nREFUSED: Grok declined this prompt (matched '{hit}').")
+        else:
+            print("\nFAILED: no new render appeared before the timeout.")
+        page.screenshot(path=str(Path.home() / "grok_animate_debug.png"))
+        print(f"Debug screenshot: {Path.home() / 'grok_animate_debug.png'}")
+        return None
+
+    print(f"{len(candidates)} new render(s) to verify (newest first):")
+
+    if output_path:
+        dest = Path(os.path.abspath(output_path))
+    else:
+        dest = Path(OUTPUT_DIR) / f"{Path(image_path).stem}.mp4"
+    dest.parent.mkdir(parents=True, exist_ok=True)
+
+    # Newest first: the prompted render finishes after the auto baseline clip.
+    # The first verified render becomes `dest`; every other verified render
+    # of the same submission is kept beside it in `_alts/<stem>_altN.mp4`,
+    # so the user can swap in the take he prefers.
+    saved = None
+    alt_n = 0
+    for url in reversed(candidates):
+        short = url.split("/generated/")[-1][:36]
+        try:
+            resp = ctx.request.get(url, timeout=120000)
+            if not resp.ok:
+                print(f"  [{short}] HTTP {resp.status} — skipping")
+                continue
+            body = resp.body()
+        except Exception as e:
+            print(f"  [{short}] download failed: {e} — skipping")
+            continue
+
+        if len(body) < 10000:
+            print(f"  [{short}] only {len(body)} bytes — skipping")
+            continue
+
+        tmp = Path(tempfile.gettempdir()) / f"grok_verify_{uuid.uuid4().hex}.mp4"
+        tmp.write_bytes(body)
+        try:
+            mse = _first_frame_mse(str(tmp), image_path)
+            if mse is None:
+                print(f"  [{short}] UNVERIFIED (cv2 unavailable or unreadable) — "
+                      f"accepting on position alone")
+            elif mse > FIRST_FRAME_MSE_MAX:
+                print(f"  [{short}] MSE {mse:.0f} — not from this image, skipping")
+                continue
+            else:
+                print(f"  [{short}] MSE {mse:.0f} — verified match")
+
+            if saved is None:
+                target = dest
+            else:
+                alt_n += 1
+                target = dest.parent / "_alts" / f"{dest.stem}_alt{alt_n}{dest.suffix}"
+                target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(body)
+        finally:
+            tmp.unlink(missing_ok=True)
+
+        print(f"Saved {len(body) // 1024} KB -> {target}")
+        if saved is None:
+            saved = str(dest)
+
+    if saved:
+        return saved
+
+    print("\nFAILED: new renders appeared but none came from this image.")
+    return None
+
+
 def animate(image_path: str, prompt: str, video_length: int = 6,
             resolution: str = "480p", headless: bool = True,
             output_path: str | None = None, wait_seconds: int = 240) -> str | None:
@@ -183,379 +547,134 @@ def animate(image_path: str, prompt: str, video_length: int = 6,
 
     print(f"Launching Chromium (headless={headless})...")
     with sync_playwright() as pw:
-        ctx = pw.chromium.launch_persistent_context(
-            PROFILE_DIR,
-            headless=headless,
-            viewport={"width": 1280, "height": 900},
-            args=[
-                "--disable-blink-features=AutomationControlled",
-                "--disable-features=IsolateOrigins,site-per-process",
-            ],
-            user_agent=(
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                "(KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"
-            ),
-        )
-
-        sso_cookies = _load_sso_cookies()
-        if sso_cookies:
-            try:
-                ctx.add_cookies(sso_cookies)
-                print(f"  Injected {len(sso_cookies)} cookies")
-            except Exception as e:
-                print(f"  Cookie inject warning: {e}")
-
+        ctx = _launch(pw, headless)
         page = ctx.new_page()
-
-        # Watch for the key requests that confirm the generation actually fired
-        seen_endpoints = set()
-        def on_request(req):
-            if req.method != "POST": return
-            for sig in ("/rest/app-chat/upload-file", "/rest/media/post/create",
-                          "/rest/app-chat/conversations/new", "/rest/media/post/like"):
-                if sig in req.url:
-                    seen_endpoints.add(sig)
-        page.on("request", on_request)
-
-        # Collect every rendered .mp4 the page pulls, in arrival order. This is
-        # how we get the result without touching favorites.
-        video_urls: list[str] = []
-        def on_response(resp):
-            url = resp.url
-            if ".mp4" in url.lower() and url.startswith("http") and url not in video_urls:
-                video_urls.append(url)
-        page.on("response", on_response)
-
-        print(f"Navigating to {IMAGINE_URL}...")
-        page.goto(IMAGINE_URL, wait_until="load", timeout=60000)
-
-        # Dismiss ALL cookie consent banners. Grok keeps inventing new ones —
-        # this purges every variant we've seen plus a generic text-match fallback.
-        # Also dismiss the Radix dialog-portal overlay (upgrade/announcement modals)
-        # which intercepts pointer events and blocks every click below it.
-        # The OneTrust SDK observes the DOM and re-injects its banner after
-        # removal. Solution: kill the elements AND inject a permanent style
-        # rule that hides + disables pointer events on any future re-injections.
-        page.add_style_tag(content="""
-            #onetrust-consent-sdk, #onetrust-button-group, #onetrust-banner-sdk,
-            #CybotCookiebotDialog, [data-nosnippet="true"],
-            [data-cookie-banner="true"] { display: none !important; pointer-events: none !important; }
-            #dialog-portal { pointer-events: none !important; }
-            body { pointer-events: auto !important; overflow: auto !important; }
-        """)
-        page.evaluate("""() => {
-            ['onetrust-consent-sdk', 'onetrust-button-group', 'onetrust-banner-sdk',
-             'CybotCookiebotDialog', 'dialog-portal'].forEach(id => {
-                const el = document.getElementById(id);
-                if (el) { try { el.remove(); } catch(e) { el.style.display='none'; el.style.pointerEvents='none'; } }
-            });
-            document.querySelectorAll('[data-cookie-banner="true"]').forEach(el => el.remove());
-            document.querySelectorAll('[role="dialog"]').forEach(el => el.remove());
-            document.querySelectorAll('[data-state="open"][aria-hidden="true"]').forEach(el => el.remove());
-            document.querySelectorAll('[data-nosnippet="true"]').forEach(el => el.remove());
-            const consentTextRe = /Tümünü Reddet|Reject All|Accept All|Tüm Tanımlama|Cookie/i;
-            document.querySelectorAll('div, section, aside').forEach(el => {
-                const cs = window.getComputedStyle(el);
-                if (cs.position !== 'fixed') return;
-                if (consentTextRe.test(el.innerText || '')) {
-                    const r = el.getBoundingClientRect();
-                    if (r.width < 700 && r.height < 600) el.remove();
-                }
-            });
-            document.body.style.pointerEvents = 'auto';
-            document.body.style.overflow = 'auto';
-            document.body.removeAttribute('data-scroll-locked');
-        }""")
-        time.sleep(1)
-
-        body_text = page.evaluate("() => document.body.innerText")
-        if "Oturum aç" in body_text and "Üye ol" in body_text and "Imagine" not in body_text[:100]:
-            print("ERROR: Not logged in. Refresh sso cookies in grok_download_history.json")
-            ctx.close()
-            return False
-
-        # Step 1: Switch to Video mode.
-        #
-        # Select the tab by aria-label, NOT by text: the mode tabs are icon-only
-        # (empty innerText), so a has_text="Video" filter matches nothing. This
-        # is also why the switch must be fatal. Failing it leaves the composer in
-        # Görsel mode, where the upload opens the image editor and the submit
-        # posts an ordinary chat message — conversations/new fires, no video job
-        # is ever created, and the run burns 240s per image waiting for a render
-        # that cannot arrive. A warning here reads as success everywhere else.
-        print("Switching to Video mode...")
-        video_toggle = page.locator(
-            '[role="radiogroup"][aria-label="Oluşturma modu"] '
-            '[role="radio"][aria-label="Video"]')
+        st: dict = {}
         try:
-            # Already selected? Clicking an active radio can time out (seen
-            # 2026-08-24: aria-checked=true + click timeout killed a batch).
-            if video_toggle.get_attribute("aria-checked", timeout=5000) == "true":
-                print("  Already in Video mode")
-            else:
-                video_toggle.click(timeout=5000)
-                time.sleep(0.5)
-                print("  Switched to Video mode")
-        except Exception as e:
-            print(f"ERROR: Could not switch to Video mode ({e}). Refusing to "
-                  f"generate in image mode.")
-            page.screenshot(path=str(Path.home() / "grok_animate_debug.png"))
-            ctx.close()
-            return False
+            submitted = _submit_job(page, st, image_path, prompt,
+                                    video_length, resolution)
+            if submitted is not True:
+                return submitted
 
-        # Steps 2 and 3: Set duration and resolution explicitly.
-        #
-        # Never skip these by assuming the UI default matches ours — Grok's
-        # duration default is 10s, so "it's already 6s" silently bought the
-        # longer clip and charged the quota for it. The video controls only
-        # exist once Video mode is active, hence the ordering.
-        try:
-            page.locator('[role="radiogroup"][aria-label="Video Süresi"] [role="radio"]').filter(has_text=f"{video_length}s").click(timeout=3000)
-            time.sleep(0.3)
-            print(f"  Set duration to {video_length}s")
-        except Exception:
-            print(f"  WARNING: Could not set duration to {video_length}s")
-
-        try:
-            page.locator('[role="radiogroup"][aria-label="Video Çözünürlüğü"] [role="radio"]').filter(has_text=resolution).click(timeout=3000)
-            time.sleep(0.3)
-            print(f"  Set resolution to {resolution}")
-        except Exception:
-            print(f"  WARNING: Could not set resolution to {resolution}")
-
-        # Step 4: Upload the image via the file input — use the MULTI input
-        # (name="files") which is the multi-ref-i2i path for animation references.
-        # Wait for it to mount: the file input is added to the DOM by React after
-        # the Video mode switch, and .count() does NOT auto-wait.
-        print(f"Uploading {os.path.basename(image_path)}...")
-        try:
-            file_input = page.locator('input[type="file"][name="files"]').first
-            file_input.wait_for(state="attached", timeout=15000)
-            file_input.set_input_files(image_path, timeout=15000)
-            print("  Upload triggered, waiting for upload-file to complete...")
-            # Wait for upload-file to complete. media/post/create fires later
-            # as part of the submit chain, not the upload chain.
-            upload_deadline = time.time() + 30
-            while time.time() < upload_deadline:
-                if "/rest/app-chat/upload-file" in seen_endpoints:
+            # Wait for renders that were not already on the page before we
+            # submitted. Grok makes an unprompted baseline clip from the
+            # uploaded still on top of the prompted one, so expect up to two.
+            print(f"Waiting up to {wait_seconds}s for a new render...")
+            deadline = time.time() + wait_seconds
+            seen_count = 0
+            settle_until = None
+            while time.time() < deadline:
+                found = _fresh(page, st)
+                if len(found) > seen_count:
+                    seen_count = len(found)
+                    print(f"  {seen_count} new render(s) seen; waiting for stragglers...")
+                    settle_until = time.time() + _settle_seconds(seen_count)
+                elif found and settle_until and time.time() > settle_until:
                     break
-                time.sleep(0.3)
-            time.sleep(2)  # buffer for React state + thumbnail render
-            print("  Image attached")
-        except Exception as e:
-            print(f"  ERROR: Could not upload image: {e}")
-            page.screenshot(path=str(Path.home() / "grok_animate_debug.png"))
+                # The quota notice is a toast that auto-dismisses within
+                # seconds of the submit, so it has to be caught while waiting.
+                if not found:
+                    early_hit = _limit_phrase(page)
+                    if early_hit:
+                        print(f"\nLIMIT: Grok is out of generations (matched '{early_hit}').")
+                        page.screenshot(path=str(Path.home() / "grok_animate_debug.png"))
+                        raise GrokLimitReached(early_hit)
+                time.sleep(2)
+
+            return _collect(ctx, page, st, image_path, output_path)
+        finally:
             ctx.close()
-            return False
 
-        # Step 5: Type the animation prompt into the contenteditable input
-        print(f"Typing prompt: {prompt!r}")
-        prompt_box = page.locator('div[contenteditable="true"]').first
-        prompt_box.click(timeout=5000)
-        time.sleep(0.3)
-        page.keyboard.type(prompt, delay=15)
-        time.sleep(1)
 
-        # Step 6: Submit. Try multiple strategies because React forms can ignore
-        # clicks if state isn't fully synced. Strategy order:
-        #   1. Click the submit button directly
-        #   2. Ctrl+Enter (chat-app standard shortcut)
-        #   3. Programmatic form.requestSubmit()
-        # Everything the page has loaded up to now is furniture: Grok's own promo
-        # clips plus the gallery of past generations. Only URLs that appear AFTER
-        # this line can be our result.
-        pre_submit_urls = set(video_urls) | set(_dom_video_srcs(page))
-        print(f"Baseline: {len(pre_submit_urls)} pre-existing video URL(s) on the page")
+def animate_many(jobs: list[dict], video_length: int = 6,
+                 resolution: str = "480p", headless: bool = True,
+                 wait_seconds: int = 240, concurrency: int = 3,
+                 on_done=None) -> dict:
+    """Run several i2v jobs through ONE browser session, overlapping renders.
 
-        print("Submitting...")
+    `jobs` is a list of {"image": path, "prompt": str, "output": path}. A
+    render is a ~80 s remote wait, so up to `concurrency` tabs are kept in
+    flight: while one tab waits, the next uploads and submits. Every tab keeps
+    its own URL bookkeeping, and `_collect` still verifies each clip against
+    its own still, so results cannot cross over.
 
-        def _submitted():
-            return "/rest/app-chat/conversations/new" in seen_endpoints
+    Returns {output: saved path | None}. `on_done(job, path)` is called as
+    each job finishes. On the weekly-limit toast the run stops and the key
+    "__limit__" carries the matched phrase; jobs never started are absent.
+    """
+    results: dict = {}
+    pending = list(jobs)
+    active: list[dict] = []
 
-        # Strategy 1: click the button
+    def finish(a, path):
+        results[a["job"]["output"]] = path
         try:
-            page.locator('button[type="submit"][aria-label="Gönder"]').first.click(
-                timeout=4000, force=True
-            )
-            print("  [strategy 1] Clicked submit button")
-        except Exception as e:
-            print(f"  [strategy 1] Click failed: {e}")
+            a["page"].close()
+        except Exception:
+            pass
+        active.remove(a)
+        # on_done returning False means "stop feeding the queue" (the
+        # caller saw the quota-stall signature); tabs in flight finish.
+        if on_done and on_done(a["job"], path) is False:
+            pending.clear()
 
-        time.sleep(2)
-        if not _submitted():
-            # Strategy 2: Ctrl+Enter from prompt
-            print("  [strategy 2] Ctrl+Enter in prompt input")
-            prompt_box.focus()
-            page.keyboard.press("Control+Enter")
-            time.sleep(2)
+    print(f"Launching Chromium (headless={headless}), {len(jobs)} job(s), "
+          f"{concurrency} in flight...")
+    with sync_playwright() as pw:
+        ctx = _launch(pw, headless)
+        try:
+            while pending or active:
+                while pending and len(active) < concurrency:
+                    job = pending.pop(0)
+                    image = os.path.abspath(job["image"])
+                    print(f"\n>> {os.path.basename(job['output'])}", flush=True)
+                    page = ctx.new_page()
+                    st: dict = {}
+                    ok = None
+                    if os.path.isfile(image):
+                        try:
+                            ok = _submit_job(page, st, image, job["prompt"],
+                                             video_length, resolution)
+                        except Exception as e:
+                            print(f"  submit error: {e}")
+                    else:
+                        print(f"ERROR: Image not found: {image}")
+                    a = {"job": job, "page": page, "st": st, "image": image,
+                         "deadline": time.time() + wait_seconds,
+                         "seen": 0, "settle": None}
+                    active.append(a)
+                    if ok is not True:
+                        finish(a, None)
 
-        if not _submitted():
-            # Strategy 3: programmatic form submit
-            print("  [strategy 3] form.requestSubmit() via JS")
-            page.evaluate("""() => {
-                const btn = document.querySelector('button[type="submit"][aria-label="Gönder"]');
-                if (!btn) return 'no button';
-                const form = btn.closest('form');
-                if (!form) return 'no form';
-                if (form.requestSubmit) {
-                    form.requestSubmit();
-                    return 'requestSubmit fired';
-                } else {
-                    form.submit();
-                    return 'submit fired';
-                }
-            }""")
-            time.sleep(2)
-
-        # Wait for the canonical success-chain endpoints to all fire
-        print("Waiting for generation request + auto-favorite...")
-        deadline = time.time() + 30
-        target_endpoints = {
-            "/rest/app-chat/conversations/new",
-            "/rest/media/post/like",
-        }
-        while time.time() < deadline and not target_endpoints.issubset(seen_endpoints):
-            time.sleep(0.5)
-
-        for ep in ["/rest/app-chat/upload-file", "/rest/media/post/create",
-                   "/rest/app-chat/conversations/new", "/rest/media/post/like"]:
-            mark = "OK" if ep in seen_endpoints else "MISSING"
-            print(f"  [{mark}] {ep}")
-
-        if "/rest/app-chat/conversations/new" not in seen_endpoints:
-            print("\nERROR: Generation request never fired. Submit failed silently.")
-            page.screenshot(path=str(Path.home() / "grok_animate_debug.png"))
-            print(f"Debug screenshot: {Path.home() / 'grok_animate_debug.png'}")
+                for a in list(active):
+                    found = _fresh(a["page"], a["st"])
+                    now = time.time()
+                    name = os.path.basename(a["job"]["output"])
+                    if len(found) > a["seen"]:
+                        a["seen"] = len(found)
+                        a["settle"] = now + _settle_seconds(a["seen"])
+                        print(f"  [{name}] {a['seen']} new render(s) seen", flush=True)
+                    elif ((found and a["settle"] and now > a["settle"])
+                          or now > a["deadline"]):
+                        print(f"\n<< {name}", flush=True)
+                        try:
+                            path = _collect(ctx, a["page"], a["st"], a["image"],
+                                            a["job"]["output"])
+                        except GrokLimitReached as e:
+                            results["__limit__"] = str(e)
+                            finish(a, None)
+                            return results
+                        finish(a, path)
+                    elif not found:
+                        hit = _limit_phrase(a["page"])
+                        if hit:
+                            print(f"\nLIMIT: Grok is out of generations (matched '{hit}').")
+                            results["__limit__"] = hit
+                            return results
+                time.sleep(2)
+        finally:
             ctx.close()
-            return None
-
-        # Wait for renders that were not already on the page before we submitted.
-        # Grok makes an unprompted baseline clip from the uploaded still on top of
-        # the prompted one, so expect up to two; we keep waiting through a quiet
-        # period so the prompted result (the slower of the two) is included.
-        def fresh():
-            pool = list(dict.fromkeys(video_urls + _dom_video_srcs(page)))
-            return [u for u in pool
-                    if u not in pre_submit_urls and GENERATED_VIDEO_RE.search(u)]
-
-        print(f"Waiting up to {wait_seconds}s for a new render...")
-        deadline = time.time() + wait_seconds
-        seen_count = 0
-        settle_until = None
-        while time.time() < deadline:
-            found = fresh()
-            if len(found) > seen_count:
-                seen_count = len(found)
-                print(f"  {seen_count} new render(s) seen; waiting for stragglers...")
-                settle_until = time.time() + 25
-            elif found and settle_until and time.time() > settle_until:
-                break
-            # Catch the quota notice while it is still on screen. It arrives as
-            # a toast seconds after submit and auto-dismisses well before this
-            # loop times out, so the check below — which only runs once the wait
-            # is over — reads a clean page and books an exhausted account as a
-            # generic failure. That is how a hit weekly limit reads as three
-            # mystery stalls and costs 12 minutes instead of stopping at once.
-            if not found:
-                early_hit = _limit_phrase(page)
-                if early_hit:
-                    print(f"\nLIMIT: Grok is out of generations (matched '{early_hit}').")
-                    page.screenshot(path=str(Path.home() / "grok_animate_debug.png"))
-                    ctx.close()
-                    raise GrokLimitReached(early_hit)
-            time.sleep(2)
-
-        candidates = fresh()
-        if not candidates:
-            page_text = ""
-            try:
-                page_text = (page.inner_text("body") or "").lower()
-            except Exception:
-                pass
-            # Quota first: a limit message often also contains upsell wording
-            # that the refusal list would match, and the two need different
-            # handling (stop the whole run vs. skip this one prompt).
-            limit_hit = next((p for p in LIMIT_PHRASES if p in page_text), None)
-            if limit_hit:
-                print(f"\nLIMIT: Grok is out of generations (matched '{limit_hit}').")
-                page.screenshot(path=str(Path.home() / "grok_animate_debug.png"))
-                ctx.close()
-                raise GrokLimitReached(limit_hit)
-
-            hit = next((p for p in REFUSAL_PHRASES if p in page_text), None)
-            if hit:
-                print(f"\nREFUSED: Grok declined this prompt (matched '{hit}').")
-            else:
-                print("\nFAILED: no new render appeared before the timeout.")
-            page.screenshot(path=str(Path.home() / "grok_animate_debug.png"))
-            print(f"Debug screenshot: {Path.home() / 'grok_animate_debug.png'}")
-            ctx.close()
-            return None
-
-        print(f"{len(candidates)} new render(s) to verify (newest first):")
-
-        if output_path:
-            dest = Path(os.path.abspath(output_path))
-        else:
-            dest = Path(OUTPUT_DIR) / f"{Path(image_path).stem}.mp4"
-        dest.parent.mkdir(parents=True, exist_ok=True)
-
-        # Newest first: the prompted render finishes after the auto baseline clip.
-        # The first verified render becomes `dest`; every other verified render
-        # of the same submission is kept beside it in `_alts/<stem>_altN.mp4`,
-        # so the user can swap in the take he prefers.
-        saved = None
-        alt_n = 0
-        for url in reversed(candidates):
-            short = url.split("/generated/")[-1][:36]
-            try:
-                resp = ctx.request.get(url, timeout=120000)
-                if not resp.ok:
-                    print(f"  [{short}] HTTP {resp.status} — skipping")
-                    continue
-                body = resp.body()
-            except Exception as e:
-                print(f"  [{short}] download failed: {e} — skipping")
-                continue
-
-            if len(body) < 10000:
-                print(f"  [{short}] only {len(body)} bytes — skipping")
-                continue
-
-            tmp = Path(tempfile.gettempdir()) / f"grok_verify_{uuid.uuid4().hex}.mp4"
-            tmp.write_bytes(body)
-            try:
-                mse = _first_frame_mse(str(tmp), image_path)
-                if mse is None:
-                    print(f"  [{short}] UNVERIFIED (cv2 unavailable or unreadable) — "
-                          f"accepting on position alone")
-                elif mse > FIRST_FRAME_MSE_MAX:
-                    print(f"  [{short}] MSE {mse:.0f} — not from this image, skipping")
-                    continue
-                else:
-                    print(f"  [{short}] MSE {mse:.0f} — verified match")
-
-                if saved is None:
-                    target = dest
-                else:
-                    alt_n += 1
-                    target = dest.parent / "_alts" / f"{dest.stem}_alt{alt_n}{dest.suffix}"
-                    target.parent.mkdir(parents=True, exist_ok=True)
-                target.write_bytes(body)
-            finally:
-                tmp.unlink(missing_ok=True)
-
-            print(f"Saved {len(body) // 1024} KB -> {target}")
-            if saved is None:
-                saved = str(dest)
-
-        ctx.close()
-        if saved:
-            return saved
-
-        print("\nFAILED: new renders appeared but none came from this image.")
-        return None
-
+    return results
 
 def main():
     # See rescue_hotjigsaw_videos.main(): an unencodable character in Grok's
