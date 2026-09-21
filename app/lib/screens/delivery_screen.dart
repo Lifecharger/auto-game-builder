@@ -229,6 +229,10 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
                             _kuralBasligi(),
                             if (_custom) ...[
                               _onAyarlar(),
+                              if (_pool == 'cards') ...[
+                                const SizedBox(height: 6),
+                                _kapsam(),
+                              ],
                               const SizedBox(height: 6),
                               for (final f in _o!.order) _alan(f),
                             ],
@@ -322,6 +326,74 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
         }
         _dirty = true;
       }),
+    );
+  }
+
+  /// Kart havuzu: bu uygulama hangi KOLEKSIYONLARI gorsun.
+  ///
+  /// "Yalniz secilenler" acikken liste sabittir - manifest'e sonradan giren bir
+  /// koleksiyon bu uygulamaya gecmez. Hot Idle minigame kadinlarini boyle
+  /// dondurduk: bugunku desteler kalir, yeni desteler yalniz Hot Card Games'e gider.
+  Widget _kapsam() {
+    final rs = _cur;
+    final o = _o!;
+    if (o.collections.isEmpty) return const SizedBox.shrink();
+    final secili = rs.scopeOnly ? rs.collections.length : o.collections.length;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SwitchListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              value: rs.scopeOnly,
+              title: const Text('Yalniz secili koleksiyonlar', style: TextStyle(fontSize: 13)),
+              subtitle: Text(
+                  rs.scopeOnly
+                      ? '$secili/${o.collections.length} koleksiyon - yeni yayinlananlar bu uygulamaya GITMEZ'
+                      : 'Kapali: yeni yayinlanan her koleksiyon bu uygulamaya da gider',
+                  style: const TextStyle(fontSize: 11, color: Colors.grey)),
+              onChanged: (v) => setState(() {
+                rs.scopeOnly = v;
+                // Acilirken bugunku katalog yakalanir: mevcut desteler kalir,
+                // bundan SONRA yayinlananlar disarida kalir.
+                if (v && rs.collections.isEmpty) {
+                  rs.collections.addAll(o.collections.map((c) => c.id));
+                }
+                _dirty = true;
+              }),
+            ),
+            if (rs.scopeOnly)
+              Wrap(
+                spacing: 6,
+                runSpacing: 2,
+                children: [
+                  for (final c in o.collections)
+                    FilterChip(
+                      label: Text('${c.name} (${c.cards})', style: const TextStyle(fontSize: 11)),
+                      selected: rs.collections.contains(c.id),
+                      onSelected: (on) => setState(() {
+                        if (on) {
+                          rs.collections.add(c.id);
+                        } else {
+                          rs.collections.remove(c.id);
+                        }
+                        _dirty = true;
+                      }),
+                    ),
+                ],
+              ),
+            if (rs.scopeOnly && rs.collections.isEmpty)
+              const Padding(
+                padding: EdgeInsets.only(top: 4),
+                child: Text('Hicbiri secili degil - bos liste kaydedilmez, kural "hepsi"ne doner.',
+                    style: TextStyle(fontSize: 11, color: Colors.orange)),
+              ),
+          ],
+        ),
+      ),
     );
   }
 

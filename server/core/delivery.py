@@ -149,6 +149,10 @@ def rules(pool: str = "jigsaw") -> dict:
     r = _call("/serve-rules", pool=pool)
     r.setdefault("default", {"enabled": True, "untagged": True, "values": {}})
     r.setdefault("apps", {})
+    if pool == "cards":     # eski KV kaydinda kapsam yok - istemciler hep ayni sekli gorsun
+        for rs in [r["default"], *(r["apps"] or {}).values()]:
+            if isinstance(rs, dict):
+                rs.setdefault("collections", {"mode": "all", "ids": []})
     return r
 
 
@@ -156,15 +160,33 @@ def save_rules(body: dict, pool: str = "jigsaw") -> dict:
     """Kurallari worker'a yazar (updated damgasini worker koyar) - anlik canli."""
     if not isinstance(body, dict):
         raise ValueError("kural govdesi sozluk olmali")
-    temiz = {"default": _ruleset(body.get("default")), "apps": {}}
+    temiz = {"default": _ruleset(body.get("default"), pool), "apps": {}}
     for pk, rs in (body.get("apps") or {}).items():
         if isinstance(rs, dict):
-            temiz["apps"][str(pk)] = _ruleset(rs)
+            temiz["apps"][str(pk)] = _ruleset(rs, pool)
     out = _call("/serve-rules", temiz, pool=pool)
     return {"ok": True, "updated": out.get("updated"), "rules": dict(temiz, updated=out.get("updated"))}
 
 
-def _ruleset(rs) -> dict:
+def _kapsam(rs) -> dict:
+    """Uygulamanin gordugu KOLEKSIYONLAR (yalniz kart havuzu).
+
+    `all` manifest'teki her koleksiyonu verir; `only` yalniz sayilanlari verir,
+    yani sonradan yayinlanan bir koleksiyon o uygulamaya kendiliginden GECMEZ.
+    Bos bir `only` listesi uygulamayi bos katalogla birakirdi - `all`a duser.
+    """
+    k = rs.get("collections")
+    k = k if isinstance(k, dict) else {}
+    ids, gorulen = [], set()
+    for x in (k.get("ids") or []):
+        ad = str(x).strip()
+        if ad and ad not in gorulen:
+            gorulen.add(ad)
+            ids.append(ad)
+    return {"mode": "only", "ids": ids} if k.get("mode") == "only" and ids else {"mode": "all", "ids": []}
+
+
+def _ruleset(rs, pool: str = "jigsaw") -> dict:
     rs = rs if isinstance(rs, dict) else {}
     values = {}
     for alan, tablo in (rs.get("values") or {}).items():
@@ -173,9 +195,12 @@ def _ruleset(rs) -> dict:
             kapali = {str(v): False for v, on in tablo.items() if on is False}
             if kapali:
                 values[str(alan)] = kapali
-    return {"enabled": rs.get("enabled", True) is not False,
-            "untagged": rs.get("untagged", True) is not False,
-            "values": values}
+    out = {"enabled": rs.get("enabled", True) is not False,
+           "untagged": rs.get("untagged", True) is not False,
+           "values": values}
+    if pool == "cards":     # koleksiyon kapsami yalniz kart katalogunda anlamli
+        out["collections"] = _kapsam(rs)
+    return out
 
 
 def values(collection: str = "generic", pool: str = "jigsaw") -> dict:
@@ -211,8 +236,10 @@ def overview(pool: str = "jigsaw") -> dict:
     for a in (CARD_APPS if pool == "cards" else APPS):
         st = pv.get(a["package"]) or {}
         apps.append(dict(a, custom=a["package"] in (r.get("apps") or {}),
-                         served=st.get("served"), total=st.get("total"), blocked=st.get("blocked") or {}))
+                         served=st.get("served"), total=st.get("total"), blocked=st.get("blocked") or {},
+                         collections=st.get("collections") or {}))
     return {"pool": pool, "worker": worker_url(pool), "rules": r, "values": v, "apps": apps,
+            "collections": v.get("collections") or [],
             "default_stats": pv.get("default") or {},
             "presets": {k: {"label": p["label"]} for k, p in PRESETS.items()}}
 
