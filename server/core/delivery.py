@@ -3,7 +3,7 @@
 Kullanicinin amaci: olasi bir Google Play strike'ina HIZLI tepki. Generic
 havuzundaki her gorselin EXIF'inde rating / safety / voyeur / skin / risk ...
 alanlari var; bu modul o alanlarin degerleri uzerinde uygulama basina ac/kapa
-anahtarlarini gallery-hot worker'ina yazar. Worker manifesti uygulama
+anahtarlarini dagitim worker'ina yazar. Worker manifesti uygulama
 basina filtreler ve kural degisince kenar onbellegini kendiliginden dusurur -
 uygulama guncellemesi gerekmez, sonraki manifest isteginde canli.
 
