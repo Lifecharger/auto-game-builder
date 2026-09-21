@@ -4,8 +4,8 @@ Jigsaw / kart / karakter akislari YEREL klasorleri gorur; push'tan sonra kovada 
 oldugunu AGB'den goremiyorduk. Bu modul kovalarin icine bakar:
 
   * kayit defteri  server/config/r2_buckets.json - kova, dosya alan adi, rol ve
-    ESKI IKIZ ile anahtar eslemesi (gallery-hot <-> hotjigsaw, promo <-> hotjigsaw
-    promo/, characters <-> hotcardgames relationships/<kiz>/ ...)
+    ESKI IKIZ ile anahtar eslemesi (bir yeni kova bir eski kovanin tek bir on
+    ekine denk gelebilir; esleme kurallari kayit defterinde durur)
   * gezinme       klasor gibi listeleme (delimiter "/"), basliklar, kucuk onizleme
   * silme         yazili onay + ikiz kovadan da silme (strike yanitinin YENI ve
                   ESKI kopyayi birlikte dusurmesi gerekir)
@@ -151,8 +151,8 @@ def _fill(sablon: str, alanlar: dict) -> str:
 def _literal_prefix(sablon: str) -> str:
     """Sablonun ilk yer tutucudan onceki sabit basi ("promo/{r...}" -> "promo/").
 
-    Ikiz farkinda ESKI kovanin yalniz bu onekleri listelenir: hotjigsaw'in
-    `collections/` agaci promo'nun isi degildir.
+    Ikiz farkinda ESKI kovanin yalniz bu onekleri listelenir: bir eski kovanin
+    `collections/` agaci, ondan beslenen baska bir kovanin isi degildir.
     """
     m = _PLACEHOLDER.search(sablon)
     return sablon if not m else sablon[:m.start()]
@@ -164,7 +164,7 @@ def _rules(bucket: str) -> list[dict]:
     Kova YENI tarafsa kendi `twin` kurallari; ESKI tarafsa kendisini ikiz
     gosteren yeni kovalarin kurallari TERS cevrilerek - esleme tek yerde,
     r2_buckets.json'da tanimli kalir. Bir eski kova birden cok yeni kovayi
-    besleyebilir (hotjigsaw -> gallery-hot + promo).
+    besleyebilir (bir eski kova -> iki yeni kova).
     """
     twin = bucket_info(bucket).get("twin") or {}
     if twin.get("bucket"):

@@ -34,6 +34,56 @@ def _load(name: str, path: Path):
     return mod
 
 
+
+# Butun testlerin kullandigi SENTETIK kayit defteri. Gercek kova ve alan adlari
+# depoda durmaz (server/config/r2_buckets.json gitignore'dadir), bu yuzden
+# testler de gercegi bilmez: burada her ROL ve her esleme SEKLI temsil edilir.
+FIXTURE_REGISTRY = {
+    "legacy_retires_on": "2026-10-20",
+    "cache_standard": {
+        "asset": "public, max-age=7776000, immutable",
+        "json": "public, max-age=21600, stale-while-revalidate=86400",
+        "mutable_prefixes": ["yeni-kadro/*/ladder/"],
+    },
+    "buckets": [
+        {"name": "yeni-galeri", "files_domain": "https://galeri.ornek.test", "role": "content",
+         "local_rating": "hot",
+         "twin": {"bucket": "eski-kova", "rules": [{"new": "collections/{rest...}",
+                                                    "legacy": "collections/{rest...}"}]}},
+        {"name": "yeni-aile", "files_domain": "https://aile.ornek.test", "role": "content",
+         "local_rating": "kid",
+         "twin": {"bucket": "eski-aile", "rules": [{"new": "collections/{rest...}",
+                                                    "legacy": "collections/{rest...}"}]}},
+        {"name": "yeni-tanitim", "files_domain": "https://tanitim.ornek.test", "role": "content",
+         "twin": {"bucket": "eski-kova", "rules": [{"new": "cross-promo/{rest...}",
+                                                    "legacy": "promo/{rest...}"}]}},
+        {"name": "yeni-kart", "files_domain": "https://kart.ornek.test", "role": "content",
+         "twin": {"bucket": "eski-kart", "rules": [{"new": "manifest.json", "legacy": "manifest.json"},
+                                                   {"new": "collections/{rest...}",
+                                                    "legacy": "collections/{rest...}"},
+                                                   {"new": "dealers/{rest...}",
+                                                    "legacy": "dealers/{rest...}"}]}},
+        {"name": "yeni-kadro", "files_domain": "https://kadro.ornek.test", "role": "content",
+         "twin": {"bucket": "eski-kart", "rules": [{"new": "{ad}/ladder/{rest...}",
+                                                    "legacy": "ladder/{ad}/{rest...}"}]}},
+        {"name": "yeni-idol", "files_domain": "https://idol.ornek.test", "role": "content",
+         "twin": {"bucket": "eski-kadro", "rules": [{"new": "{rest...}", "legacy": "{rest...}"}]}},
+        {"name": "eski-kova", "role": "legacy"},
+        {"name": "eski-kadro", "role": "legacy"},
+        {"name": "eski-aile", "role": "legacy"},
+        {"name": "eski-kart", "role": "legacy"},
+        {"name": "ozel-kova", "role": "private"},
+    ],
+}
+
+
+def _kur(yol: str = "r2_control_test.r2_control"):
+    """Modulu sentetik kayit defteriyle yukler - hicbir test gercegi gormez."""
+    r2 = _load(yol, CORE / "r2_control.py")
+    r2._registry_cache = json.loads(json.dumps(FIXTURE_REGISTRY))
+    return r2
+
+
 class FakeS3:
     """In-memory stand-in for tools/r2/r2_s3.py. Records every mutation."""
 
@@ -135,12 +185,12 @@ class SignerTests(unittest.TestCase):
 
     def test_delete_batch_refuses_more_than_one_thousand_keys(self):
         with self.assertRaises(ValueError):
-            self.s3.delete_objects("promo", ["k%d" % i for i in range(1001)])
+            self.s3.delete_objects("yeni-tanitim", ["k%d" % i for i in range(1001)])
 
 
 class RegistryTests(unittest.TestCase):
     def setUp(self):
-        self.r2 = _load("r2_control_test.r2_control", CORE / "r2_control.py")
+        self.r2 = _kur()
 
     def test_every_twin_points_at_a_registered_bucket(self):
         adlar = set(self.r2.bucket_names())
@@ -149,93 +199,117 @@ class RegistryTests(unittest.TestCase):
             if twin:
                 self.assertIn(twin, adlar, b["name"])
 
+    # Esleme KURALLARI sentetik bir kayit defterine karsi sinanir: gercek kova
+    # adlari depoda durmaz (r2_buckets.json gitignore'da), ve boylece taze bir
+    # klonda da gecer. Her kural sekli temsil edilir: birebir anahtar, on ek
+    # yeniden yazma ve bir klasor seviyesinin yer degistirmesi.
+    FIXTURE = {
+        "buckets": [
+            {"name": "yeni-galeri", "role": "content",
+             "twin": {"bucket": "eski-kova", "rules": [{"new": "collections/{rest...}",
+                                                        "legacy": "collections/{rest...}"}]}},
+            {"name": "yeni-tanitim", "role": "content",
+             "twin": {"bucket": "eski-kova", "rules": [{"new": "cross-promo/{rest...}",
+                                                        "legacy": "promo/{rest...}"}]}},
+            {"name": "yeni-kadro", "role": "content",
+             "twin": {"bucket": "eski-kart", "rules": [{"new": "manifest.json", "legacy": "manifest.json"},
+                                                       {"new": "{ad}/ladder/{rest...}",
+                                                        "legacy": "ladder/{ad}/{rest...}"}]}},
+            {"name": "eski-kova", "role": "legacy"},
+        {"name": "eski-kadro", "role": "legacy"},
+            {"name": "eski-kart", "role": "legacy"},
+            {"name": "ikizi-olmayan", "role": "private"},
+        ],
+    }
+
+    def _fixture(self):
+        return self.r2
+
     def test_twin_mapping_both_directions(self):
+        r2 = self._fixture()
         cases = [
-            ("gallery-hot", "collections/Generic/images/5.jpg",
-             "hotjigsaw", "collections/Generic/images/5.jpg"),
-            ("promo", "cross-promo/manifest.json", "hotjigsaw", "promo/manifest.json"),
-            ("characters", "freya/relationships/L3_scene_loop.webp",
-             "hotcardgames", "relationships/freya/L3_scene_loop.webp"),
-            ("cards", "dealers/nova_sheet.webp", "hotcardgames", "dealers/nova_sheet.webp"),
-            ("cards", "manifest.json", "hotcardgames", "manifest.json"),
-            ("idols", "bella/public/dance/x.ab12cd34.webp",
-             "characters-v2", "bella/public/dance/x.ab12cd34.webp"),
-            ("gallery-family", "collections/animals/videos/2.mp4",
-             "kidfriendlybucket", "collections/animals/videos/2.mp4"),
+            ("yeni-galeri", "collections/Generic/images/5.jpg",
+             "eski-kova", "collections/Generic/images/5.jpg"),
+            ("yeni-tanitim", "cross-promo/manifest.json", "eski-kova", "promo/manifest.json"),
+            ("yeni-kadro", "freya/ladder/L3_scene_loop.webp",
+             "eski-kart", "ladder/freya/L3_scene_loop.webp"),
+            ("yeni-kart", "manifest.json", "eski-kart", "manifest.json"),
         ]
         for bucket, key, twin, twin_key in cases:
-            self.assertEqual(self.r2.twin_key(bucket, key), (twin, twin_key), key)
+            self.assertEqual(r2.twin_key(bucket, key), (twin, twin_key), key)
             # The legacy bucket maps back through the same rule, reversed.
-            self.assertEqual(self.r2.twin_key(twin, twin_key), (bucket, key), twin_key)
+            self.assertEqual(r2.twin_key(twin, twin_key), (bucket, key), twin_key)
 
     def test_unmapped_keys_are_not_invented(self):
-        # shop_characters/ came from a bucket that is already deleted - no twin.
-        self.assertEqual(self.r2.twin_key("cards", "shop_characters/noir/ava/ava.webp"), ("", ""))
-        self.assertEqual(self.r2.twin_key("characters", "characters.json"), ("", ""))
-        self.assertEqual(self.r2.twin_key("game-reports", "anything"), ("", ""))
+        # A prefix no rule mentions belongs to a bucket that is already gone.
+        r2 = self._fixture()
+        self.assertEqual(r2.twin_key("yeni-kart", "shop/noir/ava/ava.webp"), ("", ""))
+        self.assertEqual(r2.twin_key("yeni-kadro", "index.json"), ("", ""))
+        self.assertEqual(r2.twin_key("ozel-kova", "anything"), ("", ""))
 
     def test_one_legacy_bucket_can_feed_two_new_ones(self):
-        self.assertEqual(self.r2.twin_buckets("hotjigsaw"), ["gallery-hot", "promo"])
-        self.assertEqual(self.r2.twin_key("hotjigsaw", "promo/a_icon_v1.webp"),
-                         ("promo", "cross-promo/a_icon_v1.webp"))
-        self.assertEqual(self.r2.twin_key("hotjigsaw", "collections/x/images/1.jpg"),
-                         ("gallery-hot", "collections/x/images/1.jpg"))
+        r2 = self._fixture()
+        self.assertEqual(r2.twin_buckets("eski-kova"), ["yeni-galeri", "yeni-tanitim"])
+        self.assertEqual(r2.twin_key("eski-kova", "promo/a_icon_v1.webp"),
+                         ("yeni-tanitim", "cross-promo/a_icon_v1.webp"))
+        self.assertEqual(r2.twin_key("eski-kova", "collections/x/images/1.jpg"),
+                         ("yeni-galeri", "collections/x/images/1.jpg"))
 
     def test_literal_prefix_limits_the_legacy_listing(self):
         self.assertEqual(self.r2._literal_prefix("promo/{rest...}"), "promo/")
-        self.assertEqual(self.r2._literal_prefix("{girl}/relationships/{rest...}"), "")
+        self.assertEqual(self.r2._literal_prefix("{ad}/ladder/{rest...}"), "")
         self.assertEqual(self.r2._literal_prefix("manifest.json"), "manifest.json")
 
     def test_unknown_bucket_is_refused(self):
         with self.assertRaises(ValueError):
-            self.r2.bucket_info("hotjigsaw-scanner")
+            self.r2.bucket_info("kayitsiz-ad")
 
     def test_public_url_only_for_buckets_with_a_files_domain(self):
-        self.assertEqual(self.r2.public_url("promo", "cross-promo/a b.webp"),
-                         "https://promo.lifechargergames.com/cross-promo/a%20b.webp")
-        self.assertEqual(self.r2.public_url("game-reports", "x"), "")
+        self.assertEqual(self.r2.public_url("yeni-tanitim", "cross-promo/a b.webp"),
+                         "https://tanitim.ornek.test/cross-promo/a%20b.webp")
+        self.assertEqual(self.r2.public_url("ozel-kova", "x"), "")
 
 
 class HeaderStandardTests(unittest.TestCase):
     def setUp(self):
-        self.r2 = _load("r2_control_test.r2_control", CORE / "r2_control.py")
+        self.r2 = _kur()
 
     def test_assets_want_the_immutable_ninety_day_header(self):
-        d = self.r2.header_check("gallery-hot", "collections/a/images/1.jpg",
+        d = self.r2.header_check("yeni-galeri", "collections/a/images/1.jpg",
                                  "public, max-age=7776000, immutable")
         self.assertEqual(d["kind"], "asset")
         self.assertTrue(d["ok"])
 
     def test_json_wants_the_revalidating_header(self):
-        d = self.r2.header_check("cards", "manifest.json",
+        d = self.r2.header_check("yeni-kart", "manifest.json",
                                  "public, max-age=21600, stale-while-revalidate=86400")
         self.assertEqual(d["kind"], "json")
         self.assertTrue(d["ok"])
 
     def test_deviation_is_reported_with_the_expected_value(self):
-        d = self.r2.header_check("gallery-hot", "collections/a/images/1.jpg", "public, max-age=60")
+        d = self.r2.header_check("yeni-galeri", "collections/a/images/1.jpg", "public, max-age=60")
         self.assertFalse(d["ok"])
         self.assertEqual(d["expected"], "public, max-age=7776000, immutable")
 
     def test_relationships_are_intentionally_mutable_for_now(self):
-        d = self.r2.header_check("characters", "freya/relationships/L1.webp", "public, max-age=60")
+        d = self.r2.header_check("yeni-kadro", "freya/ladder/L1.webp", "public, max-age=60")
         self.assertEqual(d["kind"], "mutable")
         self.assertTrue(d["ok"])
         # The same file name under another bucket is an ordinary asset.
-        self.assertFalse(self.r2.header_check("cards", "freya/relationships/L1.webp",
+        self.assertFalse(self.r2.header_check("yeni-kart", "freya/ladder/L1.webp",
                                               "public, max-age=60")["ok"])
 
     def test_spacing_and_case_do_not_count_as_a_deviation(self):
         self.assertTrue(self.r2.header_check(
-            "cards", "manifest.json",
+            "yeni-kart", "manifest.json",
             "Public,max-age=21600,  stale-while-revalidate=86400")["ok"])
 
 
 class DeleteGuardTests(unittest.TestCase):
     def setUp(self):
-        self.r2 = _load("r2_control_test.r2_control", CORE / "r2_control.py")
-        self.fake = FakeS3({"promo": {"cross-promo/a.webp": {"size": 10}},
-                            "hotjigsaw": {"promo/a.webp": {"size": 10}}})
+        self.r2 = _kur()
+        self.fake = FakeS3({"yeni-tanitim": {"cross-promo/a.webp": {"size": 10}},
+                            "eski-kova": {"promo/a.webp": {"size": 10}}})
         self.r2._s3_cache = self.fake
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
@@ -244,45 +318,45 @@ class DeleteGuardTests(unittest.TestCase):
 
     def test_confirm_must_be_the_bucket_name(self):
         with self.assertRaises(ValueError):
-            self.r2.delete("promo", ["cross-promo/a.webp"], confirm="")
+            self.r2.delete("yeni-tanitim", ["cross-promo/a.webp"], confirm="")
         with self.assertRaises(ValueError):
-            self.r2.delete("promo", ["cross-promo/a.webp"], confirm="Promo")
+            self.r2.delete("yeni-tanitim", ["cross-promo/a.webp"], confirm="Promo")
         self.assertEqual(self.fake.deleted, [])
 
     def test_more_than_five_hundred_keys_is_refused(self):
         with self.assertRaises(ValueError):
-            self.r2.delete("promo", ["k%d" % i for i in range(501)], confirm="promo")
+            self.r2.delete("yeni-tanitim", ["k%d" % i for i in range(501)], confirm="yeni-tanitim")
         self.assertEqual(self.fake.deleted, [])
 
     def test_empty_selection_and_unknown_bucket_are_refused(self):
         with self.assertRaises(ValueError):
-            self.r2.delete("promo", [], confirm="promo")
+            self.r2.delete("yeni-tanitim", [], confirm="yeni-tanitim")
         with self.assertRaises(ValueError):
             self.r2.delete("nosuchbucket", ["a"], confirm="nosuchbucket")
 
     def test_plain_delete_leaves_the_legacy_twin_alone(self):
-        out = self.r2.delete("promo", ["cross-promo/a.webp"], confirm="promo")
+        out = self.r2.delete("yeni-tanitim", ["cross-promo/a.webp"], confirm="yeni-tanitim")
         self.assertEqual(out["deleted"], 1)
-        self.assertEqual(self.fake.deleted, [("promo", ["cross-promo/a.webp"])])
-        self.assertIn("promo/a.webp", self.fake.objects["hotjigsaw"])
+        self.assertEqual(self.fake.deleted, [("yeni-tanitim", ["cross-promo/a.webp"])])
+        self.assertIn("promo/a.webp", self.fake.objects["eski-kova"])
 
     def test_takedown_clears_the_legacy_twin_too(self):
-        out = self.r2.delete("promo", ["cross-promo/a.webp"], takedown=True, confirm="promo")
+        out = self.r2.delete("yeni-tanitim", ["cross-promo/a.webp"], takedown=True, confirm="yeni-tanitim")
         self.assertEqual(self.fake.deleted,
-                         [("promo", ["cross-promo/a.webp"]), ("hotjigsaw", ["promo/a.webp"])])
-        self.assertEqual(out["twins"], [{"bucket": "hotjigsaw", "keys": ["promo/a.webp"],
+                         [("yeni-tanitim", ["cross-promo/a.webp"]), ("eski-kova", ["promo/a.webp"])])
+        self.assertEqual(out["twins"], [{"bucket": "eski-kova", "keys": ["promo/a.webp"],
                                          "deleted": 1, "errors": []}])
-        self.assertEqual(self.fake.objects["hotjigsaw"], {})
+        self.assertEqual(self.fake.objects["eski-kova"], {})
 
     def test_takedown_reports_keys_it_cannot_map(self):
-        self.fake.objects["cards"] = {"shop_characters/x.webp": {"size": 1}}
-        out = self.r2.delete("cards", ["shop_characters/x.webp"], takedown=True, confirm="cards")
+        self.fake.objects["yeni-kart"] = {"shop_characters/x.webp": {"size": 1}}
+        out = self.r2.delete("yeni-kart", ["shop_characters/x.webp"], takedown=True, confirm="yeni-kart")
         self.assertEqual(out["unmapped"], ["shop_characters/x.webp"])
         self.assertEqual(out["twins"], [])
 
     def test_every_delete_lands_in_the_audit_log(self):
-        self.r2.delete("promo", ["cross-promo/a.webp"], takedown=True,
-                       confirm="promo", client="studyo")
+        self.r2.delete("yeni-tanitim", ["cross-promo/a.webp"], takedown=True,
+                       confirm="yeni-tanitim", client="studyo")
         satirlar = [json.loads(s) for s in
                     Path(self.r2._AUDIT_FILE).read_text(encoding="utf-8").splitlines()]
         self.assertEqual([s["action"] for s in satirlar], ["takedown", "takedown-twin"])
@@ -290,17 +364,17 @@ class DeleteGuardTests(unittest.TestCase):
         self.assertEqual(satirlar[1]["keys"], ["promo/a.webp"])
 
     def test_plan_shows_both_buckets_before_anything_is_deleted(self):
-        plan = self.r2.takedown_plan("promo", ["cross-promo/a.webp", "cross-promo/b.webp"])
+        plan = self.r2.takedown_plan("yeni-tanitim", ["cross-promo/a.webp", "cross-promo/b.webp"])
         self.assertEqual(plan["twins"],
-                         [{"bucket": "hotjigsaw", "keys": ["promo/a.webp", "promo/b.webp"]}])
+                         [{"bucket": "eski-kova", "keys": ["promo/a.webp", "promo/b.webp"]}])
         self.assertEqual(plan["limit"], 500)
         self.assertEqual(self.fake.deleted, [])
 
 
 class PreviewTests(unittest.TestCase):
     def setUp(self):
-        self.r2 = _load("r2_control_test.r2_control", CORE / "r2_control.py")
-        self.fake = FakeS3({"gallery-hot": {
+        self.r2 = _kur()
+        self.fake = FakeS3({"yeni-galeri": {
             "collections/a/videos/1.mp4": {"size": 3_000_000, "content_type": "video/mp4"},
             "collections/a/videos_webp/1.webp": {"size": 2_900_000, "content_type": "image/webp"},
             "collections/a/images/1.jpg": {"size": 300_000, "content_type": "image/jpeg"},
@@ -310,41 +384,41 @@ class PreviewTests(unittest.TestCase):
 
     def test_videos_are_never_downloaded(self):
         with self.assertRaises(self.r2.NoPreview) as e:
-            self.r2.thumb("gallery-hot", "collections/a/videos/1.mp4")
+            self.r2.thumb("yeni-galeri", "collections/a/videos/1.mp4")
         self.assertEqual(e.exception.reason, "video")
         self.assertEqual(e.exception.size, 3_000_000)
 
     def test_objects_over_two_megabytes_are_never_downloaded(self):
         with self.assertRaises(self.r2.NoPreview) as e:
-            self.r2.thumb("gallery-hot", "collections/a/videos_webp/1.webp")
+            self.r2.thumb("yeni-galeri", "collections/a/videos_webp/1.webp")
         self.assertEqual(e.exception.reason, "too_large")
 
     def test_audio_is_reported_as_not_an_image(self):
         with self.assertRaises(self.r2.NoPreview) as e:
-            self.r2.thumb("gallery-hot", "collections/a/music/t.mp3")
+            self.r2.thumb("yeni-galeri", "collections/a/music/t.mp3")
         self.assertEqual(e.exception.reason, "not_image")
 
     def test_listing_marks_only_small_stills_as_previewable(self):
         rows = {o["name"]: o["preview"]
-                for o in self.r2.list_prefix("gallery-hot", "collections/a/")["objects"]}
+                for o in self.r2.list_prefix("yeni-galeri", "collections/a/")["objects"]}
         self.assertEqual(rows, {})          # everything sits one level deeper
         rows = {o["name"]: o["preview"]
-                for o in self.r2.list_prefix("gallery-hot", "collections/a/videos/")["objects"]}
+                for o in self.r2.list_prefix("yeni-galeri", "collections/a/videos/")["objects"]}
         self.assertEqual(rows, {"1.mp4": False})
         rows = {o["name"]: o["preview"]
-                for o in self.r2.list_prefix("gallery-hot", "collections/a/images/")["objects"]}
+                for o in self.r2.list_prefix("yeni-galeri", "collections/a/images/")["objects"]}
         self.assertEqual(rows, {"1.jpg": True})
 
     def test_browsing_shows_sub_folders(self):
-        out = self.r2.list_prefix("gallery-hot", "collections/a/")
+        out = self.r2.list_prefix("yeni-galeri", "collections/a/")
         self.assertEqual([f["name"] for f in out["folders"]],
                          ["images", "music", "videos", "videos_webp"])
 
 
 class FixHeaderTests(unittest.TestCase):
     def setUp(self):
-        self.r2 = _load("r2_control_test.r2_control", CORE / "r2_control.py")
-        self.fake = FakeS3({"cards": {
+        self.r2 = _kur()
+        self.fake = FakeS3({"yeni-kart": {
             "manifest.json": {"size": 5, "content_type": "application/json",
                               "cache_control": "public, max-age=60"},
             "collections/a/a_ace_sheet.webp": {"size": 9, "content_type": "image/webp",
@@ -359,7 +433,7 @@ class FixHeaderTests(unittest.TestCase):
         self.r2._AUDIT_FILE = str(Path(self.tmp.name, "r2_audit.log"))
 
     def test_only_deviating_objects_are_rewritten_and_the_type_is_kept(self):
-        op = self.r2.fix_headers("cards", "")
+        op = self.r2.fix_headers("yeni-kart", "")
         self._wait(op)
         self.assertEqual(sorted(c[1] for c in self.fake.copies),
                          ["collections/a/a_two_sheet.webp", "manifest.json"])
@@ -371,7 +445,7 @@ class FixHeaderTests(unittest.TestCase):
 
     def test_an_empty_prefix_tree_is_refused_before_an_op_starts(self):
         with self.assertRaises(ValueError):
-            self.r2.fix_headers("cards", "nothing/here/")
+            self.r2.fix_headers("yeni-kart", "nothing/here/")
 
     def _wait(self, op):
         for _ in range(200):
@@ -386,10 +460,10 @@ class FixHeaderTests(unittest.TestCase):
 
 class CopyTests(unittest.TestCase):
     def setUp(self):
-        self.r2 = _load("r2_control_test.r2_control", CORE / "r2_control.py")
-        self.fake = FakeS3({"gallery-hot": {"collections/a/images/1.jpg": {"size": 1},
+        self.r2 = _kur()
+        self.fake = FakeS3({"yeni-galeri": {"collections/a/images/1.jpg": {"size": 1},
                                             "collections/a/images/2.jpg": {"size": 2}},
-                            "gallery-family": {}})
+                            "yeni-aile": {}})
         self.r2._s3_cache = self.fake
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
@@ -397,7 +471,7 @@ class CopyTests(unittest.TestCase):
         self.r2._AUDIT_FILE = str(Path(self.tmp.name, "r2_audit.log"))
 
     def test_prefix_copy_keeps_the_relative_path(self):
-        op = self.r2.copy("gallery-hot", "gallery-family",
+        op = self.r2.copy("yeni-galeri", "yeni-aile",
                           src_prefix="collections/a", dst_prefix="collections/b")
         for _ in range(200):
             o = self.r2.op_status(op)
@@ -405,21 +479,21 @@ class CopyTests(unittest.TestCase):
                 break
             import time
             time.sleep(0.01)
-        self.assertEqual(sorted(self.fake.objects["gallery-family"]),
+        self.assertEqual(sorted(self.fake.objects["yeni-aile"]),
                          ["collections/b/images/1.jpg", "collections/b/images/2.jpg"])
 
     def test_a_copy_needs_exactly_one_of_key_or_prefix(self):
         with self.assertRaises(ValueError):
-            self.r2.copy("gallery-hot", "gallery-family",
+            self.r2.copy("yeni-galeri", "yeni-aile",
                          src_key="collections/a/images/1.jpg", src_prefix="collections/a/")
         with self.assertRaises(ValueError):
-            self.r2.copy("gallery-hot", "gallery-family")
+            self.r2.copy("yeni-galeri", "yeni-aile")
         with self.assertRaises(ValueError):
-            self.r2.copy("gallery-hot", "gallery-family", src_key="collections/a/images/1.jpg")
+            self.r2.copy("yeni-galeri", "yeni-aile", src_key="collections/a/images/1.jpg")
 
     def test_an_empty_source_tree_is_refused(self):
         with self.assertRaises(ValueError):
-            self.r2.copy("gallery-hot", "gallery-family",
+            self.r2.copy("yeni-galeri", "yeni-aile",
                          src_prefix="collections/zzz", dst_prefix="collections/b")
 
 
@@ -427,7 +501,7 @@ class LocalDiffTests(unittest.TestCase):
     """The local "Pushed" tree against the bucket, with a fake staging layout."""
 
     def setUp(self):
-        self.r2 = _load("r2_control_test.r2_control", CORE / "r2_control.py")
+        self.r2 = _kur()
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.pushed = Path(self.tmp.name, "Hot Jigsaw - Pushed", "Generic")
@@ -435,7 +509,7 @@ class LocalDiffTests(unittest.TestCase):
         for ad, boy in (("1.jpg", 10), ("1.mp4", 20), ("1.webp", 30),
                         ("1.json", 5), ("2.jpg", 40)):
             Path(self.pushed, ad).write_bytes(b"x" * boy)
-        self.fake = FakeS3({"gallery-hot": {
+        self.fake = FakeS3({"yeni-galeri": {
             "collections/Generic/images/1.jpg": {"size": 10},
             "collections/Generic/videos/1.mp4": {"size": 20},
             "collections/Generic/videos_webp/1.webp": {"size": 99},
@@ -444,7 +518,7 @@ class LocalDiffTests(unittest.TestCase):
         self.r2._s3_cache = self.fake
         sahte = types.ModuleType("r2_control_test.jigsaw_flow")
         sahte.paths = lambda rating: {"pushed": str(self.pushed.parent),
-                                      "bucket": "gallery-hot"}
+                                      "bucket": "yeni-galeri"}
         sys.modules["r2_control_test.jigsaw_flow"] = sahte
         sys.modules["r2_control_test"].jigsaw_flow = sahte
         self.addCleanup(lambda: sys.modules.pop("r2_control_test.jigsaw_flow", None))
@@ -472,35 +546,35 @@ class LocalDiffTests(unittest.TestCase):
 
 class TwinDiffTests(unittest.TestCase):
     def setUp(self):
-        self.r2 = _load("r2_control_test.r2_control", CORE / "r2_control.py")
+        self.r2 = _kur()
         self.fake = FakeS3({
-            "promo": {"cross-promo/a.webp": {"size": 10},
+            "yeni-tanitim": {"cross-promo/a.webp": {"size": 10},
                       "cross-promo/b.webp": {"size": 20},
                       "house-ads/x.webp": {"size": 5}},
-            "hotjigsaw": {"promo/a.webp": {"size": 10},
+            "eski-kova": {"promo/a.webp": {"size": 10},
                           "promo/c.webp": {"size": 30},
                           "collections/x/images/1.jpg": {"size": 99}},
         })
         self.r2._s3_cache = self.fake
 
     def test_diff_reports_both_sides_and_ignores_the_rest_of_the_legacy_bucket(self):
-        d = self.r2.twin_diff("promo")
-        self.assertEqual(d["twin"], "hotjigsaw")
+        d = self.r2.twin_diff("yeni-tanitim")
+        self.assertEqual(d["twin"], "eski-kova")
         self.assertEqual(d["missing_in_legacy"], ["cross-promo/b.webp"])
         self.assertEqual(d["only_in_legacy"], ["promo/c.webp"])
         self.assertEqual(d["unmapped"], ["house-ads/x.webp"])
         self.assertEqual(d["legacy_count"], 2)   # collections/ belongs to gallery-hot
 
     def test_size_mismatch_is_listed_with_both_keys(self):
-        self.fake.objects["hotjigsaw"]["promo/a.webp"]["size"] = 11
-        d = self.r2.twin_diff("promo")
+        self.fake.objects["eski-kova"]["promo/a.webp"]["size"] = 11
+        d = self.r2.twin_diff("yeni-tanitim")
         self.assertEqual(d["size_mismatch"], [{"key": "cross-promo/a.webp",
                                                "twin_key": "promo/a.webp",
                                                "new": 10, "legacy": 11}])
 
     def test_the_diff_is_taken_from_the_new_side(self):
         with self.assertRaises(ValueError):
-            self.r2.twin_diff("hotjigsaw")
+            self.r2.twin_diff("eski-kova")
         with self.assertRaises(ValueError):
             self.r2.twin_diff("cbn")
 

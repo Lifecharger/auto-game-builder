@@ -6166,7 +6166,7 @@ def unity_review_status(op_id: str):
 
 # ------------------------------------------------- Delivery Mod (gorev #363)
 # Uygulamalara ne sunulacaginin ac/kapa anahtarlari (rating / safety / voyeur ...).
-# Kurallar gallery-hot worker'inda (KV) yasar; buradan okunur/yazilir,
+# Kurallar dagitim worker'inda (KV) yasar; buradan okunur/yazilir,
 # degisiklik sonraki manifest isteginde canli. Bkz. core/delivery.py.
 def _delivery():
     from core import delivery

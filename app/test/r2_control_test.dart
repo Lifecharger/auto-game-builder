@@ -15,27 +15,27 @@ void main() {
         'legacy_retires_on': '2026-10-20',
         'buckets': [
           {
-            'name': 'promo',
-            'files_domain': 'https://promo.lifechargergames.com',
+            'name': 'icerik-kovasi',
+            'files_domain': 'https://icerik.ornek.test',
             'role': 'content',
-            'holds': 'capraz tanitim',
-            'twin': 'hotjigsaw',
+            'holds': 'paylasilan icerik',
+            'twin': 'eski-kova',
             'twin_map': [
-              {'bucket': 'hotjigsaw', 'from': 'cross-promo/{rest...}', 'to': 'promo/{rest...}'}
+              {'bucket': 'eski-kova', 'from': 'cross-yeni/{rest...}', 'to': 'yeni/{rest...}'}
             ],
             'objects': 31,
             'bytes': 1024 * 1024,
           },
-          {'name': 'hotjigsaw', 'role': 'legacy', 'twin': 'gallery-hot, promo'},
-          {'name': 'cbn', 'role': 'private'},
+          {'name': 'eski-kova', 'role': 'legacy', 'twin': 'yeni-kova, icerik-kovasi'},
+          {'name': 'ozel-kova', 'role': 'private'},
         ],
       });
       expect(r.legacyRetiresOn, '2026-10-20');
       expect(r.buckets.length, 3);
-      final promo = r.buckets.first;
-      expect(promo.isLegacy, isFalse);
-      expect(promo.twin, 'hotjigsaw');
-      expect(promo.twinMap.single.to, 'promo/{rest...}');
+      final icerik = r.buckets.first;
+      expect(icerik.isLegacy, isFalse);
+      expect(icerik.twin, 'eski-kova');
+      expect(icerik.twinMap.single.to, 'yeni/{rest...}');
       expect(r.buckets[1].isLegacy, isTrue);
       expect(r.buckets[2].isPrivate, isTrue);
       // Sayilmamis kova rakam uydurmaz.
@@ -44,7 +44,7 @@ void main() {
 
     test('nesne satiri onizleme bayragini sunucudan aliyor', () {
       final l = R2Listing.fromJson({
-        'bucket': 'gallery-hot',
+        'bucket': 'yeni-kova',
         'prefix': 'collections/a/',
         'folders': [
           {'prefix': 'collections/a/images/', 'name': 'images'}
@@ -67,33 +67,33 @@ void main() {
         'size': 1234,
         'content_type': 'image/jpeg',
         'cache_control': 'public, max-age=60',
-        'url': 'https://gallery-hot.lifechargergames.com/collections/a/x.jpg',
+        'url': 'https://galeri.ornek.test/collections/a/x.jpg',
         'header': {
           'kind': 'asset',
           'ok': false,
           'expected': 'public, max-age=7776000, immutable',
           'actual': 'public, max-age=60'
         },
-        'twin_bucket': 'hotjigsaw',
+        'twin_bucket': 'eski-kova',
         'twin_key': 'collections/a/x.jpg',
       });
       expect(h.headerOk, isFalse);
       expect(h.headerExpected, 'public, max-age=7776000, immutable');
-      expect(h.twinBucket, 'hotjigsaw');
+      expect(h.twinBucket, 'eski-kova');
     });
 
     test('silme plani iki kovadaki anahtarlari birlikte sayiyor', () {
       final p = R2DeletePlan.fromJson({
-        'bucket': 'promo',
+        'bucket': 'icerik-kovasi',
         'keys': ['cross-promo/a.webp', 'cross-promo/b.webp'],
         'twins': [
-          {'bucket': 'hotjigsaw', 'keys': ['promo/a.webp', 'promo/b.webp']}
+          {'bucket': 'eski-kova', 'keys': ['promo/a.webp', 'promo/b.webp']}
         ],
         'unmapped': [],
         'limit': 500,
       });
       expect(p.totalKeys, 4);
-      expect(p.twins.single.bucket, 'hotjigsaw');
+      expect(p.twins.single.bucket, 'eski-kova');
       expect(p.limit, 500);
     });
 
@@ -126,10 +126,10 @@ void main() {
       // Ekranin kendisi ag ister; burada rozet/boyut ciziminin ayni verilerle
       // ne yazdigini dogruluyoruz - istek acilmadan.
       final b = R2Bucket.fromJson({
-        'name': 'hotjigsaw',
+        'name': 'eski-kova',
         'role': 'legacy',
         'holds': 'ESKI kova',
-        'twin': 'gallery-hot, promo',
+        'twin': 'yeni-kova, icerik-kovasi',
         'objects': 4200,
         'bytes': 5 * 1024 * 1024 * 1024,
       });
@@ -141,13 +141,13 @@ void main() {
           ),
         ),
       ));
-      expect(find.text('hotjigsaw  ESKI  2026-10-20'), findsOneWidget);
-      expect(find.text('4200 nesne  ·  5.0 GB  ·  ikiz: gallery-hot, promo'), findsOneWidget);
+      expect(find.text('eski-kova  ESKI  2026-10-20'), findsOneWidget);
+      expect(find.text('4200 nesne  ·  5.0 GB  ·  ikiz: yeni-kova, icerik-kovasi'), findsOneWidget);
     });
 
     testWidgets('onizleme adresi kova ve anahtari kacisli tasiyor', (tester) async {
-      final u = R2ControlService.thumbUrl('gallery-hot', 'collections/a b/x.jpg', size: 96);
-      expect(u, contains('bucket=gallery-hot'));
+      final u = R2ControlService.thumbUrl('yeni-kova', 'collections/a b/x.jpg', size: 96);
+      expect(u, contains('bucket=yeni-kova'));
       expect(u, contains('key=collections%2Fa%20b%2Fx.jpg'));
       expect(u, contains('size=96'));
     });
