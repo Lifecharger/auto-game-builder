@@ -111,6 +111,14 @@
       }
     },
     {
+      "name": "anime-cast",
+      "files_domain": "https://anime-cast.lifechargergames.com",
+      "worker": "",
+      "role": "content",
+      "holds": "Anime yasam-simulasyonu kadrosu: hero (10 zenginlik kademesi) + 22 sevgili (10 kademe, duygu durumlari), cift sahneleri",
+      "layout": "manifest.json, <karakter>/stills/<karakter>_T01_<duygu>.webp, <karakter>/videos/<karakter>_T01_<duygu>.webp|.mp4, couples/<kiz>/<kiz>_scene1_meet.webp|.mp4"
+    },
+    {
       "name": "promo",
       "files_domain": "https://promo.lifechargergames.com",
       "worker": "https://promo.lifecharger.workers.dev",

@@ -49,11 +49,10 @@ STATE_PATH = os.path.join(HERE, "state", "characters_sync_state.json")
 
 BELLA = r"C:\Reusable Assets\Anime Girls\Bella"
 ADSC = r"C:\Projects\Anime Dance Streamer Clicker"
-LUMINA_LIB = r"C:\Reusable Assets\Anime Girls\LuminaLive"
-LUMINA = r"C:\Projects\Lumina Live"
 
 MIME = {".webp": "image/webp", ".png": "image/png", ".jpg": "image/jpeg",
-        ".jpeg": "image/jpeg", ".mp4": "video/mp4", ".json": "application/json"}
+        ".jpeg": "image/jpeg", ".mp4": "video/mp4", ".json": "application/json",
+        ".ogg": "audio/ogg"}
 
 
 def group(scope: str, category: str, pattern: str, id_of=None, masters=False):
@@ -63,26 +62,38 @@ def group(scope: str, category: str, pattern: str, id_of=None, masters=False):
             "masters": masters}
 
 
-def lumina_groups(idol: str):
-    lib = os.path.join(LUMINA_LIB, idol)
-    strip = lambda p: os.path.splitext(os.path.basename(p))[0].replace(f"{idol}_", "", 1)
+RIVALS_LIB = r"C:\Reusable Assets\Anime Girls\Rivals"
+
+
+def rival_groups(idol: str):
+    """ADSC's five dance-battle rivals (task 114, 2026-09-19): ten outfit
+    loops + stills and a room per rival, keyed by the game's
+    tools/process_rivals.py into Rivals/<idol>/game/. Supersedes the old
+    Lumina Live files (idle loop, public dance, sprites, 5 outfits)."""
+    game = os.path.join(RIVALS_LIB, idol, "game")
+    lib = os.path.join(RIVALS_LIB, idol, "masters")
     return [
-        group("public", "dances", os.path.join(LUMINA, "assets", "dances", f"{idol}.webp"),
-              id_of=lambda p: "dance"),
-        group("public", "sprites", os.path.join(LUMINA, "assets", "sprites", f"{idol}*.*"),
-              id_of=strip),
-        group("private", "rooms", os.path.join(LUMINA, "assets", "private", "rooms", f"{idol}.jpg"),
+        group("private", "outfits", os.path.join(game, "outfits", "*.webp")),
+        group("private", "rooms", os.path.join(game, "rooms", "room.webp"),
               id_of=lambda p: "room"),
-        group("private", "idle", os.path.join(LUMINA, "assets", "private", "idle", f"{idol}*.webp"),
-              id_of=lambda p: "idle" + ("_still" if "_still" in p else "")),
-        group("private", "outfits", os.path.join(LUMINA, "assets", "private", "outfits", f"{idol}_*.webp"),
-              id_of=strip),
         # masters (big, optional)
-        group("public", "masters", os.path.join(lib, "*.mp4"), masters=True),
-        group("public", "masters", os.path.join(lib, "*.png"), masters=True),
-        group("private", "masters", os.path.join(lib, "outfits", "*.mp4"), masters=True),
-        group("private", "masters", os.path.join(lib, "outfits", "*.png"), masters=True),
+        group("private", "masters/stills", os.path.join(lib, "stills", "*.jpg"), masters=True),
+        group("private", "masters/videos", os.path.join(lib, "videos", "*.mp4"), masters=True),
+        group("private", "masters/rooms", os.path.join(lib, "room.jpg"), masters=True),
     ]
+
+
+# ADSC rival stories (task 115): 6 stories x 5 scenes, each a looping clip
+# plus the scene still shown while it loads. Ids are "<story>_scene<N>" and
+# "<story>_scene<N>_still" in bella's `private.stories`.
+RIVAL_STORIES = ("01_lumina_crown", "02_nox_after_dark", "03_saffron_sunset_fest",
+                 "04_kira_rematch", "05_vesper_midnight_frost", "06_five_crowns")
+
+# ADSC music (task 129): `music_loop` stays inside the APK so audio starts on
+# first launch with no network; these six stream and are cached on disk like
+# the art. Ids are the file stems, which is what AudioService asks for.
+ADSC_STREAMED_MUSIC = ("music_kawaii", "music_citypop", "music_idol",
+                       "battle_edm", "battle_hyper", "battle_neon")
 
 
 CHARACTERS = {
@@ -116,6 +127,20 @@ CHARACTERS = {
                         os.path.join(BELLA, "private_gallery", story, "*_poster.webp"),
                         id_of=(lambda p, s=story: s + "_" + os.path.splitext(os.path.basename(p))[0])),
               )],
+            # Campaign story plates (task 128): 73 WebP illustrations, one per
+            # page. Only the opening chapter's three ship in the APK; the rest
+            # stream from here, and the ids are the plate names story.json
+            # already uses.
+            group("private", "story",
+                  os.path.join(ADSC, "assets", "story", "*.webp")),
+            *[group("private", "music",
+                    os.path.join(ADSC, "assets", "audio", t + ".ogg"))
+              for t in ADSC_STREAMED_MUSIC],
+            *[group("private", "stories",
+                    os.path.join(BELLA, "stories", story, pattern),
+                    id_of=(lambda p, s=story: s + "_" + os.path.splitext(os.path.basename(p))[0]))
+              for story in RIVAL_STORIES
+              for pattern in ("scene*.mp4", "scene*_still.webp")],
             # masters (big, optional)
             group("public", "masters/outfits", os.path.join(BELLA, "outfits", "*.png"), masters=True),
             group("public", "masters/outfits_chroma", os.path.join(BELLA, "outfits_chroma", "*.png"), masters=True),
@@ -125,10 +150,8 @@ CHARACTERS = {
             group("public", "masters/rooms", os.path.join(BELLA, "rooms", "r*.png"), masters=True),
         ],
     },
-    "lumina": {"game": "Lumina Live", "groups": lumina_groups("lumina")},
-    "nox": {"game": "Lumina Live", "groups": lumina_groups("nox")},
-    "saffron": {"game": "Lumina Live", "groups": lumina_groups("saffron")},
-    "vesper": {"game": "Lumina Live", "groups": lumina_groups("vesper")},
+    **{idol: {"game": "Anime Dance Streamer Clicker", "groups": rival_groups(idol)}
+       for idol in ("lumina", "nox", "saffron", "kira", "vesper")},
 }
 
 
