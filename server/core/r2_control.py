@@ -35,7 +35,11 @@ from datetime import datetime
 # yukluyoruz (duz `import r2_s3` sunucunun sys.path'inde yok).
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _SETTINGS = os.path.join(_ROOT, "server", "config", "settings.json")
+# Gercek kayit defteri gitignore'dadir (kova ve alan adlari depoda durmaz);
+# depoda yalnizca sekli vardir. Taze bir klon ornekle acilir, kullanici kendi
+# kovalarini yazinca gercegi devreye girer.
 _REGISTRY_FILE = os.path.join(_ROOT, "server", "config", "r2_buckets.json")
+_REGISTRY_EXAMPLE = os.path.join(_ROOT, "server", "config", "r2_buckets.example.json")
 _DATA_DIR = os.path.join(_ROOT, "server", "data")
 _STATS_FILE = os.path.join(_DATA_DIR, "r2_bucket_stats.json")
 _AUDIT_FILE = os.path.join(_DATA_DIR, "r2_audit.log")
@@ -98,7 +102,8 @@ _registry_cache = None
 def registry() -> dict:
     global _registry_cache
     if _registry_cache is None:
-        with open(_REGISTRY_FILE, encoding="utf-8") as fh:
+        yol = _REGISTRY_FILE if os.path.exists(_REGISTRY_FILE) else _REGISTRY_EXAMPLE
+        with open(yol, encoding="utf-8") as fh:
             _registry_cache = json.load(fh)
     return _registry_cache
 
@@ -373,6 +378,9 @@ def buckets(refresh: bool = False, only: str = "") -> dict:
             "role": b.get("role", "content"),
             "holds": b.get("holds", ""),
             "layout": b.get("layout", ""),
+            # Yerel "Pushed" klasoruyle karsilastirilabilen galeri kovalari icin
+            # hot|kid; istemciler bunun VARLIGINA bakar, kova ADINA degil.
+            "local_rating": b.get("local_rating", ""),
             "legacy_prefixes": b.get("legacy_prefixes") or [],
             "twin": twin_bucket(ad),
             "twin_map": twin_map(ad),

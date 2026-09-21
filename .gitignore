@@ -1,5 +1,7 @@
 # Settings with secrets (use settings.example.json as template)
 server/config/settings.json
+# R2 bucket registry: real bucket + domain names (use r2_buckets.example.json)
+server/config/r2_buckets.json
 server/config/mcp_servers.json
 
 # Atomic instruction-document writes (including interrupted saves)

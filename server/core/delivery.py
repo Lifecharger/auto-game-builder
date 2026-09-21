@@ -7,9 +7,10 @@ anahtarlarini gallery-hot worker'ina yazar. Worker manifesti uygulama
 basina filtreler ve kural degisince kenar onbellegini kendiliginden dusurur -
 uygulama guncellemesi gerekmez, sonraki manifest isteginde canli.
 
-Yonetim anahtari depoya girmez: `delivery.admin_key_file` ayari (yoksa
-D:/keys/serve_admin_key.txt). Worker ucu: `delivery.worker_url` (yoksa
-gallery-hot).
+Topolojinin tamami `settings.json` -> `delivery` altindadir ve depoya GIRMEZ:
+`worker_url`, `card_worker_url`, `admin_key_file` (yonetim anahtarinin yolu) ve
+`apps` / `card_apps` uygulama listeleri. Sekli icin `settings.example.json`.
+Ayar yoksa kod bir alan adi uydurmaz, acik bir hata verir.
 """
 from __future__ import annotations
 
@@ -21,19 +22,44 @@ import urllib.request
 
 from . import card_flow as _CF
 
-DEFAULT_WORKER = "https://gallery-hot.lifecharger.workers.dev"
-DEFAULT_KEY_FILE = r"D:\keys\serve_admin_key.txt"
+# Dagitim TOPOLOJISI kodda DURMAZ: worker adresleri, yonetim anahtarinin yolu
+# ve hangi uygulamanin hangi havuzdan manifest cektigi `settings.json`'dan
+# okunur (o dosya gitignore'da). Depoda yalnizca sekli vardir -
+# `settings.example.json` -> `delivery`. Ayar yoksa liste bos gelir ve arayuz
+# "uygulama tanimlanmamis" der; kod bir alan adi uydurmaz.
+_SETTINGS_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                              "config", "settings.json")
 
-# Bu worker'dan manifest ceken uygulamalar (paket -> ad). Uygulama manifest
-# istegine `?app=<paket>` ekledikce kendi kural setini alir; eklemeyen
-# (eski surum) `default` kuralini alir.
-APPS = [
-    {"package": "com.lifecharger.hotjigsaw", "name": "Hot Jigsaw"},
-    {"package": "com.lifecharger.hotcharm", "name": "Hot Charm"},
-    {"package": "com.lifecharger.hotidle", "name": "Hot Idle"},
-    {"package": "com.lifecharger.hotslider", "name": "Hot Slider"},
-    {"package": "com.lifecharger.sentience", "name": "Sentience"},
-]
+
+def _ayar(anahtar: str, default=None):
+    """settings.json'dan herhangi bir deger - `_CF._setting` yalniz METIN dondurur."""
+    try:
+        with open(_SETTINGS_FILE, encoding="utf-8") as fh:
+            d = json.load(fh) or {}
+        for part in anahtar.split("."):
+            d = (d or {}).get(part)
+        return default if d is None else d
+    except Exception:  # noqa: BLE001
+        return default
+
+
+def _liste(anahtar: str) -> list[dict]:
+    """settings.json'daki uygulama listesi: [{"package": ..., "name": ...}]."""
+    ham = _ayar(anahtar) or []
+    out = []
+    for x in ham if isinstance(ham, list) else []:
+        if isinstance(x, dict) and x.get("package"):
+            out.append({"package": str(x["package"]), "name": str(x.get("name") or x["package"])})
+    return out
+
+
+def apps(pool: str = "jigsaw") -> list[dict]:
+    """Bu havuzdan manifest ceken uygulamalar (paket -> ad).
+
+    Uygulama manifest istegine `?app=<paket>` ekledikce kendi kural setini alir;
+    eklemeyen (eski surum) `default` kuralini alir.
+    """
+    return _liste("delivery.card_apps" if pool == "cards" else "delivery.apps")
 
 # Alan etiketleri + siralama (arayuz bu sirayla cizer; listede olmayan alanlar
 # sona eklenir). Ilk grup "strike" acisindan en onemli olanlar.
@@ -78,24 +104,20 @@ PRESETS = {
 }
 
 
-CARD_APPS = [
-    {"package": "com.lifecharger.hotcardgames", "name": "Hot Card Games"},
-    {"package": "com.lifecharger.hotidle", "name": "Hot Idle"},
-    {"package": "com.lifecharger.sentience", "name": "Sentience"},
-]
-
-
 def worker_url(pool: str = "jigsaw") -> str:
-    if pool == "cards":
-        return (_CF._setting("delivery.card_worker_url") or
-                "https://hotcardgames-scanner.lifecharger.workers.dev").rstrip("/")
-    if pool != "jigsaw":
+    if pool not in ("jigsaw", "cards"):
         raise ValueError("Unknown delivery pool: " + pool)
-    return (_CF._setting("delivery.worker_url") or DEFAULT_WORKER).rstrip("/")
+    url = _CF._setting("delivery.card_worker_url" if pool == "cards" else "delivery.worker_url") or ""
+    if not url:
+        raise ValueError("delivery worker adresi tanimsiz (settings.json -> delivery.%s)"
+                         % ("card_worker_url" if pool == "cards" else "worker_url"))
+    return url.rstrip("/")
 
 
 def admin_key() -> str:
-    yol = _CF._setting("delivery.admin_key_file") or DEFAULT_KEY_FILE
+    yol = _CF._setting("delivery.admin_key_file") or ""
+    if not yol:
+        return ""
     try:
         with open(yol, encoding="utf-8") as fh:
             return fh.read().strip()
@@ -219,7 +241,7 @@ def preview(app: str = "", pool: str = "jigsaw") -> dict:
 
 def preview_all(pool: str = "jigsaw") -> dict:
     """Varsayilan + butun uygulamalar TEK cagrida (worker metadata'yi bir kez yukler)."""
-    q = ",".join([""] + [a["package"] for a in (CARD_APPS if pool == "cards" else APPS)])
+    q = ",".join([""] + [a["package"] for a in apps(pool)])
     return (_call("/serve-preview?apps=" + urllib.parse.quote(q), timeout=120, pool=pool) or {}).get("apps") or {}
 
 
@@ -232,13 +254,13 @@ def overview(pool: str = "jigsaw") -> dict:
         pv = preview_all(pool)
     except Exception as e:  # noqa: BLE001
         pv = {"_error": str(e)[:120]}
-    apps = []
-    for a in (CARD_APPS if pool == "cards" else APPS):
+    satirlar = []
+    for a in apps(pool):
         st = pv.get(a["package"]) or {}
-        apps.append(dict(a, custom=a["package"] in (r.get("apps") or {}),
-                         served=st.get("served"), total=st.get("total"), blocked=st.get("blocked") or {},
-                         collections=st.get("collections") or {}))
-    return {"pool": pool, "worker": worker_url(pool), "rules": r, "values": v, "apps": apps,
+        satirlar.append(dict(a, custom=a["package"] in (r.get("apps") or {}),
+                             served=st.get("served"), total=st.get("total"), blocked=st.get("blocked") or {},
+                             collections=st.get("collections") or {}))
+    return {"pool": pool, "worker": worker_url(pool), "rules": r, "values": v, "apps": satirlar,
             "collections": v.get("collections") or [],
             "default_stats": pv.get("default") or {},
             "presets": {k: {"label": p["label"]} for k, p in PRESETS.items()}}

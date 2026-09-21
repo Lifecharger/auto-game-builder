@@ -96,5 +96,23 @@
   "hot_cbn": {
     "lineart": "anyline",
     "_not": "anyline = AnyLine/MTEED dedektoru kaynagin kendi kenarlarini cikarir (VARSAYILAN, piksel hizali); qwen = Qwen Edit cizgi sayfasi (uretir, cbn_align hizalar); sam = eski SAM bolum konturu (yedek)"
+  },
+  "delivery": {
+    "_comment": "Dagitim topolojisi - gercek degerler settings.json'da, depoda DURMAZ",
+    "worker_url": "https://<galeri-worker>.workers.dev",
+    "card_worker_url": "https://<kart-worker>.workers.dev",
+    "admin_key_file": "<yonetim anahtarini tutan dosyanin yolu>",
+    "apps": [
+      {
+        "package": "com.ornek.oyun",
+        "name": "Oyun"
+      }
+    ],
+    "card_apps": [
+      {
+        "package": "com.ornek.kartoyunu",
+        "name": "Kart Oyunu"
+      }
+    ]
   }
 }

@@ -19,6 +19,7 @@ class R2Bucket {
     this.holds = '',
     this.layout = '',
     this.twin = '',
+    this.localRating = '',
     this.twinMap = const [],
     this.legacyPrefixes = const [],
     this.objects,
@@ -32,6 +33,11 @@ class R2Bucket {
   final String holds;
   final String layout;
   final String twin;          // ikiz kova(lar)
+
+  /// Yerel "Pushed" klasoruyle karsilastirilabilen galeri kovalari icin
+  /// `hot` | `kid`, digerlerinde bos. Kayit defterinden gelir: uygulama hicbir
+  /// kova ADI tasimaz, yalnizca bu alanin dolu olup olmadigina bakar.
+  final String localRating;
   final List<R2TwinRule> twinMap;
   final List<String> legacyPrefixes;
   final int? objects;
@@ -49,6 +55,7 @@ class R2Bucket {
         holds: '${j['holds'] ?? ''}',
         layout: '${j['layout'] ?? ''}',
         twin: '${j['twin'] ?? ''}',
+        localRating: '${j['local_rating'] ?? ''}',
         twinMap: (j['twin_map'] as List? ?? const [])
             .whereType<Map>()
             .map((e) => R2TwinRule.fromJson(Map<String, dynamic>.from(e)))

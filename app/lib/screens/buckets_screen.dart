@@ -415,7 +415,7 @@ class _BucketsScreenState extends State<BucketsScreen> {
     try {
       d = twin
           ? await R2ControlService.twinDiff(_bucket)
-          : await R2ControlService.diff(rating: _bucket == 'gallery-family' ? 'kid' : 'hot');
+          : await R2ControlService.diff(rating: _info?.localRating ?? 'hot');
     } catch (e) {
       if (mounted) _snack(_clean(e));
       return;
@@ -507,7 +507,7 @@ class _BucketsScreenState extends State<BucketsScreen> {
                 itemBuilder: (_) => [
                   if (info.twin.isNotEmpty)
                     const PopupMenuItem(value: 'twin', child: Text('Eski ikiz farki')),
-                  if (_bucket == 'gallery-hot' || _bucket == 'gallery-family')
+                  if (info.localRating.isNotEmpty)
                     const PopupMenuItem(value: 'local', child: Text('Yerel Pushed farki')),
                 ],
               ),

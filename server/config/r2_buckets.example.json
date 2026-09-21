@@ -1,0 +1,39 @@
+{
+  "_comment": "Kova kayit defterinin SEKLI. Gercegi server/config/r2_buckets.json'dadir ve gitignore'dadir: kova adlari, alan adlari ve yerlesim public repoda durmaz. role: content (musteriye acik) | private | legacy. twin: eski ikizin adi (takedown ikisine birden gider). local_rating: yerel Pushed klasoruyle karsilastirilabilen galeri kovalari icin hot|kid.",
+  "legacy_retires_on": "YYYY-MM-DD",
+  "cache_standard": {
+    "asset": "public, max-age=7776000, immutable",
+    "json": "public, max-age=21600, stale-while-revalidate=86400",
+    "mutable_prefixes": [
+      "characters/*/relationships/"
+    ]
+  },
+  "buckets": [
+    {
+      "name": "<icerik-kovasi>",
+      "files_domain": "https://<kova>.<alan-adi>",
+      "worker": "<worker adi ya da bos>",
+      "role": "content",
+      "holds": "Bu kova ne tutar",
+      "layout": "<anahtar sekli>",
+      "local_rating": "hot"
+    },
+    {
+      "name": "<ozel-kova>",
+      "files_domain": "",
+      "worker": "",
+      "role": "private",
+      "holds": "Yalniz sunucunun kullandigi kova",
+      "layout": ""
+    },
+    {
+      "name": "<eski-kova>",
+      "files_domain": "",
+      "worker": "",
+      "role": "legacy",
+      "holds": "Emekliye ayrilacak",
+      "layout": "",
+      "twin": "<yeni kovanin adi>"
+    }
+  ]
+}
