@@ -53,13 +53,24 @@ def _liste(anahtar: str) -> list[dict]:
     return out
 
 
+POOLS = ("jigsaw", "cards", "events")
+
+# Havuz -> (ayar anahtari, uygulama listesi anahtari). #385: `events` havuzu
+# etkinlik sunucusu Celeste'in seviye gorsellerini tasir.
+_POOL_AYAR = {"jigsaw": ("delivery.worker_url", "delivery.apps"),
+              "cards": ("delivery.card_worker_url", "delivery.card_apps"),
+              "events": ("delivery.event_worker_url", "delivery.event_apps")}
+
+
 def apps(pool: str = "jigsaw") -> list[dict]:
     """Bu havuzdan manifest ceken uygulamalar (paket -> ad).
 
     Uygulama manifest istegine `?app=<paket>` ekledikce kendi kural setini alir;
     eklemeyen (eski surum) `default` kuralini alir.
     """
-    return _liste("delivery.card_apps" if pool == "cards" else "delivery.apps")
+    if pool not in _POOL_AYAR:
+        raise ValueError("Unknown delivery pool: " + pool)
+    return _liste(_POOL_AYAR[pool][1])
 
 # Alan etiketleri + siralama (arayuz bu sirayla cizer; listede olmayan alanlar
 # sona eklenir). Ilk grup "strike" acisindan en onemli olanlar.
@@ -105,12 +116,12 @@ PRESETS = {
 
 
 def worker_url(pool: str = "jigsaw") -> str:
-    if pool not in ("jigsaw", "cards"):
+    if pool not in _POOL_AYAR:
         raise ValueError("Unknown delivery pool: " + pool)
-    url = _CF._setting("delivery.card_worker_url" if pool == "cards" else "delivery.worker_url") or ""
+    anahtar = _POOL_AYAR[pool][0]
+    url = _CF._setting(anahtar) or ""
     if not url:
-        raise ValueError("delivery worker adresi tanimsiz (settings.json -> delivery.%s)"
-                         % ("card_worker_url" if pool == "cards" else "worker_url"))
+        raise ValueError("delivery worker adresi tanimsiz (settings.json -> %s)" % anahtar)
     return url.rstrip("/")
 
 
@@ -165,6 +176,87 @@ def _call(path: str, body: dict | None = None, method: str | None = None, timeou
             return json.loads(r.read() or b"{}")
     except urllib.error.HTTPError as e:
         raise ValueError("worker %s: %s" % (e.code, (e.read() or b"")[:200].decode("utf-8", "replace")))
+
+
+# ------------------------------------------------------------- #385 ENGEL
+# Kural tablosu ALANLARA gore filtreler; engel listesi TEK TEK ogeye gore.
+# Kural bir sey kacirirsa engel emniyet kemeridir: kullanici AGB'den resmi,
+# koleksiyonu, karti, desteyi ya da sunucu seviyesini kapatir ve o oge hicbir
+# manifeste girmez. Worker KV/kova anahtari `serve_block`:
+#   {updated, global: LISTELER, apps: {"<paket>": LISTELER}}
+#   LISTELER = {pictures:["<koleksiyon>/<dosya>"], collections:[], cards:[],
+#               decks:[], hostLevels:[]}
+# Bir uygulamanin gordugu engel = global + o uygulamanin listesi (BIRLESIM);
+# `updated` damgasi kural damgasi gibi kenar onbellek anahtarina girer.
+BLOCK_LISTS = ("pictures", "collections", "cards", "decks", "hostLevels")
+
+# Havuz basina anlami olan listeler - arayuz yalnizca bunlari gosterir.
+POOL_BLOCK_LISTS = {"jigsaw": ("pictures", "collections"),
+                    "cards": ("cards", "decks"),
+                    "events": ("hostLevels",)}
+
+
+def _block_lists(ham) -> dict:
+    ham = ham if isinstance(ham, dict) else {}
+    out = {}
+    for ad in BLOCK_LISTS:
+        gorulen, liste = set(), []
+        for x in (ham.get(ad) or []):
+            deger = str(x).strip()
+            if deger and deger not in gorulen:
+                gorulen.add(deger)
+                liste.append(deger)
+        out[ad] = liste
+    return out
+
+
+def block(pool: str = "jigsaw") -> dict:
+    """Worker'daki engel listesi (+ hangi listeler bu havuzda anlamli)."""
+    b = _call("/serve-block", pool=pool)
+    out = {"updated": int(b.get("updated") or 0),
+           "global": _block_lists(b.get("global")),
+           "apps": {str(pk): _block_lists(v) for pk, v in (b.get("apps") or {}).items()},
+           "lists": list(POOL_BLOCK_LISTS.get(pool) or BLOCK_LISTS),
+           "pool": pool}
+    return out
+
+
+def save_block(body: dict, pool: str = "jigsaw") -> dict:
+    """Engel listesini worker'a yazar - kural kaydi gibi anlik canli."""
+    if not isinstance(body, dict):
+        raise ValueError("engel govdesi sozluk olmali")
+    temiz = {"global": _block_lists(body.get("global")), "apps": {}}
+    for pk, v in (body.get("apps") or {}).items():
+        liste = _block_lists(v)
+        if any(liste[a] for a in BLOCK_LISTS):      # bos uygulama kaydi tutulmaz
+            temiz["apps"][str(pk)] = liste
+    out = _call("/serve-block", temiz, pool=pool)
+    return {"ok": True, "updated": out.get("updated"),
+            "block": dict(temiz, updated=out.get("updated"),
+                          lists=list(POOL_BLOCK_LISTS.get(pool) or BLOCK_LISTS), pool=pool)}
+
+
+def put_serve_index(collection: str, index: dict) -> dict:
+    """#385: gallery-hot'un kompakt sunum indeksini worker'a YAZAR.
+
+    Worker o indeksi yalnizca OKUR (`loadServeIndex`); daha once yalnizca kendi
+    `metadata_rich_*` kayitlarindan uretebiliyordu, bu yuzden Generic disindaki
+    koleksiyonlar filtrelenemiyordu. Normalizer her koleksiyon icin buraya
+    yazar -> kurallar ve engeller HER koleksiyonda gecerli olur.
+    """
+    if not isinstance(index, dict):
+        raise ValueError("indeks sozluk olmali")
+    return _call("/serve-index", {"collection": str(collection), "index": index},
+                 method="PUT", timeout=180)
+
+
+def catalog(pool: str = "jigsaw") -> dict:
+    """Engel tarayicisinin listesi: koleksiyon/deste/seviye + kapak gorseli.
+
+    Worker'in kendi `/serve-catalog` ucundan gelir - tek kaynak, uc istemci
+    ayni listeyi gorur.
+    """
+    return _call("/serve-catalog", pool=pool, timeout=120)
 
 
 def rules(pool: str = "jigsaw") -> dict:
@@ -225,8 +317,13 @@ def _ruleset(rs, pool: str = "jigsaw") -> dict:
     return out
 
 
-def values(collection: str = "generic", pool: str = "jigsaw") -> dict:
-    """Alan -> deger -> sayi (Generic havuzunun gercek EXIF dagilimi)."""
+def values(collection: str = "", pool: str = "jigsaw") -> dict:
+    """Alan -> deger -> sayi (havuzdaki gercek etiket dagilimi).
+
+    #385: jigsaw havuzunda artik HER koleksiyon filtrelenebiliyor, o yuzden
+    varsayilan dagilim da butun havuzdur (`*`), yalniz Generic degil.
+    """
+    collection = collection or ("host" if pool == "events" else "*")
     d = _call("/serve-values?collection=" + urllib.parse.quote(collection), pool=pool)
     sira = [f for f, _ in FIELDS]
     alanlar = d.get("fields") or {}
@@ -254,15 +351,23 @@ def overview(pool: str = "jigsaw") -> dict:
         pv = preview_all(pool)
     except Exception as e:  # noqa: BLE001
         pv = {"_error": str(e)[:120]}
+    try:
+        blk = block(pool)
+    except Exception as e:  # noqa: BLE001
+        blk = {"updated": 0, "global": _block_lists({}), "apps": {},
+               "lists": list(POOL_BLOCK_LISTS.get(pool) or BLOCK_LISTS), "pool": pool,
+               "error": str(e)[:160]}
     satirlar = []
     for a in apps(pool):
         st = pv.get(a["package"]) or {}
+        engel = blk.get("apps", {}).get(a["package"]) or {}
         satirlar.append(dict(a, custom=a["package"] in (r.get("apps") or {}),
                              served=st.get("served"), total=st.get("total"), blocked=st.get("blocked") or {},
-                             collections=st.get("collections") or {}))
+                             collections=st.get("collections") or {},
+                             blocks=sum(len(engel.get(x) or []) for x in BLOCK_LISTS)))
     return {"pool": pool, "worker": worker_url(pool), "rules": r, "values": v, "apps": satirlar,
             "collections": v.get("collections") or [],
-            "default_stats": pv.get("default") or {},
+            "default_stats": pv.get("default") or {}, "block": blk,
             "presets": {k: {"label": p["label"]} for k, p in PRESETS.items()}}
 
 

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -34,6 +36,23 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   bool _dirty = false;
   final Set<String> _acik = {'rating', 'safety', 'voyeur'};
 
+  /// #385 engel listesi - kurallarla AYNI Kaydet dugmesine baglidir.
+  DeliveryBlock _block = DeliveryBlock();
+  List<DeliveryCatalogItem> _katalog = const [];
+  bool _katalogYuklendi = false;
+  List<NormalizePool> _norm = const [];
+  Timer? _normTimer;
+
+  /// Havuz -> engel listesi adi (worker bu adlari bekler).
+  static const _grupListe = {'jigsaw': 'collections', 'cards': 'decks', 'events': 'hostLevels'};
+  static const _ogeListe = {'jigsaw': 'pictures', 'cards': 'cards', 'events': 'hostLevels'};
+
+  @override
+  void dispose() {
+    _normTimer?.cancel();
+    super.dispose();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -56,9 +75,13 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
         _apps
           ..clear()
           ..addEntries(o.appRules.entries.map((e) => MapEntry(e.key, e.value.copy())));
+        _block = (o.block ?? DeliveryBlock()).copy();
+        _katalog = const [];
+        _katalogYuklendi = false;
         _dirty = false;
         _loading = false;
       });
+      _normYenile();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -67,6 +90,9 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
       });
     }
   }
+
+  static const _havuzAdlari = {'jigsaw': 'Jigsaw', 'cards': 'Kart', 'events': 'Etkinlik'};
+  String get _havuzAdi => _havuzAdlari[_pool] ?? _pool;
 
   DeliveryRuleSet get _cur => _sel.isEmpty ? _def : (_apps[_sel] ?? _def);
   bool get _custom => _sel.isEmpty || _apps.containsKey(_sel);
@@ -78,6 +104,9 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
     setState(() => _saving = true);
     try {
       final t = await DeliveryService.saveRules(_def, _apps, pool: _pool);
+      // #385: kurallar ve engel listesi tek Kaydet ile birlikte yayina girer -
+      // ikisi ayri kaydedilirse arada bir istek eski engeli gorurdu.
+      await DeliveryService.saveBlock(_block, pool: _pool);
       if (!mounted) return;
       _snack('Kaydedildi ve CANLI (${_zaman(t)}) - sayilar yenileniyor');
       await _load();
@@ -155,6 +184,66 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
     }
   }
 
+  // ------------------------------------------------------ #385 normalize
+  Future<void> _normYenile() async {
+    try {
+      final n = await DeliveryService.normalizeStatus();
+      if (!mounted) return;
+      setState(() => _norm = n);
+      final calisan = n.any((x) => x.running);
+      _normTimer?.cancel();
+      if (calisan) {
+        _normTimer = Timer(const Duration(seconds: 5), _normYenile);
+      }
+    } catch (e) {
+      if (mounted) setState(() => _norm = const []);
+    }
+  }
+
+  NormalizePool? get _normCur {
+    // Dagitim havuzu adi ile normalizer havuz adi ayni degil (jigsaw -> gallery-hot).
+    const ad = {'jigsaw': 'gallery-hot', 'cards': 'cards', 'events': 'events'};
+    for (final p in _norm) {
+      if (p.pool == ad[_pool]) return p;
+    }
+    return null;
+  }
+
+  Future<void> _normBaslat({required bool dryRun}) async {
+    const ad = {'jigsaw': 'gallery-hot', 'cards': 'cards', 'events': 'events'};
+    try {
+      await DeliveryService.normalizeRun(ad[_pool]!, dryRun: dryRun);
+      _snack(dryRun ? 'Deneme kosusu basladi - yalniz rapor uretir' : 'Normalizasyon basladi');
+      await _normYenile();
+    } catch (e) {
+      _snack(e.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
+  Future<void> _normDurdur(String opId) async {
+    try {
+      await DeliveryService.normalizeCancel(opId);
+      _snack('Iptal istendi');
+      await _normYenile();
+    } catch (e) {
+      _snack(e.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
+  // ------------------------------------------------------ #385 engel
+  Future<void> _katalogYukle() async {
+    setState(() => _katalogYuklendi = true);
+    try {
+      final k = await DeliveryService.catalog(pool: _pool);
+      if (!mounted) return;
+      setState(() => _katalog = k);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _katalogYuklendi = false);
+      _snack(e.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
   static String _zaman(int ms) {
     if (ms <= 0) return 'hic kaydedilmedi';
     final d = DateTime.fromMillisecondsSinceEpoch(ms);
@@ -170,7 +259,8 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
             value: _pool,
             items: const [
               DropdownMenuItem(value: 'jigsaw', child: Text('Jigsaw havuzu')),
-              DropdownMenuItem(value: 'cards', child: Text('Kart havuzu')),
+              DropdownMenuItem(value: 'cards', child: Text('Kartlar')),
+              DropdownMenuItem(value: 'events', child: Text('Etkinlikler')),
             ],
             onChanged: _loading || _saving ? null : (value) async {
               if (value == null || value == _pool) return;
@@ -197,7 +287,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
             IconButton(
                 icon: const Icon(Icons.manage_search),
                 tooltip: "Metadata'yi yeniden oku (EXIF degistiyse)",
-                onPressed: _saving || _pool == 'cards' ? null : _reindex),
+                onPressed: _saving || _pool != 'jigsaw' ? null : _reindex),
           ],
         ),
         body: _loading
@@ -224,7 +314,11 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
                           children: [
                             _ozet(),
                             const SizedBox(height: 10),
+                            _normalizeKarti(),
+                            const SizedBox(height: 10),
                             _uygulamalar(),
+                            const SizedBox(height: 10),
+                            _engelKarti(),
                             const SizedBox(height: 10),
                             _kuralBasligi(),
                             if (_custom) ...[
@@ -252,7 +346,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('${_pool == 'cards' ? 'Kart' : 'Generic'} havuzu: ${o.total} gorsel, ${o.tagged} etiketli, ${o.untagged} etiketsiz',
+            Text('$_havuzAdi havuzu: ${o.total} gorsel, ${o.tagged} etiketli, ${o.untagged} etiketsiz',
                 style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
             const SizedBox(height: 4),
             Text('Son kural: ${_zaman(o.updated)}  ·  varsayilan sunulan: '
@@ -261,11 +355,208 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
             const SizedBox(height: 4),
             const Text(
                 'Anahtar KAPALI = o degerdeki gorseller manifestten cikar. Kaydet '
-                'anlik canlidir; bitmis koleksiyonlara dokunulmaz.',
+                'anlik canlidir ve artik HER koleksiyon/deste filtrelenir; kuralin '
+                'kacirdigi tek bir ogeyi Engelle listesiyle kapatirsin.',
                 style: TextStyle(fontSize: 11, color: Colors.grey)),
           ],
         ),
       ),
+    );
+  }
+
+  /// #385 Normalize: havuzdaki her gorseli ayni semayla etiketler (yerel
+  /// Ollama), EXIF'i yazar ve worker'in okudugu indeksi yayinlar.
+  Widget _normalizeKarti() {
+    final n = _normCur;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Expanded(
+                  child: Text('Normalize - eksik etiketleri uret',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                ),
+                if (n != null && n.running)
+                  TextButton.icon(
+                      onPressed: () => _normDurdur(n.opId),
+                      icon: const Icon(Icons.stop, size: 16),
+                      label: const Text('Durdur'))
+                else ...[
+                  TextButton(
+                      onPressed: _saving ? null : () => _normBaslat(dryRun: true),
+                      child: const Text('Deneme')),
+                  FilledButton.icon(
+                      onPressed: _saving ? null : () => _normBaslat(dryRun: false),
+                      icon: const Icon(Icons.auto_fix_high, size: 16),
+                      label: const Text('Calistir')),
+                ],
+              ],
+            ),
+            if (n == null)
+              const Text('Durum alinamadi - sunucu /api/normalize/status yanit vermedi',
+                  style: TextStyle(fontSize: 11, color: Colors.orange))
+            else ...[
+              Text('Indeks: ${n.index}', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+              if (n.running) ...[
+                const SizedBox(height: 6),
+                LinearProgressIndicator(
+                    value: n.total > 0 ? n.done / n.total : null, minHeight: 4),
+                const SizedBox(height: 4),
+                Text('${n.done}/${n.total} · ${n.message}',
+                    style: const TextStyle(fontSize: 11)),
+              ] else
+                Text('Son kosu: ${n.summary}', style: const TextStyle(fontSize: 11)),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// #385 Engelle: kural bir seyi kacirirsa bu liste tek tek kapatir.
+  /// Secili kural seti '' ise GLOBAL (her uygulama), aksi halde o uygulama.
+  Widget _engelKarti() {
+    final grupListe = _grupListe[_pool]!;
+    final ogeListe = _ogeListe[_pool]!;
+    final kapsam = _sel.isEmpty ? 'her uygulama (global)' : _sel;
+    final adet = _block.count(_sel);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text('Engelle · $kapsam',
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                ),
+                if (adet > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                        color: AppColors.error.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(10)),
+                    child: Text('$adet engelli',
+                        style: TextStyle(fontSize: 10, color: AppColors.error)),
+                  ),
+                if (!_katalogYuklendi)
+                  TextButton(onPressed: _katalogYukle, child: const Text('Listeyi ac')),
+              ],
+            ),
+            Text(
+                'Global engel HER uygulamada gecerlidir; bir uygulama secince '
+                'yalniz o uygulama icin engellersin. Kurallardan SONRA uygulanir.',
+                style: const TextStyle(fontSize: 11, color: Colors.grey)),
+            if (_katalogYuklendi && _katalog.isEmpty)
+              const Padding(
+                padding: EdgeInsets.only(top: 6),
+                child: Text('Bu havuzda engellenecek oge yok (kova bos).',
+                    style: TextStyle(fontSize: 11, color: Colors.grey)),
+              ),
+            for (final g in _katalog) _engelGrubu(g, grupListe, ogeListe),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _engelGrubu(DeliveryCatalogItem g, String grupListe, String ogeListe) {
+    final grupEngel = _block.isBlocked(_sel, grupListe, g.id.toLowerCase());
+    return ExpansionTile(
+      key: PageStorageKey('engel-$_pool-${g.id}'),
+      dense: true,
+      leading: _kapak(g.cover),
+      title: Text(g.name, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+      subtitle: Text(
+          '${g.count} oge · ${g.tagged}/${g.count} etiketli'
+          '${grupEngel ? ' · TAMAMI ENGELLI' : ''}',
+          style: TextStyle(fontSize: 10, color: grupEngel ? AppColors.error : Colors.grey)),
+      trailing: Switch(
+        value: !grupEngel,
+        onChanged: (acik) => setState(() {
+          _block.toggle(_sel, grupListe, g.id.toLowerCase(), !acik);
+          _dirty = true;
+        }),
+      ),
+      children: [
+        Wrap(
+          spacing: 4,
+          runSpacing: 4,
+          children: [
+            for (final e in g.images)
+              _engelOgesi(g, e, ogeListe),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// Tek oge: engel kimligi havuza gore kurulur - resim `<koleksiyon>/<dosya>`,
+  /// kart `<deste>_<rank>` (katalog zaten kart id'sini verir), host seviyesi `<n>`.
+  Widget _engelOgesi(DeliveryCatalogItem g, DeliveryCatalogEntry e, String ogeListe) {
+    final id = _pool == 'jigsaw' ? '${g.id.toLowerCase()}/${e.id.toLowerCase()}' : e.id.toLowerCase();
+    final engelli = _block.isBlocked(_sel, ogeListe, id);
+    return InkWell(
+      onTap: () => setState(() {
+        _block.toggle(_sel, ogeListe, id, !engelli);
+        _dirty = true;
+      }),
+      child: Container(
+        width: 64,
+        padding: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+            border: Border.all(color: engelli ? AppColors.error : Colors.transparent, width: 2),
+            borderRadius: BorderRadius.circular(6)),
+        child: Column(
+          children: [
+            Stack(
+              children: [
+                _kapak(e.cover, size: 56),
+                if (engelli)
+                  Positioned(
+                      right: 0,
+                      top: 0,
+                      child: Icon(Icons.block, size: 16, color: AppColors.error)),
+                if (!e.tagged)
+                  const Positioned(
+                      left: 0, bottom: 0, child: Icon(Icons.label_off, size: 14, color: Colors.orange)),
+              ],
+            ),
+            Text(e.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 9)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _kapak(String? url, {double size = 36}) {
+    if (url == null || url.isEmpty) {
+      return Container(
+          width: size,
+          height: size,
+          color: Colors.black26,
+          child: const Icon(Icons.image_not_supported, size: 14, color: Colors.grey));
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(4),
+      child: Image.network(url,
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          errorBuilder: (_, _, _) => Container(
+              width: size,
+              height: size,
+              color: Colors.black26,
+              child: const Icon(Icons.broken_image, size: 14, color: Colors.grey))),
     );
   }
 

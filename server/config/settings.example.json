@@ -113,6 +113,13 @@
         "package": "com.ornek.kartoyunu",
         "name": "Kart Oyunu"
       }
+    ],
+    "event_worker_url": "https://<etkinlik-worker>.workers.dev",
+    "event_apps": [
+      {
+        "package": "com.ornek.oyun",
+        "name": "Oyun"
+      }
     ]
   }
 }

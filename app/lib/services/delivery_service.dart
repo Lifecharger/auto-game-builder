@@ -130,6 +130,160 @@ class DeliveryRuleSet {
       };
 }
 
+/// #385 Engel listesi: kurallar ALANLARA gore filtreler, bu liste TEK TEK
+/// ogeyi kapatir (resim / koleksiyon / kart / deste / sunucu seviyesi).
+/// Bir uygulamanin gordugu engel = `global` + o uygulamanin listesi.
+class DeliveryBlock {
+  DeliveryBlock({this.updated = 0, Map<String, Set<String>>? global,
+      Map<String, Map<String, Set<String>>>? apps, this.lists = const []})
+      : global = global ?? {},
+        apps = apps ?? {};
+  int updated;                                   // ms
+  final Map<String, Set<String>> global;         // liste adi -> id'ler
+  final Map<String, Map<String, Set<String>>> apps;  // paket -> liste adi -> id'ler
+  final List<String> lists;                      // bu havuzda anlamli liste adlari
+
+  static Map<String, Set<String>> _lists(Map? j) => {
+        for (final e in (j ?? const {}).entries)
+          if (e.value is List) '${e.key}': {for (final x in (e.value as List)) '$x'},
+      };
+
+  /// Worker govdesi beklenenden farkli gelirse (eski surum, hata cevabi) sekli
+  /// ZORLAMAZ: o alan bos kalir. Engel listesinin cokmesi, filtrenin tamamen
+  /// kaybolmasi demek olurdu.
+  factory DeliveryBlock.fromJson(Map? j) => DeliveryBlock(
+        updated: (j?['updated'] is num) ? (j!['updated'] as num).toInt() : 0,
+        global: _lists(j?['global'] is Map ? j!['global'] as Map : null),
+        apps: {
+          for (final e in ((j?['apps'] is Map ? j!['apps'] as Map : const {})).entries)
+            '${e.key}': _lists(e.value is Map ? e.value as Map : null),
+        },
+        lists: [for (final x in ((j?['lists'] as List?) ?? const [])) '$x'],
+      );
+
+  /// '' = global, aksi halde paket adi.
+  Map<String, Set<String>> forApp(String app) =>
+      app.isEmpty ? global : apps.putIfAbsent(app, () => {});
+
+  bool isBlocked(String app, String list, String id) =>
+      (global[list] ?? const {}).contains(id) ||
+      (app.isNotEmpty && ((apps[app] ?? const {})[list] ?? const {}).contains(id));
+
+  /// Bir listedeki ogeyi ac/kapa; global kapali ise uygulama kaydi yazilmaz.
+  void toggle(String app, String list, String id, bool blocked) {
+    final t = forApp(app).putIfAbsent(list, () => <String>{});
+    if (blocked) {
+      t.add(id);
+    } else {
+      t.remove(id);
+    }
+  }
+
+  int count(String app) =>
+      forApp(app).values.fold<int>(0, (a, b) => a + b.length);
+
+  DeliveryBlock copy() => DeliveryBlock(
+      updated: updated,
+      global: {for (final e in global.entries) e.key: Set<String>.from(e.value)},
+      apps: {
+        for (final e in apps.entries)
+          e.key: {for (final x in e.value.entries) x.key: Set<String>.from(x.value)},
+      },
+      lists: List<String>.from(lists));
+
+  Map<String, dynamic> toJson() => {
+        'global': {for (final e in global.entries) e.key: e.value.toList()},
+        'apps': {
+          for (final e in apps.entries)
+            if (e.value.values.any((x) => x.isNotEmpty))
+              e.key: {for (final x in e.value.entries) x.key: x.value.toList()},
+        },
+      };
+}
+
+/// Engel tarayicisinin bir satiri: koleksiyon / deste / host grubu + ogeleri.
+class DeliveryCatalogItem {
+  const DeliveryCatalogItem({required this.id, required this.name, this.kind = '',
+      this.count = 0, this.tagged = 0, this.cover, this.images = const []});
+  final String id;
+  final String name;
+  final String kind;
+  final int count;
+  final int tagged;
+  final String? cover;
+  final List<DeliveryCatalogEntry> images;
+
+  factory DeliveryCatalogItem.fromJson(Map j) => DeliveryCatalogItem(
+        id: '${j['id'] ?? ''}',
+        name: '${j['name'] ?? j['id'] ?? ''}',
+        kind: '${j['kind'] ?? ''}',
+        count: (j['count'] is num) ? (j['count'] as num).toInt() : 0,
+        tagged: (j['tagged'] is num) ? (j['tagged'] as num).toInt() : 0,
+        cover: j['cover'] is String ? j['cover'] as String : null,
+        images: [
+          for (final x in ((j['images'] as List?) ?? const []).whereType<Map>())
+            DeliveryCatalogEntry.fromJson(x),
+        ],
+      );
+}
+
+class DeliveryCatalogEntry {
+  const DeliveryCatalogEntry({required this.id, required this.name, this.cover, this.tagged = true});
+  final String id;       // engel listesine yazilan kimlik
+  final String name;
+  final String? cover;
+  final bool tagged;
+
+  factory DeliveryCatalogEntry.fromJson(Map j) => DeliveryCatalogEntry(
+        id: '${j['id'] ?? j['name'] ?? ''}',
+        name: '${j['name'] ?? j['id'] ?? ''}',
+        cover: (j['cover'] ?? j['url']) is String ? '${j['cover'] ?? j['url']}' : null,
+        tagged: j['tagged'] != false,
+      );
+}
+
+/// #385 Normalizer: bir havuzun etiketleme durumu ve son raporu.
+class NormalizePool {
+  const NormalizePool({required this.pool, this.label = '', this.index = '', this.bucket = '',
+      this.running = false, this.opId = '', this.done = 0, this.total = 0, this.message = '',
+      this.last = const {}});
+  final String pool;
+  final String label;
+  final String index;      // bu havuzun indeks mekanizmasi (rapor icin)
+  final String bucket;
+  final bool running;
+  final String opId;
+  final int done;
+  final int total;
+  final String message;
+  final Map<String, dynamic> last;   // son rapor
+
+  factory NormalizePool.fromJson(String pool, Map j) {
+    final op = j['op'] is Map ? j['op'] as Map : const {};
+    return NormalizePool(
+      pool: pool,
+      label: '${j['label'] ?? pool}',
+      index: '${j['index'] ?? ''}',
+      bucket: '${j['bucket'] ?? ''}',
+      running: j['running'] == true,
+      opId: '${op['id'] ?? ''}',
+      done: (op['done'] is num) ? (op['done'] as num).toInt() : 0,
+      total: (op['total'] is num) ? (op['total'] as num).toInt() : 0,
+      message: '${op['message'] ?? ''}',
+      last: j['last'] is Map ? Map<String, dynamic>.from(j['last'] as Map) : const {},
+    );
+  }
+
+  /// "3 gecerli, 12 etiketlendi, 1 basarisiz" - son raporun tek satiri.
+  String get summary {
+    if (last.isEmpty) return 'hic calismadi';
+    int n(String k) => (last[k] is num) ? (last[k] as num).toInt() : 0;
+    final d = last['dry_run'] == true ? ' (deneme)' : '';
+    return '${last['status'] ?? '?'}$d · ${n('total')} gorsel, ${n('valid')} gecerli, '
+        '${n('tagged')} etiketlendi, ${n('failed')} basarisiz';
+  }
+}
+
 class DeliveryOverview {
   const DeliveryOverview({
     this.worker = '',
@@ -147,6 +301,7 @@ class DeliveryOverview {
     this.defaultTotal,
     this.presets = const {},
     this.collections = const [],
+    this.block,
   });
   final String worker;
   final int updated;                     // ms
@@ -163,6 +318,7 @@ class DeliveryOverview {
   final int? defaultTotal;
   final Map<String, String> presets;     // id -> etiket
   final List<DeliveryCollection> collections;   // kart havuzu: yayindaki koleksiyonlar
+  final DeliveryBlock? block;            // #385 engel listesi (worker'dan)
 
   factory DeliveryOverview.fromJson(Map<String, dynamic> j) {
     final r = j['rules'] is Map ? Map<String, dynamic>.from(j['rules'] as Map) : <String, dynamic>{};
@@ -202,6 +358,7 @@ class DeliveryOverview {
           .whereType<Map>()
           .map(DeliveryCollection.fromJson)
           .toList(),
+      block: j['block'] is Map ? DeliveryBlock.fromJson(j['block'] as Map) : null,
     );
   }
 }
@@ -263,4 +420,55 @@ class DeliveryService {
 
   static Future<DeliveryRuleSet> preset(String name) async =>
       DeliveryRuleSet.fromJson(await _get('/api/delivery/preset?name=$name'));
+
+  // ------------------------------------------------------------ #385 engel
+  static Future<DeliveryBlock> block({String pool = 'jigsaw'}) async =>
+      DeliveryBlock.fromJson(await _get('/api/delivery/block?pool=$pool'));
+
+  /// Engel listesini worker'a yazar; donen deger yeni `updated` damgasi.
+  static Future<int> saveBlock(DeliveryBlock b, {String pool = 'jigsaw'}) async {
+    final r = await http
+        .put(Uri.parse('${ApiService.baseUrl}/api/delivery/block?pool=$pool'),
+            headers: _headers, body: jsonEncode(b.toJson()))
+        .timeout(const Duration(seconds: 60));
+    if (r.statusCode >= 400) throw Exception(_detail(r));
+    final j = jsonDecode(r.body) as Map<String, dynamic>;
+    return (j['updated'] is num) ? (j['updated'] as num).toInt() : 0;
+  }
+
+  /// Engel tarayicisinin listesi (koleksiyon / deste / host + ogeleri).
+  static Future<List<DeliveryCatalogItem>> catalog({String pool = 'jigsaw'}) async {
+    final j = await _get('/api/delivery/catalog?pool=$pool');
+    return [
+      for (final x in ((j['items'] as List?) ?? const []).whereType<Map>())
+        DeliveryCatalogItem.fromJson(x),
+    ];
+  }
+
+  // -------------------------------------------------------- #385 normalize
+  static Future<List<NormalizePool>> normalizeStatus() async {
+    final j = await _get('/api/normalize/status');
+    final p = j['pools'] is Map ? j['pools'] as Map : const {};
+    return [
+      for (final e in p.entries)
+        if (e.value is Map) NormalizePool.fromJson('${e.key}', e.value as Map),
+    ];
+  }
+
+  /// Havuzu normalize etmeye baslar; donen deger op kimligi.
+  static Future<String> normalizeRun(String pool, {bool dryRun = false}) async {
+    final r = await http
+        .post(Uri.parse('${ApiService.baseUrl}/api/normalize/run'),
+            headers: _headers, body: jsonEncode({'pool': pool, 'dry_run': dryRun}))
+        .timeout(const Duration(minutes: 5));
+    if (r.statusCode >= 400) throw Exception(_detail(r));
+    return '${(jsonDecode(r.body) as Map)['op'] ?? ''}';
+  }
+
+  static Future<void> normalizeCancel(String opId) async {
+    final r = await http
+        .post(Uri.parse('${ApiService.baseUrl}/api/normalize/cancel?op_id=$opId'), headers: _headers)
+        .timeout(const Duration(seconds: 60));
+    if (r.statusCode >= 400) throw Exception(_detail(r));
+  }
 }

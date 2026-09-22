@@ -6223,6 +6223,82 @@ def delivery_preset(name: str):
     return _flow_call(_delivery().preset, name)
 
 
+# ------------------------------------------------- Engel listesi (#385)
+# Kurallar ALANLARA gore filtreler; engel listesi TEK TEK ogeyi kapatir
+# (resim / koleksiyon / kart / deste / sunucu seviyesi). Kurallardan SONRA
+# uygulanir ve `updated` damgasi kenar onbellek anahtarina girer - Kaydet
+# aninda canli. Bkz. core/delivery.py, design/delivery_normalizer.md.
+class DeliveryBlockRequest(BaseModel):
+    global_: dict = Field(default_factory=dict, alias="global")
+    apps: dict = Field(default_factory=dict)
+
+    model_config = {"populate_by_name": True}
+
+
+@app.get("/api/delivery/block")
+def delivery_block(pool: str = "jigsaw"):
+    return _flow_call(_delivery().block, pool)
+
+
+@app.put("/api/delivery/block")
+def delivery_block_save(body: DeliveryBlockRequest, pool: str = "jigsaw"):
+    """Engel listesini worker'a yazar - anlik canli."""
+    return _flow_call(_delivery().save_block,
+                      {"global": body.global_, "apps": body.apps}, pool)
+
+
+@app.get("/api/delivery/catalog")
+def delivery_catalog(pool: str = "jigsaw"):
+    """Engel tarayicisinin listesi: koleksiyon/deste/seviye + kapak gorseli."""
+    return _flow_call(_delivery().catalog, pool)
+
+
+# ------------------------------------------------- Normalizer (#385)
+# Uc icerik havuzundaki HER gorselin ayni semayla etiketli olmasini saglar:
+# eksik/uyumsuz metadata'yi YEREL Ollama ile uretir, EXIF'i yazar, dosyayi ayni
+# anahtara geri koyar ve worker'in okudugu indeksi yayinlar. Op olarak calisir:
+# ilerleme `/api/queue`'da, iptal `/api/queue/cancel` ile.
+def _normalizer():
+    from core import asset_normalizer
+    return asset_normalizer
+
+
+class NormalizeRunRequest(BaseModel):
+    pool: str = "gallery-hot"
+    dry_run: bool = False
+    limit: int = 0
+    force: bool = False
+
+
+@app.get("/api/normalize/pools")
+def normalize_pools():
+    """Havuzlar + kovadaki gorsel sayilari."""
+    return _flow_call(_normalizer().pools)
+
+
+@app.get("/api/normalize/status")
+def normalize_status():
+    """Havuz basina calisan op (ilerleme) + son rapor."""
+    return _flow_call(_normalizer().status)
+
+
+@app.post("/api/normalize/run")
+def normalize_run(body: NormalizeRunRequest):
+    """Havuzu normalize etmeye baslar; op kimligini dondurur."""
+    op_id = _flow_call(_normalizer().run, body.pool, body.dry_run, body.limit, body.force)
+    return {"ok": True, "op": op_id, "pool": body.pool, "dry_run": body.dry_run}
+
+
+@app.post("/api/normalize/cancel")
+def normalize_cancel(op_id: str):
+    return _flow_call(_normalizer().cancel, op_id)
+
+
+@app.get("/api/normalize/report")
+def normalize_report(pool: str = ""):
+    return _flow_call(_normalizer().report, pool)
+
+
 # ------------------------------------------------- Kovalar (gorev #381)
 # R2 kovalarinin kendisi: gezinme, basliklar, onizleme, silme/takedown, sunucu
 # tarafi kopya, baslik onarimi ve farklar. Kayit defteri config/r2_buckets.json,
