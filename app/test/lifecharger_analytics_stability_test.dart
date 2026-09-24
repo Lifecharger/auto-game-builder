@@ -94,6 +94,29 @@ void main() {
     expect(names().where((String n) => n == 'unclean_exit'), hasLength(1), reason: 'only the first death is on record');
   });
 
+  test('a swipe from recents (inactive / hidden, never paused) is not a crash', () async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    await Analytics.init(package: 'com.lifecharger.test', appVersion: '1.0.0+1');
+    Analytics.instance.didChangeAppLifecycleState(AppLifecycleState.inactive);
+    Analytics.instance.didChangeAppLifecycleState(AppLifecycleState.hidden);
+    Analytics.instance.resetForTest();
+    await Analytics.init(package: 'com.lifecharger.test', appVersion: '1.0.0+1');
+    expect(names(), isNot(contains('unclean_exit')));
+  });
+
+  test('a real death says what the player was doing and the memory in use', () async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    await Analytics.init(package: 'com.lifecharger.test', appVersion: '1.0.0+1');
+    Analytics.log('feature_use', <String, Object?>{'feature': 'hint'});
+    Analytics.instance.resetForTest();
+    await Analytics.init(package: 'com.lifecharger.test', appVersion: '1.0.0+1');
+    final Map<String, Object?> props = events()
+        .firstWhere((Map<String, Object?> e) => e['event'] == 'unclean_exit')['props']! as Map<String, Object?>;
+    expect(props['dim'], '1.0.0+1');
+    expect(props['last'], 'feature_use:hint');
+    expect(props['rss'], isA<int>());
+  });
+
   test('a stall is bucketed, and one that overlaps a resume is ignored', () async {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     await Analytics.init(package: 'com.lifecharger.test', appVersion: '1.0.0+1');

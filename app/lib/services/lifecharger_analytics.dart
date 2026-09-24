@@ -20,7 +20,10 @@
 //   app_start {amount: ms, dim: '<1s'|'1-2s'|'2-4s'|'4s+', basis: 'process'|'init'}  cold start to first frame
 //   app_error {dim: '<Type> @ <frame>', source: 'flutter'|'async', stack}  uncaught errors, never the message text
 //   ui_stall {amount: ms, dim: '2-5s'|'5s+'}     the UI thread stopped answering ('5s+' is ANR territory)
-//   unclean_exit {dim: '<version that died>'}    the previous run ended while in the foreground (crash / ANR kill)
+//   unclean_exit {dim: '<version that died>', last: '<last event>', rss: <MB>, secs: <seconds in session>}
+//                                                the previous run died while ON SCREEN (crash / ANR / OOM kill).
+//                                                The marker is cleared the moment the app leaves the foreground
+//                                                (inactive / hidden / paused), so a swipe from recents is never one.
 // Call Analytics.init AFTER installing your own FlutterError.onError / PlatformDispatcher.onError:
 // the client chains to whatever handler it finds and never swallows an error.
 // Anything else: Analytics.log('snake_case_name', {...}) — a `dim`/`feature`/`placement`/`product`/
@@ -161,11 +164,56 @@ class Analytics with WidgetsBindingObserver {
 
   // ---------------------------------------------------------------- stability
 
-  /// The foreground marker is written when a session begins and cleared when the app is paused.
-  /// Finding it at start-up means the last run died while the player was looking at it.
+  /// The foreground marker is written while the app is ON SCREEN and cleared the moment it leaves
+  /// (inactive / hidden / paused / detached). Finding it at start-up means the last run died while
+  /// the player was looking at it. It carries the last meaningful event and the memory in use, so a
+  /// real crash says where it happened and whether it was an out-of-memory kill (2026-09-24: the old
+  /// marker was only cleared on `paused`, and a swipe from recents that never paused counted too).
   void _reportUncleanExit() {
-    final String? diedIn = _prefs?.getString(_kForeground);
-    if (diedIn != null) _log('unclean_exit', {'dim': diedIn});
+    final String? raw = _prefs?.getString(_kForeground);
+    if (raw == null) return;
+    Map<String, Object?> props = {'dim': raw};
+    if (raw.startsWith('{')) {
+      try {
+        final Map<String, Object?> m = (jsonDecode(raw) as Map).cast<String, Object?>();
+        props = {
+          'dim': m['v'] ?? '',
+          if (m['e'] != null) 'last': m['e'],
+          if (m['rss'] != null) 'rss': m['rss'],
+          if (m['s'] != null) 'secs': m['s'],
+        };
+      } catch (_) {
+        props = {'dim': 'unknown'};
+      }
+    }
+    _log('unclean_exit', props);
+  }
+
+  /// The last event that says what the player was doing (not the lifecycle / stability noise).
+  String? _lastMeaningful;
+  DateTime _markerWrittenAt = DateTime.fromMillisecondsSinceEpoch(0);
+  static const Set<String> _markerNoise = {
+    'session_start', 'session_end', 'session_resume', 'app_start', 'ui_stall', 'unclean_exit',
+    'app_error', 'coins_earned', 'coins_spent', 'first_open',
+  };
+
+  /// Write the on-screen marker with its context; [force] ignores the 5 s throttle.
+  void _writeForegroundMarker({bool force = false}) {
+    if (!_stabilityActive || _pausedAt != null) return;
+    final DateTime now = DateTime.now();
+    if (!force && now.difference(_markerWrittenAt) < const Duration(seconds: 5)) return;
+    _markerWrittenAt = now;
+    int? rssMb;
+    try {
+      rssMb = ProcessInfo.currentRss ~/ (1024 * 1024);
+    } catch (_) {}
+    final DateTime? start = _sessionStart;
+    _prefs?.setString(_kForeground, jsonEncode(<String, Object?>{
+      'v': _appVersion,
+      if (_lastMeaningful != null) 'e': _lastMeaningful,
+      if (rssMb != null) 'rss': rssMb,
+      if (start != null) 's': now.difference(start).inSeconds,
+    }));
   }
 
   void _reportAppStart(DateTime initAt) {
@@ -319,6 +367,10 @@ class Analytics with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (!_ready) return;
+    if (state != AppLifecycleState.resumed) {
+      // off screen in any way: a death from here on is not one the player saw
+      _prefs?.remove(_kForeground);
+    }
     if (state == AppLifecycleState.paused || state == AppLifecycleState.detached) {
       if (_pausedAt == null) {
         _pausedAt = DateTime.now();
@@ -331,6 +383,7 @@ class Analytics with WidgetsBindingObserver {
       _pausedAt = null;
       _resumedAt = DateTime.now();
       _toWatchdog?.send('resume');
+      _writeForegroundMarker(force: true);
       if (_sessionStart == null) {
         // A short trip out of the app continues the same visit in the player's mind, but the
         // seconds already reported stay reported: a new session row keeps the arithmetic honest.
@@ -344,7 +397,7 @@ class Analytics with WidgetsBindingObserver {
     _sessionId = _uuidV4().substring(0, 13);
     _sessionStart = DateTime.now();
     _errorsThisSession.clear();
-    if (_stabilityActive) _prefs?.setString(_kForeground, _appVersion);
+    _writeForegroundMarker(force: true);
     if (resumed) {
       _log('session_resume', const <String, Object?>{});
       return;
@@ -364,6 +417,15 @@ class Analytics with WidgetsBindingObserver {
 
   void _log(String event, Map<String, Object?> props) {
     if (!_ready || !_enabled) return;
+    if (!_markerNoise.contains(event)) {
+      final Object? dim = props['dim'] ?? props['feature'] ?? props['collection'] ?? props['screen'];
+      String last = dim == null ? event : '$event:$dim';
+      if (last.length > 80) last = last.substring(0, 80);
+      // a new action is always recorded; the same one again only refreshes every 5 s
+      final bool changed = last != _lastMeaningful;
+      _lastMeaningful = last;
+      _writeForegroundMarker(force: changed);
+    }
     _queue.add(<String, Object?>{
       'event': event,
       'at': DateTime.now().millisecondsSinceEpoch,

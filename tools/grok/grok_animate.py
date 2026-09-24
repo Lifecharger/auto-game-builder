@@ -59,7 +59,9 @@ OUTPUT_DIR = os.environ.get("GROK_OUTPUT_DIR") or os.path.join(
 
 
 def _load_sso_cookies():
-    if PROFILE_DIR != DEFAULT_PROFILE_DIR:
+    # a second profile of the SAME account (GROK_SAME_ACCOUNT=1: a copy of the default one, so
+    # two lanes can run in parallel) gets the same login; another account's profile never does
+    if PROFILE_DIR != DEFAULT_PROFILE_DIR and not os.environ.get("GROK_SAME_ACCOUNT"):
         return None
     if not os.path.isfile(HISTORY_FILE):
         return None

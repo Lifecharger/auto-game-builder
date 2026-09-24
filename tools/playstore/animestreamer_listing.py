@@ -2,17 +2,23 @@
 
 Listing texts are read from the markdown files the game repo owns
 (``store/listing_<lang>.md``) so the store copy has exactly one source of
-truth. One edit: en-US + tr-TR + es-ES + de-DE listing texts, app icon,
-feature graphic, phone screenshots, then commit. Rerunnable (each run
-replaces the listing).
+truth. One edit: the listing text of every language in ``LISTINGS``, the app
+icon, the feature graphic and the phone screenshots, then commit. Rerunnable
+(each run replaces the listing).
 
 Graphics are uploaded to en-US only; Play falls back to the default
 language's graphics for every listing that has none of its own.
 
 Run: python "C:/Projects/Auto Game Builder/tools/playstore/animestreamer_listing.py"
+
+Flags:
+  --dry-run    parse and validate every listing file, then stop (no Play edit)
+  --skip-icon  leave the store icon exactly as it is; push only the texts,
+               the feature graphic and the phone screenshots
 """
 import os
 import re
+import sys
 from pathlib import Path
 
 from google.oauth2 import service_account
@@ -30,12 +36,18 @@ TITLE_MAX = 30
 SHORT_MAX = 80
 FULL_MAX = 4000
 
-# Play language code -> markdown file in STORE.
+# Play language code -> markdown file in STORE. The eight here are exactly the
+# eight UI languages the app ships (lib/l10n/app_locales.dart): a listing in a
+# language the game cannot speak would be a promise the app does not keep.
 LISTINGS = {
     "en-US": "listing_en.md",
     "tr-TR": "listing_tr.md",
     "es-ES": "listing_es.md",
     "de-DE": "listing_de.md",
+    "ja-JP": "listing_ja.md",
+    "ko-KR": "listing_ko.md",
+    "zh-CN": "listing_zh_CN.md",
+    "zh-TW": "listing_zh_TW.md",
 }
 
 # A field header is a whole line of bold text ("**Short description (80):**");
@@ -88,8 +100,19 @@ def load_all():
     return out
 
 
-def main() -> int:
+def main(argv=None) -> int:
+    argv = list(sys.argv[1:] if argv is None else argv)
+    dry_run = "--dry-run" in argv
+    skip_icon = "--skip-icon" in argv
+    unknown = [a for a in argv if a not in ("--dry-run", "--skip-icon")]
+    if unknown:
+        print(f"unknown flag(s): {unknown}")
+        return 2
+
     bodies = load_all()
+    if dry_run:
+        print("DRY RUN: all listings parsed, no Play edit opened")
+        return 0
 
     creds = service_account.Credentials.from_service_account_file(SA_KEY, scopes=SCOPES)
     svc = build("androidpublisher", "v3", credentials=creds, cache_discovery=False)
@@ -120,7 +143,10 @@ def main() -> int:
         except HttpError:
             pass
 
-    clear("icon"); upload("icon", str(STORE / "icon_512.png"))
+    if skip_icon:
+        print("icon: left untouched (--skip-icon)")
+    else:
+        clear("icon"); upload("icon", str(STORE / "icon_512.png"))
     clear("featureGraphic"); upload("featureGraphic", str(STORE / "feature_graphic.png"))
     clear("phoneScreenshots")
     shots_dir = STORE / "screenshots"
