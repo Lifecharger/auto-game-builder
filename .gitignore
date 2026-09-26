@@ -211,3 +211,4 @@ server/config/jigsaw_options.json
 
 # local python envs (matting etc.)
 .venv/
+tools/playstore/out/

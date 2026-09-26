@@ -200,6 +200,10 @@ class Analytics with WidgetsBindingObserver {
   /// Write the on-screen marker with its context; [force] ignores the 5 s throttle.
   void _writeForegroundMarker({bool force = false}) {
     if (!_stabilityActive || _pausedAt != null) return;
+    // Off screen (inactive / hidden, before `paused` lands): an event logged in that gap must not
+    // put the marker back, or a swipe from recents reads as a death (2026-09-26).
+    final AppLifecycleState? state = WidgetsBinding.instance.lifecycleState;
+    if (state != null && state != AppLifecycleState.resumed) return;
     final DateTime now = DateTime.now();
     if (!force && now.difference(_markerWrittenAt) < const Duration(seconds: 5)) return;
     _markerWrittenAt = now;
@@ -219,9 +223,12 @@ class Analytics with WidgetsBindingObserver {
   void _reportAppStart(DateTime initAt) {
     int? ms = _processAgeMs();
     String basis = 'process';
-    // A process that was already alive for a while (pre-warmed, or a second engine) did not
-    // cold-start now: time the part we can see instead.
-    if (ms == null || ms > 60000) {
+    final int sinceInit = DateTime.now().difference(initAt).inMilliseconds;
+    // A process that was already alive before this Dart start (pre-warmed, a relaunch into a
+    // process that survived, a second engine) did not cold-start now: time the part we can see
+    // instead. The old 60 s cut-off let a relaunch 47-59 s into a live process read as a
+    // 47-59 s cold start (ADSC, 2026-09-26); a real cold start reaches main() within seconds.
+    if (ms == null || ms > 60000 || ms - sinceInit > 10000) {
       ms = DateTime.now().difference(initAt).inMilliseconds;
       basis = 'init';
     }

@@ -26,6 +26,7 @@ import 'screens/asset_generate_screen.dart';
 import 'screens/asset_gallery_screen.dart';
 import 'screens/asset_queue_screen.dart';
 import 'screens/asset_flow_hub.dart';
+import 'services/lifecharger_update_gate.dart';
 import 'screens/delivery_screen.dart';   // #363
 import 'screens/buckets_screen.dart';    // #381
 
@@ -58,7 +59,7 @@ void main() async {
 
   await _startAnalytics();
 
-  runApp(const AppManagerMobile());
+  runApp(ForcedUpdateGate(child: const AppManagerMobile()));
 }
 
 /// Brings up anonymous usage reporting: how often and how long the app is

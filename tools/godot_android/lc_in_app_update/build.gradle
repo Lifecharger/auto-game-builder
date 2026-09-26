@@ -1,0 +1,40 @@
+// Godot 4.2+ Android plugin (v2) wrapping Play Core In-App Updates.
+// Build: ./gradlew assembleDebug assembleRelease  (or: python build_and_install.py <project dirs>)
+// AGP / Kotlin / Java versions match the Godot 4.6.1 gradle build template.
+plugins {
+    id 'com.android.library' version '8.6.1'
+    id 'org.jetbrains.kotlin.android' version '2.1.20'
+}
+
+android {
+    namespace 'com.lifecharger.inappupdate'
+    compileSdk 35
+
+    defaultConfig {
+        minSdk 24
+        consumerProguardFiles 'consumer-rules.pro'
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+}
+
+dependencies {
+    // Provided by the game's gradle build at export time.
+    compileOnly 'org.godotengine:godot:4.6.1.stable'
+    // Added to the game's gradle build by addon/lc_in_app_update/export_plugin.gd.
+    compileOnly 'com.google.android.play:app-update:2.1.0'
+    compileOnly 'androidx.activity:activity:1.9.3'
+}
