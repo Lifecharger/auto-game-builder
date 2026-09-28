@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+ cloud backup and device-to-device transfer. Everything is kept
+     as before except the pairing API key file (AppConfig.secretPrefsFileName
+     in lib/config.dart). -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="agb_secrets.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="agb_secrets.xml" />
+    </device-transfer>
+</data-extraction-rules>

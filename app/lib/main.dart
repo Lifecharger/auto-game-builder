@@ -29,11 +29,10 @@ import 'screens/asset_flow_hub.dart';
 import 'services/lifecharger_update_gate.dart';
 import 'screens/delivery_screen.dart';   // #363
 import 'screens/buckets_screen.dart';    // #381
+import 'services/lifecharger_intro.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Hive.initFlutter();
-  await CacheService.instance.openBoxes();
   // Enable edge-to-edge so Flutter properly handles system bar insets
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
@@ -41,14 +40,25 @@ void main() async {
     systemNavigationBarDividerColor: Colors.transparent,
     statusBarColor: Colors.transparent,
   ));
+  // The LifeCharger intro is the first thing drawn: its gauge ring charges
+  // with the start-up work below and it strikes into the app once attached.
+  // The app has no sound-effects setting, so the intro's sound is always on.
+  final intro = await LifechargerIntroController.create();
+  intro.soundEnabled = true;
+  runApp(LifechargerIntroHost(controller: intro));
+  await Hive.initFlutter();
+  await CacheService.instance.openBoxes();
+  intro.progress = .2;
   try {
     await AppConfig.load();
   } catch (e) {
     debugPrint('AppConfig.load failed, using defaults: $e');
   }
+  intro.progress = .3;
 
   await ThemeService.instance.load();
   await LocaleService.instance.load();
+  intro.progress = .4;
 
   // Try silent sign-in (non-blocking if it fails)
   try {
@@ -56,10 +66,12 @@ void main() async {
   } catch (e) {
     debugPrint('Silent sign-in failed: $e');
   }
+  intro.progress = .75;
 
   await _startAnalytics();
+  intro.progress = .9;
 
-  runApp(ForcedUpdateGate(child: const AppManagerMobile()));
+  intro.attachApp(ForcedUpdateGate(child: const AppManagerMobile()));
 }
 
 /// Brings up anonymous usage reporting: how often and how long the app is

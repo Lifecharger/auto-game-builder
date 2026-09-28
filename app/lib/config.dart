@@ -1,8 +1,33 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences_android/shared_preferences_android.dart';
 
 class AppConfig {
+  /// Android SharedPreferences file that holds ONLY the pairing API key.
+  /// `android/app/src/main/res/xml/backup_rules.xml` and
+  /// `data_extraction_rules.xml` exclude `<this>.xml` from Android auto-backup
+  /// and device-to-device transfer, so the key never leaves the phone, while
+  /// every other preference (`FlutterSharedPreferences.xml`) keeps backing up.
+  static const String secretPrefsFileName = 'agb_secrets';
+
+  /// Tests flip this to exercise the Android secret-store path on the host.
+  @visibleForTesting
+  static bool? debugUseSecretStore;
+
+  static bool get _useSecretStore =>
+      debugUseSecretStore ??
+      (!kIsWeb && defaultTargetPlatform == TargetPlatform.android);
+
+  static SharedPreferencesAsync _secretStore() => SharedPreferencesAsync(
+        options: const SharedPreferencesAsyncAndroidOptions(
+          backend: SharedPreferencesAndroidBackendLibrary.SharedPreferences,
+          originalSharedPreferencesOptions: AndroidSharedPreferencesStoreOptions(
+            fileName: secretPrefsFileName,
+          ),
+        ),
+      );
+
   static const String _apiUrlKey = 'api_base_url';
   static const String _workerUrlKey = 'worker_url';
   static const String _apiKeyKey = 'api_key';
@@ -50,7 +75,7 @@ class AppConfig {
     final prefs = await SharedPreferences.getInstance();
     _baseUrl = prefs.getString(_apiUrlKey) ?? defaultApiUrl;
     _workerUrl = prefs.getString(_workerUrlKey) ?? '';
-    _apiKey = prefs.getString(_apiKeyKey) ?? '';
+    _apiKey = await _loadApiKey(prefs);
     _showAppIcons = prefs.getBool(_showAppIconsKey) ?? false;
   }
 
@@ -68,9 +93,48 @@ class AppConfig {
     await prefs.setString(_workerUrlKey, url);
   }
 
+  /// Reads the API key. On Android it lives in the backup-excluded secret
+  /// file; a key still sitting in the backed-up main prefs (installs from
+  /// before this change) is moved there, and removed from the main prefs
+  /// only after the secret copy reads back identical, so a failure can never
+  /// unpair the app.
+  static Future<String> _loadApiKey(SharedPreferences prefs) async {
+    final legacy = prefs.getString(_apiKeyKey);
+    if (!_useSecretStore) return legacy ?? '';
+    final store = _secretStore();
+    String? stored;
+    try {
+      if (legacy != null && legacy.isNotEmpty) {
+        // A main-prefs key is always the newest one (setApiKey only writes
+        // there when the secret file failed), so it replaces the secret copy.
+        await store.setString(_apiKeyKey, legacy);
+        stored = await store.getString(_apiKeyKey);
+        if (stored == legacy) {
+          await prefs.remove(_apiKeyKey);
+        }
+        return legacy;
+      }
+      stored = await store.getString(_apiKeyKey);
+    } catch (e) {
+      debugPrint('AppConfig: secret key store unavailable, using main prefs: $e');
+      return (legacy != null && legacy.isNotEmpty) ? legacy : (stored ?? '');
+    }
+    if (stored != null && stored.isNotEmpty) return stored;
+    return legacy ?? '';
+  }
+
   static Future<void> setApiKey(String key) async {
     _apiKey = key;
     final prefs = await SharedPreferences.getInstance();
+    if (_useSecretStore) {
+      try {
+        await _secretStore().setString(_apiKeyKey, key);
+        await prefs.remove(_apiKeyKey);
+        return;
+      } catch (e) {
+        debugPrint('AppConfig: secret key store write failed, using main prefs: $e');
+      }
+    }
     await prefs.setString(_apiKeyKey, key);
   }
 

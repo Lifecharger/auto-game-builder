@@ -1,9 +1,11 @@
-"""Encode + upload the Hot Idle Relationships art to the hotjigsaw bucket.
+"""Encode + upload the Hot Idle Relationships art to the `characters` bucket.
 
-Keys match what the app already reads (CloudflareConfig.relationship*Url):
-    relationships/<girl>/L<n>.webp         outfit still   (from L<n>.png,       720 px tall, q85)
-    relationships/<girl>/L<n>_scene.webp   portrait       (from L<n>_scene.png, 1024 px tall, q85)
-    relationships/<girl>/L<n>_loop.webp    animated loop  (from L<n>_loop_rgba.webm, 384 px wide, 12 fps, q60, alpha)
+Keys match what the app reads (CloudflareConfig.relationship*Url), bucket keys
+<girl>/relationships/<file>; inside this script a job is still named by its old
+shape relationships/<girl>/<file> (that is also the key in the state file):
+    <girl>/relationships/L<n>.webp         outfit still   (from L<n>.png,       720 px tall, q85)
+    <girl>/relationships/L<n>_scene.webp   portrait       (from L<n>_scene.png, 1024 px tall, q85)
+    <girl>/relationships/L<n>_loop.webp    animated loop  (from L<n>_loop_rgba.webm, 384 px wide, 12 fps, q60, alpha)
 
     python upload_relationships.py stills portraits      # encode + upload those kinds
     python upload_relationships.py loops
@@ -36,21 +38,16 @@ import time
 
 from PIL import Image
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "r2"))
-import r2_s3  # noqa: E402  (stdlib-only server-side copy)
-
 HERE = os.path.dirname(os.path.abspath(__file__))
 SRC = r"C:/Reusable Assets/Images/Hot Idle/relationships"
 OUT = os.path.join(SRC, "_delivery")
 # 2026-09-17 (R2 reorganization, see C:/Cloudflare Workers/R2_MAP.md): relationship art lives in
 # the `characters` bucket as <girl>/relationships/<file>, served from
-# https://characters.lifechargergames.com. Until the legacy `hotcardgames` bucket is retired
-# (about 2026-10-20) every file is ALSO written to its legacy key relationships/<girl>/<file>, so
-# builds that still read the hotcardgames worker keep seeing new art. After the retirement delete
-# LEGACY_BUCKET and the legacy copy in put().
+# https://characters.lifechargergames.com. The legacy `hotcardgames` twin was retired on
+# 2026-09-27; nothing is copied anywhere else any more. The state file keeps its old name so the
+# upload history (sha per key) stays valid.
 BUCKET = "characters"
-LEGACY_BUCKET = "hotcardgames"
-STATE = os.path.join(SRC, "_delivery", f"upload_state_{LEGACY_BUCKET}.json")
+STATE = os.path.join(SRC, "_delivery", "upload_state_hotcardgames.json")
 WRANGLER = (shutil.which("wrangler.cmd") or shutil.which("wrangler")
             or r"C:\Users\caca_\AppData\Roaming\npm\wrangler.cmd")
 FFMPEG = shutil.which("ffmpeg") or "ffmpeg"
@@ -174,15 +171,7 @@ def put(key: str, path: str, cache: str) -> bool:
     # key arrives in its legacy shape relationships/<girl>/<file>
     _, girl, name = key.split("/", 2)
     new_key = f"{girl}/relationships/{name}"
-    if not _put_one(f"{BUCKET}/{new_key}", path, ctype, cache):
-        return False
-    # The legacy twin is a server-side copy: the bytes are uploaded once.
-    try:
-        r2_s3.copy_object(BUCKET, new_key, LEGACY_BUCKET, key)
-    except (RuntimeError, OSError) as e:
-        print(f"  legacy copy failed {key}: {e}", flush=True)
-        return False
-    return True
+    return _put_one(f"{BUCKET}/{new_key}", path, ctype, cache)
 
 
 def _put_one(target: str, path: str, ctype: str, cache: str) -> bool:

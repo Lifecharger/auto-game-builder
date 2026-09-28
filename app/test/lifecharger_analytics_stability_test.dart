@@ -134,4 +134,25 @@ void main() {
     Analytics.instance.reportStallForTest(9000);
     expect(names().where((String n) => n == 'ui_stall'), hasLength(2));
   });
+
+  test('a reinstall that restored its cloud save carries on as the old install', () async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    await Analytics.init(package: 'com.lifecharger.test', appVersion: '1.0.0+1');
+    final String fresh = Analytics.instance.installId;
+    const String old = '0b7c2f5e-1d4a-4c8e-9f3b-2a6d8e1c4b7a';
+    await Analytics.adoptInstallId(old);
+    expect(Analytics.instance.installId, old);
+    final Map<String, Object?> merged = events().lastWhere((e) => e['event'] == 'install_merged');
+    expect((merged['props'] as Map)['orphan'], fresh);
+    // kept for the next launch
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('lc_analytics_install_id'), old);
+    // nothing happens for the same, a missing or a malformed id
+    final int n = events().length;
+    await Analytics.adoptInstallId(old);
+    await Analytics.adoptInstallId(null);
+    await Analytics.adoptInstallId('not-an-id');
+    expect(events().length, n);
+    expect(Analytics.instance.installId, old);
+  });
 }

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 11 and lower auto-backup. Everything backs up as before except the
+     pairing API key file (AppConfig.secretPrefsFileName in lib/config.dart). -->
+<full-backup-content>
+    <exclude domain="sharedpref" path="agb_secrets.xml" />
+</full-backup-content>

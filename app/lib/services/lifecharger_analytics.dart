@@ -123,6 +123,13 @@ class Analytics with WidgetsBindingObserver {
 
   static Future<void> setEnabled(bool value) => instance._setEnabled(value);
 
+  /// Returning players (2026-09-26). An app stores [instance.installId] in its cloud save; after a
+  /// REINSTALL restores that save, it calls this with the stored id, so the player carries on as
+  /// the install the save belongs to and retention counts a return instead of one lost player
+  /// plus one new one. The id this fresh install was given is reported once, as `install_merged`
+  /// {orphan}, so the server folds it away. A missing, malformed or identical id does nothing.
+  static Future<void> adoptInstallId(String? previousId) => instance._adoptInstallId(previousId);
+
   static Future<void> flush() => instance._flush();
 
   Future<void> _init(String package, String appVersion, SharedPreferences? prefs) async {
@@ -157,6 +164,20 @@ class Analytics with WidgetsBindingObserver {
       _installErrorHooks();
       unawaited(_startWatchdog());
     }
+    unawaited(_flush());
+  }
+
+  static final RegExp _uuidPattern =
+      RegExp(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$');
+
+  Future<void> _adoptInstallId(String? previousId) async {
+    if (!_ready || previousId == null) return;
+    final String id = previousId.trim().toLowerCase();
+    if (id == _installId || !_uuidPattern.hasMatch(id)) return;
+    final String orphan = _installId;
+    _installId = id;
+    await _prefs?.setString(_kInstallId, id);
+    _log('install_merged', {'orphan': orphan});
     unawaited(_flush());
   }
 

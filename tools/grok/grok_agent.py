@@ -92,6 +92,9 @@ DOWNLOAD_JS = """async (url) => {
 }"""
 
 
+# Imagine keeps at most ~5 attachments in agent mode; 4 per brief leaves a margin (user 2026-09-27).
+MAX_REFS = 4
+
 def _tag_of(prompt: str) -> str:
     m = re.match(r"\s*TAG\s+([A-Za-z0-9_]+)", prompt or "")
     return m.group(1) if m else ""
@@ -247,6 +250,10 @@ def cmd_start(args) -> int:
                 except Exception as e:
                     print("  probe failed:", e)
                 return 2
+            if len(args.ref or []) > MAX_REFS:
+                print(f"{len(args.ref)} reference images given; the agent composer keeps only a few - split the brief "
+                      f"into briefs of at most {MAX_REFS} images")
+                return 5
             n = _attach_refs(page, args.ref or [])
             if n:
                 print(f"attached {n} reference image(s)")
@@ -258,6 +265,9 @@ def cmd_start(args) -> int:
                     return 2
                 still = page.evaluate("() => document.querySelectorAll('form img, form [class*=thumb], form [class*=attachment]').length")
                 print(f"attachments visible after re-selecting agent: {still}")
+                if still < n:
+                    print("not every reference image stayed attached; refusing to submit")
+                    return 5
             # No Escape here: it resets the composer's mode and attachment.
             page.add_style_tag(content="[role=dialog], [role=alertdialog], [data-radix-popper-content-wrapper] { display: none !important; }")
             focused = page.evaluate("""() => {
@@ -301,6 +311,42 @@ def cmd_start(args) -> int:
             ctx.close()
 
 
+def cmd_say(args) -> int:
+    """Post a follow-up message into an existing agent conversation (e.g. "go on with the videos"),
+    then optionally watch it. Used when an agent run stops half way or waits for a confirmation."""
+    text = args.text.strip()
+    with sync_playwright() as pw:
+        ctx = _launch(pw, headless=not args.headed)
+        try:
+            page = ctx.new_page()
+            page.goto(args.url, wait_until="load", timeout=60000)
+            page.add_style_tag(content=BANNER_CSS)
+            page.wait_for_timeout(2500)
+            _dismiss_dialogs(page)
+            page.add_style_tag(content="[role=dialog], [role=alertdialog], [data-radix-popper-content-wrapper] { display: none !important; }")
+            focused = page.evaluate("""() => {
+              const t = [...document.querySelectorAll('[role="textbox"]')].pop();
+              if (!t) return false;
+              t.scrollIntoView({block: 'center'});
+              t.focus();
+              return document.activeElement === t;
+            }""")
+            if not focused:
+                print("composer textbox could not be focused on", page.url)
+                return 3
+            page.keyboard.insert_text(text)
+            page.wait_for_timeout(400)
+            page.keyboard.press("Enter")
+            page.wait_for_timeout(3000)
+            print(f"said {len(text)} chars on {page.url}")
+            m = CONV_RE.search(page.url) or CONV_RE.search(args.url)
+            if args.watch > 0 and m:
+                watch(page, m.group(1), args.watch)
+            return 0
+        finally:
+            ctx.close()
+
+
 def _with_page(fn, headed: bool):
     with sync_playwright() as pw:
         ctx = _launch(pw, headless=not headed)
@@ -332,13 +378,15 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("start"); s.add_argument("--brief", required=True); s.add_argument("--ref", action="append")
+    y = sub.add_parser("say"); y.add_argument("--url", required=True); y.add_argument("--text", required=True)
+    y.add_argument("--watch", type=float, default=0); y.add_argument("--headed", action="store_true")
     s.add_argument("--watch", type=float, default=0, help="minutes to watch + download after starting")
     s.add_argument("--headed", action="store_true")
     w = sub.add_parser("watch"); w.add_argument("--conversation", required=True); w.add_argument("--minutes", type=float, default=30)
     w.add_argument("--headed", action="store_true")
     f = sub.add_parser("fetch"); f.add_argument("--conversation", required=True); f.add_argument("--headed", action="store_true")
     args = ap.parse_args()
-    sys.exit({"start": cmd_start, "watch": cmd_watch, "fetch": cmd_fetch}[args.cmd](args))
+    sys.exit({"start": cmd_start, "watch": cmd_watch, "fetch": cmd_fetch, "say": cmd_say}[args.cmd](args))
 
 
 if __name__ == "__main__":
