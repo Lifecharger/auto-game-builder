@@ -1,0 +1,52 @@
+{
+  "_comment": "Weekly report: which apps, the running budget experiment and the flag thresholds. No keys or machine paths here - those come from env / server/config/settings.json (see weekly_report.py).",
+  "apps": [
+    {"package": "com.lifecharger.hotidle", "name": "Hot Idle", "group": "monetized", "track": "production"},
+    {"package": "com.lifecharger.hotjigsaw", "name": "Hot Jigsaw", "group": "monetized", "track": "production"},
+    {"package": "com.lifecharger.hotcharm", "name": "Hot Charm", "group": "monetized", "track": "production"},
+    {"package": "com.lifecharger.hotslider", "name": "Hot Slider", "group": "monetized", "track": "production"},
+    {"package": "com.lifecharger.projigsaw", "name": "Pro Jigsaw", "group": "monetized", "track": "production"},
+    {"package": "com.lifecharger.sentience", "name": "Sentience", "group": "monetized", "track": "production"},
+    {"package": "com.lifecharger.arcadesnake", "name": "Arcade Snake", "group": "monetized", "track": "production"},
+    {"package": "com.lifecharger.deathpin", "name": "Deathpin", "group": "monetized", "track": "production"},
+    {"package": "com.lifecharger.beestriker", "name": "Bee Striker", "group": "monetized", "track": "production"},
+    {"package": "com.lifecharger.animestreamer", "name": "ADSC", "group": "monetized", "track": "alpha"},
+    {"package": "com.lifecharger.hotcardgames", "name": "Hot Card Games", "group": "monetized", "track": "internal"},
+    {"package": "com.lifecharger.locationalarm", "name": "Location Alarm", "group": "utility", "track": "production"},
+    {"package": "com.lifecharger.acepong", "name": "Ace Pong", "group": "utility", "track": "production"},
+    {"package": "com.lifecharger.appmanager", "name": "Auto Game Builder", "group": "utility", "track": "production"}
+  ],
+  "play_fee_pct": 15,
+  "experiment": {
+    "title": "Ads budget experiment",
+    "started": "2026-09-29",
+    "judge_on": "2026-10-13",
+    "note": "Owner changed budgets on 2026-09-29 after the performance report. Judge each campaign after 2 weeks on the four targets.",
+    "campaigns": [
+      {"package": "com.lifecharger.hotidle", "budget_per_day": 150},
+      {"package": "com.lifecharger.hotjigsaw", "budget_per_day": 50},
+      {"package": "com.lifecharger.hotcharm", "budget_per_day": 100}
+    ],
+    "targets": {
+      "cpi_max": 5,
+      "admob_per_day_min": 40,
+      "d1_min_pct": 8,
+      "sales_per_week_min": 1
+    }
+  },
+  "thresholds": {
+    "cpi_rise_pct": 30,
+    "money_ratio_min": 1.0,
+    "crash_rate_max_pct": 1.0,
+    "anr_rate_max_pct": 0.47,
+    "abnormal_end_max_pct": 1.0,
+    "min_sessions_for_rate": 50,
+    "d1_drop_points": 3,
+    "d1_min_cohort": 20,
+    "admob_drop_pct": 20,
+    "admob_min_prev": 20,
+    "underspend_pct": 80
+  },
+  "usage_builds": 0,
+  "health_builds": 5
+}

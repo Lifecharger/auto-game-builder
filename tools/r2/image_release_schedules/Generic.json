@@ -1,0 +1,96 @@
+{
+ "_about": "Per-picture timed releases for gallery-hot collections/Generic. Edit here, then run: python tools/r2/publish_image_release.py Generic. Each block releases `per_release` pictures (in id order) every `every_days` days from `first_release` (00:00 UTC).",
+ "collection": "Generic",
+ "schedules": [
+  {
+   "name": "generic_1581_1650 (owner 2026-09-27: every Monday, 10 pictures)",
+   "ids": {
+    "from": 1581,
+    "to": 1650
+   },
+   "first_release": "2026-10-05",
+   "every_days": 7,
+   "per_release": 10
+  },
+  {
+   "name": "generic_1651_1670 anime (owner 2026-09-28: continue the Monday cadence, 10 pictures)",
+   "ids": {
+    "from": 1651,
+    "to": 1670
+   },
+   "first_release": "2026-11-23",
+   "every_days": 7,
+   "per_release": 10
+  },
+  {
+   "name": "generic_1671_1790 (owner 2026-09-28: continue the Monday cadence, 10 pictures)",
+   "ids": {
+    "from": 1671,
+    "to": 1790
+   },
+   "first_release": "2026-12-07",
+   "every_days": 7,
+   "per_release": 10
+  },
+  {
+   "name": "generic_1791_1810 cosplay (owner 2026-09-28: continue the Monday cadence, 10 pictures)",
+   "ids": {
+    "from": 1791,
+    "to": 1810
+   },
+   "first_release": "2027-03-01",
+   "every_days": 7,
+   "per_release": 10
+  },
+  {
+   "name": "generic_1811_1830 action (2026-09-28: continue the Monday cadence, 10 pictures)",
+   "ids": {
+    "from": 1811,
+    "to": 1830
+   },
+   "first_release": "2027-03-15",
+   "every_days": 7,
+   "per_release": 10
+  },
+  {
+   "name": "generic_1831_1840 realistic glamour (2026-09-29: continue the Monday cadence, 10 pictures)",
+   "ids": {
+    "from": 1831,
+    "to": 1840
+   },
+   "first_release": "2027-03-29",
+   "every_days": 7,
+   "per_release": 10
+  },
+  {
+   "name": "generic_1841_1859 owner-made realistic (2026-09-29: continue the Monday cadence, 10 pictures)",
+   "ids": {
+    "from": 1841,
+    "to": 1859
+   },
+   "first_release": "2027-04-05",
+   "every_days": 7,
+   "per_release": 10
+  },
+  {
+   "name": "generic_1860 fantasy elf (2026-09-29: joins the 2027-04-12 Monday with 1851-1859 = 10)",
+   "ids": {
+    "from": 1860,
+    "to": 1860
+   },
+   "first_release": "2027-04-12",
+   "every_days": 7,
+   "per_release": 10
+  },
+  {
+   "name": "generic_1861_1875 fantasy elves 1861-1863 + owner-made 1864 + elf sorceresses 1865-1875 (2026-09-29: continue the Monday cadence)",
+   "ids": {
+    "from": 1861,
+    "to": 1875
+   },
+   "first_release": "2027-04-19",
+   "every_days": 7,
+   "per_release": 10
+  }
+ ]
+}

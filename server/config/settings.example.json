@@ -75,7 +75,8 @@
   },
   "r2": {
     "_comment": "Kovalar kipi (#381): R2'nin S3 uyumlu erisim bilgileri. Dosya DEPO DISINDA durur; R2_CREDENTIALS_FILE ortam degiskeni onceliklidir. Icerigi: endpoint, access_key_id, secret_access_key, account_id.",
-    "credentials_file": "D:/keys/cloudflare_r2_s3_credentials.json"
+    "credentials_file": "D:/keys/cloudflare_r2_s3_credentials.json",
+    "mirror_root": ""
   },
   "comfyui": {
     "_comment": "ComfyUI kurulum koku ve adresi. COMFYUI_ROOT / COMFYUI_URL ortam degiskenleri onceliklidir.",
@@ -121,5 +122,26 @@
         "name": "Oyun"
       }
     ]
+  },
+  "events": {
+    "_comment": "Etkinlik kuyruk betikleri (tools/events). EVENTS_MINIGAMES_ROOT ortam degiskeni onceliklidir.",
+    "minigames_root": ""
+  },
+  "grok": {
+    "_comment": "Ikinci Grok Playwright profili. GROK_BRO_PROFILE_DIR onceliklidir; bos = ~/.grok-playwright-bro",
+    "bro_profile_dir": ""
+  },
+  "weekly_report": {
+    "_comment": "tools/reports/weekly_report.py (haftalik rapor). Ortam degiskenleri onceliklidir; bos alanlar icin varsayilanlar betigin basinda yazar.",
+    "output_dir": "",
+    "oauth_token_file": "",
+    "play_sa_key": "",
+    "analytics_url": "",
+    "analytics_key_file": "",
+    "ads_customer_id": "",
+    "ads_quota_project": "",
+    "admob_publisher_id": "",
+    "play_bucket": "",
+    "agb_url": ""
   }
 }
