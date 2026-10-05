@@ -8,6 +8,7 @@ import 'auth_service.dart';
 import 'cache_service.dart';
 import 'event_service.dart';
 import 'sync_service.dart';
+import 'usage_events.dart';
 
 class AppState extends ChangeNotifier {
   List<AppModel> _apps = [];
@@ -43,8 +44,19 @@ class AppState extends ChangeNotifier {
   int get totalBuilds => CacheService.instance.buildCount;
   /// True when consecutive health checks have failed at or beyond the
   /// configured offline-banner threshold.
-  bool get showOfflineBanner =>
+  bool get showOfflineBanner => _healthBanner || keyRefused;
+
+  /// The health check has failed often enough in a row to say so.
+  bool get _healthBanner =>
       _consecutiveFailures >= AppConfig.offlineBannerFailureThreshold;
+
+  /// The server is there but refuses this app's API key: the banner then
+  /// says so and leads to Settings instead of calling the server unreachable.
+  bool get keyRefused => ApiService.keyRefused.value;
+
+  AppState() {
+    ApiService.keyRefused.addListener(notifyListeners);
+  }
 
   /// Whether the user is signed in via Google.
   bool get isSignedIn => AuthService.instance.isSignedIn;
@@ -84,13 +96,22 @@ class AppState extends ChangeNotifier {
 
   Future<void> _checkHealth() async {
     final ok = await ApiService.healthCheck();
-    final prevBanner = showOfflineBanner;
+    final prevBanner = _healthBanner;
     if (ok) {
       _consecutiveFailures = 0;
+      unawaited(Usage.milestone('server_connected'));
+      // While the key is refused nothing else may be asking the server:
+      // ask again here, so the banner clears soon after the key is fixed.
+      if (keyRefused) unawaited(loadApps());
     } else {
       _consecutiveFailures++;
     }
-    if (_connected != ok || showOfflineBanner != prevBanner) {
+    // One event per outage, at the moment the offline banner comes up - not
+    // one per failed poll.
+    if (_healthBanner && !prevBanner) {
+      Usage.fail('connection', ApiService.lastHealthFailure ?? 'error');
+    }
+    if (_connected != ok || _healthBanner != prevBanner) {
       _connected = ok;
       notifyListeners();
     }
@@ -98,6 +119,7 @@ class AppState extends ChangeNotifier {
 
   @override
   void dispose() {
+    ApiService.keyRefused.removeListener(notifyListeners);
     _healthTimer?.cancel();
     super.dispose();
   }
@@ -168,6 +190,9 @@ class AppState extends ChangeNotifier {
       _error = SyncService.instance.lastError ?? 'Sync failed';
     }
     _loading = false;
+    if (_error == null && _apps.isNotEmpty) {
+      unawaited(Usage.milestone('first_project_listed'));
+    }
     notifyListeners();
   }
 

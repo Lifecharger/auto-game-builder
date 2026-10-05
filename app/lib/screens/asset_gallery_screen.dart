@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../l10n/app_localizations.dart';
 import '../services/generate_service.dart';
 import '../services/card_flow_service.dart';
 import '../services/cbn_flow_service.dart';
@@ -31,6 +32,8 @@ class AssetGalleryScreen extends StatefulWidget {
 enum _Filter { all, image, video, audio, favorite }
 
 class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
+  AppLocalizations get l10n => AppLocalizations.of(context)!;
+
   List<GenerateJob> _jobs = [];
   bool _loading = true;
   String? _error;
@@ -156,18 +159,18 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
-        title: const Text('Sil'),
-        content: Text('$n uretim ve dosyasi silinsin mi?'),
+        title: Text(l10n.delete),
+        content: Text(l10n.galleryDeleteSelectedConfirm(n)),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(c, false),
-              child: const Text('Vazgec')),
+              child: Text(l10n.cancel)),
           FilledButton(
-              onPressed: () => Navigator.pop(c, true), child: const Text('Sil')),
+              onPressed: () => Navigator.pop(c, true), child: Text(l10n.delete)),
         ],
       ),
     );
-    if (ok != true) return;
+    if (ok != true || !mounted) return;
     setState(() => _busy = true);
     // Video gorselin kartinda duruyor; karti silmek videosunu da siler.
     final idler = <String>[];
@@ -190,7 +193,7 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
       _busy = false;
     });
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(hata == 0 ? '$n uretim silindi' : '$hata silinemedi')));
+        content: Text(hata == 0 ? l10n.galleryDeleted(n) : l10n.galleryDeleteFailed(hata))));
     _load();
   }
 
@@ -216,11 +219,11 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
   Future<void> _extractOutfit() async {
     final gorseller = _selectedImages;
     if (gorseller.isEmpty) {
-      _msg('Tamamlanmis gorsel sec');
+      _msg(l10n.assetPickFinishedImage);
       return;
     }
     if (gorseller.length > 1) {
-      _msg('Kiyafet tek gorselden cikarilir - birini sec');
+      _msg(l10n.jigsawFlowExtractNeedsOne);
       return;
     }
     final secim = await showOutfitExtractDialog(context);
@@ -234,7 +237,7 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
           jobId: gorseller.first.id,
           note: secim.note);
       if (!mounted) return;
-      _msg('${secim.name} gardiroba cikariliyor - Karakter > Gardirop');
+      _msg(l10n.outfitExtractStarted(secim.name));
       setState(_sel.clear);
     } catch (e) {
       _msg(e.toString().replaceFirst('Exception: ', ''));
@@ -250,22 +253,21 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
   Future<void> _makeCharacter() async {
     final gorseller = _selectedImages;
     if (gorseller.isEmpty) {
-      _msg('Tamamlanmis gorsel sec');
+      _msg(l10n.assetPickFinishedImage);
       return;
     }
     if (gorseller.length > 1) {
-      _msg('Karakter tek gorselden acilir - birini sec');
+      _msg(l10n.galleryCharacterNeedsOne);
       return;
     }
     // #306: pencere Karakter hattiyla ortak (isim + sinif + kimlik cumlesi).
     final sonuc = await characterCreateDialog(
       context,
-      baslik: 'Karakter yap',
-      aciklama: 'Secili gorsel dogrudan base olur; portre, hikaye ve 7 yon '
-          'kendiliginden uretilir - onay sorulmaz.',
+      baslik: l10n.galleryMakeCharacter,
+      aciklama: l10n.galleryMakeCharacterBody,
       promptGerekli: false,
     );
-    if (sonuc == null) return;
+    if (sonuc == null || !mounted) return;
     setState(() => _busy = true);
     try {
       // #306: create artik otomatik hatti baslatir ve op doner - secili is
@@ -279,7 +281,7 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
           kind: sonuc.kind,
           jobId: gorseller.first.id);
       if (!mounted) return;
-      _msg('${sonuc.name} siraya eklendi - pipeline Sira sekmesinde');
+      _msg(l10n.galleryCharacterQueued(sonuc.name));
       setState(_sel.clear);
     } catch (e) {
       _msg(e.toString().replaceFirst('Exception: ', ''));
@@ -293,7 +295,7 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
   Future<void> _stageToCharacter() async {
     final gorseller = _selectedImages;
     if (gorseller.isEmpty) {
-      _msg('Tamamlanmis gorsel sec');
+      _msg(l10n.assetPickFinishedImage);
       return;
     }
     List<CharacterItem> karakterler;
@@ -305,13 +307,13 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
     }
     if (!mounted) return;
     if (karakterler.isEmpty) {
-      _msg('Once "Karakter yap" ile bir karakter olustur');
+      _msg(l10n.galleryCreateCharacterFirst);
       return;
     }
     final ad = await showDialog<String>(
       context: context,
       builder: (c) => AlertDialog(
-        title: Text('Adaylara ekle - ${gorseller.length} gorsel'),
+        title: Text(l10n.galleryAddToCandidatesTitle(gorseller.length)),
         content: SizedBox(
           width: 380,
           child: ListView(
@@ -329,17 +331,17 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Vazgec')),
+          TextButton(onPressed: () => Navigator.pop(c), child: Text(l10n.cancel)),
         ],
       ),
     );
-    if (ad == null) return;
+    if (ad == null || !mounted) return;
     setState(() => _busy = true);
     try {
       final n = await CharacterFlowService.stage(
           name: ad, jobIds: gorseller.map((j) => j.id).toList());
       if (!mounted) return;
-      _msg('$ad adaylarina $n gorsel eklendi');
+      _msg(l10n.galleryAddedToCandidates(n, ad));
       setState(_sel.clear);
     } catch (e) {
       _msg(e.toString().replaceFirst('Exception: ', ''));
@@ -354,11 +356,11 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
   Future<void> _stageToCollection() async {
     final gorseller = _selectedImages;
     if (gorseller.isEmpty) {
-      _msg('Tamamlanmis gorsel sec');
+      _msg(l10n.assetPickFinishedImage);
       return;
     }
     if (gorseller.length > 1) {
-      _msg('Koleksiyona tek gorsel eklenir - birini sec');
+      _msg(l10n.galleryCollectionNeedsOne);
       return;
     }
     List<CardCollection> koleksiyonlar;
@@ -375,14 +377,14 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
     }
     if (!mounted) return;
     if (koleksiyonlar.isEmpty && krupiyeler.isEmpty) {
-      _msg('Once Kart hattinda bir koleksiyon ya da krupiye olustur');
+      _msg(l10n.galleryCreateCollectionFirst);
       return;
     }
     // 1) hedef sec (koleksiyon ya da krupiye)
     final hedef = await showDialog<(String, String)>(
       context: context,
       builder: (c) => AlertDialog(
-        title: const Text('Koleksiyona ekle'),
+        title: Text(l10n.galleryAddToCollection),
         content: SizedBox(
           width: 380,
           child: ListView(
@@ -404,8 +406,8 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
                   dense: true,
                   leading: const Icon(Icons.person_outline, size: 20),
                   title: Text(d.name),
-                  subtitle: const Text('krupiye (rutbe yok)',
-                      style: TextStyle(fontSize: 11)),
+                  subtitle: Text(l10n.galleryDealerNoRank,
+                      style: const TextStyle(fontSize: 11)),
                   onTap: () => Navigator.pop(c, ('dealer', d.id)),
                 ),
             ],
@@ -413,7 +415,7 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(c), child: const Text('Vazgec')),
+              onPressed: () => Navigator.pop(c), child: Text(l10n.cancel)),
         ],
       ),
     );
@@ -427,7 +429,7 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
       final secim = await showDialog<String>(
         context: context,
         builder: (c) => AlertDialog(
-          title: Text('${k.name} - rutbe sec'),
+          title: Text(l10n.galleryPickRank(k.name)),
           content: SizedBox(
             width: 360,
             child: Wrap(
@@ -448,7 +450,7 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
           ),
           actions: [
             TextButton(
-                onPressed: () => Navigator.pop(c), child: const Text('Vazgec')),
+                onPressed: () => Navigator.pop(c), child: Text(l10n.cancel)),
           ],
         ),
       );
@@ -461,7 +463,7 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
       await CardFlowService.stage(
           collection: id, rank: rank, jobId: gorseller.first.id, kind: tur);
       if (!mounted) return;
-      _msg('Siraya eklendi (1 is) - Sira sekmesinden izle');
+      _msg(l10n.galleryQueuedOne);
       setState(_sel.clear);
     } on CardNotReadyException catch (e) {
       _msg(e.message);
@@ -485,8 +487,7 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
         .where((j) => j.isDone && j.isImage)
         .toList();
     if (gorseller.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Tamamlanmis gorsel sec')));
+      _msg(l10n.assetPickFinishedImage);
       return;
     }
     final cbn = _mode == 'cbn';
@@ -494,24 +495,21 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
     final rating = await showDialog<String>(
       context: context,
       builder: (c) => AlertDialog(
-        title: const Text('Kabul et'),
+        scrollable: true,
+        title: Text(l10n.flowAccept),
         content: Text(cbn
-            ? '${gorseller.length} gorsel CBN hattinin "Gelen" akisina tasinacak: '
-                'jpg + EXIF etiketi. Insa (SAM, cizgi, bolgeler) orada baslatilir.\n\n'
-                'Hangi derece?'
-            : '${gorseller.length} gorsel 2. akisa tasinacak: '
-                'jpg + EXIF etiketi, varsa videosu da yaninda.\n\n'
-                'Hangi derece?'),
+            ? l10n.galleryAcceptBodyCbn(gorseller.length)
+            : l10n.galleryAcceptBodyJigsaw(gorseller.length)),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(c), child: const Text('Vazgec')),
+              onPressed: () => Navigator.pop(c), child: Text(l10n.cancel)),
           for (final e in ratings.entries)
             FilledButton(
                 onPressed: () => Navigator.pop(c, e.key), child: Text(e.value)),
         ],
       ),
     );
-    if (rating == null) return;
+    if (rating == null || !mounted) return;
     setState(() => _busy = true);
     try {
       final jobs = gorseller.map((j) => j.id).toList();
@@ -521,8 +519,7 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
         await JigsawFlowService.stageJobs(jobs: jobs, rating: rating);
       }
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Basladi - ilerlemeyi "Hat" sekmesinden izle')));
+      _msg(l10n.galleryAcceptStarted);
       setState(_sel.clear);
       _load();
     } catch (e) {
@@ -554,69 +551,69 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
         leading: _selecting
             ? IconButton(
                 icon: const Icon(Icons.close),
-                tooltip: 'Secimi birak',
+                tooltip: l10n.bucketsClearSelection,
                 onPressed: () => setState(_sel.clear),
               )
             : null,
-        title: Text(_selecting ? '${_sel.length} secili' : 'Uretilenler'),
+        title: Text(_selecting ? l10n.bucketsSelectedCount(_sel.length) : l10n.navGallery),
         actions: _selecting
             ? [
                 IconButton(
                   icon: const Icon(Icons.select_all),
-                  tooltip: 'Tumunu sec',
+                  tooltip: l10n.flowSelectAll,
                   onPressed: () =>
                       setState(() => _sel.addAll(_visible.map((j) => j.id))),
                 ),
                 // #329: her kipte - secili tek gorselden kiyafet cikar.
                 IconButton(
                   icon: const Icon(Icons.checkroom_outlined),
-                  tooltip: 'Kiyafet cikar - gorseldeki kiyafeti gardiroba al',
+                  tooltip: l10n.galleryExtractTooltip,
                   onPressed: _busy ? null : _extractOutfit,
                 ),
                 if (_mode == 'character') ...[
                   IconButton(
                     icon: const Icon(Icons.person_add_alt),
-                    tooltip: 'Karakter yap - yeni karakter olustur',
+                    tooltip: l10n.galleryMakeCharacterTooltip,
                     onPressed: _busy ? null : _makeCharacter,
                   ),
                   IconButton(
                     icon: const Icon(Icons.playlist_add),
-                    tooltip: 'Adaylara ekle - mevcut karaktere kopyala',
+                    tooltip: l10n.galleryAddToCandidatesTooltip,
                     onPressed: _busy ? null : _stageToCharacter,
                   ),
                 ] else if (_mode == 'card')
                   // #323: secili is bir koleksiyonun rutbesine still olur.
                   IconButton(
                     icon: const Icon(Icons.style_outlined),
-                    tooltip: 'Koleksiyona ekle - rutbe sec',
+                    tooltip: l10n.galleryAddToCollectionTooltip,
                     onPressed: _busy ? null : _stageToCollection,
                   )
                 else if (_mode != 'free')
                   IconButton(
                     icon: const Icon(Icons.check_circle_outline),
-                    tooltip: 'Kabul et - 2. akisa gonder',
+                    tooltip: l10n.galleryAcceptTooltip,
                     onPressed: _busy ? null : _acceptSelected,
                   ),
                 IconButton(
                   icon: const Icon(Icons.delete_outline),
-                  tooltip: 'Secilenleri sil',
+                  tooltip: l10n.galleryDeleteSelected,
                   onPressed: _busy ? null : _deleteSelected,
                 ),
               ]
             : [
                 IconButton(
                   icon: const Icon(Icons.code),
-                  tooltip: 'Code Mod',
+                  tooltip: l10n.assetCodeMode,
                   onPressed: () => ModeService.set(false),
                 ),
                 IconButton(
                   icon: const Icon(Icons.local_shipping_outlined),
-                  tooltip: 'Delivery Mod',
+                  tooltip: l10n.deliveryModeTooltip,
                   onPressed: () => ModeService.setMode(ModeService.delivery),   // #363
                 ),
                 IconButton(
                   icon: const Icon(Icons.refresh),
-                  tooltip: 'Yenile',
+                  tooltip: l10n.refresh,
                   onPressed: _load,
                 ),
               ],
@@ -641,11 +638,11 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               child: Row(
                 children: [
-                  _chip('Hepsi', _Filter.all),
-                  _chip('Gorsel', _Filter.image),
-                  _chip('Video', _Filter.video),
-                  _chip('Ses', _Filter.audio),
-                  _chip('Favori', _Filter.favorite),
+                  _chip(l10n.filterAll, _Filter.all),
+                  _chip(l10n.galleryFilterImage, _Filter.image),
+                  _chip(l10n.galleryFilterVideo, _Filter.video),
+                  _chip(l10n.audioLabel, _Filter.audio),
+                  _chip(l10n.galleryFilterFavorite, _Filter.favorite),
                 ],
               ),
             ),
@@ -793,7 +790,7 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
                       child: CircularProgressIndicator(strokeWidth: 2)),
                   const SizedBox(height: 8),
                   Text(
-                    j.isRunning ? '%${j.progress}' : 'sirada ${j.position ?? ''}',
+                    j.isRunning ? l10n.percentValue(j.progress) : l10n.galleryQueuedAt('${j.position ?? ''}'),
                     style: const TextStyle(fontSize: 10, color: Colors.grey),
                   ),
                 ],
@@ -828,23 +825,24 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
               FilledButton.icon(
                 onPressed: _load,
                 icon: const Icon(Icons.refresh),
-                label: const Text('Tekrar dene'),
+                label: Text(l10n.retry),
               ),
             ],
           ),
         ),
       );
 
-  Widget _emptyView() => const Center(
+  Widget _emptyView() => Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.image_outlined, size: 48, color: Colors.grey),
-            SizedBox(height: 12),
-            Text('Henuz uretim yok'),
-            SizedBox(height: 4),
-            Text('Uretim sekmesinden baslayabilirsin',
-                style: TextStyle(fontSize: 12, color: Colors.grey)),
+            const Icon(Icons.image_outlined, size: 48, color: Colors.grey),
+            const SizedBox(height: 12),
+            Text(l10n.galleryEmpty),
+            const SizedBox(height: 4),
+            Text(l10n.galleryEmptyHint,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 12, color: Colors.grey)),
           ],
         ),
       );
@@ -862,6 +860,8 @@ class _ViewerPage extends StatefulWidget {
 }
 
 class _ViewerPageState extends State<_ViewerPage> {
+  AppLocalizations get l10n => AppLocalizations.of(context)!;
+
   late final PageController _pages = PageController(initialPage: widget.index);
   late int _i = widget.index;
   bool _changed = false;
@@ -878,11 +878,11 @@ class _ViewerPageState extends State<_ViewerPage> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
-        title: const Text('Sil'),
-        content: const Text('Bu uretim ve dosyasi silinsin mi?'),
+        title: Text(l10n.delete),
+        content: Text(l10n.galleryDeleteOneConfirm),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Vazgec')),
-          FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Sil')),
+          TextButton(onPressed: () => Navigator.pop(c, false), child: Text(l10n.cancel)),
+          FilledButton(onPressed: () => Navigator.pop(c, true), child: Text(l10n.delete)),
         ],
       ),
     );
@@ -909,12 +909,12 @@ class _ViewerPageState extends State<_ViewerPage> {
     final rating = await showDialog<String>(
       context: context,
       builder: (c) => AlertDialog(
-        title: const Text('Kabul et'),
+        title: Text(l10n.flowAccept),
         content: Text(cbn
-            ? 'CBN hattinin "Gelen" akisina tasinacak (jpg + EXIF etiketi).\n\nHangi derece?'
-            : '2. akisa tasinacak (jpg + EXIF etiketi).\n\nHangi derece?'),
+            ? l10n.galleryAcceptOneCbn
+            : l10n.galleryAcceptOneJigsaw),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Vazgec')),
+          TextButton(onPressed: () => Navigator.pop(c), child: Text(l10n.cancel)),
           for (final e in ratings.entries)
             FilledButton(
                 onPressed: () => Navigator.pop(c, e.key), child: Text(e.value)),
@@ -928,7 +928,7 @@ class _ViewerPageState extends State<_ViewerPage> {
       } else {
         await JigsawFlowService.stageJobs(jobs: [j.id], rating: rating);
       }
-      _snack('Kabul edildi - etiketleniyor, "Hat" sekmesinden izle');
+      _snack(l10n.galleryAccepted);
       _advanceAfterRemoving();
     } catch (e) {
       _snack(e.toString().replaceFirst('Exception: ', ''));
@@ -942,7 +942,7 @@ class _ViewerPageState extends State<_ViewerPage> {
     final j = _job;
     try {
       await GenerateService.delete(j.id);
-      _snack('Reddedildi');
+      _snack(l10n.galleryRejected);
       _advanceAfterRemoving();
     } catch (e) {
       _snack(e.toString().replaceFirst('Exception: ', ''));
@@ -980,35 +980,35 @@ class _ViewerPageState extends State<_ViewerPage> {
       builder: (c) => AlertDialog(
         // 4 satirlik otomatik odakli prompt kutusu klavyeyle tasiyordu (gorev #289).
         scrollable: true,
-        title: const Text('Duzenle'),
+        title: Text(l10n.edit),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Bu gorsel kaynak olur; edit motoru (Qwen Image Edit, kimlik korur) '
-              'yeni bir uretim acar. Ne degissin?',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
+            Text(
+              l10n.galleryEditBody,
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
             ),
             const SizedBox(height: 10),
             TextField(
               controller: ctl,
               autofocus: true,
               maxLines: 4,
-              decoration: const InputDecoration(
-                labelText: 'Ek prompt',
-                hintText: 'orn. change the dress to a red pleated miniskirt, keep face and pose',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: l10n.galleryEditPromptLabel,
+                hintText: l10n.galleryEditPromptHint,
+                hintMaxLines: 3,
+                border: const OutlineInputBorder(),
               ),
             ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Vazgec')),
+          TextButton(onPressed: () => Navigator.pop(c), child: Text(l10n.cancel)),
           FilledButton.icon(
             onPressed: () => Navigator.pop(c, ctl.text.trim()),
             icon: const Icon(Icons.auto_fix_high, size: 18),
-            label: const Text('Uret'),
+            label: Text(l10n.generate),
           ),
         ],
       ),
@@ -1022,7 +1022,7 @@ class _ViewerPageState extends State<_ViewerPage> {
         mode: j.mode.isEmpty ? 'free' : j.mode,
       );
       _changed = true;
-      _snack('Duzenleme siraya eklendi - sonucu Uretilenler\'de gorursun');
+      _snack(l10n.galleryEditQueued);
     } catch (e) {
       _snack(e.toString().replaceFirst('Exception: ', ''));
     }
@@ -1055,10 +1055,10 @@ class _ViewerPageState extends State<_ViewerPage> {
           if (j.isDone && j.isImage)
             IconButton(
               icon: const Icon(Icons.auto_fix_high),
-              tooltip: 'Duzenle - edit motoruyla yeni uretim',
+              tooltip: l10n.galleryEditTooltip,
               onPressed: _edit,
             ),
-          IconButton(icon: const Icon(Icons.delete_outline), onPressed: _delete),
+          IconButton(icon: const Icon(Icons.delete_outline), tooltip: l10n.delete, onPressed: _delete),
         ],
       ),
       body: Column(
@@ -1095,10 +1095,10 @@ class _ViewerPageState extends State<_ViewerPage> {
     final bits = <String>[
       j.task,
       if (j.mode.isNotEmpty) j.mode,
-      if (j.seconds != null) '${j.seconds!.toStringAsFixed(0)} sn',
+      if (j.seconds != null) l10n.durSeconds(j.seconds!.toStringAsFixed(0)),
       if (j.width > 0) '${j.width}x${j.height}',
       if (j.seed != null) 'seed ${j.seed}',
-      if (j.exported != null) 'havuz ${j.exported}',
+      if (j.exported != null) l10n.galleryPoolInfo('${j.exported}'),
     ];
     // Tam ekran route: ust Scaffold'un nav cubugu yok, sistem gezinme
     // cubugunun yerini kimse birakmiyor. Sabit 20px yetmiyordu - "Havuza ekle"
@@ -1132,7 +1132,7 @@ class _ViewerPageState extends State<_ViewerPage> {
                       side: BorderSide(color: AppColors.error),
                     ),
                     icon: const Icon(Icons.close, size: 18),
-                    label: const Text('Reddet'),
+                    label: Text(l10n.flowReject),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -1140,7 +1140,7 @@ class _ViewerPageState extends State<_ViewerPage> {
                   child: FilledButton.icon(
                     onPressed: _accept,
                     icon: const Icon(Icons.check, size: 18),
-                    label: const Text('Kabul'),
+                    label: Text(l10n.flowAccept),
                   ),
                 ),
               ],

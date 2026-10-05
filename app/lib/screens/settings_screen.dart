@@ -16,6 +16,7 @@ import '../theme.dart';
 import 'report_screen.dart';
 import '../theme/palette.dart';
 import '../services/lifecharger_analytics.dart';
+import '../services/usage_events.dart';
 import '../widgets/settings/server_config_section.dart';
 import '../l10n/app_localizations.dart';
 
@@ -565,6 +566,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                       trailing: const Icon(Icons.chevron_right),
                       onTap: () {
+                        Usage.screen('report_form');
                         Navigator.of(context).push(
                           MaterialPageRoute<void>(
                             builder: (_) => const ReportScreen(),
@@ -1132,6 +1134,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final ok = await AppConfig.applyPairingData(result);
     if (!mounted) return;
     if (ok) {
+      Usage.used('pair_qr');
       _workerUrlController.text = AppConfig.workerUrl;
       _urlController.text = AppConfig.baseUrl;
       setState(() => _editingWorkerUrl = false);

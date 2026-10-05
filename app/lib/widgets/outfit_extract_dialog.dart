@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/app_localizations.dart';
 import '../screens/character_flow_screen.dart' show kindSelector;
 import '../services/character_flow_service.dart';
 
@@ -30,30 +31,30 @@ Future<OutfitExtractChoice?> showOutfitExtractDialog(BuildContext context,
   final ok = await showDialog<bool>(
     context: context,
     builder: (c) => StatefulBuilder(
-      builder: (c, setLocal) => AlertDialog(
+      builder: (c, setLocal) {
+        final l10n = AppLocalizations.of(c)!;
+        return AlertDialog(
         scrollable: true,
-        title: const Text('Kiyafet cikar'),
+        title: Text(l10n.outfitExtractTitle),
         content: SizedBox(
           width: 460,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                  'Secili gorseldeki kisi silinir, uzerindeki kiyafet duz gri '
-                  'fonda hayalet manken urun karesi olarak gardiroba yazilir. '
-                  'Sonra her karakterde skin olarak giydirilir.',
-                  style: TextStyle(fontSize: 12, color: Colors.grey)),
+              Text(l10n.outfitExtractBody,
+                  style: const TextStyle(fontSize: 12, color: Colors.grey)),
               const SizedBox(height: 12),
               TextField(
                 controller: ad,
                 autofocus: true,
-                decoration: const InputDecoration(
-                    labelText: 'Kiyafet adi', hintText: 'orn. Kirmizi gece elbisesi'),
+                decoration: InputDecoration(
+                    labelText: l10n.outfitExtractName,
+                    hintText: l10n.outfitExtractNameHint),
               ),
               const SizedBox(height: 12),
-              const Text('Tur',
-                  style: TextStyle(fontSize: 12, color: Colors.grey)),
+              Text(l10n.type,
+                  style: const TextStyle(fontSize: 12, color: Colors.grey)),
               const SizedBox(height: 4),
               kindSelector(
                 value: tur,
@@ -62,39 +63,40 @@ Future<OutfitExtractChoice?> showOutfitExtractDialog(BuildContext context,
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 initialValue: kategori,
-                decoration: const InputDecoration(labelText: 'Kategori'),
+                decoration: InputDecoration(labelText: l10n.commonCategory),
                 items: [
                   for (final k in kategoriler)
                     DropdownMenuItem(
-                        value: '${k['id']}', child: Text('${k['label']}')),
+                        value: '${k['id']}',
+                        child: Text(
+                            CharacterFlowService.categoryLabel('${k['id']}'))),
                 ],
                 onChanged: (v) => setLocal(() => kategori = v ?? 'set'),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: not,
-                decoration: const InputDecoration(
-                    labelText: 'Not (istege bagli)',
-                    hintText: 'orn. sadece elbise, ayakkabilar haric'),
+                decoration: InputDecoration(
+                    labelText: l10n.outfitExtractNote,
+                    hintText: l10n.outfitExtractNoteHint),
                 maxLines: 2,
               ),
               const SizedBox(height: 6),
-              const Text(
-                  'Set: kisinin ustundeki her sey tek karede. Silah/aksesuar: '
-                  'yalniz o nesne, mankensiz.',
-                  style: TextStyle(fontSize: 11, color: Colors.grey)),
+              Text(l10n.outfitExtractHelp,
+                  style: const TextStyle(fontSize: 11, color: Colors.grey)),
             ],
           ),
         ),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(c, false),
-              child: const Text('Vazgec')),
+              child: Text(l10n.cancel)),
           FilledButton(
               onPressed: () => Navigator.pop(c, true),
-              child: const Text('Cikar')),
+              child: Text(l10n.outfitExtractAction)),
         ],
-      ),
+      );
+      },
     ),
   );
   if (ok != true) return null;

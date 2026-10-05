@@ -42,6 +42,9 @@ class _ReportScreenState extends State<ReportScreen> {
       ];
 
   final _controller = TextEditingController();
+
+  /// Optional contact address, only so the developer can answer.
+  final _emailController = TextEditingController();
   final _picker = ImagePicker();
   String _category = 'bug';
   final List<_PickedShot> _shots = [];
@@ -50,6 +53,7 @@ class _ReportScreenState extends State<ReportScreen> {
 
   @override
   void dispose() {
+    _emailController.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -89,8 +93,15 @@ class _ReportScreenState extends State<ReportScreen> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
+  /// False only when something that is not an address was typed; an
+  /// empty field is fine (the address is optional).
+  bool get _emailOk => ReportService.cleanEmail(_emailController.text) != null;
+
   bool get _canSubmit =>
-      !_sending && _consent && _controller.text.trim().isNotEmpty;
+      !_sending &&
+      _consent &&
+      _emailOk &&
+      _controller.text.trim().isNotEmpty;
 
   Future<void> _submit() async {
     if (!_canSubmit) return;
@@ -101,6 +112,7 @@ class _ReportScreenState extends State<ReportScreen> {
     final error = await ReportService.submit(
       category: _category,
       message: _controller.text,
+      contactEmail: _emailController.text,
       shots: _shots
           .map((s) => ReportShot(
                 bytes: s.bytes,
@@ -169,6 +181,30 @@ class _ReportScreenState extends State<ReportScreen> {
                     ),
                   ),
                   const SizedBox(height: 8),
+                  _label(l10n.reportEmailLabel),
+                  const SizedBox(height: 8),
+                  TextField(
+                    key: const Key('report_email_field'),
+                    controller: _emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    autocorrect: false,
+                    enableSuggestions: false,
+                    textCapitalization: TextCapitalization.none,
+                    autofillHints: const [AutofillHints.email],
+                    maxLines: 1,
+                    maxLength: ReportService.maxEmailLength,
+                    onChanged: (_) => setState(() {}),
+                    decoration: InputDecoration(
+                      border: const OutlineInputBorder(),
+                      hintText: l10n.reportEmailHint,
+                      counterText: '',
+                      helperText: _emailOk ? l10n.reportEmailNote : null,
+                      helperMaxLines: 3,
+                      errorText: _emailOk ? null : l10n.reportEmailInvalid,
+                      errorMaxLines: 3,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                   _label(l10n.screenshotsOptional),
                   const SizedBox(height: 8),
                   _shotsRow(),

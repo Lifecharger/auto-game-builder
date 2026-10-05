@@ -1,15 +1,18 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import '../config.dart';
+import '../l10n/app_localizations.dart';
 import '../models/app_model.dart';
 import '../models/issue_model.dart';
 import '../models/build_model.dart';
 import '../models/automation_model.dart';
 import 'cache_service.dart';
-import 'lifecharger_analytics.dart';
+import 'locale_service.dart';
+import 'usage_events.dart';
 
 class ApiResult<T> {
   final T? data;
@@ -21,28 +24,94 @@ class ApiResult<T> {
 }
 
 class ApiService {
-  static String _friendlyError(Object e) {
-    if (e is TimeoutException) return 'Connection timeout - check your network';
-    if (e is SocketException) return 'Cannot reach server - check your connection';
-    if (e is FormatException) return 'Invalid response from server';
-    return 'Network error: ${e.runtimeType}';
+  /// The message shown for a thrown error. A call the user started names its
+  /// [action] so the failure is also reported by cause (never by its text);
+  /// [background] calls that repeat on a timer report one outage once.
+  static String _friendlyError(Object e,
+      {String? action, bool background = false}) {
+    if (action != null) {
+      Usage.fail(action, Usage.causeOf(e), oncePerSession: background);
+    }
+    return messageForCause(Usage.causeOf(e));
   }
 
-  static String _httpError(int statusCode) {
-    if (statusCode >= 500) return 'Server error ($statusCode) - try again later';
-    if (statusCode == 404) return 'Not found (404)';
-    if (statusCode == 403) return 'Access denied (403)';
-    if (statusCode == 401) return 'Unauthorized (401)';
-    return 'Request failed ($statusCode)';
+  /// What went wrong, in plain words and in the app's language, for a coarse
+  /// cause from [Usage.causeOf] / [Usage.causeOfStatus]. [status] is the HTTP
+  /// status when the server (or the gateway in front of it) answered.
+  ///
+  /// One wording per cause for every call, so a gateway error page, a refused
+  /// key and a dead connection each read as what they are.
+  static String messageForCause(String cause, {int? status}) {
+    final l10n = lookupAppLocalizations(LocaleService.instance.currentLocale);
+    switch (cause) {
+      case 'offline':
+        return l10n.errOffline;
+      case 'timeout':
+        return status == null ? l10n.errTimeout : l10n.errGatewayTimeout(status);
+      case 'unauthorized':
+        return l10n.errUnauthorized(status ?? 401);
+      case 'not_found':
+        return l10n.errNotFound(status ?? 404);
+      case 'rate_limited':
+        return l10n.errRateLimited(status ?? 429);
+      case 'too_large':
+        return l10n.errTooLarge(status ?? 413);
+      case 'server_error':
+        // 502 / 503 come from the gateway in front of the server, not from
+        // the server itself: it is down or cannot be reached.
+        if (status == 502 || status == 503) return l10n.errGateway(status!);
+        return l10n.errServer(status ?? 500);
+      case 'rejected':
+      case 'unexpected_status':
+        return status == null ? l10n.errUnknown : l10n.errRejected(status);
+      case 'bad_response':
+        return l10n.errBadResponse;
+      default:
+        return l10n.errUnknown;
+    }
+  }
+
+  /// True while the server answers but refuses this app's API key (401 / 403
+  /// on a read). Cleared by the next read the server accepts.
+  static final ValueNotifier<bool> keyRefused = ValueNotifier<bool>(false);
+
+  static void _noteAuth(int statusCode) {
+    if (statusCode == 401 || statusCode == 403) {
+      keyRefused.value = true;
+    } else if (statusCode < 400) {
+      keyRefused.value = false;
+    }
+  }
+
+  /// A tracked action that went through: reported as used, plus the step of
+  /// the first-use ladder it stands for.
+  static ApiResult<T> _done<T>(String action, ApiResult<T> result,
+      {String? milestone}) {
+    Usage.used(action);
+    if (milestone != null) unawaited(Usage.milestone(milestone));
+    return result;
+  }
+
+  static String _httpError(int statusCode,
+      {String? action, bool background = false}) {
+    if (action != null) {
+      Usage.fail(action, Usage.causeOfStatus(statusCode),
+          oncePerSession: background);
+    }
+    return messageForCause(Usage.causeOfStatus(statusCode), status: statusCode);
   }
 
   /// FastAPI reports refusals as `{"detail": "..."}`. Prefer that message over
   /// a generic status-code string so the user learns what to fix.
-  static String _detailOrHttpError(http.Response response) {
+  static String _detailOrHttpError(http.Response response, {String? action}) {
+    if (action != null) {
+      Usage.fail(action, Usage.causeOfStatus(response.statusCode));
+    }
     try {
       final decoded = jsonDecode(response.body);
-      if (decoded is Map && decoded['detail'] is String) {
-        return decoded['detail'] as String;
+      if (decoded is Map) {
+        final detail = decoded['detail'];
+        if (detail is String && detail.trim().isNotEmpty) return detail;
       }
     } on FormatException {
       // Non-JSON error body — fall through to the generic message.
@@ -93,6 +162,7 @@ class ApiService {
           await Future.delayed(Duration(seconds: retryAfter ?? (1 << attempt)));
           continue;
         }
+        _noteAuth(response.statusCode);
         // Don't retry on success or other client errors (4xx) — 304 is
         // also a non-error "use your cache" signal, not something to retry.
         if (response.statusCode < 500) return response;
@@ -108,14 +178,24 @@ class ApiService {
     throw lastError; // unreachable, but satisfies analyzer
   }
 
+  /// Coarse cause of the most recent failed [healthCheck] (offline, timeout,
+  /// unauthorized, server_error ...), or null after one that passed.
+  static String? lastHealthFailure;
+
   // Health check
   static Future<bool> healthCheck() async {
     try {
       final response = await http
           .get(Uri.parse('$_base/api/health'), headers: _headers)
           .timeout(const Duration(seconds: 5));
-      return response.statusCode == 200;
+      final ok = response.statusCode == 200;
+      lastHealthFailure = ok ? null : Usage.causeOfStatus(response.statusCode);
+      // The health route is open on the server, so passing it says nothing
+      // about the key; a gateway that checks the key answers 401 / 403 here.
+      if (lastHealthFailure == 'unauthorized') keyRefused.value = true;
+      return ok;
     } catch (e) {
+      lastHealthFailure = Usage.causeOf(e);
       return false;
     }
   }
@@ -130,9 +210,11 @@ class ApiService {
       if (response.statusCode == 200) {
         return ApiResult.success(jsonDecode(response.body) as Map<String, dynamic>);
       }
-      return ApiResult.failure(_httpError(response.statusCode));
+      return ApiResult.failure(
+          _httpError(response.statusCode, action: 'sync', background: true));
     } catch (e) {
-      return ApiResult.failure(_friendlyError(e));
+      return ApiResult.failure(
+          _friendlyError(e, action: 'sync', background: true));
     }
   }
 
@@ -185,10 +267,10 @@ class ApiService {
             body: jsonEncode(updates),
           )
           .timeout(const Duration(seconds: 10));
-      if (response.statusCode == 200) return const ApiResult.success(true);
-      return ApiResult.failure(_httpError(response.statusCode));
+      if (response.statusCode == 200) return _done('project_update', const ApiResult.success(true));
+      return ApiResult.failure(_httpError(response.statusCode, action: 'project_update'));
     } catch (e) {
-      return ApiResult.failure(_friendlyError(e));
+      return ApiResult.failure(_friendlyError(e, action: 'project_update'));
     }
   }
 
@@ -397,10 +479,10 @@ class ApiService {
             body: jsonEncode(body),
           )
           .timeout(const Duration(seconds: 10));
-      if (response.statusCode == 200 || response.statusCode == 201) return const ApiResult.success(true);
-      return ApiResult.failure(_httpError(response.statusCode));
+      if (response.statusCode == 200 || response.statusCode == 201) return _done('automation_create', const ApiResult.success(true));
+      return ApiResult.failure(_httpError(response.statusCode, action: 'automation_create'));
     } catch (e) {
-      return ApiResult.failure(_friendlyError(e));
+      return ApiResult.failure(_friendlyError(e, action: 'automation_create'));
     }
   }
 
@@ -424,10 +506,10 @@ class ApiService {
             body: jsonEncode(body),
           )
           .timeout(const Duration(seconds: 10));
-      if (response.statusCode == 200) return const ApiResult.success(true);
-      return ApiResult.failure(_httpError(response.statusCode));
+      if (response.statusCode == 200) return _done('automation_update', const ApiResult.success(true));
+      return ApiResult.failure(_httpError(response.statusCode, action: 'automation_update'));
     } catch (e) {
-      return ApiResult.failure(_friendlyError(e));
+      return ApiResult.failure(_friendlyError(e, action: 'automation_update'));
     }
   }
 
@@ -449,10 +531,10 @@ class ApiService {
           .post(Uri.parse('$_base/api/automations/$appId/run-once'),
               headers: _headers)
           .timeout(const Duration(seconds: 10));
-      if (response.statusCode == 200) return const ApiResult.success(true);
-      return ApiResult.failure(_httpError(response.statusCode));
+      if (response.statusCode == 200) return _done('automation_run_once', const ApiResult.success(true));
+      return ApiResult.failure(_httpError(response.statusCode, action: 'automation_run_once'));
     } catch (e) {
-      return ApiResult.failure(_friendlyError(e));
+      return ApiResult.failure(_friendlyError(e, action: 'automation_run_once'));
     }
   }
 
@@ -465,10 +547,10 @@ class ApiService {
               headers: _headers,
               body: body.isNotEmpty ? jsonEncode(body) : null)
           .timeout(const Duration(seconds: 10));
-      if (response.statusCode == 200) return const ApiResult.success(true);
-      return ApiResult.failure(_httpError(response.statusCode));
+      if (response.statusCode == 200) return _done('task_run', const ApiResult.success(true), milestone: 'first_task_run');
+      return ApiResult.failure(_httpError(response.statusCode, action: 'task_run'));
     } catch (e) {
-      return ApiResult.failure(_friendlyError(e));
+      return ApiResult.failure(_friendlyError(e, action: 'task_run'));
     }
   }
 
@@ -495,10 +577,10 @@ class ApiService {
             body: jsonEncode({'mcp_servers': mcpServers}),
           )
           .timeout(const Duration(seconds: 10));
-      if (response.statusCode == 200) return const ApiResult.success(true);
-      return ApiResult.failure(_httpError(response.statusCode));
+      if (response.statusCode == 200) return _done('mcp_update', const ApiResult.success(true));
+      return ApiResult.failure(_httpError(response.statusCode, action: 'mcp_update'));
     } catch (e) {
-      return ApiResult.failure(_friendlyError(e));
+      return ApiResult.failure(_friendlyError(e, action: 'mcp_update'));
     }
   }
 
@@ -508,10 +590,10 @@ class ApiService {
           .post(Uri.parse('$_base/api/automations/$appId/start'),
               headers: _headers)
           .timeout(const Duration(seconds: 10));
-      if (response.statusCode == 200) return const ApiResult.success(true);
-      return ApiResult.failure(_httpError(response.statusCode));
+      if (response.statusCode == 200) return _done('automation_start', const ApiResult.success(true), milestone: 'first_automation_started');
+      return ApiResult.failure(_httpError(response.statusCode, action: 'automation_start'));
     } catch (e) {
-      return ApiResult.failure(_friendlyError(e));
+      return ApiResult.failure(_friendlyError(e, action: 'automation_start'));
     }
   }
 
@@ -521,10 +603,10 @@ class ApiService {
           .post(Uri.parse('$_base/api/automations/$appId/stop'),
               headers: _headers)
           .timeout(const Duration(seconds: 10));
-      if (response.statusCode == 200) return const ApiResult.success(true);
-      return ApiResult.failure(_httpError(response.statusCode));
+      if (response.statusCode == 200) return _done('automation_stop', const ApiResult.success(true));
+      return ApiResult.failure(_httpError(response.statusCode, action: 'automation_stop'));
     } catch (e) {
-      return ApiResult.failure(_friendlyError(e));
+      return ApiResult.failure(_friendlyError(e, action: 'automation_stop'));
     }
   }
 
@@ -534,10 +616,10 @@ class ApiService {
           .delete(Uri.parse('$_base/api/automations/$appId'),
               headers: _headers)
           .timeout(const Duration(seconds: 10));
-      if (response.statusCode == 200 || response.statusCode == 204) return const ApiResult.success(true);
-      return ApiResult.failure(_httpError(response.statusCode));
+      if (response.statusCode == 200 || response.statusCode == 204) return _done('automation_delete', const ApiResult.success(true));
+      return ApiResult.failure(_httpError(response.statusCode, action: 'automation_delete'));
     } catch (e) {
-      return ApiResult.failure(_friendlyError(e));
+      return ApiResult.failure(_friendlyError(e, action: 'automation_delete'));
     }
   }
 
@@ -686,15 +768,15 @@ class ApiService {
             body: jsonEncode(body),
           )
           .timeout(Duration(seconds: attachments != null && attachments.isNotEmpty ? 120 : 10));
-      if (response.statusCode == 200 || response.statusCode == 201) return const ApiResult.success(true);
+      if (response.statusCode == 200 || response.statusCode == 201) return _done('task_create', const ApiResult.success(true), milestone: 'first_task_created');
       // A rejected attachment (unsupported type, too large) comes back as a
       // 400 with a human-readable detail — show it instead of a bare code.
       if (response.statusCode == 400) {
-        return ApiResult.failure(_detailOrHttpError(response));
+        return ApiResult.failure(_detailOrHttpError(response, action: 'task_create'));
       }
-      return ApiResult.failure(_httpError(response.statusCode));
+      return ApiResult.failure(_httpError(response.statusCode, action: 'task_create'));
     } catch (e) {
-      return ApiResult.failure(_friendlyError(e));
+      return ApiResult.failure(_friendlyError(e, action: 'task_create'));
     }
   }
 
@@ -708,9 +790,9 @@ class ApiService {
           )
           .timeout(const Duration(seconds: 10));
       if (response.statusCode == 200) return const ApiResult.success(true);
-      return ApiResult.failure(_httpError(response.statusCode));
+      return ApiResult.failure(_httpError(response.statusCode, action: 'task_update'));
     } catch (e) {
-      return ApiResult.failure(_friendlyError(e));
+      return ApiResult.failure(_friendlyError(e, action: 'task_update'));
     }
   }
 
@@ -720,10 +802,10 @@ class ApiService {
           .delete(Uri.parse('$_base/api/apps/$appId/tasks/$taskId'),
               headers: _headers)
           .timeout(const Duration(seconds: 10));
-      if (response.statusCode == 200 || response.statusCode == 204) return const ApiResult.success(true);
-      return ApiResult.failure(_httpError(response.statusCode));
+      if (response.statusCode == 200 || response.statusCode == 204) return _done('task_delete', const ApiResult.success(true));
+      return ApiResult.failure(_httpError(response.statusCode, action: 'task_delete'));
     } catch (e) {
-      return ApiResult.failure(_friendlyError(e));
+      return ApiResult.failure(_friendlyError(e, action: 'task_delete'));
     }
   }
 
@@ -753,10 +835,10 @@ class ApiService {
           .patch(Uri.parse('$_base/api/reports/$reportId'),
               headers: _headers, body: jsonEncode(updates))
           .timeout(const Duration(seconds: 10));
-      if (response.statusCode == 200) return const ApiResult.success(true);
-      return ApiResult.failure(_httpError(response.statusCode));
+      if (response.statusCode == 200) return _done('report_update', const ApiResult.success(true), milestone: 'first_report_handled');
+      return ApiResult.failure(_httpError(response.statusCode, action: 'report_update'));
     } catch (e) {
-      return ApiResult.failure(_friendlyError(e));
+      return ApiResult.failure(_friendlyError(e, action: 'report_update'));
     }
   }
 
@@ -766,11 +848,11 @@ class ApiService {
           .delete(Uri.parse('$_base/api/reports/$reportId'), headers: _headers)
           .timeout(const Duration(seconds: 10));
       if (response.statusCode == 200 || response.statusCode == 204) {
-        return const ApiResult.success(true);
+        return _done('report_delete', const ApiResult.success(true));
       }
-      return ApiResult.failure(_httpError(response.statusCode));
+      return ApiResult.failure(_httpError(response.statusCode, action: 'report_delete'));
     } catch (e) {
-      return ApiResult.failure(_friendlyError(e));
+      return ApiResult.failure(_friendlyError(e, action: 'report_delete'));
     }
   }
 
@@ -784,11 +866,11 @@ class ApiService {
       if (response.statusCode == 200) {
         final decoded = jsonDecode(response.body);
         final n = (decoded is Map && decoded['new'] is int) ? decoded['new'] as int : 0;
-        return ApiResult.success(n);
+        return _done('reports_pull', ApiResult.success(n));
       }
-      return ApiResult.failure(_detailOrHttpError(response));
+      return ApiResult.failure(_detailOrHttpError(response, action: 'reports_pull'));
     } catch (e) {
-      return ApiResult.failure(_friendlyError(e));
+      return ApiResult.failure(_friendlyError(e, action: 'reports_pull'));
     }
   }
 
@@ -818,10 +900,10 @@ class ApiService {
       final response = await http
           .delete(Uri.parse('$_base/api/ideas/$ideaId'), headers: _headers)
           .timeout(const Duration(seconds: 10));
-      if (response.statusCode == 200 || response.statusCode == 204) return const ApiResult.success(true);
-      return ApiResult.failure(_httpError(response.statusCode));
+      if (response.statusCode == 200 || response.statusCode == 204) return _done('idea_delete', const ApiResult.success(true));
+      return ApiResult.failure(_httpError(response.statusCode, action: 'idea_delete'));
     } catch (e) {
-      return ApiResult.failure(_friendlyError(e));
+      return ApiResult.failure(_friendlyError(e, action: 'idea_delete'));
     }
   }
 
@@ -873,11 +955,11 @@ class ApiService {
           )
           .timeout(const Duration(seconds: 10));
       if (response.statusCode == 200 || response.statusCode == 201) {
-        return ApiResult.success(jsonDecode(response.body));
+        return _done('project_create', ApiResult.success(jsonDecode(response.body)), milestone: 'first_project_created');
       }
-      return ApiResult.failure(_httpError(response.statusCode));
+      return ApiResult.failure(_httpError(response.statusCode, action: 'project_create'));
     } catch (e) {
-      return ApiResult.failure(_friendlyError(e));
+      return ApiResult.failure(_friendlyError(e, action: 'project_create'));
     }
   }
 
@@ -904,10 +986,10 @@ class ApiService {
             body: jsonEncode({'content': content}),
           )
           .timeout(const Duration(seconds: 60));
-      if (response.statusCode == 200) return const ApiResult.success(true);
-      return ApiResult.failure(_httpError(response.statusCode));
+      if (response.statusCode == 200) return _done('doc_save', const ApiResult.success(true));
+      return ApiResult.failure(_httpError(response.statusCode, action: 'doc_save'));
     } catch (e) {
-      return ApiResult.failure(_friendlyError(e));
+      return ApiResult.failure(_friendlyError(e, action: 'doc_save'));
     }
   }
 
@@ -919,10 +1001,10 @@ class ApiService {
               headers: _headers,
               body: jsonEncode({'type': 'gdd'}))
           .timeout(const Duration(seconds: 15));
-      if (response.statusCode == 200) return const ApiResult.success(true);
-      return ApiResult.failure(_httpError(response.statusCode));
+      if (response.statusCode == 200) return _done('doc_enhance', const ApiResult.success(true));
+      return ApiResult.failure(_httpError(response.statusCode, action: 'doc_enhance'));
     } catch (e) {
-      return ApiResult.failure(_friendlyError(e));
+      return ApiResult.failure(_friendlyError(e, action: 'doc_enhance'));
     }
   }
 
@@ -949,10 +1031,10 @@ class ApiService {
             body: jsonEncode({'content': content}),
           )
           .timeout(const Duration(seconds: 60));
-      if (response.statusCode == 200) return const ApiResult.success(true);
-      return ApiResult.failure(_httpError(response.statusCode));
+      if (response.statusCode == 200) return _done('doc_save', const ApiResult.success(true));
+      return ApiResult.failure(_httpError(response.statusCode, action: 'doc_save'));
     } catch (e) {
-      return ApiResult.failure(_friendlyError(e));
+      return ApiResult.failure(_friendlyError(e, action: 'doc_save'));
     }
   }
 
@@ -963,10 +1045,10 @@ class ApiService {
               headers: _headers,
               body: jsonEncode({'type': 'claude-md'}))
           .timeout(const Duration(seconds: 15));
-      if (response.statusCode == 200) return const ApiResult.success(true);
-      return ApiResult.failure(_httpError(response.statusCode));
+      if (response.statusCode == 200) return _done('doc_enhance', const ApiResult.success(true));
+      return ApiResult.failure(_httpError(response.statusCode, action: 'doc_enhance'));
     } catch (e) {
-      return ApiResult.failure(_friendlyError(e));
+      return ApiResult.failure(_friendlyError(e, action: 'doc_enhance'));
     }
   }
 
@@ -993,10 +1075,10 @@ class ApiService {
             body: jsonEncode({'content': content}),
           )
           .timeout(const Duration(seconds: 60));
-      if (response.statusCode == 200) return const ApiResult.success(true);
-      return ApiResult.failure(_detailOrHttpError(response));
+      if (response.statusCode == 200) return _done('doc_save', const ApiResult.success(true));
+      return ApiResult.failure(_detailOrHttpError(response, action: 'doc_save'));
     } catch (e) {
-      return ApiResult.failure(_friendlyError(e));
+      return ApiResult.failure(_friendlyError(e, action: 'doc_save'));
     }
   }
 
@@ -1007,10 +1089,10 @@ class ApiService {
               headers: _headers,
               body: jsonEncode({'type': 'agents-md'}))
           .timeout(const Duration(seconds: 15));
-      if (response.statusCode == 200) return const ApiResult.success(true);
-      return ApiResult.failure(_detailOrHttpError(response));
+      if (response.statusCode == 200) return _done('doc_enhance', const ApiResult.success(true));
+      return ApiResult.failure(_detailOrHttpError(response, action: 'doc_enhance'));
     } catch (e) {
-      return ApiResult.failure(_friendlyError(e));
+      return ApiResult.failure(_friendlyError(e, action: 'doc_enhance'));
     }
   }
 
@@ -1037,10 +1119,10 @@ class ApiService {
             body: jsonEncode({'content': content}),
           )
           .timeout(const Duration(seconds: 60));
-      if (response.statusCode == 200) return const ApiResult.success(true);
-      return ApiResult.failure(_httpError(response.statusCode));
+      if (response.statusCode == 200) return _done('doc_save', const ApiResult.success(true));
+      return ApiResult.failure(_httpError(response.statusCode, action: 'doc_save'));
     } catch (e) {
-      return ApiResult.failure(_friendlyError(e));
+      return ApiResult.failure(_friendlyError(e, action: 'doc_save'));
     }
   }
 
@@ -1051,10 +1133,10 @@ class ApiService {
               headers: _headers,
               body: jsonEncode({'type': 'art-bible'}))
           .timeout(const Duration(seconds: 15));
-      if (response.statusCode == 200) return const ApiResult.success(true);
-      return ApiResult.failure(_httpError(response.statusCode));
+      if (response.statusCode == 200) return _done('doc_enhance', const ApiResult.success(true));
+      return ApiResult.failure(_httpError(response.statusCode, action: 'doc_enhance'));
     } catch (e) {
-      return ApiResult.failure(_friendlyError(e));
+      return ApiResult.failure(_friendlyError(e, action: 'doc_enhance'));
     }
   }
 
@@ -1077,9 +1159,8 @@ class ApiService {
     String buildTarget = 'aab',
     bool upload = false,
   }) async {
-    // Only that a build was triggered - never which app, which track, or any
-    // other detail of the work.
-    Analytics.log('feature_use', {'feature': 'deploy'});
+    // Only that a build was accepted by the server, or why it was not - never
+    // which app, which track, or any other detail of the work.
     try {
       final response = await http
           .post(
@@ -1094,12 +1175,17 @@ class ApiService {
           .timeout(const Duration(minutes: 10));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        return ApiResult.success(data['message']?.toString() ?? 'Build started');
+        return _done(
+            'deploy',
+            ApiResult.success(data['message']?.toString() ?? 'Build started'),
+            milestone: 'first_build_queued');
       }
-      final errorData = jsonDecode(response.body);
-      return ApiResult.failure(errorData['detail']?.toString() ?? _httpError(response.statusCode));
+      // The server's own reason when it sent one; otherwise the cause in
+      // plain words. A gateway error page is not JSON and never decoded as
+      // an "invalid response".
+      return ApiResult.failure(_detailOrHttpError(response, action: 'deploy'));
     } catch (e) {
-      return ApiResult.failure(_friendlyError(e));
+      return ApiResult.failure(_friendlyError(e, action: 'deploy'));
     }
   }
 
@@ -1124,11 +1210,11 @@ class ApiService {
           .post(Uri.parse('$_base/api/apps/$appId/detect-engine'), headers: _headers)
           .timeout(const Duration(seconds: 15));
       if (response.statusCode == 200) {
-        return ApiResult.success(jsonDecode(response.body));
+        return _done('engine_detect', ApiResult.success(jsonDecode(response.body)));
       }
-      return ApiResult.failure(_detailOrHttpError(response));
+      return ApiResult.failure(_detailOrHttpError(response, action: 'engine_detect'));
     } catch (e) {
-      return ApiResult.failure(_friendlyError(e));
+      return ApiResult.failure(_friendlyError(e, action: 'engine_detect'));
     }
   }
 
@@ -1151,11 +1237,11 @@ class ApiService {
           .timeout(const Duration(seconds: 30));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        return ApiResult.success(data['message']?.toString() ?? 'Build cancelled');
+        return _done('deploy_cancel', ApiResult.success(data['message']?.toString() ?? 'Build cancelled'));
       }
-      return ApiResult.failure(_httpError(response.statusCode));
+      return ApiResult.failure(_httpError(response.statusCode, action: 'deploy_cancel'));
     } catch (e) {
-      return ApiResult.failure(_friendlyError(e));
+      return ApiResult.failure(_friendlyError(e, action: 'deploy_cancel'));
     }
   }
 
@@ -1167,11 +1253,11 @@ class ApiService {
           .timeout(const Duration(seconds: 15));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        return ApiResult.success(data['message']?.toString() ?? 'Server reset successful');
+        return _done('server_reset', ApiResult.success(data['message']?.toString() ?? 'Server reset successful'));
       }
-      return ApiResult.failure(_httpError(response.statusCode));
+      return ApiResult.failure(_httpError(response.statusCode, action: 'server_reset'));
     } catch (e) {
-      return ApiResult.failure(_friendlyError(e));
+      return ApiResult.failure(_friendlyError(e, action: 'server_reset'));
     }
   }
 
@@ -1206,14 +1292,17 @@ class ApiService {
           .timeout(Duration(seconds: timeoutSeconds ?? 120));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        return ApiResult.success({
-          'response': data['response']?.toString() ?? '',
-          'session_id': data['session_id']?.toString(),
-        });
+        return _done(
+            'agent_chat',
+            ApiResult.success(<String, dynamic>{
+              'response': data['response']?.toString() ?? '',
+              'session_id': data['session_id']?.toString(),
+            }));
       }
-      return ApiResult.failure(_httpError(response.statusCode));
+      return ApiResult.failure(
+          _httpError(response.statusCode, action: 'agent_chat'));
     } catch (e) {
-      return ApiResult.failure(_friendlyError(e));
+      return ApiResult.failure(_friendlyError(e, action: 'agent_chat'));
     }
   }
 
@@ -1275,11 +1364,11 @@ class ApiService {
           )
           .timeout(const Duration(seconds: 10));
       if (response.statusCode == 200) {
-        return ApiResult.success(jsonDecode(response.body));
+        return _done('studio_review', ApiResult.success(jsonDecode(response.body)));
       }
-      return ApiResult.failure(_httpError(response.statusCode));
+      return ApiResult.failure(_httpError(response.statusCode, action: 'studio_review'));
     } catch (e) {
-      return ApiResult.failure(_friendlyError(e));
+      return ApiResult.failure(_friendlyError(e, action: 'studio_review'));
     }
   }
 
@@ -1306,11 +1395,11 @@ class ApiService {
           )
           .timeout(const Duration(seconds: 15));
       if (response.statusCode == 200) {
-        return ApiResult.success(jsonDecode(response.body));
+        return _done('project_brainstorm', ApiResult.success(jsonDecode(response.body)), milestone: 'first_project_created');
       }
-      return ApiResult.failure(_httpError(response.statusCode));
+      return ApiResult.failure(_httpError(response.statusCode, action: 'project_brainstorm'));
     } catch (e) {
-      return ApiResult.failure(_friendlyError(e));
+      return ApiResult.failure(_friendlyError(e, action: 'project_brainstorm'));
     }
   }
 

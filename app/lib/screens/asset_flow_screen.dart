@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../l10n/app_localizations.dart';
 import '../services/character_flow_service.dart';  // #329
 import '../services/jigsaw_flow_service.dart';
 import '../widgets/outfit_extract_dialog.dart';  // #329
@@ -37,7 +38,13 @@ class AssetFlowScreen extends StatefulWidget {
 class _AssetFlowScreenState extends State<AssetFlowScreen>
     with SingleTickerProviderStateMixin {
   static const _stages = ['incoming', 'staging', 'pushed'];
-  static const _titles = ['2 Etiketli', '3 Push bekleyen', '4 Push edilmis'];
+
+  AppLocalizations get l10n => AppLocalizations.of(context)!;
+
+  List<String> get _titles =>
+      [l10n.jigsawFlowTabTagged, l10n.jigsawFlowTabToPush, l10n.flowTabPushed];
+
+  String _yesNo(bool v) => v ? l10n.flowYes : l10n.flowNo;
 
   late final TabController _tabs;
   String _rating = 'hot';
@@ -147,10 +154,12 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
         if (!o.running) {
           t.cancel();
           _snack(o.status == 'error'
-              ? 'Islem hatasi: ${o.message}'
+              ? l10n.flowOpError(o.message)
               : o.status == 'cancelled'
-                  ? 'Islem iptal edildi'
-                  : '${o.ok} tamam${o.failed > 0 ? ", ${o.failed} hata" : ""}');
+                  ? l10n.flowOpCancelled
+                  : o.failed > 0
+                      ? l10n.flowOpDoneWithFailed(o.ok, o.failed)
+                      : l10n.flowOpDone(o.ok));
           _load();
         }
       } catch (_) {
@@ -169,7 +178,7 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
   }
 
-  Future<bool> _confirm(String baslik, String metin, {String onay = 'Devam'}) async =>
+  Future<bool> _confirm(String baslik, String metin, {String? onay}) async =>
       await showDialog<bool>(
         context: context,
         builder: (c) => AlertDialog(
@@ -180,8 +189,10 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(c, false),
-                child: const Text('Vazgec')),
-            FilledButton(onPressed: () => Navigator.pop(c, true), child: Text(onay)),
+                child: Text(l10n.cancel)),
+            FilledButton(
+                onPressed: () => Navigator.pop(c, true),
+                child: Text(onay ?? l10n.continueLabel)),
           ],
         ),
       ) ??
@@ -212,28 +223,29 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(queAll ? 'QUE ALL - $adet varlik' : 'Video uret - $adet varlik',
+                Text(queAll ? l10n.jigsawFlowQueueAllTitle(adet) : l10n.jigsawFlowVideoTitle(adet),
                     style: Theme.of(c).textTheme.titleMedium),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _vp1,
                   maxLines: 2,
-                  decoration: const InputDecoration(
-                    labelText: 'Pozitif 1 - konu',
-                    helperText: "bos = her varligin kendi prompt'u",
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: l10n.jigsawFlowPositive1,
+                    helperText: l10n.jigsawFlowPositive1Help,
+                    helperMaxLines: 2,
+                    border: const OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 10),
                 DropdownButtonFormField<int>(
                   initialValue: _vSablon,
                   isExpanded: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Hazir hareket sablonu',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: l10n.jigsawFlowMotionPreset,
+                    border: const OutlineInputBorder(),
                   ),
                   items: [
-                    const DropdownMenuItem(value: 0, child: Text('(sirayla dagit)')),
+                    DropdownMenuItem(value: 0, child: Text(l10n.jigsawFlowSpreadInTurn)),
                     for (var i = 0; i < _vd.templates.length; i++)
                       DropdownMenuItem(
                           value: i + 1,
@@ -251,55 +263,54 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
                 TextField(
                   controller: _vp2,
                   maxLines: 3,
-                  decoration: const InputDecoration(
-                    labelText: 'Pozitif 2 - hareket',
-                    helperText:
-                        '{} = konu promptunun yeri. Bos = sablonlar sirayla.',
-                    helperMaxLines: 2,
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: l10n.jigsawFlowPositive2,
+                    helperText: l10n.jigsawFlowPositive2Help('{}'),
+                    helperMaxLines: 3,
+                    border: const OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 10),
                 TextField(
                   controller: _vneg,
                   maxLines: 2,
-                  decoration: const InputDecoration(
-                    labelText: 'Negatif',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: l10n.flowNegative,
+                    border: const OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 10),
                 Row(
                   children: [
-                    const Text('Sure'),
+                    Text(l10n.flowDuration),
                     Expanded(
                       child: Slider(
                         value: _vDuration.toDouble(),
                         min: 1, max: 10, divisions: 9,
-                        label: '$_vDuration sn',
+                        label: l10n.durSeconds(_vDuration),
                         onChanged: (v) => setSheet(() => _vDuration = v.round()),
                       ),
                     ),
-                    Text('$_vDuration sn'),
+                    Text(l10n.durSeconds(_vDuration)),
                   ],
                 ),
                 if (queAll && _vp2.text.trim().isEmpty && _vd.templates.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 8),
                     child: Text(
-                        'Hazir ${_vd.templates.length} sablon sirayla dagitilacak.',
+                        l10n.jigsawFlowPresetsSpread(_vd.templates.length),
                         style: const TextStyle(fontSize: 12, color: Colors.grey)),
                   ),
                 Row(
                   children: [
                     TextButton(
                         onPressed: () => Navigator.pop(c, false),
-                        child: const Text('Vazgec')),
+                        child: Text(l10n.cancel)),
                     const Spacer(),
                     FilledButton.icon(
                       onPressed: () => Navigator.pop(c, true),
                       icon: const Icon(Icons.movie_creation_outlined, size: 18),
-                      label: Text(queAll ? 'QUE ALL' : 'Siraya ekle'),
+                      label: Text(queAll ? l10n.jigsawFlowQueueAll : l10n.flowAddToQueue),
                     ),
                   ],
                 ),
@@ -314,7 +325,7 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
 
   Future<void> _gonderVideo(List<String> ids, {required bool queAll}) async {
     if (ids.isEmpty) {
-      _snack('Videosu olmayan varlik yok');
+      _snack(l10n.jigsawFlowNoAssetWithoutVideo);
       return;
     }
     if (!await _videoAyarSayfasi(adet: ids.length, queAll: queAll)) return;
@@ -328,9 +339,9 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
         negative: _vneg.text.trim(),
         rotateTemplates: queAll,
       );
-      _snack('${r.queued} video siraya eklendi'
-          '${r.skipped > 0 ? ", ${r.skipped} atlandi" : ""}'
-          ' - bitince buraya duser');
+      _snack(r.skipped > 0
+          ? l10n.jigsawFlowVideosQueuedSkipped(r.queued, r.skipped)
+          : l10n.jigsawFlowVideosQueued(r.queued));
       setState(_sel.clear);
     } catch (e) {
       _snack(e.toString().replaceFirst('Exception: ', ''));
@@ -343,7 +354,7 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
       return i != null && !i.video;
     }).toList();
     if (ids.isEmpty) {
-      _snack('Videosu olmayan varlik sec');
+      _snack(l10n.jigsawFlowSelectWithoutVideo);
       return;
     }
     await _gonderVideo(ids, queAll: false);
@@ -364,8 +375,8 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
       return i != null && !i.video;
     }).length;
     if (videosuz > 0 &&
-        !await _confirm('Video yok',
-            '$videosuz varligin videosu yok - sadece jpg yazilacak. Devam?')) {
+        !await _confirm(l10n.jigsawFlowNoVideoTitle,
+            l10n.jigsawFlowNoVideoBody(videosuz))) {
       return;
     }
     try {
@@ -394,11 +405,11 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
       await showDialog<void>(
         context: context,
         builder: (c) => AlertDialog(
-          title: const Text('Muzik modeli hazir degil'),
+          title: Text(l10n.jigsawFlowMusicNotReady),
           content: Text(st.modelError),
           actions: [
             TextButton(
-                onPressed: () => Navigator.pop(c), child: const Text('Tamam')),
+                onPressed: () => Navigator.pop(c), child: Text(l10n.close)),
           ],
         ),
       );
@@ -413,17 +424,15 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
         : eksik.where((n) => n == _collection).toList();
     if (secili.isEmpty) {
       _snack(_collection.isEmpty
-          ? 'Muzigi eksik tematik koleksiyon yok'
-          : '$_collection zaten muzikli ya da Generic');
+          ? l10n.jigsawFlowNoMusicMissing
+          : l10n.jigsawFlowHasMusic(_collection));
       return;
     }
     if (!await _confirm(
-        'Muzik',
-        '${secili.length} koleksiyon icin 30 saniyelik enstrumantal muzik '
-            'uretilecek (ACE-Step, yerel).\n\n'
-            '${secili.take(6).join(", ")}${secili.length > 6 ? " ..." : ""}\n\n'
-            'Her biri birkac dakika surebilir.',
-        onay: 'Uret')) {
+        l10n.queueKindMusic,
+        l10n.jigsawFlowMusicBody(secili.length,
+            '${secili.take(6).join(", ")}${secili.length > 6 ? " ..." : ""}'),
+        onay: l10n.generate)) {
       return;
     }
     try {
@@ -438,11 +447,9 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
   Future<void> _push() async {
     if (_sel.isEmpty) return;
     if (!await _confirm(
-        'Push',
-        '${_sel.length} varlik R2 kovasina YUKLENECEK.\n\n'
-            'Bu geri alinamaz bir yayin islemidir - yuklenen dosyalar '
-            'uygulamada gorunur.',
-        onay: 'Yukle')) {
+        l10n.flowPush,
+        l10n.jigsawFlowPushBody(_sel.length),
+        onay: l10n.flowUpload)) {
       return;
     }
     try {
@@ -456,16 +463,16 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
 
   Future<void> _delete() async {
     if (_sel.isEmpty) return;
-    if (!await _confirm('Sil',
-        '${_sel.length} varlik (jpg + mp4 + webp + json) kalici olarak silinsin mi?',
-        onay: 'Sil')) {
+    if (!await _confirm(l10n.delete,
+        l10n.jigsawFlowDeleteBody(_sel.length),
+        onay: l10n.delete)) {
       return;
     }
     try {
       final n = await JigsawFlowService.remove(
           rating: _rating, stage: _stage, ids: _sel.toList());
       setState(_sel.clear);
-      _snack('$n dosya silindi');
+      _snack(l10n.flowFilesDeleted(n));
       _load();
     } catch (e) {
       _snack(e.toString().replaceFirst('Exception: ', ''));
@@ -477,7 +484,7 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
       final op = await JigsawFlowService.encodeWebp(
           rating: _rating, collection: _collection);
       _watch(op);
-      _snack('Eksik webp uretimi basladi');
+      _snack(l10n.jigsawFlowWebpStarted);
     } catch (e) {
       _snack(e.toString().replaceFirst('Exception: ', ''));
     }
@@ -505,18 +512,17 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
       builder: (c) => AlertDialog(
         // Metin kutusu + 180px liste klavye acilinca sigmiyordu (gorev #289).
         scrollable: true,
-        title: Text('${JigsawProfiles.ratings[_rating]} koleksiyonu'),
+        title: Text(l10n.jigsawFlowCollectionTitle('${JigsawProfiles.ratings[_rating]}')),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: ctrl,
               decoration: InputDecoration(
-                labelText: 'Koleksiyon',
+                labelText: l10n.flowCollection,
                 helperText: dolu == 0
-                    ? 'listeden sec ya da YENI bir ad yaz'
-                    : 'listeden sec ya da YENI bir ad yaz  -  '
-                        '$dolu dolu koleksiyon gizlendi',
+                    ? l10n.jigsawFlowCollectionHelp
+                    : l10n.jigsawFlowCollectionHelpFull(dolu),
                 helperMaxLines: 2,
                 border: const OutlineInputBorder(),
               ),
@@ -530,7 +536,7 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
                     .map((k) => ListTile(
                           dense: true,
                           title: Text(k.name),
-                          subtitle: Text('${k.total} varlik - siradaki ${k.next}'),
+                          subtitle: Text(l10n.jigsawFlowCollectionRow(k.total, k.next)),
                           onTap: () => ctrl.text = k.name,
                         ))
                     .toList(),
@@ -540,16 +546,16 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(c), child: const Text('Vazgec')),
+              onPressed: () => Navigator.pop(c), child: Text(l10n.cancel)),
           TextButton(
               onPressed: () => Navigator.pop(c, 'Generic'),
               child: const Text('Generic')),
           TextButton(
               onPressed: () => ctrl.clear(),
-              child: const Text('Yeni')),
+              child: Text(l10n.flowNew)),
           FilledButton(
               onPressed: () => Navigator.pop(c, ctrl.text.trim()),
-              child: const Text('Kabul et')),
+              child: Text(l10n.flowAccept)),
         ],
       ),
     );
@@ -565,16 +571,16 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
                 icon: const Icon(Icons.close),
                 onPressed: () => setState(_sel.clear))
             : null,
-        title: Text(_selecting ? '${_sel.length} secili' : 'Jigsaw hatti'),
+        title: Text(_selecting ? l10n.bucketsSelectedCount(_sel.length) : l10n.jigsawFlowTitle),
         actions: [
           if (!_selecting)
             IconButton(
               icon: const Icon(Icons.code),
-              tooltip: 'Code Mod',
+              tooltip: l10n.assetCodeMode,
               onPressed: () => ModeService.set(false),
             ),
           IconButton(
-              icon: const Icon(Icons.refresh), tooltip: 'Yenile', onPressed: _load),
+              icon: const Icon(Icons.refresh), tooltip: l10n.refresh, onPressed: _load),
         ],
         // #353: hat anahtari app bar'in altinda tam genislikte (Uretilenler kalibi).
         bottom: kindSwitchBottom(
@@ -637,7 +643,7 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
   Widget _collectionMenu() {
     final liste = _colls[_stage == 'staging' ? 'staging' : 'pushed'] ?? const [];
     return PopupMenuButton<String>(
-      tooltip: 'Koleksiyon',
+      tooltip: l10n.flowCollection,
       onSelected: (v) {
         setState(() {
           _collection = v;
@@ -646,13 +652,13 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
         _load();
       },
       itemBuilder: (_) => [
-        const PopupMenuItem(value: '', child: Text('(hepsi)')),
+        PopupMenuItem(value: '', child: Text(l10n.flowAllParen)),
         for (final k in liste)
           PopupMenuItem(value: k.name, child: Text('${k.name}  (${k.count})')),
       ],
       child: Chip(
         avatar: const Icon(Icons.folder_outlined, size: 16),
-        label: Text(_collection.isEmpty ? 'hepsi' : _collection,
+        label: Text(_collection.isEmpty ? l10n.flowAll : _collection,
             overflow: TextOverflow.ellipsis),
       ),
     );
@@ -680,8 +686,8 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
       return Center(
         child: Text(
           _stage == 'incoming'
-              ? 'Bu akista varlik yok.\n"Uretilenler" ekranindan KABUL ET ile buraya dusur.'
-              : 'Bu akista varlik yok.',
+              ? l10n.jigsawFlowEmptyIncoming
+              : l10n.jigsawFlowEmpty,
           textAlign: TextAlign.center,
           style: const TextStyle(color: Colors.grey),
         ),
@@ -695,21 +701,24 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
             child: Row(
               children: [
-                Text('${_cur.length} / ${_totals[_stage] ?? _cur.length}',
-                    style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                const Spacer(),
+                Expanded(
+                  child: Text('${_cur.length} / ${_totals[_stage] ?? _cur.length}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                ),
                 // QUE ALL secime bagli degil: videosu olmayan HERKESE video
                 // acar, o yuzden "Tumunu sec"in yanindaki tek dugme (gorev #275).
                 if (_stage == 'incoming')
                   TextButton.icon(
                     onPressed: _queueAll,
                     icon: const Icon(Icons.playlist_play, size: 18),
-                    label: const Text('QUE ALL'),
+                    label: Text(l10n.jigsawFlowQueueAll),
                   ),
                 TextButton(
                   onPressed: () =>
                       setState(() => _sel.addAll(_cur.map((i) => i.id))),
-                  child: const Text('Tumunu sec'),
+                  child: Text(l10n.flowSelectAll),
                 ),
               ],
             ),
@@ -779,8 +788,8 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
                 left: 4,
                 top: 4,
                 child: Row(children: [
-                  if (it.tagged == false) _rozet('E yok', AppColors.error),
-                  if (it.video && !it.webp) _rozet('webp yok', Colors.orange),
+                  if (it.tagged == false) _rozet(l10n.flowBadgeNoTags, AppColors.error),
+                  if (it.video && !it.webp) _rozet(l10n.jigsawFlowBadgeNoWebp, Colors.orange),
                 ]),
               ),
               Positioned(
@@ -859,9 +868,8 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
             Padding(
               padding: const EdgeInsets.all(10),
               child: Text(
-                '${it.label}\nvideo: ${it.video ? "var" : "yok"}   '
-                'webp: ${it.webp ? "var" : "yok"}'
-                '${it.tagged == null ? "" : "   etiket: ${it.tagged! ? "var" : "YOK"}"}',
+                '${l10n.jigsawFlowPreviewInfo(it.label, _yesNo(it.video), _yesNo(it.webp))}'
+                '${it.tagged == null ? "" : "   ${l10n.jigsawFlowPreviewTags(it.tagged! ? l10n.flowYes : l10n.flowMissingUpper)}"}',
                 style: TextStyle(
                     fontSize: 12, color: oynat ? Colors.white70 : null),
                 textAlign: TextAlign.center,
@@ -883,18 +891,18 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
   Future<void> _deleteVideo() async {
     final ids = _selWithVideo;
     if (ids.isEmpty) {
-      _snack('Secilenlerde video yok');
+      _snack(l10n.jigsawFlowNoVideoInSelection);
       return;
     }
-    final ok = await _confirm('Videoyu sil',
-        '${ids.length} varligin mp4 + webp\'i silinecek; gorsel kalir, yeniden video uretebilirsin.',
-        onay: 'Videoyu sil');
+    final ok = await _confirm(l10n.jigsawFlowDeleteVideo,
+        l10n.jigsawFlowDeleteVideoBody(ids.length),
+        onay: l10n.jigsawFlowDeleteVideo);
     if (!ok) return;
     try {
       final n = await JigsawFlowService.removeVideo(
           rating: _rating, stage: _stage, ids: ids);
       setState(_sel.clear);
-      _snack('$n dosya silindi');
+      _snack(l10n.flowFilesDeleted(n));
       _load();
     } catch (e) {
       _snack(e.toString().replaceFirst('Exception: ', ''));
@@ -909,7 +917,7 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
       final op = await JigsawFlowService.retag(ids: ids, rating: _rating);
       setState(_sel.clear);
       _watch(op);
-      _snack('Etiketleme basladi');
+      _snack(l10n.flowRetagStarted);
     } catch (e) {
       _snack(e.toString().replaceFirst('Exception: ', ''));
     }
@@ -920,7 +928,7 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
   /// Op kaydi Jigsaw akisiyla ayni defterdedir, _watch ile izlenir.
   Future<void> _extractOutfit() async {
     if (_sel.length != 1) {
-      _snack('Kiyafet tek gorselden cikarilir - birini sec');
+      _snack(l10n.jigsawFlowExtractNeedsOne);
       return;
     }
     final id = _sel.first;
@@ -937,7 +945,7 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
           note: secim.note);
       setState(_sel.clear);
       if (op.isNotEmpty) _watch(op);
-      _snack('${secim.name} gardiroba cikariliyor - Karakter > Gardirop');
+      _snack(l10n.outfitExtractStarted(secim.name));
     } catch (e) {
       _snack(e.toString().replaceFirst('Exception: ', ''));
     }
@@ -958,16 +966,16 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
         d.entries.map((e) => '${e.key}: ${e.value}').join('\n');
     final sc = (m['sidecar'] as Map?)?.cast<String, dynamic>() ?? const {};
     final rows = <(String, String)>[
-      ('Dosya', '${m['file']}'),
-      ('Etiketler', '${m['tags'] ?? ''}'),
-      if ((m['description'] ?? '').toString().isNotEmpty) ('Aciklama', '${m['description']}'),
-      if ((m['subject'] as Map?)?.isNotEmpty ?? false) ('Konu', kv((m['subject'] as Map).cast<String, dynamic>())),
-      if ((m['policy'] as Map?)?.isNotEmpty ?? false) ('Politika', kv((m['policy'] as Map).cast<String, dynamic>())),
+      (l10n.jigsawFlowMetaFile, '${m['file']}'),
+      (l10n.jigsawFlowMetaTags, '${m['tags'] ?? ''}'),
+      if ((m['description'] ?? '').toString().isNotEmpty) (l10n.commonDescription, '${m['description']}'),
+      if ((m['subject'] as Map?)?.isNotEmpty ?? false) (l10n.jigsawFlowMetaSubject, kv((m['subject'] as Map).cast<String, dynamic>())),
+      if ((m['policy'] as Map?)?.isNotEmpty ?? false) (l10n.jigsawFlowMetaPolicy, kv((m['policy'] as Map).cast<String, dynamic>())),
       if (sc['prompt'] != null) ('Prompt', '${sc['prompt']}'),
-      if ((sc['prompt2'] ?? '').toString().isNotEmpty) ('Pozitif 2', '${sc['prompt2']}'),
-      if ((sc['negative'] ?? '').toString().isNotEmpty) ('Negatif', '${sc['negative']}'),
+      if ((sc['prompt2'] ?? '').toString().isNotEmpty) (l10n.flowPositive2, '${sc['prompt2']}'),
+      if ((sc['negative'] ?? '').toString().isNotEmpty) (l10n.flowNegative, '${sc['negative']}'),
       if (sc['seed'] != null) ('Seed', '${sc['seed']}'),
-      ('Video', '${m['video'] == true ? "var" : "yok"}   webp: ${m['webp'] == true ? "var" : "yok"}'),
+      ('Video', l10n.jigsawFlowMetaVideoValue(_yesNo(m['video'] == true), _yesNo(m['webp'] == true))),
     ];
     await showDialog<void>(
       context: context,
@@ -990,7 +998,7 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Kapat')),
+          TextButton(onPressed: () => Navigator.pop(c), child: Text(l10n.close)),
         ],
       ),
     );
@@ -1002,32 +1010,32 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
     final butonlar = <Widget>[];
     if (_stage == 'incoming') {
       butonlar.addAll([
-        _act(Icons.movie_creation_outlined, 'Video uret', _makeVideos),
-        _act(Icons.sell_outlined, 'Etiket / metadata', _showMeta),
-        _act(Icons.new_label_outlined, 'Yeniden etiketle', _retag),
-        _act(Icons.check_circle_outline, 'Kabul et', _accept),
-        _act(Icons.checkroom_outlined, 'Kiyafet cikar',
+        _act(Icons.movie_creation_outlined, l10n.assetGenerateVideo, _makeVideos),
+        _act(Icons.sell_outlined, l10n.jigsawFlowTagsMetadata, _showMeta),
+        _act(Icons.new_label_outlined, l10n.flowRetag, _retag),
+        _act(Icons.check_circle_outline, l10n.flowAccept, _accept),
+        _act(Icons.checkroom_outlined, l10n.outfitExtractTitle,
             _sel.length == 1 ? _extractOutfit : null),  // #329
-        _act(Icons.videocam_off_outlined, 'Videoyu sil (gorsel kalir)',
+        _act(Icons.videocam_off_outlined, l10n.jigsawFlowDeleteVideoTooltip,
             _selWithVideo.isEmpty ? null : _deleteVideo),
-        _act(Icons.delete_outline, 'Reddet', _delete),
+        _act(Icons.delete_outline, l10n.flowReject, _delete),
       ]);
     } else if (_stage == 'staging') {
       butonlar.addAll([
-        _act(Icons.animation, 'Eksik webp', _webp),
-        _act(Icons.music_note, 'Muzik', _music),
-        _act(Icons.sell_outlined, 'Etiket / metadata', _showMeta),
-        _act(Icons.videocam_off_outlined, 'Videoyu sil (gorsel kalir)',
+        _act(Icons.animation, l10n.jigsawFlowMissingWebp, _webp),
+        _act(Icons.music_note, l10n.queueKindMusic, _music),
+        _act(Icons.sell_outlined, l10n.jigsawFlowTagsMetadata, _showMeta),
+        _act(Icons.videocam_off_outlined, l10n.jigsawFlowDeleteVideoTooltip,
             _selWithVideo.isEmpty ? null : _deleteVideo),
-        _act(Icons.cloud_upload_outlined, 'Push', _push),
-        _act(Icons.checkroom_outlined, 'Kiyafet cikar',
+        _act(Icons.cloud_upload_outlined, l10n.flowPush, _push),
+        _act(Icons.checkroom_outlined, l10n.outfitExtractTitle,
             _sel.length == 1 ? _extractOutfit : null),  // #329
-        _act(Icons.delete_outline, 'Sil', _delete),
+        _act(Icons.delete_outline, l10n.delete, _delete),
       ]);
     } else {
       butonlar.addAll([
-        _act(Icons.sell_outlined, 'Etiket / metadata', _showMeta),
-        _act(Icons.checkroom_outlined, 'Kiyafet cikar',
+        _act(Icons.sell_outlined, l10n.jigsawFlowTagsMetadata, _showMeta),
+        _act(Icons.checkroom_outlined, l10n.outfitExtractTitle,
             _sel.length == 1 ? _extractOutfit : null),  // #329
       ]);
     }
@@ -1053,7 +1061,7 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
             children: [
               Icon(Icons.cloud_off, size: 44, color: AppColors.error),
               const SizedBox(height: 10),
-              const Text('Akis okunamadi'),
+              Text(l10n.flowReadFailed),
               const SizedBox(height: 6),
               Text(_error!,
                   textAlign: TextAlign.center,
@@ -1062,7 +1070,7 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
               FilledButton.icon(
                   onPressed: _load,
                   icon: const Icon(Icons.refresh),
-                  label: const Text('Tekrar dene')),
+                  label: Text(l10n.retry)),
             ],
           ),
         ),

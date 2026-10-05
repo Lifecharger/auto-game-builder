@@ -4,6 +4,8 @@ import 'package:http/http.dart' as http;
 
 import '../config.dart';
 import 'api_service.dart';
+import 'app_l10n.dart';
+import 'usage_events.dart';
 import 'generate_service.dart';
 import 'jigsaw_flow_service.dart' show FlowOp;
 
@@ -26,8 +28,11 @@ import 'jigsaw_flow_service.dart' show FlowOp;
 
 /// Sunucu ucu henuz yok (404) - ekran "yakinda" gosterir, hata basmaz.
 class CardNotReadyException implements Exception {
-  final String message;
-  const CardNotReadyException([this.message = 'Sunucu ucu henuz hazir degil']);
+  final String? _message;
+  const CardNotReadyException([this._message]);
+
+  /// Verilmediyse uygulama dilindeki hazir cumle.
+  String get message => _message ?? appL10n.cardNotReady;
   @override
   String toString() => message;
 }
@@ -554,7 +559,10 @@ class CardFlowService {
   static const _timeout = Duration(seconds: 60);
 
   /// Tur secimi (dokuman "Tur secimi"): iki secenek - avatar YOK.
-  static const kinds = <String, String>{'card': 'Normal', 'dealer': 'Krupiye'};
+  static Map<String, String> get kinds => <String, String>{
+        'card': appL10n.cardKindNormal,
+        'dealer': appL10n.cardKindDealer,
+      };
 
   /// Dort asama - ekranlardaki dugme ve rozet sirasi (dokuman §0).
   static const stages = <String>['still', 'video', 'webp', 'push'];
@@ -604,16 +612,20 @@ class CardFlowService {
 
   static Map<String, String> get authHeaders => GenerateService.authHeaders;
 
-  static Never _fail(http.Response r, String fallback) {
+  static Never _fail(http.Response r) {
     if (r.statusCode == 404 || r.statusCode == 405 || r.statusCode == 501) {
       throw const CardNotReadyException();
     }
+    // Sunucu `detail` vermediyse hata, nedenin uygulama dilindeki cumlesidir.
+    final fallback = ApiService.messageForCause(
+        Usage.causeOfStatus(r.statusCode),
+        status: r.statusCode);
     try {
       final d = json.decode(r.body);
       throw Exception('${d['detail'] ?? fallback}');
     } catch (e) {
       if (e is CardNotReadyException) rethrow;
-      throw Exception('$fallback (${r.statusCode})');
+      throw Exception(fallback);
     }
   }
 
@@ -623,7 +635,7 @@ class CardFlowService {
     final r = await http
         .get(Uri.parse('${ApiService.baseUrl}$path'), headers: _headers)
         .timeout(_timeout);
-    if (r.statusCode != 200) _fail(r, 'Istek basarisiz');
+    if (r.statusCode != 200) _fail(r);
     return _decode(r);
   }
 
@@ -636,7 +648,7 @@ class CardFlowService {
         .post(Uri.parse('${ApiService.baseUrl}$path'),
             headers: _headers, body: json.encode(body ?? {}))
         .timeout(_timeout);
-    if (r.statusCode != 200) _fail(r, 'Istek basarisiz');
+    if (r.statusCode != 200) _fail(r);
     return Map<String, dynamic>.from(_decode(r) as Map);
   }
 
@@ -644,7 +656,7 @@ class CardFlowService {
     final r = await http
         .delete(Uri.parse('${ApiService.baseUrl}$path'), headers: _headers)
         .timeout(_timeout);
-    if (r.statusCode != 200) _fail(r, 'Istek basarisiz');
+    if (r.statusCode != 200) _fail(r);
     return Map<String, dynamic>.from(_decode(r) as Map);
   }
 

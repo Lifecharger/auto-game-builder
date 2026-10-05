@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:app_manager_mobile/l10n/app_localizations.dart';
 import 'package:app_manager_mobile/services/generate_service.dart';
 import 'package:app_manager_mobile/widgets/generated_audio.dart';
 
@@ -40,8 +41,14 @@ void main() {
     final job = GenerateJob.fromJson({
       'id': 'music', 'status': 'done', 'file_name': 'music.mp3',
     });
-    await tester.pumpWidget(MaterialApp(home: Scaffold(body: GeneratedAudio(job: job))));
-    expect(find.text('Sesi ac'), findsOneWidget);
+    await tester.pumpWidget(MaterialApp(
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: Scaffold(body: GeneratedAudio(job: job)),
+    ));
+    await tester.pump();
+    expect(find.text(lookupAppLocalizations(const Locale('en')).audioOpen),
+        findsOneWidget);
     expect(find.byIcon(Icons.music_note), findsOneWidget);
     expect(find.byType(Image), findsNothing);
     expect(tester.takeException(), isNull);

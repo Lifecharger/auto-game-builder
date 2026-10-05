@@ -1,0 +1,19 @@
+name: lifecharger_testlab
+description: "Tells the Lifecharger analytics client whether it runs on a Firebase Test Lab / Google Play pre-launch device."
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: ^3.0.0
+  flutter: '>=3.3.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: com.lifecharger.lifecharger_testlab
+        pluginClass: LifechargerTestlabPlugin

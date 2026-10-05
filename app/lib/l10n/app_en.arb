@@ -1145,5 +1145,1411 @@
   },
   "noAgentsMdYet": "No AGENTS.md yet. Tap Add to set project instructions for AI.",
   "cannotSaveEmptyAgentsMd": "Cannot save empty AGENTS.md",
-  "agentsMdSaved": "AGENTS.md saved"
+  "agentsMdSaved": "AGENTS.md saved",
+  "reportEmailLabel": "E-mail (optional)",
+  "reportEmailHint": "your e-mail, if you want a reply",
+  "reportEmailNote": "Only used to answer this report. Leave it empty to stay anonymous.",
+  "reportEmailInvalid": "This does not look like an e-mail address.",
+  "reportReply": "Reply",
+  "reportReplySubject": "About your {app} report",
+  "@reportReplySubject": {"placeholders": {"app": {"type": "String"}}},
+  "navGenerate": "Generate",
+  "navGallery": "Generated",
+  "navFlow": "Pipeline",
+  "navQueue": "Queue",
+  "navDelivery": "Delivery",
+  "navBuckets": "Buckets",
+  "assetModeTooltip": "Asset mode",
+  "deliveryModeTooltip": "Delivery mode",
+  "videoPlaybackFailed": "The video could not be played",
+  "apiKeyRefusedBanner": "API key refused - tap to fix it in Settings",
+  "errOffline": "Cannot reach the server - check your connection",
+  "errTimeout": "The server took too long to answer - try again",
+  "errGatewayTimeout": "The server did not answer in time (gateway timeout {status})",
+  "@errGatewayTimeout": {"placeholders": {"status": {"type": "int"}}},
+  "errGateway": "The server is unreachable behind its gateway (gateway error {status}) - check that it is running",
+  "@errGateway": {"placeholders": {"status": {"type": "int"}}},
+  "errServer": "Server error ({status}) - try again later",
+  "@errServer": {"placeholders": {"status": {"type": "int"}}},
+  "errUnauthorized": "Not authorized ({status}) - check the API key in Settings",
+  "@errUnauthorized": {"placeholders": {"status": {"type": "int"}}},
+  "errNotFound": "Not found on the server ({status})",
+  "@errNotFound": {"placeholders": {"status": {"type": "int"}}},
+  "errRateLimited": "Too many requests ({status}) - wait a moment and try again",
+  "@errRateLimited": {"placeholders": {"status": {"type": "int"}}},
+  "errTooLarge": "Too large for the server ({status})",
+  "@errTooLarge": {"placeholders": {"status": {"type": "int"}}},
+  "errRejected": "The server refused the request ({status})",
+  "@errRejected": {"placeholders": {"status": {"type": "int"}}},
+  "errBadResponse": "The server sent an answer the app could not read",
+  "errUnknown": "The request failed - try again",
+  "bucketsCounting": "Counting {bucket}...",
+  "@bucketsCounting": {"placeholders": {"bucket": {"type": "String"}}},
+  "bucketsTakedownTitle": "Takedown (new + legacy)",
+  "bucketsDeleteForeverTitle": "Delete permanently",
+  "bucketsDeleteWarning": "{count} objects will be deleted. THIS CANNOT BE UNDONE.",
+  "@bucketsDeleteWarning": {"placeholders": {"count": {"type": "int"}}},
+  "bucketsUnmappedNote": "{count} keys have no match in the legacy twin - they are deleted from this bucket only.",
+  "@bucketsUnmappedNote": {"placeholders": {"count": {"type": "int"}}},
+  "bucketsTypeNameToConfirm": "Type the bucket name to confirm: {bucket}",
+  "@bucketsTypeNameToConfirm": {"placeholders": {"bucket": {"type": "String"}}},
+  "bucketsTakedown": "Takedown",
+  "bucketsDeleted": "{count} objects deleted",
+  "@bucketsDeleted": {"placeholders": {"count": {"type": "int"}}},
+  "bucketsDeletedWithTwin": "{count} objects deleted, {twin} from the legacy twin",
+  "@bucketsDeletedWithTwin": {"placeholders": {"count": {"type": "int"}, "twin": {"type": "int"}}},
+  "bucketsCopySource": "Source: {path}",
+  "@bucketsCopySource": {"placeholders": {"path": {"type": "String"}}},
+  "bucketsCopySourceTree": "Source tree: {path}",
+  "@bucketsCopySourceTree": {"placeholders": {"path": {"type": "String"}}},
+  "bucketsWholeBucket": "(whole bucket)",
+  "bucketsCopyNote": "The copy runs inside the storage service - no bytes pass through the phone.",
+  "bucketsTargetKey": "Target key",
+  "bucketsTargetPrefix": "Target prefix",
+  "bucketsCopyStarted": "Copy started ({op})",
+  "@bucketsCopyStarted": {"placeholders": {"op": {"type": "String"}}},
+  "bucketsFixHeadersTitle": "Fix headers",
+  "bucketsFixHeadersBody": "The Cache-Control header of the objects under {path} is checked; an object that departs from the standard is rewritten in place (Content-Type is kept). No bytes are downloaded.\n\nPrefixes left mutable on purpose are skipped.",
+  "@bucketsFixHeadersBody": {"placeholders": {"path": {"type": "String"}}},
+  "bucketsFixStarted": "Header repair started ({op})",
+  "@bucketsFixStarted": {"placeholders": {"op": {"type": "String"}}},
+  "bucketsOperations": "Operations",
+  "bucketsNoOperations": "No operations yet",
+  "bucketsOpStatus": "{status}  ·  ok {ok}  ·  failed {failed}",
+  "@bucketsOpStatus": {"placeholders": {"status": {"type": "String"}, "ok": {"type": "int"}, "failed": {"type": "int"}}},
+  "bucketsTwinDiffRunning": "Computing the twin diff...",
+  "bucketsLocalDiffRunning": "Computing the local diff...",
+  "bucketsTwinDiffTitle": "{bucket} <-> {twin} (legacy twin)",
+  "@bucketsTwinDiffTitle": {"placeholders": {"bucket": {"type": "String"}, "twin": {"type": "String"}}},
+  "bucketsLocalDiffTitle": "Local pushed folder <-> {bucket}",
+  "@bucketsLocalDiffTitle": {"placeholders": {"bucket": {"type": "String"}}},
+  "bucketsMissingInLegacy": "Missing in the legacy twin",
+  "bucketsMissingInBucket": "Missing in the bucket",
+  "bucketsOnlyInLegacy": "Only in the legacy twin",
+  "bucketsOnlyInBucket": "Only in the bucket",
+  "bucketsSizeMismatch": "Size differs",
+  "bucketsUnmapped": "Unmatched (no rule)",
+  "bucketsDerived": "Generated in the bucket (thumbs)",
+  "bucketsDiffCount": "{title}: {count}",
+  "@bucketsDiffCount": {"placeholders": {"title": {"type": "String"}, "count": {"type": "int"}}},
+  "bucketsFixFolderHeaders": "Fix this folder's headers",
+  "bucketsDiffs": "Differences",
+  "bucketsTwinDiff": "Legacy twin diff",
+  "bucketsLocalDiff": "Local pushed folder diff",
+  "bucketsIntro": "A bucket is the store named after its content. Counts are computed on request (listing only, no bytes are downloaded).",
+  "bucketsBadgeLegacy": "LEGACY",
+  "bucketsBadgePrivate": "private",
+  "bucketsBadgeContent": "content",
+  "bucketsNotCounted": "not counted",
+  "bucketsObjectCount": "{count} objects",
+  "@bucketsObjectCount": {"placeholders": {"count": {"type": "int"}}},
+  "bucketsTwinLabel": "twin: {twin}",
+  "@bucketsTwinLabel": {"placeholders": {"twin": {"type": "String"}}},
+  "bucketsCount": "Count",
+  "bucketsEmptyFolder": "This folder is empty",
+  "bucketsTruncated": "The list was cut short - open a narrower folder",
+  "bucketsSelectedCount": "{count} selected",
+  "@bucketsSelectedCount": {"placeholders": {"count": {"type": "int"}}},
+  "bucketsClearSelection": "Clear selection",
+  "bucketsTakedownTooltip": "Takedown (also delete from the legacy twin)",
+  "bucketsSize": "Size",
+  "bucketsContentType": "Type",
+  "bucketsModified": "Modified",
+  "bucketsNone": "(none)",
+  "bucketsMutableOnPurpose": "Mutable on purpose - no standard applies",
+  "bucketsHeaderOk": "Meets the cache standard ({kind})",
+  "@bucketsHeaderOk": {"placeholders": {"kind": {"type": "String"}}},
+  "bucketsHeaderExpected": "Standard: {expected}",
+  "@bucketsHeaderExpected": {"placeholders": {"expected": {"type": "String"}}},
+  "bucketsLegacyTwin": "Legacy twin",
+  "bucketsAddressCopied": "Address copied",
+  "bucketsCopyAddress": "Copy address",
+  "bucketsOpen": "Open",
+  "bucketsPrivateNoAddress": "This bucket is private - it has no public address",
+  "kindCard": "Card",
+  "kindCharacter": "Character",
+  "assetCodeMode": "Code mode",
+  "assetPickFinishedImage": "Select a finished image",
+  "assetGenerateVideo": "Generate video",
+  "assetEnlarge": "Enlarge",
+  "percentValue": "{value}%",
+  "@percentValue": {
+    "placeholders": {
+      "value": {}
+    }
+  },
+  "commonCategory": "Category",
+  "durSeconds": "{seconds} s",
+  "@durSeconds": {
+    "placeholders": {
+      "seconds": {}
+    }
+  },
+  "durMinutesSeconds": "{minutes} min {seconds} s",
+  "@durMinutesSeconds": {
+    "placeholders": {
+      "minutes": {},
+      "seconds": {}
+    }
+  },
+  "durHoursMinutes": "{hours} h {minutes} min",
+  "@durHoursMinutes": {
+    "placeholders": {
+      "hours": {},
+      "minutes": {}
+    }
+  },
+  "charKindFemale": "Female",
+  "charKindMale": "Male",
+  "charKindAnimal": "Animal",
+  "charKindMachine": "Machine",
+  "outfitCatSet": "Set",
+  "outfitCatTop": "Top",
+  "outfitCatBottom": "Bottom",
+  "outfitCatShoes": "Shoes",
+  "outfitCatSocks": "Socks",
+  "outfitCatHat": "Hat",
+  "outfitCatHeadgear": "Headgear",
+  "outfitCatAccessory": "Accessory",
+  "outfitCatWeapon": "Weapon",
+  "audioLabel": "Audio",
+  "audioDownloading": "Downloading...",
+  "audioOpen": "Open audio",
+  "outfitExtractTitle": "Extract outfit",
+  "outfitExtractBody": "The person in the selected image is removed and the outfit is saved to the wardrobe as a ghost-mannequin product shot on a plain grey background. After that any character can wear it as a skin.",
+  "outfitExtractName": "Outfit name",
+  "outfitExtractNameHint": "e.g. Red evening dress",
+  "outfitExtractNote": "Note (optional)",
+  "outfitExtractNoteHint": "e.g. only the dress, not the shoes",
+  "outfitExtractHelp": "Set: everything the person wears, in one shot. Weapon / accessory: only that item, without a mannequin.",
+  "outfitExtractAction": "Extract",
+  "equipSlotTitle": "{category} slot",
+  "@equipSlotTitle": {
+    "placeholders": {
+      "category": {}
+    }
+  },
+  "equipSlotMultiHint": "multiple choice - tap to put on / take off",
+  "equipSlotSingleHint": "single choice - tap to put on, tap again to take off",
+  "equipSlotEmpty": "(empty)",
+  "equipSlotNoOutfits": "No ready outfit in this category - use \"+ Generate outfit\" or \"Extract outfit\"",
+  "equipBaseLabel": "Base:",
+  "equipUndress": "Take all off",
+  "equipPickSourceTitle": "Pick a source image",
+  "equipPickSourceHint": "The latest finished generations (every mode). For incoming / staging / pushed images of the Jigsaw pipeline use the Pipeline > Jigsaw screen.",
+  "equipNoFinishedImage": "No finished image",
+  "freeFlowTitle": "Free pipeline",
+  "freeFlowEditTitle": "Edit - edit engine",
+  "freeFlowEditLabel": "What should change",
+  "freeFlowEditHint": "e.g. change the dress to red, keep face and pose",
+  "freeFlowEditQueued": "Edit added to the queue",
+  "freeFlowNoVideoTask": "Free mode has no video task",
+  "freeFlowVideoTitle": "Generate video - {task}",
+  "@freeFlowVideoTitle": {
+    "placeholders": {
+      "task": {}
+    }
+  },
+  "freeFlowMotionLabel": "Motion",
+  "freeFlowMotionHint": "e.g. she turns her head slowly toward the camera, hair moving in the breeze",
+  "freeFlowVideoQueued": "Video added to the queue - a play mark appears on this card when it is done",
+  "freeFlowDeleteConfirm": "Delete this generation?",
+  "freeFlowDeleteWithVideosConfirm": "Delete this generation and its videos?",
+  "freeFlowEmpty": "Nothing generated in Free mode yet - start from the Generate tab",
+  "queueKindGeneration": "Generation",
+  "queueKindTag": "Tagging",
+  "queueKindMusic": "Music",
+  "queueKindJob": "Job",
+  "queueCancelRunningTitle": "Cancel the running job",
+  "queueRemoveTitle": "Remove from the queue",
+  "queueCancelIt": "Cancel it",
+  "queueClearTitle": "Clear the queue",
+  "queueClearBody": "Cancel the waiting generation jobs? The running job continues.",
+  "queueCancelWaiting": "Cancel the waiting jobs",
+  "queueEmpty": "The queue is empty",
+  "queueEmptyHint": "You can add jobs from the Generate tab",
+  "queueNow": "Now",
+  "queueWaitingCount": "Waiting ({count})",
+  "@queueWaitingCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "queueGenerationJobsCount": "Generation jobs ({count})",
+  "@queueGenerationJobsCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "queueOneQueue": "One queue - every job",
+  "queueJobCount": "{count} job(s)",
+  "@queueJobCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "queueMoveUp": "Move up",
+  "queueMoveDown": "Move down",
+  "queueUp": "Up",
+  "queueDown": "Down",
+  "queueElapsed": "elapsed {time}",
+  "@queueElapsed": {
+    "placeholders": {
+      "time": {}
+    }
+  },
+  "queueWaitingFor": "waiting {time}",
+  "@queueWaitingFor": {
+    "placeholders": {
+      "time": {}
+    }
+  },
+  "queueWaiting": "waiting",
+  "queueComfyReady": "ComfyUI ready",
+  "queueComfyOff": "ComfyUI is off",
+  "deliveryPoolNeverRan": "never ran",
+  "deliveryPoolDryRun": "{status} (dry run)",
+  "@deliveryPoolDryRun": {
+    "placeholders": {
+      "status": {}
+    }
+  },
+  "deliveryPoolSummary": "{status} · {total} images, {valid} valid, {tagged} tagged, {failed} failed",
+  "@deliveryPoolSummary": {
+    "placeholders": {
+      "status": {},
+      "total": {},
+      "valid": {},
+      "tagged": {},
+      "failed": {}
+    }
+  },
+  "reportErrEmpty": "Please write a message first.",
+  "reportErrTooLarge": "Attachments are too large. Remove one and try again.",
+  "flowOpError": "Operation failed: {message}",
+  "@flowOpError": {
+    "placeholders": {
+      "message": {}
+    }
+  },
+  "flowOpCancelled": "Operation cancelled",
+  "flowOpDone": "{ok} done",
+  "@flowOpDone": {
+    "placeholders": {
+      "ok": {}
+    }
+  },
+  "flowOpDoneWithFailed": "{ok} done, {failed} failed",
+  "@flowOpDoneWithFailed": {
+    "placeholders": {
+      "ok": {},
+      "failed": {}
+    }
+  },
+  "flowCollection": "Collection",
+  "flowAllParen": "(all)",
+  "flowAll": "all",
+  "flowSelectAll": "Select all",
+  "flowRetag": "Retag",
+  "flowRetagShort": "Retag",
+  "flowRetagStarted": "Tagging started",
+  "flowReadOnly": "Read-only",
+  "flowPush": "Push",
+  "flowPreview": "Preview",
+  "flowYes": "yes",
+  "flowNo": "no",
+  "flowMissingUpper": "MISSING",
+  "flowBadgeNoTags": "no tags",
+  "flowTabPushed": "4 Pushed",
+  "flowSelectAssetFirst": "Select an asset first",
+  "flowAccept": "Accept",
+  "flowReject": "Reject",
+  "flowUpload": "Upload",
+  "flowNew": "New",
+  "flowReadFailed": "The pipeline could not be read",
+  "flowFilesDeleted": "{count} files deleted",
+  "@flowFilesDeleted": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "flowNegative": "Negative",
+  "flowPositive2": "Positive 2",
+  "flowDuration": "Duration",
+  "flowAddToQueue": "Add to queue",
+  "commonDescription": "Description",
+  "cbnFlowTitle": "CBN pipeline",
+  "cbnFlowTabIncoming": "2 Incoming",
+  "cbnFlowTabReady": "3 Ready",
+  "cbnFlowBuildTitle": "Build - {count} assets",
+  "@cbnFlowBuildTitle": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "cbnFlowBuildBodyHot": "Regions + palette + numbered template + reveal video (CPU). The SAM step must already be done; outlines come from the SAM boundaries. (Hot: the build makes the line-art page itself with Qwen; step C is an optional preview.)",
+  "cbnFlowBuildBodyKid": "Regions + palette + numbered template + SVG (CPU). The SAM step must already be done.",
+  "cbnFlowBuild": "Build",
+  "cbnFlowBuildStarted": "Build started - progress is shown at the top",
+  "cbnFlowStageStarted": "{stage} started ({count} assets)",
+  "@cbnFlowStageStarted": {
+    "placeholders": {
+      "stage": {},
+      "count": {}
+    }
+  },
+  "cbnFlowStageObjects": "Object list",
+  "cbnFlowLineart": "Line art",
+  "cbnFlowPushTitle": "Push - {count} assets",
+  "@cbnFlowPushTitle": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "cbnFlowPushBody": "The asset folders will be uploaded to R2 and moved to \"Pushed\".\n\nThis is a PUBLISHING action and cannot be undone.",
+  "cbnFlowDeleteBody": "{count} assets will be deleted.",
+  "@cbnFlowDeleteBody": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "cbnFlowDeleted": "{count} deleted",
+  "@cbnFlowDeleted": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "cbnFlowEmptyIncoming": "No assets in this stage.\nSend them here with ACCEPT in CBN mode on the \"Generated\" screen.",
+  "cbnFlowEmptyStaging": "No built asset yet.\nSelect on the \"Incoming\" tab and tap BUILD.",
+  "cbnFlowEmptyPushed": "No pushed asset.",
+  "cbnFlowBadgeTagged": "T",
+  "cbnFlowBadgeObjects": "O",
+  "cbnFlowBadgeBuilt": "{regions}r {colors}c",
+  "@cbnFlowBadgeBuilt": {
+    "placeholders": {
+      "regions": {},
+      "colors": {}
+    }
+  },
+  "cbnFlowLayerNumbered": "Numbered",
+  "cbnFlowLayerFinished": "Finished",
+  "cbnFlowLayerSource": "Source",
+  "cbnFlowLayerObjects": "Objects",
+  "cbnFlowInfo": "{label}   {regions} regions · {colors} colours · {verdict}",
+  "@cbnFlowInfo": {
+    "placeholders": {
+      "label": {},
+      "regions": {},
+      "colors": {},
+      "verdict": {}
+    }
+  },
+  "cbnFlowTagLine": "{label}   tags: {state}",
+  "@cbnFlowTagLine": {
+    "placeholders": {
+      "label": {},
+      "state": {}
+    }
+  },
+  "cbnFlowFindObjects": "A) Find objects",
+  "cbnFlowSamMasks": "B) SAM masks",
+  "cbnFlowLineartPage": "C) Line-art page (optional, Qwen)",
+  "cbnFlowBuildStep": "D) Build",
+  "cbnFlowStepMissingA": "Step A (object list) has not been run",
+  "cbnFlowStepMissingB": "Step B (SAM masks) has not been run",
+  "cbnFlowStepMissingC": "Step C (line-art page) has not been run",
+  "cbnFlowImageFailed": "The image could not be loaded",
+  "jigsawFlowTitle": "Jigsaw pipeline",
+  "jigsawFlowTabTagged": "2 Tagged",
+  "jigsawFlowTabToPush": "3 To push",
+  "jigsawFlowQueueAll": "QUEUE ALL",
+  "jigsawFlowQueueAllTitle": "QUEUE ALL - {count} assets",
+  "@jigsawFlowQueueAllTitle": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "jigsawFlowVideoTitle": "Generate video - {count} assets",
+  "@jigsawFlowVideoTitle": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "jigsawFlowPositive1": "Positive 1 - subject",
+  "jigsawFlowPositive1Help": "empty = each asset's own prompt",
+  "jigsawFlowMotionPreset": "Motion preset",
+  "jigsawFlowSpreadInTurn": "(spread in turn)",
+  "jigsawFlowPositive2": "Positive 2 - motion",
+  "jigsawFlowPositive2Help": "{marker} = where the subject prompt goes. Empty = the presets in turn.",
+  "@jigsawFlowPositive2Help": {
+    "placeholders": {
+      "marker": {}
+    }
+  },
+  "jigsawFlowPresetsSpread": "The {count} presets will be spread in turn.",
+  "@jigsawFlowPresetsSpread": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "jigsawFlowNoAssetWithoutVideo": "No asset without a video",
+  "jigsawFlowSelectWithoutVideo": "Select assets without a video",
+  "jigsawFlowVideosQueued": "{queued} videos added to the queue - they land here when done",
+  "@jigsawFlowVideosQueued": {
+    "placeholders": {
+      "queued": {}
+    }
+  },
+  "jigsawFlowVideosQueuedSkipped": "{queued} videos added to the queue, {skipped} skipped - they land here when done",
+  "@jigsawFlowVideosQueuedSkipped": {
+    "placeholders": {
+      "queued": {},
+      "skipped": {}
+    }
+  },
+  "jigsawFlowNoVideoTitle": "No video",
+  "jigsawFlowNoVideoBody": "{count} assets have no video - only the jpg will be written. Continue?",
+  "@jigsawFlowNoVideoBody": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "jigsawFlowMusicNotReady": "The music model is not ready",
+  "jigsawFlowNoMusicMissing": "No themed collection is missing music",
+  "jigsawFlowHasMusic": "{collection} already has music or is Generic",
+  "@jigsawFlowHasMusic": {
+    "placeholders": {
+      "collection": {}
+    }
+  },
+  "jigsawFlowMusicBody": "A 30-second instrumental track will be generated for {count} collections (ACE-Step, local).\n\n{names}\n\nEach one can take a few minutes.",
+  "@jigsawFlowMusicBody": {
+    "placeholders": {
+      "count": {},
+      "names": {}
+    }
+  },
+  "jigsawFlowPushBody": "{count} assets will be UPLOADED to the R2 bucket.\n\nThis is a publishing action that cannot be undone - the uploaded files become visible in the app.",
+  "@jigsawFlowPushBody": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "jigsawFlowDeleteBody": "Permanently delete {count} assets (jpg + mp4 + webp + json)?",
+  "@jigsawFlowDeleteBody": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "jigsawFlowWebpStarted": "Generating the missing webp files",
+  "jigsawFlowCollectionTitle": "{mode} collection",
+  "@jigsawFlowCollectionTitle": {
+    "placeholders": {
+      "mode": {}
+    }
+  },
+  "jigsawFlowCollectionHelp": "pick from the list or type a NEW name",
+  "jigsawFlowCollectionHelpFull": "pick from the list or type a NEW name  -  {count} full collections are hidden",
+  "@jigsawFlowCollectionHelpFull": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "jigsawFlowCollectionRow": "{total} assets - next is {next}",
+  "@jigsawFlowCollectionRow": {
+    "placeholders": {
+      "total": {},
+      "next": {}
+    }
+  },
+  "jigsawFlowEmptyIncoming": "No assets in this stage.\nSend them here with ACCEPT on the \"Generated\" screen.",
+  "jigsawFlowEmpty": "No assets in this stage.",
+  "jigsawFlowBadgeNoWebp": "no webp",
+  "jigsawFlowPreviewInfo": "{label}\nvideo: {video}   webp: {webp}",
+  "@jigsawFlowPreviewInfo": {
+    "placeholders": {
+      "label": {},
+      "video": {},
+      "webp": {}
+    }
+  },
+  "jigsawFlowPreviewTags": "tags: {state}",
+  "@jigsawFlowPreviewTags": {
+    "placeholders": {
+      "state": {}
+    }
+  },
+  "jigsawFlowNoVideoInSelection": "None of the selected assets has a video",
+  "jigsawFlowDeleteVideo": "Delete video",
+  "jigsawFlowDeleteVideoBody": "The mp4 + webp of {count} assets will be deleted; the image stays and you can generate a new video.",
+  "@jigsawFlowDeleteVideoBody": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "jigsawFlowDeleteVideoTooltip": "Delete video (the image stays)",
+  "jigsawFlowExtractNeedsOne": "An outfit is extracted from a single image - select one",
+  "outfitExtractStarted": "{name} is being extracted to the wardrobe - Character > Wardrobe",
+  "@outfitExtractStarted": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "jigsawFlowMetaFile": "File",
+  "jigsawFlowMetaTags": "Tags",
+  "jigsawFlowMetaSubject": "Subject",
+  "jigsawFlowMetaPolicy": "Policy",
+  "jigsawFlowMetaVideoValue": "{video}   webp: {webp}",
+  "@jigsawFlowMetaVideoValue": {
+    "placeholders": {
+      "video": {},
+      "webp": {}
+    }
+  },
+  "jigsawFlowTagsMetadata": "Tags / metadata",
+  "jigsawFlowMissingWebp": "Missing webp",
+  "deliverySavedLive": "Saved and LIVE ({time}) - refreshing the counts",
+  "@deliverySavedLive": {
+    "placeholders": {
+      "time": {}
+    }
+  },
+  "deliveryReindexTitle": "Re-read metadata",
+  "deliveryReindexBody": "For images whose EXIF changed in the bucket. Type the file names separated by commas (e.g. 12.jpg, 340.jpg); leave it empty to re-read ALL of Generic (~1500 files, a few minutes).",
+  "deliveryReindexNames": "File names",
+  "deliveryReindexAction": "Read",
+  "deliveryReindexed": "{count} images re-read - manifests refreshed",
+  "@deliveryReindexed": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "deliveryReindexedMissing": "{count} images re-read, {missing} not found - manifests refreshed",
+  "@deliveryReindexedMissing": {
+    "placeholders": {
+      "count": {},
+      "missing": {}
+    }
+  },
+  "deliveryDryRunStarted": "Dry run started - it only produces a report",
+  "deliveryNormalizeStarted": "Normalisation started",
+  "deliveryCancelRequested": "Cancel requested",
+  "deliveryNeverSaved": "never saved",
+  "deliveryPoolJigsaw": "Jigsaw pool",
+  "deliveryPoolCards": "Cards",
+  "deliveryPoolEvents": "Events",
+  "deliveryEvent": "Event",
+  "deliverySummaryLine": "{pool} pool: {total} images, {tagged} tagged, {untagged} untagged",
+  "@deliverySummaryLine": {
+    "placeholders": {
+      "pool": {},
+      "total": {},
+      "tagged": {},
+      "untagged": {}
+    }
+  },
+  "deliverySaveBeforeSwitch": "Save your changes before switching pools.",
+  "deliveryReindexTooltip": "Re-read metadata (if the EXIF changed)",
+  "deliveryLastRule": "Last rule: {time}  ·  served by default: {served} / {total}",
+  "@deliveryLastRule": {
+    "placeholders": {
+      "time": {},
+      "served": {},
+      "total": {}
+    }
+  },
+  "deliveryIntro": "Switch OFF = images with that value leave the manifest. Saving goes live at once and now filters EVERY collection / deck; a single item the rules miss is closed with the Block list.",
+  "deliveryNormalizeTitle": "Normalise - generate the missing tags",
+  "deliveryDryRun": "Dry run",
+  "deliveryNormalizeNoStatus": "Status unavailable - the server did not answer /api/normalize/status",
+  "deliveryIndex": "Index: {index}",
+  "@deliveryIndex": {
+    "placeholders": {
+      "index": {}
+    }
+  },
+  "deliveryLastRun": "Last run: {summary}",
+  "@deliveryLastRun": {
+    "placeholders": {
+      "summary": {}
+    }
+  },
+  "deliveryBlockScopeGlobal": "every app (global)",
+  "deliveryBlockTitle": "Block · {scope}",
+  "@deliveryBlockTitle": {
+    "placeholders": {
+      "scope": {}
+    }
+  },
+  "deliveryOpenList": "Open the list",
+  "deliveryBlockIntro": "A global block applies in EVERY app; select an app to block for that app only. Applied AFTER the rules.",
+  "deliveryBlockEmpty": "Nothing to block in this pool (the bucket is empty).",
+  "deliveryGroupSubtitle": "{count} items · {tagged}/{count} tagged",
+  "@deliveryGroupSubtitle": {
+    "placeholders": {
+      "count": {},
+      "tagged": {}
+    }
+  },
+  "deliveryGroupSubtitleBlocked": "{count} items · {tagged}/{count} tagged · ALL BLOCKED",
+  "@deliveryGroupSubtitleBlocked": {
+    "placeholders": {
+      "count": {},
+      "tagged": {}
+    }
+  },
+  "deliveryAppsHint": "Apps - tap to edit that app's rule",
+  "deliveryDefaultChip": "Default  {served}/{total}",
+  "@deliveryDefaultChip": {
+    "placeholders": {
+      "served": {},
+      "total": {}
+    }
+  },
+  "deliveryDefaultRuleTitle": "Default rule - old versions that do not send ?app= and apps without a rule of their own",
+  "deliveryCustomRuleTitle": "Custom rule for {app}",
+  "@deliveryCustomRuleTitle": {
+    "placeholders": {
+      "app": {}
+    }
+  },
+  "deliveryCustomRuleOn": "Switch it off to return to the default",
+  "deliveryCustomRuleOff": "Off: the default rule applies. Switching it on starts from a copy of the default.",
+  "deliveryScopeTitle": "Only the selected collections",
+  "deliveryScopeOn": "{selected}/{total} collections - newly published ones do NOT reach this app",
+  "@deliveryScopeOn": {
+    "placeholders": {
+      "selected": {},
+      "total": {}
+    }
+  },
+  "deliveryScopeOff": "Off: every newly published collection also reaches this app",
+  "deliveryScopeNone": "None selected - an empty list is not saved, the rule falls back to \"all\".",
+  "deliveryRulesEnabled": "Rules enabled",
+  "deliveryRulesEnabledHint": "Off = this rule set filters nothing",
+  "deliveryServeUntagged": "Serve untagged images",
+  "deliveryUntaggedCount": "{count} images have no metadata",
+  "@deliveryUntaggedCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "deliveryQuick": "Quick:",
+  "deliveryOffCount": "{count} off",
+  "@deliveryOffCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "deliveryFieldSubtitle": "{field} · {count} values",
+  "@deliveryFieldSubtitle": {
+    "placeholders": {
+      "field": {},
+      "count": {}
+    }
+  },
+  "deliveryUnsaved": "There are unsaved changes",
+  "deliveryInSync": "Same as the server",
+  "deliverySavePublish": "Save and publish",
+  "commonApply": "Apply",
+  "commonModel": "Model",
+  "cardTplShuffled": "Shuffled - locked axes were left alone",
+  "cardTplRankShuffled": "{rank} shuffled",
+  "@cardTplRankShuffled": {
+    "placeholders": {
+      "rank": {}
+    }
+  },
+  "cardTplAxisAllTitle": "{axis} - to all",
+  "@cardTplAxisAllTitle": {
+    "placeholders": {
+      "axis": {}
+    }
+  },
+  "cardTplAxisAllBack": "Written to the card back and LOCKED.",
+  "cardTplAxisAllFront": "Written to all 13 cards + 2 jokers at once and LOCKED - shuffling does not change it.",
+  "cardTplValue": "Value",
+  "cardTplAllWritten": "Written to all and locked",
+  "cardTplRankTitle": "{rank} template",
+  "@cardTplRankTitle": {
+    "placeholders": {
+      "rank": {}
+    }
+  },
+  "cardTplLocked": "Locked",
+  "cardTplLock": "Lock",
+  "cardTplManual": "Manual extra (free text)",
+  "cardTplManualHint": "e.g. holding a golden card fan",
+  "cardTplManualHelp": "Added to the end of the template - shuffling does not remove it",
+  "cardTplRankSaved": "{rank} saved",
+  "@cardTplRankSaved": {
+    "placeholders": {
+      "rank": {}
+    }
+  },
+  "cardTplSlotQueued": "{slot} added to the queue",
+  "@cardTplSlotQueued": {
+    "placeholders": {
+      "slot": {}
+    }
+  },
+  "cardTplTitle": "Collection card - {title}",
+  "@cardTplTitle": {
+    "placeholders": {
+      "title": {}
+    }
+  },
+  "cardTplShuffle": "Shuffle",
+  "cardTplNoTheme": "No theme - tap to write one",
+  "cardTplThemeTitle": "Theme (P1)",
+  "cardTplPresetCard": "Preset card",
+  "cardTplTheme": "Theme",
+  "cardTplThemeHelp": "identity + STRICT PALETTE + Signature pieces",
+  "cardTplThemeEmpty": "The theme cannot be empty",
+  "cardTplThemeSaved": "Theme saved",
+  "cardTplModelSet": "Model: {name}",
+  "@cardTplModelSet": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "cardTplFaceDetail": "Face retouch",
+  "cardTplFaceDetailHint": "+15 s per card - runs the face through a separate pass",
+  "cardTplFaceDetailOn": "Face retouch on",
+  "cardTplFaceDetailOff": "Face retouch off",
+  "cardTplVideoEngine": "Video engine (first frame = last frame)",
+  "cardTplEngineUnavailable": "{engine} (not installed)",
+  "@cardTplEngineUnavailable": {
+    "placeholders": {
+      "engine": {}
+    }
+  },
+  "cardTplVideoEngineSet": "Video engine: {name}",
+  "@cardTplVideoEngineSet": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "cardTplApplyToAll": "Apply to all:",
+  "cardTplPickAxis": "pick an axis",
+  "cardTplBackAxis": "{axis}  (back)",
+  "@cardTplBackAxis": {
+    "placeholders": {
+      "axis": {}
+    }
+  },
+  "cardTplLockedAxes": "{count} axes locked",
+  "@cardTplLockedAxes": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "cardTplShuffleSlot": "Shuffle this slot",
+  "cardTplGenerateSlot": "Generate this slot",
+  "galleryDeleteSelectedConfirm": "Delete {count} generations and their files?",
+  "@galleryDeleteSelectedConfirm": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "galleryDeleted": "{count} generations deleted",
+  "@galleryDeleted": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "galleryDeleteFailed": "{count} could not be deleted",
+  "@galleryDeleteFailed": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "galleryCharacterNeedsOne": "A character is created from a single image - select one",
+  "galleryMakeCharacter": "Make character",
+  "galleryMakeCharacterBody": "The selected image becomes the base directly; the portrait, the story and the 7 directions are generated on their own - no confirmation is asked.",
+  "galleryCharacterQueued": "{name} added to the queue - follow the pipeline on the Queue tab",
+  "@galleryCharacterQueued": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "galleryCreateCharacterFirst": "Create a character with \"Make character\" first",
+  "galleryAddToCandidatesTitle": "Add to candidates - {count} images",
+  "@galleryAddToCandidatesTitle": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "galleryAddedToCandidates": "{count} images added to the candidates of {name}",
+  "@galleryAddedToCandidates": {
+    "placeholders": {
+      "count": {},
+      "name": {}
+    }
+  },
+  "galleryCollectionNeedsOne": "A single image is added to a collection - select one",
+  "galleryCreateCollectionFirst": "Create a collection or a dealer in the Card pipeline first",
+  "galleryAddToCollection": "Add to collection",
+  "galleryDealerNoRank": "dealer (no rank)",
+  "galleryPickRank": "{name} - pick a rank",
+  "@galleryPickRank": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "galleryQueuedOne": "Added to the queue (1 job) - follow it on the Queue tab",
+  "galleryAcceptBodyCbn": "{count} images will move to the \"Incoming\" stage of the CBN pipeline: jpg + EXIF tags. The build (SAM, line art, regions) is started there.\n\nWhich rating?",
+  "@galleryAcceptBodyCbn": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "galleryAcceptBodyJigsaw": "{count} images will move to stage 2: jpg + EXIF tags, with the video next to it if there is one.\n\nWhich rating?",
+  "@galleryAcceptBodyJigsaw": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "galleryAcceptStarted": "Started - follow the progress on the \"Pipeline\" tab",
+  "galleryExtractTooltip": "Extract outfit - take the outfit in the image into the wardrobe",
+  "galleryMakeCharacterTooltip": "Make character - create a new character",
+  "galleryAddToCandidatesTooltip": "Add to candidates - copy to an existing character",
+  "galleryAddToCollectionTooltip": "Add to collection - pick a rank",
+  "galleryAcceptTooltip": "Accept - send to stage 2",
+  "galleryDeleteSelected": "Delete the selected",
+  "galleryFilterImage": "Image",
+  "galleryFilterVideo": "Video",
+  "galleryFilterFavorite": "Favorite",
+  "galleryQueuedAt": "queued {position}",
+  "@galleryQueuedAt": {
+    "placeholders": {
+      "position": {}
+    }
+  },
+  "galleryEmpty": "Nothing generated yet",
+  "galleryEmptyHint": "You can start from the Generate tab",
+  "galleryDeleteOneConfirm": "Delete this generation and its file?",
+  "galleryAcceptOneCbn": "It will move to the \"Incoming\" stage of the CBN pipeline (jpg + EXIF tags).\n\nWhich rating?",
+  "galleryAcceptOneJigsaw": "It will move to stage 2 (jpg + EXIF tags).\n\nWhich rating?",
+  "galleryAccepted": "Accepted - being tagged, follow it on the \"Pipeline\" tab",
+  "galleryRejected": "Rejected",
+  "galleryEditBody": "This image becomes the source; the edit engine (Qwen Image Edit, keeps the identity) starts a new generation. What should change?",
+  "galleryEditPromptLabel": "Extra prompt",
+  "galleryEditPromptHint": "e.g. change the dress to a red pleated miniskirt, keep face and pose",
+  "galleryEditQueued": "Edit added to the queue - the result shows up in Generated",
+  "galleryEditTooltip": "Edit - a new generation with the edit engine",
+  "galleryPoolInfo": "pool {name}",
+  "@galleryPoolInfo": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "genPromptUnchanged": "The prompt did not change (the local LLM did not answer)",
+  "genPromptWritten": "Prompt written",
+  "commonUndo": "Undo",
+  "genVariantFailed": "No variant could be produced (the local LLM did not answer)",
+  "genPickVariant": "Pick a variant",
+  "genEnrich": "Enrich",
+  "genFix": "Fix",
+  "genVariant": "Variant",
+  "genFileUnreadable": "The file could not be read",
+  "genPromptEmpty": "The prompt cannot be empty",
+  "genMissingInputs": "Missing input: {inputs}",
+  "@genMissingInputs": {
+    "placeholders": {
+      "inputs": {}
+    }
+  },
+  "genNeedsImagePick": "This task needs an input image - pick one of the generated ones",
+  "genNeedsImage": "This task needs an input image",
+  "genQueuedCount": "{count} jobs added to the queue",
+  "@genQueuedCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "genQueued": "Added to the queue",
+  "genQueueBadge": "{count} queued",
+  "@genQueueBadge": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "genComfyOffBody": "ComfyUI is off. Jobs enter the queue but do not start - it has to be started on the computer.",
+  "genTask": "Task",
+  "genWorkflowInputs": "Workflow inputs",
+  "genInputImage": "Input image",
+  "genPositive1": "Positive prompt 1 - subject",
+  "genPositive1Hint": "e.g. police officer",
+  "genPositive2": "Positive prompt 2 - template",
+  "genPositive2Help": "{marker} is replaced by the first prompt. May be left empty.",
+  "@genPositive2Help": {
+    "placeholders": {
+      "marker": {}
+    }
+  },
+  "genFinalPrompt": "Prompt to be sent",
+  "genNegative": "Negative prompt",
+  "genTurboHint": "fast mode",
+  "genDurationSeconds": "Duration: {seconds} seconds",
+  "@genDurationSeconds": {
+    "placeholders": {
+      "seconds": {}
+    }
+  },
+  "genCount": "Count: {count}",
+  "@genCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "genSizeAspect": "Size: {width} x {height}  ({aspect})",
+  "@genSizeAspect": {
+    "placeholders": {
+      "width": {},
+      "height": {},
+      "aspect": {}
+    }
+  },
+  "genSize": "Size: {width} x {height}",
+  "@genSize": {
+    "placeholders": {
+      "width": {},
+      "height": {}
+    }
+  },
+  "genAddToQueueUpper": "ADD TO QUEUE",
+  "genFootnote": "Jobs are generated one after another. You can follow them on the Queue tab.",
+  "genDetailsTitle": "Details - may be left empty, locked ones are not shuffled",
+  "genRandomGenerate": "Generate random  {count}",
+  "@genRandomGenerate": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "genLockedTooltip": "locked - stays fixed when shuffling",
+  "genOptionsEmpty": "The option list is empty",
+  "genOptional": "optional",
+  "genUploading": "uploading...",
+  "genNotSelected": "not selected",
+  "genFromGallery": "From gallery",
+  "genFromFile": "From file",
+  "genNoSource": "No generation can be used as input. Generate an image first.",
+  "genPickerTitle": "{slot} - pick from Generated",
+  "@genPickerTitle": {
+    "placeholders": {
+      "slot": {}
+    }
+  },
+  "genPickerSearch": "search in prompts",
+  "genPickerEmpty": "No finished generation of this kind.",
+  "optionsFileMissing": "Missing in the options file: {items}",
+  "@optionsFileMissing": {
+    "placeholders": {
+      "items": {}
+    }
+  },
+  "optionsFieldsMissing": "{label} (no field definitions)",
+  "@optionsFieldsMissing": {
+    "placeholders": {
+      "label": {}
+    }
+  },
+  "optionsFileUnreadable": "The options file could not be read: {error}",
+  "@optionsFileUnreadable": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "optionsFileUnreadableNamed": "The {name} options file could not be read: {error}",
+  "@optionsFileUnreadableNamed": {
+    "placeholders": {
+      "name": {},
+      "error": {}
+    }
+  },
+  "fieldLocation": "Location",
+  "fieldEra": "Era / aesthetic",
+  "fieldWeather": "Weather",
+  "fieldWeatherLight": "Weather / light",
+  "fieldJob": "Job",
+  "fieldFantasy": "Fantasy",
+  "fieldOutfitColor": "Outfit colour",
+  "fieldOutfit": "Outfit",
+  "fieldHair": "Hair",
+  "fieldHairColor": "Hair colour",
+  "fieldHairstyle": "Hairstyle",
+  "fieldEyes": "Eyes",
+  "fieldRace": "Race",
+  "fieldExpression": "Expression",
+  "fieldPose": "Pose",
+  "fieldAngle": "Angle",
+  "fieldStyle": "Style",
+  "fieldMood": "Mood",
+  "fieldColor": "Colour",
+  "fieldCreature": "Creature",
+  "fieldClass": "Class",
+  "fieldAge": "Age",
+  "fieldOrigin": "Origin",
+  "fieldBody": "Body",
+  "fieldSkin": "Skin",
+  "fieldFace": "Face",
+  "fieldGesture": "Gesture",
+  "cardNotReady": "The server endpoint is not ready yet",
+  "cardKindNormal": "Normal",
+  "cardKindDealer": "Dealer",
+  "cardStagePushed": "pushed",
+  "cardStageWebp": "webp ready",
+  "cardStageVideo": "video ready",
+  "cardStageStill": "still ready",
+  "cardStageEmpty": "empty",
+  "cardRankTooltip": "{rank} - {stage}",
+  "@cardRankTooltip": {
+    "placeholders": {
+      "rank": {},
+      "stage": {}
+    }
+  },
+  "cardRankTooltipWarn": "{rank} - {stage} (check)",
+  "@cardRankTooltipWarn": {
+    "placeholders": {
+      "rank": {},
+      "stage": {}
+    }
+  },
+  "cardVideoIntro": "First frame = last frame (loop). The camera stays locked - framing, scale and background do not change. The output goes to the POOL first; if you pick a tag it is assigned there as well.",
+  "cardVideoTemplate": "Template (fills the text)",
+  "cardVideoMotion": "Motion sentence (the prompt that is sent)",
+  "cardVideoMotionHelp": "Describe a visible motion; it should return to the starting pose at the end",
+  "cardVideoAssignTag": "Assign to tag",
+  "cardVideoPoolOnly": "(pool only - I will assign it later)",
+  "cardVideoNewTag": "New tag...",
+  "cardVideoNewTagName": "New tag name",
+  "cardTagHint": "e.g. victory",
+  "cardGestureTitle": "Animation - pick a gesture",
+  "cardGestureIntro": "MiniMax H3: idle 6 s, victory 2 s. The camera stays locked - framing, scale and background do not change.",
+  "cardGestureCustom": "Custom motion",
+  "cardGestureCustomHint": "e.g. a slight hip sway, feet fixed",
+  "cardGestureCustomHelp": "A short motion sentence - the camera stays locked",
+  "cardCutTitle": "3 WebP - cut mode",
+  "cardCutHybrid": "Old green Grok masters - chroma + SAM together",
+  "cardCutSam": "Default - SAM3 only, plain light grey background",
+  "cardCutAction": "Cut",
+  "cardEditTitle": "Edit - {name}",
+  "@cardEditTitle": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "cardEditSentence": "Correction sentence",
+  "cardEditSentenceHint": "e.g. shorten her hair / remove the gloves",
+  "cardEditBody": "The accepted still is edited with this sentence; identity, pose and background are kept. The new image is accepted automatically.",
+  "cardEditUnrestricted": "Unrestricted edit (NSFW LoRA)",
+  "cardEditUnrestrictedHint": "Switch on if Qwen refuses - MCNL LoRA, 20 steps, a little slower",
+  "cardQueuedJobs": "Added to the queue ({count} jobs) - follow it on the Queue tab",
+  "@cardQueuedJobs": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "cardQueued": "Added to the queue - follow it on the Queue tab",
+  "cardQueuedOp": "Added to the queue (op {op}) - follow it on the Queue tab",
+  "@cardQueuedOp": {
+    "placeholders": {
+      "op": {}
+    }
+  },
+  "cardSoonTitle": "{what} - coming soon",
+  "@cardSoonTitle": {
+    "placeholders": {
+      "what": {}
+    }
+  },
+  "cardSoonBody": "The card endpoints on the server are not open yet. This screen starts working on its own once they are.",
+  "cardNewCollection": "New collection",
+  "cardIdLabel": "Identifier (id)",
+  "cardIdHintCollection": "e.g. police_royale",
+  "commonName": "Name",
+  "cardNameHintCollection": "e.g. Police Royale",
+  "cardPickPreset": "Pick a preset card (optional)",
+  "cardThemeHint": "e.g. sexy police costume with badge and duty belt",
+  "cardThemeFormula": "Formula: identity + STRICT PALETTE + Signature pieces",
+  "cardJokers": "Jokers (2)",
+  "cardJokersHint": "15 ranks instead of 13",
+  "cardNewCollectionNote": "One still per rank enters the queue (skin / hair / outfit / pose rotation). No confirmation is asked - fine-tune with ✎ / ↻.",
+  "cardIdNameRequired": "The identifier and the name cannot be empty",
+  "cardNewDealer": "New dealer",
+  "cardIdHintDealer": "e.g. scarlett",
+  "cardNameHintDealer": "e.g. Scarlett",
+  "cardDealerTheme": "Theme / outfit",
+  "cardDealerThemeHint": "e.g. casino vest and bow tie, noir red dress",
+  "cardDealerNote": "The dealer is generated in a waist-up frame (hands on the table, looking at the camera). There is no rank - the single item goes through the four stages.",
+  "cardNightPickGesture": "Night mode - pick a gesture",
+  "cardNightMode": "Night mode",
+  "cardNightBody": "All cards AND dealers are re-animated: current still -> LTX-2.5 i2v ({gesture}) -> SAM cut -> sheet.\n\nIt takes long and everything enters the queue. NO push is done.",
+  "@cardNightBody": {
+    "placeholders": {
+      "gesture": {}
+    }
+  },
+  "cardRestillTitle": "Turn backgrounds grey",
+  "cardRestillBody": "The still background of all cards AND dealers is turned plain light grey (the woman stays as she is). The original is kept as still_green.png; ones that are already grey are skipped.\n\nNo video is generated.",
+  "cardManifestPreview": "Manifest preview",
+  "cardManifestCounts": "{collections} collections, {dealers} dealers",
+  "@cardManifestCounts": {
+    "placeholders": {
+      "collections": {},
+      "dealers": {}
+    }
+  },
+  "cardManifestNote": "The manifest file is written during PUSH (files first, then the manifest). This is only a preview.",
+  "cardCollectionCardSettings": "Collection card (settings)",
+  "cardCollectionCardSettingsHint": "theme, 16 slots, model, face retouch",
+  "cardReanimate": "Re-animate",
+  "cardReanimateHint": "still -> i2v -> cut (this collection)",
+  "cardRealify": "Anime -> realistic (collection)",
+  "cardRealifyHint": "every still becomes a realistic photo with edit_qwen",
+  "cardDeleteCollection": "Delete collection",
+  "cardDeleteCollectionHint": "the folder is deleted with all its cards - cannot be undone",
+  "cardDeleteCollectionTitle": "Delete collection - {name}",
+  "@cardDeleteCollectionTitle": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "cardDeleteDealerTitle": "Delete dealer - {name}",
+  "@cardDeleteDealerTitle": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "cardDeleteCollectionBody": "The collection folder is deleted with all its files.\n\nCANNOT BE UNDONE. Files already pushed to R2 stay in the bucket.",
+  "cardDeleteDealerBody": "The dealer folder is deleted with all its files.\n\nCANNOT BE UNDONE. Files already pushed to R2 stay in the bucket.",
+  "cardDeletedNamed": "{name} deleted",
+  "@cardDeletedNamed": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "cardDealerCardSettings": "Dealer card (settings)",
+  "cardDealerCardSettingsHint": "theme, template, model, face retouch",
+  "cardDeleteDealer": "Delete dealer",
+  "cardDeleteDealerHint": "the folder is deleted with all its files - cannot be undone",
+  "cardFlowTitle": "Card pipeline",
+  "cardBulkActions": "Bulk actions",
+  "cardNightMenu": "Night mode: re-animate everything",
+  "cardRestillMenu": "Turn backgrounds grey (all)",
+  "cardManifestMenu": "Preview manifest",
+  "cardDealers": "Dealers",
+  "cardEmptyCollections": "No collection yet.\n\nGive an identifier, a name and a theme with \"+ New collection\" - one still per rank enters the queue for 13 (or 15) ranks, then come the 2 Video and 3 WebP stages.",
+  "cardEmptyDealers": "No dealer yet.\n\nGive a name, a theme and a gesture with \"+ New dealer\" - a single item is generated in a waist-up frame and goes through the four stages.",
+  "cardGestureLine": "gesture: {gesture}",
+  "@cardGestureLine": {
+    "placeholders": {
+      "gesture": {}
+    }
+  },
+  "cardAnimateTitle": "2 Video ({count} cards)",
+  "@cardAnimateTitle": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "cardAnimateBody": "Two animations are generated for each card and assigned to their tags:\n• idle - 6 s, one controlled gesture\n• victory - 2 s, a short cheer inside the frame\n{total} videos in total; the old ones stay in the pool.",
+  "@cardAnimateBody": {
+    "placeholders": {
+      "total": {}
+    }
+  },
+  "cardEditNeedsOne": "Editing is for a single rank - select one card",
+  "cardPushTitle": "Push - {name}",
+  "@cardPushTitle": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "cardPushBody": "The sheet and thumb files are uploaded to R2 (cards), then the manifest is written. Right now the webp of {ready}/{total} ranks is ready.\n\nThis is a PUBLISHING action and CANNOT BE UNDONE.",
+  "@cardPushBody": {
+    "placeholders": {
+      "ready": {},
+      "total": {}
+    }
+  },
+  "cardPushQueued": "Push added to the queue - follow it on the Queue tab",
+  "cardCollectionCardTooltip": "Collection card - theme, 16 slots, model, face retouch",
+  "commonMore": "More",
+  "cardNoThemeTap": "No theme - tap: Collection card",
+  "cardThemeTap": "{theme}\nCollection card: tap (theme, 16 slots, model, face retouch)",
+  "@cardThemeTap": {
+    "placeholders": {
+      "theme": {}
+    }
+  },
+  "cardDeleteCollectionStills": "The collection folder is deleted with all its cards ({stills} stills).\n\nCANNOT BE UNDONE. Files already pushed to R2 stay in the bucket.",
+  "@cardDeleteCollectionStills": {
+    "placeholders": {
+      "stills": {}
+    }
+  },
+  "cardDeleteCollectionStillsPushed": "The collection folder is deleted with all its cards ({stills} stills, {pushed} pushed).\n\nCANNOT BE UNDONE. Files already pushed to R2 stay in the bucket.",
+  "@cardDeleteCollectionStillsPushed": {
+    "placeholders": {
+      "stills": {},
+      "pushed": {}
+    }
+  },
+  "cardClearCards": "Clear cards",
+  "cardClearCardsBody": "{ranks} - still, candidates, video and webp are deleted; the rank stays empty (generate it again with \"1 Still\").",
+  "@cardClearCardsBody": {
+    "placeholders": {
+      "ranks": {}
+    }
+  },
+  "cardsCleared": "{count} cards cleared",
+  "@cardsCleared": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "cardsClearFailed": "{count} cards could not be cleared",
+  "@cardsClearFailed": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "cardGenerateStill": "Generate 1 Still",
+  "cardGenerateVideo": "Generate 2 Video",
+  "cardGenerateWebp": "Generate 3 WebP",
+  "cardBackUpper": "BACK",
+  "cardAssetVideo": "Video ({tag})",
+  "@cardAssetVideo": {
+    "placeholders": {
+      "tag": {}
+    }
+  },
+  "cardAssetSheet": "WebP / cut ({tag})",
+  "@cardAssetSheet": {
+    "placeholders": {
+      "tag": {}
+    }
+  },
+  "cardAssetMissing": "No {asset}",
+  "@cardAssetMissing": {
+    "placeholders": {
+      "asset": {}
+    }
+  },
+  "cardAssetDeleteConfirm": "Delete {asset}?",
+  "@cardAssetDeleteConfirm": {
+    "placeholders": {
+      "asset": {}
+    }
+  },
+  "cardAssetDeleteVideoBody": "Only the video of this tag is deleted; the copy in the pool, the still and the webp stay.",
+  "cardAssetDeleteSheetBody": "Only sheet.webp, the thumb and the cut frames are deleted; the video and the still stay.",
+  "cardAssetDeleteStillBody": "Only the selected still is deleted; the candidates, the video and the webp stay.",
+  "cardPoolDelete": "Delete from the pool",
+  "cardPoolDeleteBody": "{id} is deleted from the pool. Copies assigned to tags ({tags}) stay.",
+  "@cardPoolDeleteBody": {
+    "placeholders": {
+      "id": {},
+      "tags": {}
+    }
+  },
+  "cardNone": "none",
+  "cardNewAnimTag": "New animation tag",
+  "cardNewAnimTagHelp": "The game reads it by this name (idle, wink, victory ...)",
+  "cardUnassigned": "not assigned",
+  "cardAssignedTo": "assigned: {tags}",
+  "@cardAssignedTo": {
+    "placeholders": {
+      "tags": {}
+    }
+  },
+  "cardAssignTo": "Assign: {name}",
+  "@cardAssignTo": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "cardAssignNewTag": "Assign to a new tag...",
+  "cardAnimReady": "video + webp ready",
+  "cardAnimVideoOnly": "has video, no webp",
+  "cardPoolEmpty": "No video in the pool - run \"2 Video\" first",
+  "cardDeleteVideoKeepTag": "Delete the video (the tag stays)",
+  "cardDeleteSheet": "Delete WebP / cut",
+  "cardDeleteTag": "Delete the tag (with its video + webp)",
+  "cardVideosHeader": "Videos ({count}) - tap = assign / preview / delete",
+  "@cardVideosHeader": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "cardDeleteThisDealerBody": "The folder of {name} is deleted with all its files. CANNOT BE UNDONE.",
+  "@cardDeleteThisDealerBody": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "cardClearCard": "Clear card",
+  "cardClearCardBody": "{name}: still, candidates, video, webp and animations are deleted; the rank stays empty (generate it again with \"1 Still\").",
+  "@cardClearCardBody": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "cardClearCardTooltip": "Clear card (the rank becomes empty)",
+  "cardViewCut": "Cut",
+  "cardDeleteThisVideo": "Delete this video ({tag})",
+  "@cardDeleteThisVideo": {
+    "placeholders": {
+      "tag": {}
+    }
+  },
+  "cardDeleteSheetTag": "Delete WebP / cut ({tag})",
+  "@cardDeleteSheetTag": {
+    "placeholders": {
+      "tag": {}
+    }
+  },
+  "cardDeleteStill": "Delete the still",
+  "cardNoVideo": "No video - generate it with \"2 Video\"",
+  "cardNoCut": "No cut - generate it with \"3 WebP\"",
+  "cardCutFrameFailed": "The cut frame could not be read",
+  "cardNoStill": "No still - generate it with \"1 Still\"",
+  "cardStillFailed": "The still could not be read",
+  "cardPromptTitleAge": "Prompt  ·  age {age}",
+  "@cardPromptTitleAge": {
+    "placeholders": {
+      "age": {}
+    }
+  },
+  "cardGuardFail": "Guard FAIL - frame drift / zoom / broken mask. Generate the video or the cut again.",
+  "cardAnimsHeader": "Animations - tap = select, long press = assign / delete",
+  "cardAnimOpened": "\"{tag}\" opened - generate it with 2 Video or assign from the pool",
+  "@cardAnimOpened": {
+    "placeholders": {
+      "tag": {}
+    }
+  },
+  "cardPickPoolVideo": "Pick a video from the pool for \"{tag}\"",
+  "@cardPickPoolVideo": {
+    "placeholders": {
+      "tag": {}
+    }
+  },
+  "cardCandidatesHeader": "Candidates ({count}) - tap = select",
+  "@cardCandidatesHeader": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "cardCandidatePicked": "The candidate is now the selected still",
+  "cardRunFailed": "{step}: {error}",
+  "@cardRunFailed": {
+    "placeholders": {
+      "step": {},
+      "error": {}
+    }
+  }
 }

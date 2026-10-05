@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../l10n/app_localizations.dart';
 import '../services/generate_service.dart';
 import '../services/mode_service.dart';
 import '../theme.dart';
@@ -25,6 +26,8 @@ class FreeFlowScreen extends StatefulWidget {
 }
 
 class _FreeFlowScreenState extends State<FreeFlowScreen> {
+  AppLocalizations get l10n => AppLocalizations.of(context)!;
+
   List<GenerateJob> _jobs = [];
   List<GenerateTask> _tasks = [];
   GenerateJob? _sel;
@@ -91,8 +94,7 @@ class _FreeFlowScreenState extends State<FreeFlowScreen> {
   List<GenerateJob> _videosOf(GenerateJob j) =>
       _jobs.where((v) => v.isVideo && v.sourceJob == j.id && v.isDone).toList();
 
-  Future<String?> _ask(String baslik, String etiket, String ipucu,
-      {String onay = 'Uret'}) async {
+  Future<String?> _ask(String baslik, String etiket, String ipucu) async {
     final ctl = TextEditingController();
     final ok = await showDialog<bool>(
       context: context,
@@ -107,8 +109,8 @@ class _FreeFlowScreenState extends State<FreeFlowScreen> {
               labelText: etiket, hintText: ipucu, border: const OutlineInputBorder()),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Vazgec')),
-          FilledButton(onPressed: () => Navigator.pop(c, true), child: Text(onay)),
+          TextButton(onPressed: () => Navigator.pop(c, false), child: Text(l10n.cancel)),
+          FilledButton(onPressed: () => Navigator.pop(c, true), child: Text(l10n.generate)),
         ],
       ),
     );
@@ -121,16 +123,16 @@ class _FreeFlowScreenState extends State<FreeFlowScreen> {
   Future<void> _edit() async {
     final j = _sel;
     if (j == null || !j.isDone || !j.isImage) {
-      _snack('Tamamlanmis bir gorsel sec');
+      _snack(l10n.assetPickFinishedImage);
       return;
     }
-    final p = await _ask('Duzenle - edit motoru', 'Ne degissin',
-        'orn. change the dress to red, keep face and pose');
+    final p = await _ask(l10n.freeFlowEditTitle, l10n.freeFlowEditLabel,
+        l10n.freeFlowEditHint);
     if (p == null) return;
     setState(() => _busy = true);
     try {
       await GenerateService.submit(task: 'edit_qwen', prompt: p, sourceJob: j.id, mode: 'free');
-      _snack('Duzenleme siraya eklendi');
+      _snack(l10n.freeFlowEditQueued);
       _load(silent: true);
     } catch (e) {
       _snack(e.toString().replaceFirst('Exception: ', ''));
@@ -143,22 +145,22 @@ class _FreeFlowScreenState extends State<FreeFlowScreen> {
   Future<void> _video() async {
     final j = _sel;
     if (j == null || !j.isDone || !j.isImage) {
-      _snack('Tamamlanmis bir gorsel sec');
+      _snack(l10n.assetPickFinishedImage);
       return;
     }
     final vt = _tasks.where((t) => t.isVideo && t.needsImage).firstOrNull;
     if (vt == null) {
-      _snack('Free kipinde video gorevi yok');
+      _snack(l10n.freeFlowNoVideoTask);
       return;
     }
-    final p = await _ask('Video uret - ${vt.label}', 'Hareket',
-        'orn. she turns her head slowly toward the camera, hair moving in the breeze');
+    final p = await _ask(l10n.freeFlowVideoTitle(vt.label),
+        l10n.freeFlowMotionLabel, l10n.freeFlowMotionHint);
     if (p == null) return;
     setState(() => _busy = true);
     try {
       await GenerateService.submit(
           task: vt.id, prompt: p, sourceJob: j.id, mode: 'free', duration: vt.duration);
-      _snack('Video siraya eklendi - bitince bu kartta oynatma isareti cikar');
+      _snack(l10n.freeFlowVideoQueued);
       _load(silent: true);
     } catch (e) {
       _snack(e.toString().replaceFirst('Exception: ', ''));
@@ -173,11 +175,13 @@ class _FreeFlowScreenState extends State<FreeFlowScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
-        title: const Text('Sil'),
-        content: Text('Bu uretim${_videosOf(j).isNotEmpty ? " ve videolari" : ""} silinsin mi?'),
+        title: Text(l10n.delete),
+        content: Text(_videosOf(j).isNotEmpty
+            ? l10n.freeFlowDeleteWithVideosConfirm
+            : l10n.freeFlowDeleteConfirm),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Vazgec')),
-          FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Sil')),
+          TextButton(onPressed: () => Navigator.pop(c, false), child: Text(l10n.cancel)),
+          FilledButton(onPressed: () => Navigator.pop(c, true), child: Text(l10n.delete)),
         ],
       ),
     );
@@ -187,6 +191,7 @@ class _FreeFlowScreenState extends State<FreeFlowScreen> {
         await GenerateService.delete(v.id);
       }
       await GenerateService.delete(j.id);
+      if (!mounted) return;
       setState(() => _sel = null);
       _load(silent: true);
     } catch (e) {
@@ -231,15 +236,15 @@ class _FreeFlowScreenState extends State<FreeFlowScreen> {
     final cards = _cards;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Free hatti'),
+        title: Text(l10n.freeFlowTitle),
         bottom: kindSwitchBottom(widget.kindSwitch),
         actions: [
           IconButton(
             icon: const Icon(Icons.code),
-            tooltip: 'Code Mod',
+            tooltip: l10n.assetCodeMode,
             onPressed: () => ModeService.set(false),
           ),
-          IconButton(icon: const Icon(Icons.refresh), tooltip: 'Yenile', onPressed: _load),
+          IconButton(icon: const Icon(Icons.refresh), tooltip: l10n.refresh, onPressed: _load),
         ],
       ),
       bottomNavigationBar: _sel == null ? null : _actionBar(),
@@ -248,9 +253,13 @@ class _FreeFlowScreenState extends State<FreeFlowScreen> {
           : _error != null
               ? Center(child: Text(_error!))
               : cards.isEmpty
-                  ? const Center(
-                      child: Text('Free kipinde uretim yok - Uretim sekmesinden baslat',
-                          style: TextStyle(color: Colors.grey)))
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Text(l10n.freeFlowEmpty,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(color: Colors.grey)),
+                      ))
                   : RefreshIndicator(
                       onRefresh: _load,
                       child: GridView.builder(
@@ -294,7 +303,7 @@ class _FreeFlowScreenState extends State<FreeFlowScreen> {
                     errorBuilder: (_, _, _) => Container(color: Colors.white10))
               else
                 Center(
-                  child: Text(j.isBusy ? (j.isRunning ? '%${j.progress}' : 'sirada') : (j.error ?? j.status),
+                  child: Text(j.isBusy ? (j.isRunning ? l10n.percentValue(j.progress) : l10n.appStatusQueued) : (j.error ?? j.status),
                       style: const TextStyle(fontSize: 10, color: Colors.grey),
                       textAlign: TextAlign.center),
                 ),
@@ -335,10 +344,10 @@ class _FreeFlowScreenState extends State<FreeFlowScreen> {
           color: Theme.of(context).colorScheme.surface,
           child: Row(
             children: [
-              _act(Icons.auto_fix_high, 'Duzenle', _busy || _sel?.isImage != true ? null : _edit),
-              _act(Icons.movie_creation_outlined, 'Video uret', _busy || _sel?.isImage != true ? null : _video),
-              _act(Icons.zoom_in, 'Buyut', _sel == null ? null : () => _big(_sel!)),
-              _act(Icons.delete_outline, 'Sil', _delete),
+              _act(Icons.auto_fix_high, l10n.edit, _busy || _sel?.isImage != true ? null : _edit),
+              _act(Icons.movie_creation_outlined, l10n.assetGenerateVideo, _busy || _sel?.isImage != true ? null : _video),
+              _act(Icons.zoom_in, l10n.assetEnlarge, _sel == null ? null : () => _big(_sel!)),
+              _act(Icons.delete_outline, l10n.delete, _delete),
             ],
           ),
         ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/app_localizations.dart';
 import '../services/card_flow_service.dart';
 import '../theme.dart';
 
@@ -29,6 +30,8 @@ class CardTemplatesScreen extends StatefulWidget {
 }
 
 class _CardTemplatesScreenState extends State<CardTemplatesScreen> {
+  AppLocalizations get l10n => AppLocalizations.of(context)!;
+
   CardTemplates _d = const CardTemplates();
   bool _loading = true;
   bool _busy = false;
@@ -61,8 +64,11 @@ class _CardTemplatesScreenState extends State<CardTemplatesScreen> {
     }
   }
 
-  void _snack(String m) => ScaffoldMessenger.of(context)
-      .showSnackBar(SnackBar(content: Text(m), duration: const Duration(seconds: 2)));
+  void _snack(String m) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(m), duration: const Duration(seconds: 2)));
+  }
 
   Future<void> _sarmala(Future<void> Function() f, String ad) async {
     if (_busy) return;
@@ -81,13 +87,13 @@ class _CardTemplatesScreenState extends State<CardTemplatesScreen> {
   /// Tum kilitsiz eksenleri, tum rutbelerde karistirir.
   Future<void> _hepsiniKaristir() => _sarmala(
       () => CardFlowService.rollTemplates(widget.collection, kind: widget.kind),
-      'Karistirildi - kilitli eksenlere dokunulmadi');
+      l10n.cardTplShuffled);
 
   /// Tek rutbenin kilitsiz eksenlerini karistirir.
   Future<void> _satiriKaristir(String rank) => _sarmala(
       () => CardFlowService.rollTemplates(widget.collection,
           kind: widget.kind, ranks: [rank]),
-      '$rank karistirildi');
+      l10n.cardTplRankShuffled(rank));
 
   /// Bir ekseni butun yuvalara yazar + kilitler. Deger ACILIR LISTEDEN secilir.
   Future<void> _eksenHepsine(String axis) async {
@@ -100,8 +106,8 @@ class _CardTemplatesScreenState extends State<CardTemplatesScreen> {
       context: context,
       builder: (c) => StatefulBuilder(
         builder: (c, setLocal) => AlertDialog(
-          title: Text(
-              '${(arka ? _d.backLabels[axis] : _d.labels[axis]) ?? axis} - hepsine'),
+          title: Text(l10n.cardTplAxisAllTitle(
+              (arka ? _d.backLabels[axis] : _d.labels[axis]) ?? axis)),
           content: SizedBox(
             width: 420,
             child: Column(
@@ -109,18 +115,17 @@ class _CardTemplatesScreenState extends State<CardTemplatesScreen> {
               children: [
                 Text(
                     arka
-                        ? 'Kart arkasina yazilir ve KILITLENIR.'
-                        : '13 kart + 2 jokere birden yazilir ve KILITLENIR - '
-                            'karistirmada degismez.',
+                        ? l10n.cardTplAxisAllBack
+                        : l10n.cardTplAxisAllFront,
                     style: const TextStyle(fontSize: 11, color: Colors.grey)),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   initialValue: secim,
                   isExpanded: true,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                       isDense: true,
-                      border: OutlineInputBorder(),
-                      labelText: 'Deger'),
+                      border: const OutlineInputBorder(),
+                      labelText: l10n.cardTplValue),
                   items: [
                     for (final v in secenekler)
                       DropdownMenuItem(
@@ -137,10 +142,10 @@ class _CardTemplatesScreenState extends State<CardTemplatesScreen> {
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(c, false),
-                child: const Text('Vazgec')),
+                child: Text(l10n.cancel)),
             FilledButton(
                 onPressed: secim == null ? null : () => Navigator.pop(c, true),
-                child: const Text('Uygula')),
+                child: Text(l10n.commonApply)),
           ],
         ),
       ),
@@ -149,7 +154,7 @@ class _CardTemplatesScreenState extends State<CardTemplatesScreen> {
     await _sarmala(
         () => CardFlowService.setAxis(widget.collection, axis, secim!,
             kind: widget.kind),
-        'Hepsine yazildi ve kilitlendi');
+        l10n.cardTplAllWritten);
   }
 
   Future<void> _satirDuzenle(String rank) async {
@@ -162,7 +167,7 @@ class _CardTemplatesScreenState extends State<CardTemplatesScreen> {
       builder: (c) => StatefulBuilder(
         builder: (c, setLocal) => AlertDialog(
           scrollable: true,
-          title: Text('$rank sablonu'),
+          title: Text(l10n.cardTplRankTitle(rank)),
           content: SizedBox(
             width: 460,
             child: Column(
@@ -197,7 +202,7 @@ class _CardTemplatesScreenState extends State<CardTemplatesScreen> {
                         ),
                       ),
                       IconButton(
-                        tooltip: kilit.contains(a) ? 'Kilitli' : 'Kilitle',
+                        tooltip: kilit.contains(a) ? l10n.cardTplLocked : l10n.cardTplLock,
                         icon: Icon(
                             kilit.contains(a)
                                 ? Icons.lock
@@ -217,13 +222,13 @@ class _CardTemplatesScreenState extends State<CardTemplatesScreen> {
                 TextField(
                   controller: manuelC,
                   maxLines: 3,
-                  decoration: const InputDecoration(
-                    labelText: 'Manuel ek (serbest metin)',
-                    hintText: 'orn. holding a golden card fan',
-                    helperText: 'Sablonun sonuna eklenir - karistirma silmez',
+                  decoration: InputDecoration(
+                    labelText: l10n.cardTplManual,
+                    hintText: l10n.cardTplManualHint,
+                    helperText: l10n.cardTplManualHelp,
                     helperMaxLines: 2,
                     isDense: true,
-                    border: OutlineInputBorder(),
+                    border: const OutlineInputBorder(),
                   ),
                 ),
               ],
@@ -232,10 +237,10 @@ class _CardTemplatesScreenState extends State<CardTemplatesScreen> {
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(c, false),
-                child: const Text('Vazgec')),
+                child: Text(l10n.cancel)),
             FilledButton(
                 onPressed: () => Navigator.pop(c, true),
-                child: const Text('Kaydet')),
+                child: Text(l10n.save)),
           ],
         ),
       ),
@@ -248,7 +253,7 @@ class _CardTemplatesScreenState extends State<CardTemplatesScreen> {
             CardTemplate(
                 axes: yerel, locked: kilit, manual: manuelC.text.trim()),
             kind: widget.kind),
-        '$rank kaydedildi');
+        l10n.cardTplRankSaved(rank));
   }
 
   /// Tek yuvayi uretime yollar - sablon degistikten sonra sonucu hemen gormek
@@ -257,7 +262,7 @@ class _CardTemplatesScreenState extends State<CardTemplatesScreen> {
     try {
       await CardFlowService.stills(
           collection: widget.collection, ranks: [slot], kind: widget.kind, n: 1);
-      if (mounted) _snack('$slot kuyruga girdi');
+      if (mounted) _snack(l10n.cardTplSlotQueued(slot));
     } catch (e) {
       if (mounted) _snack(e.toString().replaceFirst('Exception: ', ''));
     }
@@ -266,17 +271,18 @@ class _CardTemplatesScreenState extends State<CardTemplatesScreen> {
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(
-          title: Text('Koleksiyon Karti - ${widget.title}'),
+          title: Text(l10n.cardTplTitle(widget.title)),
           actions: [
             IconButton(
                 onPressed: _busy ? null : _load,
+                tooltip: l10n.refresh,
                 icon: const Icon(Icons.refresh)),
           ],
         ),
         floatingActionButton: FloatingActionButton.extended(
           onPressed: _busy ? null : _hepsiniKaristir,
           icon: const Icon(Icons.casino),
-          label: const Text('Karistir'),
+          label: Text(l10n.cardTplShuffle),
         ),
         body: _loading
             ? const Center(child: CircularProgressIndicator())
@@ -315,7 +321,7 @@ class _CardTemplatesScreenState extends State<CardTemplatesScreen> {
                       color: Colors.grey)),
               const SizedBox(width: 6),
               Expanded(
-                child: Text(_d.theme.isEmpty ? 'Tema yok - dokun ve yaz' : _d.theme,
+                child: Text(_d.theme.isEmpty ? l10n.cardTplNoTheme : _d.theme,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -338,7 +344,7 @@ class _CardTemplatesScreenState extends State<CardTemplatesScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setLocal) => AlertDialog(
           scrollable: true,
-          title: const Text('Tema (P1)'),
+          title: Text(l10n.cardTplThemeTitle),
           content: SizedBox(
             width: 440,
             child: Column(
@@ -349,10 +355,10 @@ class _CardTemplatesScreenState extends State<CardTemplatesScreen> {
                   DropdownButtonFormField<String>(
                     initialValue: secili,
                     isExpanded: true,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                         isDense: true,
-                        border: OutlineInputBorder(),
-                        labelText: 'Hazir kart'),
+                        border: const OutlineInputBorder(),
+                        labelText: l10n.cardTplPresetCard),
                     items: [
                       for (final sb in sablonlar)
                         DropdownMenuItem(
@@ -373,12 +379,12 @@ class _CardTemplatesScreenState extends State<CardTemplatesScreen> {
                 TextField(
                   controller: c,
                   maxLines: 6,
-                  decoration: const InputDecoration(
-                    labelText: 'Tema',
-                    helperText: 'kimlik + STRICT PALETTE + Signature pieces',
+                  decoration: InputDecoration(
+                    labelText: l10n.cardTplTheme,
+                    helperText: l10n.cardTplThemeHelp,
                     helperMaxLines: 2,
                     isDense: true,
-                    border: OutlineInputBorder(),
+                    border: const OutlineInputBorder(),
                   ),
                 ),
               ],
@@ -387,10 +393,10 @@ class _CardTemplatesScreenState extends State<CardTemplatesScreen> {
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Vazgec')),
+                child: Text(l10n.cancel)),
             FilledButton(
                 onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('Kaydet')),
+                child: Text(l10n.save)),
           ],
         ),
       ),
@@ -398,12 +404,12 @@ class _CardTemplatesScreenState extends State<CardTemplatesScreen> {
     if (ok != true) return;
     final t = c.text.trim();
     if (t.isEmpty) {
-      _snack('Tema bos olamaz');
+      _snack(l10n.cardTplThemeEmpty);
       return;
     }
     await _sarmala(
         () => CardFlowService.setTheme(widget.collection, t, kind: widget.kind),
-        'Tema kaydedildi');
+        l10n.cardTplThemeSaved);
   }
 
   /// #353: uretim ayarlari - model acilir listesi + yuz rotusu anahtari.
@@ -417,8 +423,10 @@ class _CardTemplatesScreenState extends State<CardTemplatesScreen> {
               child: DropdownButtonFormField<String>(
                 initialValue: _d.models.contains(_d.model) ? _d.model : null,
                 isExpanded: true,
-                decoration: const InputDecoration(
-                    isDense: true, border: OutlineInputBorder(), labelText: 'Model'),
+                decoration: InputDecoration(
+                    isDense: true,
+                    border: const OutlineInputBorder(),
+                    labelText: l10n.commonModel),
                 items: [
                   for (final m in _d.models)
                     DropdownMenuItem(
@@ -431,7 +439,7 @@ class _CardTemplatesScreenState extends State<CardTemplatesScreen> {
                         : _sarmala(
                             () => CardFlowService.setSettings(widget.collection,
                                 kind: widget.kind, model: v),
-                            'Model: $v'),
+                            l10n.cardTplModelSet(v)),
               ),
             ),
             const SizedBox(width: 12),
@@ -440,15 +448,15 @@ class _CardTemplatesScreenState extends State<CardTemplatesScreen> {
                 dense: true,
                 contentPadding: EdgeInsets.zero,
                 value: _d.faceDetail,
-                title: const Text('Yuz rotusu', style: TextStyle(fontSize: 12)),
-                subtitle: const Text('+15 sn/kart - yuzu ayri gecisten gecirir',
-                    style: TextStyle(fontSize: 10, color: Colors.grey)),
+                title: Text(l10n.cardTplFaceDetail, style: const TextStyle(fontSize: 12)),
+                subtitle: Text(l10n.cardTplFaceDetailHint,
+                    style: const TextStyle(fontSize: 10, color: Colors.grey)),
                 onChanged: _busy
                     ? null
                     : (v) => _sarmala(
                         () => CardFlowService.setSettings(widget.collection,
                             kind: widget.kind, faceDetail: v),
-                        v ? 'Yuz rotusu acik' : 'Yuz rotusu kapali'),
+                        v ? l10n.cardTplFaceDetailOn : l10n.cardTplFaceDetailOff),
               ),
             ),
           ],
@@ -472,16 +480,16 @@ class _CardTemplatesScreenState extends State<CardTemplatesScreen> {
             ? _d.videoEngine
             : motorlar.first.id,
         isExpanded: true,
-        decoration: const InputDecoration(
+        decoration: InputDecoration(
             isDense: true,
-            border: OutlineInputBorder(),
-            labelText: 'Video motoru (ilk kare = son kare)'),
+            border: const OutlineInputBorder(),
+            labelText: l10n.cardTplVideoEngine),
         items: [
           for (final e in motorlar)
             DropdownMenuItem(
                 value: e.id,
                 enabled: e.available,
-                child: Text(e.available ? e.label : '${e.label} (kurulu degil)',
+                child: Text(e.available ? e.label : l10n.cardTplEngineUnavailable(e.label),
                     style: const TextStyle(fontSize: 12))),
         ],
         onChanged: _busy
@@ -491,7 +499,7 @@ class _CardTemplatesScreenState extends State<CardTemplatesScreen> {
                 : _sarmala(
                     () => CardFlowService.setSettings(widget.collection,
                         kind: widget.kind, videoEngine: v),
-                    'Video motoru: $v'),
+                    l10n.cardTplVideoEngineSet(v)),
       ),
     );
   }
@@ -501,17 +509,17 @@ class _CardTemplatesScreenState extends State<CardTemplatesScreen> {
         padding: const EdgeInsets.fromLTRB(12, 2, 12, 6),
         child: Row(
           children: [
-            const Text('Hepsine uygula:',
-                style: TextStyle(fontSize: 11, color: Colors.grey)),
+            Text(l10n.cardTplApplyToAll,
+                style: const TextStyle(fontSize: 11, color: Colors.grey)),
             const SizedBox(width: 8),
             Expanded(
               child: DropdownButtonFormField<String>(
                 initialValue: null,
                 isExpanded: true,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   isDense: true,
-                  border: OutlineInputBorder(),
-                  hintText: 'eksen sec',
+                  border: const OutlineInputBorder(),
+                  hintText: l10n.cardTplPickAxis,
                 ),
                 items: [
                   for (final a in _d.axes)
@@ -522,7 +530,7 @@ class _CardTemplatesScreenState extends State<CardTemplatesScreen> {
                   for (final a in _d.backAxes)
                     DropdownMenuItem(
                         value: a,
-                        child: Text('${_d.backLabels[a] ?? a}  (arka)',
+                        child: Text(l10n.cardTplBackAxis(_d.backLabels[a] ?? a),
                             style: const TextStyle(fontSize: 12))),
                 ],
                 onChanged: _busy ? null : (a) => a == null ? null : _eksenHepsine(a),
@@ -561,7 +569,7 @@ class _CardTemplatesScreenState extends State<CardTemplatesScreen> {
             subtitle: t.manual.isEmpty
                 ? (t.locked.isEmpty
                     ? null
-                    : Text('${t.locked.length} eksen kilitli',
+                    : Text(l10n.cardTplLockedAxes(t.locked.length),
                         style: const TextStyle(fontSize: 10, color: Colors.grey)))
                 : Text('+ ${t.manual}',
                     maxLines: 1,
@@ -573,12 +581,12 @@ class _CardTemplatesScreenState extends State<CardTemplatesScreen> {
                 if (t.locked.isNotEmpty)
                   Icon(Icons.lock, size: 14, color: AppColors.accent),
                 IconButton(
-                  tooltip: 'Bu yuvayi karistir',
+                  tooltip: l10n.cardTplShuffleSlot,
                   icon: const Icon(Icons.casino_outlined, size: 18),
                   onPressed: _busy ? null : () => _satiriKaristir(r),
                 ),
                 IconButton(
-                  tooltip: 'Bu yuvayi uret',
+                  tooltip: l10n.cardTplGenerateSlot,
                   icon: const Icon(Icons.play_arrow, size: 18),
                   onPressed: _busy ? null : () => _yuvayiUret(r),
                 ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../l10n/app_localizations.dart';
 import '../services/lifecharger_analytics.dart';
 import '../services/mode_service.dart';
 import '../services/r2_control_service.dart';
@@ -24,6 +25,8 @@ class BucketsScreen extends StatefulWidget {
 }
 
 class _BucketsScreenState extends State<BucketsScreen> {
+  AppLocalizations get l10n => AppLocalizations.of(context)!;
+
   R2Registry? _reg;
   bool _loading = true;
   String? _error;
@@ -40,7 +43,6 @@ class _BucketsScreenState extends State<BucketsScreen> {
   @override
   void initState() {
     super.initState();
-    Analytics.log('feature_use', {'feature': 'buckets'});
     _loadRegistry();
   }
 
@@ -118,7 +120,7 @@ class _BucketsScreenState extends State<BucketsScreen> {
 
   // ---------------------------------------------------------------- eylemler
   Future<void> _refreshCount(String bucket) async {
-    _snack('$bucket sayiliyor...');
+    _snack(l10n.bucketsCounting(bucket));
     try {
       final r = await R2ControlService.buckets(refresh: true, bucket: bucket);
       if (!mounted) return;
@@ -149,13 +151,13 @@ class _BucketsScreenState extends State<BucketsScreen> {
         builder: (ctx, setLocal) => AlertDialog(
           icon: Icon(takedown ? Icons.gavel : Icons.delete_forever,
               color: AppColors.error, size: 34),
-          title: Text(takedown ? 'Takedown (yeni + eski)' : 'Kalici olarak sil'),
+          title: Text(takedown ? l10n.bucketsTakedownTitle : l10n.bucketsDeleteForeverTitle),
           content: SizedBox(
             width: double.maxFinite,
             child: ListView(
               shrinkWrap: true,
               children: [
-                Text('${plan.totalKeys} nesne silinecek. GERI ALINAMAZ.',
+                Text(l10n.bucketsDeleteWarning(plan.totalKeys),
                     style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.error)),
                 const SizedBox(height: 8),
                 _planBlok(plan.bucket, plan.keys),
@@ -164,12 +166,11 @@ class _BucketsScreenState extends State<BucketsScreen> {
                   Padding(
                     padding: const EdgeInsets.only(top: 8),
                     child: Text(
-                        '${plan.unmapped.length} anahtarin eski ikizde karsiligi yok - '
-                        'yalniz bu kovadan silinir.',
+                        l10n.bucketsUnmappedNote(plan.unmapped.length),
                         style: const TextStyle(fontSize: 11, color: Colors.orange)),
                   ),
                 const SizedBox(height: 12),
-                Text("Onaylamak icin kova adini yaz: $_bucket",
+                Text(l10n.bucketsTypeNameToConfirm(_bucket),
                     style: const TextStyle(fontSize: 12)),
                 const SizedBox(height: 6),
                 TextField(
@@ -182,18 +183,17 @@ class _BucketsScreenState extends State<BucketsScreen> {
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Vazgec')),
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(l10n.cancel)),
             FilledButton(
               style: FilledButton.styleFrom(backgroundColor: AppColors.error),
               onPressed: c.text == _bucket ? () => Navigator.pop(ctx, true) : null,
-              child: Text(takedown ? 'Takedown' : 'Sil'),
+              child: Text(takedown ? l10n.bucketsTakedown : l10n.delete),
             ),
           ],
         ),
       ),
     );
     if (onay != true) return;
-    Analytics.log('feature_use', {'feature': takedown ? 'buckets_takedown' : 'buckets_delete'});
     try {
       final r = await R2ControlService.delete(_bucket, keys,
           takedown: takedown, confirm: c.text);
@@ -201,8 +201,10 @@ class _BucketsScreenState extends State<BucketsScreen> {
       final ikiz = (r['twins'] as List? ?? const [])
           .whereType<Map>()
           .fold<int>(0, (a, t) => a + ((t['deleted'] as num?)?.toInt() ?? 0));
-      _snack('${r['deleted']} nesne silindi'
-          '${takedown ? ', eski ikizden $ikiz' : ''}');
+      final silinen = (r['deleted'] as num?)?.toInt() ?? 0;
+      _snack(takedown
+          ? l10n.bucketsDeletedWithTwin(silinen, ikiz)
+          : l10n.bucketsDeleted(silinen));
       await _open(_bucket, _prefix);
     } catch (e) {
       if (mounted) _snack(_clean(e));
@@ -244,19 +246,20 @@ class _BucketsScreenState extends State<BucketsScreen> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setLocal) => AlertDialog(
-          title: const Text('Kopyala'),
+          title: Text(l10n.copy),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                   tek.isNotEmpty
-                      ? 'Kaynak: $_bucket/$tek'
-                      : 'Kaynak agac: $_bucket/${_prefix.isEmpty ? "(tum kova)" : _prefix}',
+                      ? l10n.bucketsCopySource('$_bucket/$tek')
+                      : l10n.bucketsCopySourceTree(
+                          '$_bucket/${_prefix.isEmpty ? l10n.bucketsWholeBucket : _prefix}'),
                   style: const TextStyle(fontSize: 12)),
               const SizedBox(height: 4),
-              const Text('Kopya Cloudflare icinde calisir - telefondan bayt gecmez.',
-                  style: TextStyle(fontSize: 11, color: Colors.grey)),
+              Text(l10n.bucketsCopyNote,
+                  style: const TextStyle(fontSize: 11, color: Colors.grey)),
               const SizedBox(height: 10),
               DropdownButton<String>(
                 value: hedef.isEmpty ? null : hedef,
@@ -269,19 +272,18 @@ class _BucketsScreenState extends State<BucketsScreen> {
                 decoration: InputDecoration(
                     isDense: true,
                     border: const OutlineInputBorder(),
-                    labelText: tek.isNotEmpty ? 'Hedef anahtar' : 'Hedef onek'),
+                    labelText: tek.isNotEmpty ? l10n.bucketsTargetKey : l10n.bucketsTargetPrefix),
               ),
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Vazgec')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Kopyala')),
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(l10n.cancel)),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(l10n.copy)),
           ],
         ),
       ),
     );
     if (ok != true || hedef.isEmpty) return;
-    Analytics.log('feature_use', {'feature': 'buckets_copy'});
     try {
       final op = await R2ControlService.copy(
         srcBucket: _bucket,
@@ -292,7 +294,7 @@ class _BucketsScreenState extends State<BucketsScreen> {
         dstPrefix: tek.isNotEmpty ? '' : onek.text.trim(),
       );
       if (!mounted) return;
-      _snack('Kopya basladi ($op)');
+      _snack(l10n.bucketsCopyStarted(op));
       _showOps();
     } catch (e) {
       if (mounted) _snack(_clean(e));
@@ -303,25 +305,22 @@ class _BucketsScreenState extends State<BucketsScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Basliklari duzelt'),
+        title: Text(l10n.bucketsFixHeadersTitle),
         content: Text(
-            '$_bucket/${_prefix.isEmpty ? "(tum kova)" : _prefix} altindaki nesnelerin '
-            'Cache-Control basligi denetlenir; standarttan sapan nesne yerinde '
-            'yeniden yazilir (Content-Type korunur). Bayt inmez.\n\n'
-            'Bilerek degisken birakilan onekler atlanir.',
+            l10n.bucketsFixHeadersBody(
+                '$_bucket/${_prefix.isEmpty ? l10n.bucketsWholeBucket : _prefix}'),
             style: const TextStyle(fontSize: 12)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Vazgec')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Basla')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(l10n.cancel)),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(l10n.start)),
         ],
       ),
     );
     if (ok != true) return;
-    Analytics.log('feature_use', {'feature': 'buckets_fix_headers'});
     try {
       final op = await R2ControlService.fixHeaders(_bucket, _prefix);
       if (!mounted) return;
-      _snack('Baslik onarimi basladi ($op)');
+      _snack(l10n.bucketsFixStarted(op));
       _showOps();
     } catch (e) {
       if (mounted) _snack(_clean(e));
@@ -351,9 +350,9 @@ class _BucketsScreenState extends State<BucketsScreen> {
             children: [
               Row(
                 children: [
-                  const Expanded(
-                      child: Text('Islemler',
-                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
+                  Expanded(
+                      child: Text(l10n.bucketsOperations,
+                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
                   IconButton(
                     icon: const Icon(Icons.refresh, size: 18),
                     onPressed: () async {
@@ -364,7 +363,8 @@ class _BucketsScreenState extends State<BucketsScreen> {
                 ],
               ),
               if (_ops.isEmpty)
-                const Text('Henuz islem yok', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                Text(l10n.bucketsNoOperations,
+                    style: const TextStyle(fontSize: 12, color: Colors.grey)),
               for (final o in _ops)
                 ListTile(
                   dense: true,
@@ -376,7 +376,7 @@ class _BucketsScreenState extends State<BucketsScreen> {
                     children: [
                       LinearProgressIndicator(value: o.running ? o.progress : 1),
                       Text(
-                          '${o.status}  ·  ok ${o.ok}  ·  hata ${o.failed}'
+                          '${l10n.bucketsOpStatus(o.status, o.ok, o.failed)}'
                           '${o.message.isEmpty ? '' : '  ·  ${o.message}'}',
                           style: const TextStyle(fontSize: 11, color: Colors.grey)),
                     ],
@@ -409,8 +409,7 @@ class _BucketsScreenState extends State<BucketsScreen> {
   }
 
   Future<void> _showDiff({required bool twin}) async {
-    Analytics.log('feature_use', {'feature': twin ? 'buckets_twin_diff' : 'buckets_diff'});
-    _snack(twin ? 'Ikiz farki hesaplaniyor...' : 'Yerel fark hesaplaniyor...');
+    _snack(twin ? l10n.bucketsTwinDiffRunning : l10n.bucketsLocalDiffRunning);
     Map<String, dynamic> d;
     try {
       d = twin
@@ -433,19 +432,22 @@ class _BucketsScreenState extends State<BucketsScreen> {
           controller: controller,
           padding: const EdgeInsets.all(12),
           children: [
-            Text(twin ? '${d['bucket']} <-> ${d['twin']} (eski ikiz)' : 'Yerel Pushed <-> ${d['bucket']}',
+            Text(
+                twin
+                    ? l10n.bucketsTwinDiffTitle('${d['bucket']}', '${d['twin']}')
+                    : l10n.bucketsLocalDiffTitle('${d['bucket']}'),
                 style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            _diffBlok(twin ? 'Eski ikizde eksik' : 'Kovada eksik',
+            _diffBlok(twin ? l10n.bucketsMissingInLegacy : l10n.bucketsMissingInBucket,
                 liste(twin ? 'missing_in_legacy' : 'missing_in_bucket'), AppColors.error),
-            _diffBlok(twin ? 'Yalniz eski ikizde' : 'Yalniz kovada',
+            _diffBlok(twin ? l10n.bucketsOnlyInLegacy : l10n.bucketsOnlyInBucket,
                 liste(twin ? 'only_in_legacy' : 'missing_locally'), Colors.orange),
-            _diffBlok('Boyut farki', liste('size_mismatch'), Colors.orange),
+            _diffBlok(l10n.bucketsSizeMismatch, liste('size_mismatch'), Colors.orange),
             if (twin)
-              _diffBlok('Eslesmeyen (kural yok)', liste('unmapped'), Colors.grey)
+              _diffBlok(l10n.bucketsUnmapped, liste('unmapped'), Colors.grey)
             else
               // Gri thumb'lar kovada uretilir, yerelde hic olmaz - eksik degil.
-              _diffBlok('Kovada uretilen (thumbs)', liste('derived_in_bucket'), Colors.grey),
+              _diffBlok(l10n.bucketsDerived, liste('derived_in_bucket'), Colors.grey),
           ],
         ),
       ),
@@ -457,7 +459,7 @@ class _BucketsScreenState extends State<BucketsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('$baslik: ${satirlar.length}',
+            Text(l10n.bucketsDiffCount(baslik, satirlar.length),
                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: renk)),
             for (final s in satirlar.take(60))
               Text(s, style: const TextStyle(fontSize: 11, color: Colors.grey)),
@@ -482,39 +484,39 @@ class _BucketsScreenState extends State<BucketsScreen> {
           leading: _bucket.isEmpty
               ? null
               : IconButton(icon: const Icon(Icons.arrow_back), onPressed: _up),
-          title: Text(_bucket.isEmpty ? 'Kovalar' : _bucket,
+          title: Text(_bucket.isEmpty ? l10n.navBuckets : _bucket,
               style: const TextStyle(fontSize: 17)),
           actions: [
             IconButton(
                 icon: const Icon(Icons.local_shipping_outlined),
-                tooltip: 'Dagitim',
+                tooltip: l10n.navDelivery,
                 onPressed: () => ModeService.setMode(ModeService.delivery)),
             IconButton(
               icon: const Icon(Icons.playlist_play),
-              tooltip: 'Islemler',
+              tooltip: l10n.bucketsOperations,
               onPressed: _showOps,
             ),
             if (_bucket.isNotEmpty && info != null) ...[
               IconButton(
                 icon: const Icon(Icons.cleaning_services),
-                tooltip: 'Bu klasorun basliklarini duzelt',
+                tooltip: l10n.bucketsFixFolderHeaders,
                 onPressed: _fixHeaders,
               ),
               PopupMenuButton<String>(
-                tooltip: 'Farklar',
+                tooltip: l10n.bucketsDiffs,
                 icon: const Icon(Icons.compare_arrows),
                 onSelected: (v) => _showDiff(twin: v == 'twin'),
                 itemBuilder: (_) => [
                   if (info.twin.isNotEmpty)
-                    const PopupMenuItem(value: 'twin', child: Text('Eski ikiz farki')),
+                    PopupMenuItem(value: 'twin', child: Text(l10n.bucketsTwinDiff)),
                   if (info.localRating.isNotEmpty)
-                    const PopupMenuItem(value: 'local', child: Text('Yerel Pushed farki')),
+                    PopupMenuItem(value: 'local', child: Text(l10n.bucketsLocalDiff)),
                 ],
               ),
             ],
             IconButton(
               icon: const Icon(Icons.refresh),
-              tooltip: 'Yenile',
+              tooltip: l10n.refresh,
               onPressed: _bucket.isEmpty
                   ? () => _loadRegistry()
                   : () => _open(_bucket, _prefix),
@@ -541,7 +543,7 @@ class _BucketsScreenState extends State<BucketsScreen> {
               const SizedBox(height: 12),
               FilledButton(
                   onPressed: () => _bucket.isEmpty ? _loadRegistry() : _open(_bucket, _prefix),
-                  child: const Text('Tekrar dene')),
+                  child: Text(l10n.retry)),
             ],
           ),
         ),
@@ -553,10 +555,8 @@ class _BucketsScreenState extends State<BucketsScreen> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(10, 8, 10, 16),
       children: [
-        const Text(
-            'Kova = icerigin adiyla anilan depo. Sayilar istek uzerine hesaplanir '
-            '(yalniz listeleme, bayt inmez).',
-            style: TextStyle(fontSize: 11, color: Colors.grey)),
+        Text(l10n.bucketsIntro,
+            style: const TextStyle(fontSize: 11, color: Colors.grey)),
         const SizedBox(height: 8),
         for (final b in reg.buckets) _kovaKarti(b, reg.legacyRetiresOn),
       ],
@@ -575,7 +575,10 @@ class _BucketsScreenState extends State<BucketsScreen> {
                     style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
               ),
               const SizedBox(width: 6),
-              _rozet(b.isLegacy ? 'ESKI' : (b.isPrivate ? 'ozel' : 'icerik'),
+              _rozet(
+                  b.isLegacy
+                      ? l10n.bucketsBadgeLegacy
+                      : (b.isPrivate ? l10n.bucketsBadgePrivate : l10n.bucketsBadgeContent),
                   b.isLegacy ? AppColors.error : (b.isPrivate ? Colors.grey : AppColors.success)),
               if (b.isLegacy && emeklilik.isNotEmpty) ...[
                 const SizedBox(width: 4),
@@ -589,15 +592,15 @@ class _BucketsScreenState extends State<BucketsScreen> {
               Text(b.holds, style: const TextStyle(fontSize: 11, color: Colors.grey)),
               const SizedBox(height: 2),
               Text(
-                  '${b.objects == null ? 'sayilmadi' : '${b.objects} nesne'}'
+                  '${b.objects == null ? l10n.bucketsNotCounted : l10n.bucketsObjectCount(b.objects!)}'
                   '  ·  ${r2Size(b.bytes)}'
-                  '${b.twin.isEmpty ? '' : '  ·  ikiz: ${b.twin}'}',
+                  '${b.twin.isEmpty ? '' : '  ·  ${l10n.bucketsTwinLabel(b.twin)}'}',
                   style: const TextStyle(fontSize: 11)),
             ],
           ),
           trailing: IconButton(
             icon: const Icon(Icons.calculate_outlined, size: 20),
-            tooltip: 'Say',
+            tooltip: l10n.bucketsCount,
             onPressed: () => _refreshCount(b.name),
           ),
         ),
@@ -620,17 +623,18 @@ class _BucketsScreenState extends State<BucketsScreen> {
         _izYolu(),
         Expanded(
           child: satirlar == 0
-              ? const Center(
-                  child: Text('Bu klasor bos', style: TextStyle(color: Colors.grey)))
+              ? Center(
+                  child: Text(l10n.bucketsEmptyFolder,
+                      style: const TextStyle(color: Colors.grey)))
               : ListView.builder(
                   itemCount: satirlar + (l.truncated ? 1 : 0),
                   itemBuilder: (ctx, i) {
                     if (i < l.folders.length) return _klasorSatiri(l.folders[i]);
                     if (i < satirlar) return _nesneSatiri(l.objects[i - l.folders.length]);
-                    return const Padding(
-                      padding: EdgeInsets.all(12),
-                      child: Text('Liste kesildi - daha dar bir klasore gir',
-                          style: TextStyle(fontSize: 11, color: Colors.orange)),
+                    return Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Text(l10n.bucketsTruncated,
+                          style: const TextStyle(fontSize: 11, color: Colors.orange)),
                     );
                   },
                 ),
@@ -730,29 +734,29 @@ class _BucketsScreenState extends State<BucketsScreen> {
           child: Row(
             children: [
               Expanded(
-                child: Text('${_selected.length} secili',
+                child: Text(l10n.bucketsSelectedCount(_selected.length),
                     style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
               ),
               IconButton(
                 icon: const Icon(Icons.clear),
-                tooltip: 'Secimi birak',
+                tooltip: l10n.bucketsClearSelection,
                 onPressed: () => setState(() => _selected.clear()),
               ),
               IconButton(
                 icon: const Icon(Icons.copy_all),
-                tooltip: 'Kopyala',
+                tooltip: l10n.copy,
                 onPressed: _copyTo,
               ),
               IconButton(
                 icon: Icon(Icons.gavel, color: AppColors.error),
-                tooltip: 'Takedown (eski ikizden de sil)',
+                tooltip: l10n.bucketsTakedownTooltip,
                 onPressed: () => _deleteSelected(takedown: true),
               ),
               FilledButton.icon(
                 style: FilledButton.styleFrom(backgroundColor: AppColors.error),
                 onPressed: () => _deleteSelected(takedown: false),
                 icon: const Icon(Icons.delete_forever, size: 16),
-                label: const Text('Sil'),
+                label: Text(l10n.delete),
               ),
             ],
           ),
@@ -773,6 +777,8 @@ class _ObjectSheet extends StatefulWidget {
 }
 
 class _ObjectSheetState extends State<_ObjectSheet> {
+  AppLocalizations get l10n => AppLocalizations.of(context)!;
+
   R2Head? _h;
   String? _error;
 
@@ -812,11 +818,11 @@ class _ObjectSheetState extends State<_ObjectSheet> {
               const Center(child: Padding(
                   padding: EdgeInsets.all(12), child: CircularProgressIndicator()))
             else ...[
-              _satir('Boyut', r2Size(h.size)),
-              _satir('Tur', h.contentType),
-              _satir('Degisiklik', h.lastModified),
+              _satir(l10n.bucketsSize, r2Size(h.size)),
+              _satir(l10n.bucketsContentType, h.contentType),
+              _satir(l10n.bucketsModified, h.lastModified),
               _satir('ETag', h.etag),
-              _satir('Cache-Control', h.cacheControl.isEmpty ? '(yok)' : h.cacheControl),
+              _satir('Cache-Control', h.cacheControl.isEmpty ? l10n.bucketsNone : h.cacheControl),
               Row(
                 children: [
                   Icon(h.headerOk ? Icons.check_circle : Icons.warning,
@@ -825,16 +831,16 @@ class _ObjectSheetState extends State<_ObjectSheet> {
                   Expanded(
                     child: Text(
                         h.headerKind == 'mutable'
-                            ? 'Bilerek degisken - standart aranmaz'
+                            ? l10n.bucketsMutableOnPurpose
                             : (h.headerOk
-                                ? 'Onbellek standardina uygun (${h.headerKind})'
-                                : 'Standart: ${h.headerExpected}'),
+                                ? l10n.bucketsHeaderOk(h.headerKind)
+                                : l10n.bucketsHeaderExpected(h.headerExpected)),
                         style: const TextStyle(fontSize: 11, color: Colors.grey)),
                   ),
                 ],
               ),
               if (h.twinKey.isNotEmpty)
-                _satir('Eski ikiz', '${h.twinBucket}/${h.twinKey}'),
+                _satir(l10n.bucketsLegacyTwin, '${h.twinBucket}/${h.twinKey}'),
               const SizedBox(height: 10),
               Row(
                 children: [
@@ -842,21 +848,21 @@ class _ObjectSheetState extends State<_ObjectSheet> {
                     OutlinedButton.icon(
                       onPressed: () {
                         Clipboard.setData(ClipboardData(text: h.url));
-                        widget.onSnack('Adres kopyalandi');
+                        widget.onSnack(l10n.bucketsAddressCopied);
                       },
                       icon: const Icon(Icons.link, size: 16),
-                      label: const Text('Adresi kopyala'),
+                      label: Text(l10n.bucketsCopyAddress),
                     ),
                     const SizedBox(width: 8),
                     OutlinedButton.icon(
                       onPressed: () => launchUrl(Uri.parse(h.url),
                           mode: LaunchMode.externalApplication),
                       icon: const Icon(Icons.open_in_new, size: 16),
-                      label: const Text('Ac'),
+                      label: Text(l10n.bucketsOpen),
                     ),
                   ] else
-                    const Text('Bu kova ozel - genel adresi yok',
-                        style: TextStyle(fontSize: 11, color: Colors.grey)),
+                    Text(l10n.bucketsPrivateNoAddress,
+                        style: const TextStyle(fontSize: 11, color: Colors.grey)),
                 ],
               ),
             ],

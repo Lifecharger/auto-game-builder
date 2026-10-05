@@ -1835,7 +1835,19 @@ def _report_dict(r: dict) -> dict:
         "pulled_at": r.get("pulled_at") or "",
         "closed_at": r.get("closed_at") or "",
         "meta": _parse_meta(r.get("meta")),
+        # Optional reply address the player typed on the report form (it rides
+        # in meta as `contact_email`); empty when they stayed anonymous.
+        "contact_email": _report_contact_email(r.get("meta")),
     }
+
+
+def _report_contact_email(meta) -> str:
+    v = _parse_meta(meta).get("contact_email")
+    v = v.strip() if isinstance(v, str) else ""
+    # Shape check only: this value is shown as a mail link in the clients.
+    if not v or len(v) > 254 or any(c.isspace() for c in v) or v.count("@") != 1:
+        return ""
+    return v
 
 
 def _parse_meta(v) -> dict:

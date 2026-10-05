@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:app_manager_mobile/l10n/app_localizations.dart';
 import 'package:app_manager_mobile/widgets/flow_kind_switch.dart';
 
 // #354: anahtar bir FittedBox icindeyken expandedInsets ile sonsuz genislige
@@ -8,13 +9,9 @@ import 'package:app_manager_mobile/widgets/flow_kind_switch.dart';
 // kullanildigi uc kalipta (govde/ListView, app bar alti, Column) gercekten
 // genislik kaplayip butun etiketleri gosterdigini garanti eder.
 void main() {
-  const items = {
-    'free': 'Free',
-    'jigsaw': 'Jigsaw',
-    'cbn': 'CBN',
-    'card': 'Kart',
-    'character': 'Karakter',
-  };
+  // Etiketler uygulamanin dil dosyasindan gelir (testte varsayilan dil: en).
+  final en = lookupAppLocalizations(const Locale('en'));
+  final items = kindLabels;
 
   // Dar telefon yuzeyi (360 dp).
   void darEkran(WidgetTester t) {
@@ -64,7 +61,7 @@ void main() {
     ));
     final size = t.getSize(find.byType(SegmentedButton<String>));
     expect(size.width, greaterThan(300));
-    await t.tap(find.text('Kart'));
+    await t.tap(find.text(en.kindCard));
     await t.pump();
     expect(secilen, 'card');
   });
@@ -85,8 +82,8 @@ void main() {
   test('kindLabel: tablo + Mod/Modu eki kirpma', () {
     expect(kindLabel('jigsaw', 'Jigsaw Modu'), 'Jigsaw');
     expect(kindLabel('cbn', 'CBN Modu'), 'CBN');
-    expect(kindLabel('card', 'Kart Modu'), 'Kart');
-    expect(kindLabel('character', 'Karakter Modu'), 'Karakter');
+    expect(kindLabel('card', 'Kart Modu'), en.kindCard);
+    expect(kindLabel('character', 'Karakter Modu'), en.kindCharacter);
     expect(kindLabel('free', 'Free Mod'), 'Free');
     expect(kindLabel('yeni', 'Yeni Kip Modu'), 'Yeni Kip');
     expect(kindLabel('yeni', 'Yeni Mod'), 'Yeni');

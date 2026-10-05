@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'api_service.dart';
+import 'usage_events.dart';
 
 /// #381 Kovalar: R2 kovalarinin kendisi (yerel klasorler degil).
 ///
@@ -306,7 +307,8 @@ class R2ControlService {
       final j = jsonDecode(r.body);
       if (j is Map && j['detail'] != null) return '${j['detail']}';
     } catch (_) {}
-    return 'HTTP ${r.statusCode}';
+    return ApiService.messageForCause(Usage.causeOfStatus(r.statusCode),
+        status: r.statusCode);
   }
 
   static Future<Map<String, dynamic>> _get(String path,
@@ -314,7 +316,7 @@ class R2ControlService {
     final r = await http
         .get(Uri.parse('${ApiService.baseUrl}$path'), headers: _headers)
         .timeout(timeout);
-    if (r.statusCode >= 400) throw Exception(_detail(r));
+    if (r.statusCode >= 400) throw ServerCallException(_detail(r), r.statusCode);
     return jsonDecode(r.body) as Map<String, dynamic>;
   }
 
@@ -324,7 +326,7 @@ class R2ControlService {
         .post(Uri.parse('${ApiService.baseUrl}$path'),
             headers: _headers, body: jsonEncode(body))
         .timeout(timeout);
-    if (r.statusCode >= 400) throw Exception(_detail(r));
+    if (r.statusCode >= 400) throw ServerCallException(_detail(r), r.statusCode);
     return jsonDecode(r.body) as Map<String, dynamic>;
   }
 
@@ -361,13 +363,15 @@ class R2ControlService {
   /// [takedown] ESKI ikizdeki karsiligini da siler.
   static Future<Map<String, dynamic>> delete(String bucket, List<String> keys,
           {bool takedown = false, required String confirm}) =>
-      _post('/api/r2/delete', {
-        'bucket': bucket,
-        'keys': keys,
-        'takedown': takedown,
-        'confirm': confirm,
-        'client': 'app',
-      }, timeout: const Duration(minutes: 2));
+      Usage.track(
+          takedown ? 'buckets_takedown' : 'buckets_delete',
+          () => _post('/api/r2/delete', {
+                'bucket': bucket,
+                'keys': keys,
+                'takedown': takedown,
+                'confirm': confirm,
+                'client': 'app',
+              }, timeout: const Duration(minutes: 2)));
 
   static Future<String> copy({
     required String srcBucket,
@@ -377,33 +381,41 @@ class R2ControlService {
     String srcPrefix = '',
     String dstPrefix = '',
   }) async {
-    final j = await _post('/api/r2/copy', {
-      'src_bucket': srcBucket,
-      'dst_bucket': dstBucket,
-      'src_key': srcKey,
-      'dst_key': dstKey,
-      'src_prefix': srcPrefix,
-      'dst_prefix': dstPrefix,
-      'client': 'app',
-    }, timeout: const Duration(minutes: 5));
+    final j = await Usage.track(
+        'buckets_copy',
+        () => _post('/api/r2/copy', {
+              'src_bucket': srcBucket,
+              'dst_bucket': dstBucket,
+              'src_key': srcKey,
+              'dst_key': dstKey,
+              'src_prefix': srcPrefix,
+              'dst_prefix': dstPrefix,
+              'client': 'app',
+            }, timeout: const Duration(minutes: 5)));
     return '${j['op'] ?? ''}';
   }
 
   static Future<String> fixHeaders(String bucket, String prefix) async {
-    final j = await _post('/api/r2/fix-headers',
-        {'bucket': bucket, 'prefix': prefix, 'client': 'app'},
-        timeout: const Duration(minutes: 5));
+    final j = await Usage.track(
+        'buckets_fix_headers',
+        () => _post('/api/r2/fix-headers',
+            {'bucket': bucket, 'prefix': prefix, 'client': 'app'},
+            timeout: const Duration(minutes: 5)));
     return '${j['op'] ?? ''}';
   }
 
   static Future<Map<String, dynamic>> diff({String rating = 'hot', String collection = ''}) =>
-      _get('/api/r2/diff?rating=${Uri.encodeComponent(rating)}'
-          '&collection=${Uri.encodeComponent(collection)}',
-          timeout: const Duration(minutes: 5));
+      Usage.track(
+          'buckets_diff',
+          () => _get('/api/r2/diff?rating=${Uri.encodeComponent(rating)}'
+              '&collection=${Uri.encodeComponent(collection)}',
+              timeout: const Duration(minutes: 5)));
 
   static Future<Map<String, dynamic>> twinDiff(String bucket) =>
-      _get('/api/r2/twin-diff?bucket=${Uri.encodeComponent(bucket)}',
-          timeout: const Duration(minutes: 10));
+      Usage.track(
+          'buckets_twin_diff',
+          () => _get('/api/r2/twin-diff?bucket=${Uri.encodeComponent(bucket)}',
+              timeout: const Duration(minutes: 10)));
 
   static Future<List<R2Op>> ops() async {
     final j = await _get('/api/r2/ops');

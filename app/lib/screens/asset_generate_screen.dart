@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../l10n/app_localizations.dart';
 import '../services/generate_service.dart';
 import '../services/jigsaw_profiles.dart';
 import '../theme.dart';
@@ -30,6 +31,8 @@ class AssetGenerateScreen extends StatefulWidget {
 }
 
 class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
+  AppLocalizations get l10n => AppLocalizations.of(context)!;
+
   final _p1 = TextEditingController();
   // #337: yerel prompt yazari durumu
   bool _smithReady = false;
@@ -270,17 +273,17 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
           TextButton.icon(
             onPressed: bos || _smithBusy ? null : () => _smithRun('enrich'),
             icon: const Icon(Icons.auto_awesome, size: 15),
-            label: const Text('Zenginlestir'),
+            label: Text(l10n.genEnrich),
           ),
           TextButton.icon(
             onPressed: bos || _smithBusy ? null : () => _smithRun('normalize'),
             icon: const Icon(Icons.auto_fix_high, size: 15),
-            label: const Text('Duzelt'),
+            label: Text(l10n.genFix),
           ),
           TextButton.icon(
             onPressed: bos || _smithBusy ? null : _smithVariants,
             icon: const Icon(Icons.call_split, size: 15),
-            label: const Text('Varyant'),
+            label: Text(l10n.genVariant),
           ),
           if (_smithBusy)
             const SizedBox(
@@ -300,12 +303,15 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
       _p1.text = y;
     });
     if (y.trim() == onceki.trim()) {
-      _snack('Prompt degismedi (yerel LLM yanit vermedi)');
+      _snack(l10n.genPromptUnchanged);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: const Text('Prompt yazildi'),
+        content: Text(l10n.genPromptWritten),
         action: SnackBarAction(
-            label: 'Geri al', onPressed: () => setState(() => _p1.text = onceki)),
+            label: l10n.commonUndo,
+            onPressed: () {
+              if (mounted) setState(() => _p1.text = onceki);
+            }),
       ));
     }
   }
@@ -316,14 +322,14 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
     if (!mounted) return;
     setState(() => _smithBusy = false);
     if (v.isEmpty) {
-      _snack('Varyant uretilemedi (yerel LLM yanit vermedi)');
+      _snack(l10n.genVariantFailed);
       return;
     }
     final sec = await showDialog<String>(
       context: context,
       builder: (c) => AlertDialog(
         scrollable: true,
-        title: const Text('Varyant sec'),
+        title: Text(l10n.genPickVariant),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -336,11 +342,11 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Vazgec')),
+          TextButton(onPressed: () => Navigator.pop(c), child: Text(l10n.cancel)),
         ],
       ),
     );
-    if (sec != null && sec.isNotEmpty) setState(() => _p1.text = sec);
+    if (sec != null && sec.isNotEmpty && mounted) setState(() => _p1.text = sec);
   }
 
   String _prompt2([Map<String, String>? v]) {
@@ -407,7 +413,7 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
     try {
       final bytes = picked.bytes ??
           (picked.path != null ? await File(picked.path!).readAsBytes() : null);
-      if (bytes == null) throw Exception('Dosya okunamadi');
+      if (bytes == null) throw Exception(l10n.genFileUnreadable);
       final ref = await GenerateService.upload(picked.name, bytes);
       if (!mounted) return;
       setState(() => _inputs[s.slot] = ref);
@@ -430,17 +436,17 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
     final t = _task;
     if (t == null) return;
     if (_prompt1().isEmpty && _prompt2().isEmpty) {
-      _snack('Prompt bos olamaz');
+      _snack(l10n.genPromptEmpty);
       return;
     }
     if (_useSlots) {
       final eksik = _missingSlots;
       if (eksik.isNotEmpty) {
-        _snack('Eksik girdi: ${eksik.map((s) => s.label).join(', ')}');
+        _snack(l10n.genMissingInputs(eksik.map((s) => s.label).join(', ')));
         return;
       }
     } else if (t.needsImage && _source == null) {
-      _snack('Bu gorev bir girdi gorseli istiyor - uretilenlerden birini sec');
+      _snack(l10n.genNeedsImagePick);
       return;
     }
     HapticFeedback.lightImpact();
@@ -463,7 +469,7 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
         );
       }
       if (!mounted) return;
-      _snack(_count > 1 ? '$_count is siraya eklendi' : 'Siraya eklendi');
+      _snack(_count > 1 ? l10n.genQueuedCount(_count) : l10n.genQueued);
       _pollQueue();
     } catch (e) {
       if (!mounted) return;
@@ -483,7 +489,7 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Uretim'),
+        title: Text(l10n.navGenerate),
         // #355: kip anahtari Uretilenler/Hat ile AYNI yerde (app bar alti).
         bottom: kindSwitchBottom(_modeSwitch()),
         actions: [
@@ -496,23 +502,23 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
                   color: AppColors.accent,
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: Text('$_queueDepth sirada',
+                child: Text(l10n.genQueueBadge(_queueDepth),
                     style: const TextStyle(fontSize: 11, color: Colors.white)),
               ),
             ),
           IconButton(
             icon: const Icon(Icons.code),
-            tooltip: 'Code Mod',
+            tooltip: l10n.assetCodeMode,
             onPressed: () => ModeService.set(false),
           ),
           IconButton(
             icon: const Icon(Icons.local_shipping_outlined),
-            tooltip: 'Delivery Mod',
+            tooltip: l10n.deliveryModeTooltip,
             onPressed: () => ModeService.setMode(ModeService.delivery),   // #363
           ),
           IconButton(
             icon: const Icon(Icons.refresh),
-            tooltip: 'Yenile',
+            tooltip: l10n.refresh,
             onPressed: _loadAll,
           ),
         ],
@@ -533,7 +539,7 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
             children: [
               Icon(Icons.cloud_off, size: 48, color: AppColors.error),
               const SizedBox(height: 12),
-              Text('Sunucuya baglanilamadi',
+              Text(l10n.cannotReachServer,
                   style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 6),
               Text(_loadError!.replaceFirst('Exception: ', ''),
@@ -543,7 +549,7 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
               FilledButton.icon(
                 onPressed: _loadAll,
                 icon: const Icon(Icons.refresh),
-                label: const Text('Tekrar dene'),
+                label: Text(l10n.retry),
               ),
             ],
           ),
@@ -565,9 +571,8 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
                 children: [
                   Icon(Icons.warning_amber, color: AppColors.error),
                   const SizedBox(width: 10),
-                  const Expanded(
-                    child: Text('ComfyUI kapali. Isler siraya girer ama '
-                        'baslamaz - bilgisayarda acilmasi gerekiyor.'),
+                  Expanded(
+                    child: Text(l10n.genComfyOffBody),
                   ),
                 ],
               ),
@@ -576,9 +581,9 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
         DropdownButtonFormField<GenerateTask>(
           initialValue: t,
           isExpanded: true,
-          decoration: const InputDecoration(
-            labelText: 'Gorev',
-            border: OutlineInputBorder(),
+          decoration: InputDecoration(
+            labelText: l10n.genTask,
+            border: const OutlineInputBorder(),
           ),
           items: _tasks
               .map((e) => DropdownMenuItem(value: e, child: Text(e.label)))
@@ -604,15 +609,15 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
         ],
         if (t != null && _useSlots) ...[
           const SizedBox(height: 16),
-          const Text('Is akisinin girdileri',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold,
+          Text(l10n.genWorkflowInputs,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold,
                   color: Colors.grey)),
           const SizedBox(height: 6),
           for (final s in _slots) _slotRow(s),
         ] else if (t != null && t.needsImage) ...[
           const SizedBox(height: 16),
-          const Text('Girdi gorseli',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold,
+          Text(l10n.genInputImage,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold,
                   color: Colors.grey)),
           const SizedBox(height: 8),
           _sourceStrip(),
@@ -622,11 +627,11 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
           controller: _p1,
           maxLines: 4,
           onChanged: (_) => setState(() {}),
-          decoration: const InputDecoration(
-            labelText: 'Pozitif prompt 1 - konu',
-            hintText: 'orn: police officer',
+          decoration: InputDecoration(
+            labelText: l10n.genPositive1,
+            hintText: l10n.genPositive1Hint,
             alignLabelWithHint: true,
-            border: OutlineInputBorder(),
+            border: const OutlineInputBorder(),
           ),
         ),
         _smithBar(),
@@ -639,23 +644,23 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
           controller: _p2,
           maxLines: 5,
           onChanged: (_) => setState(() {}),
-          decoration: const InputDecoration(
-            labelText: 'Pozitif prompt 2 - sablon',
-            helperText: '{} birinci promptun yerine gecer. Bos birakilabilir.',
-            helperMaxLines: 2,
+          decoration: InputDecoration(
+            labelText: l10n.genPositive2,
+            helperText: l10n.genPositive2Help('{}'),
+            helperMaxLines: 3,
             alignLabelWithHint: true,
-            border: OutlineInputBorder(),
+            border: const OutlineInputBorder(),
           ),
         ),
         const SizedBox(height: 12),
         ExpansionTile(
-          title: const Text('Gidecek prompt', style: TextStyle(fontSize: 13)),
+          title: Text(l10n.genFinalPrompt, style: const TextStyle(fontSize: 13)),
           tilePadding: EdgeInsets.zero,
           childrenPadding: const EdgeInsets.only(bottom: 12),
           children: [
             Align(
               alignment: Alignment.centerLeft,
-              child: Text(_combined.isEmpty ? '(bos)' : _combined,
+              child: Text(_combined.isEmpty ? l10n.equipSlotEmpty : _combined,
                   style: const TextStyle(fontSize: 12, color: Colors.grey)),
             ),
           ],
@@ -663,32 +668,32 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
         TextField(
           controller: _negative,
           maxLines: 3,
-          decoration: const InputDecoration(
-            labelText: 'Negatif prompt',
+          decoration: InputDecoration(
+            labelText: l10n.genNegative,
             alignLabelWithHint: true,
-            border: OutlineInputBorder(),
+            border: const OutlineInputBorder(),
           ),
         ),
         const SizedBox(height: 8),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
           title: const Text('Turbo'),
-          subtitle: const Text('hizli mod'),
+          subtitle: Text(l10n.genTurboHint),
           value: _turbo,
           onChanged: (v) => setState(() => _turbo = v),
         ),
         if (t != null && t.isVideo) ...[
-          Text('Sure: $_duration saniye'),
+          Text(l10n.genDurationSeconds(_duration)),
           Slider(
             value: _duration.toDouble(),
             min: 1,
             max: 10,
             divisions: 9,
-            label: '$_duration sn',
+            label: l10n.durSeconds(_duration),
             onChanged: (v) => setState(() => _duration = v.round()),
           ),
         ],
-        Text('Adet: $_count'),
+        Text(l10n.genCount(_count)),
         Slider(
           value: _count.toDouble(),
           min: 1,
@@ -702,8 +707,8 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
         if (t != null && (_modeDef.aspects || t.width > 0))
           Text(
               _modeDef.aspects
-                  ? 'Olcu: ${_aspectSize.$1} x ${_aspectSize.$2}  ($_aspect)'
-                  : 'Olcu: ${t.width} x ${t.height}',
+                  ? l10n.genSizeAspect(_aspectSize.$1, _aspectSize.$2, _aspect)
+                  : l10n.genSize(t.width, t.height),
               style: const TextStyle(color: Colors.grey, fontSize: 12)),
         const SizedBox(height: 16),
         FilledButton.icon(
@@ -713,13 +718,13 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
                   width: 16, height: 16,
                   child: CircularProgressIndicator(strokeWidth: 2))
               : const Icon(Icons.playlist_add),
-          label: Text(_sending ? 'Gonderiliyor...' : 'SIRAYA EKLE'),
+          label: Text(_sending ? l10n.sending : l10n.genAddToQueueUpper),
           style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50)),
         ),
         const SizedBox(height: 8),
-        const Text('Isler sirayla uretilir. Takibi Sira sekmesinden yapabilirsin.',
+        Text(l10n.genFootnote,
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 11, color: Colors.grey)),
+            style: const TextStyle(fontSize: 11, color: Colors.grey)),
       ],
     );
   }
@@ -798,8 +803,8 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Detaylar - bos birakilabilir, kilitli olanlar karismaz',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold,
+            Text(l10n.genDetailsTitle,
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold,
                     color: Colors.grey)),
             const SizedBox(height: 6),
             for (final f in d.profile.fields) _detailRow(d, f),
@@ -815,7 +820,7 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
                       setState(() => d.apply(r.first));
                     },
                     icon: const Icon(Icons.casino, size: 18),
-                    label: const Text('Karistir'),
+                    label: Text(l10n.cardTplShuffle),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -823,7 +828,7 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
                   child: OutlinedButton.icon(
                     onPressed: () => setState(d.clearUnlocked),
                     icon: const Icon(Icons.clear, size: 18),
-                    label: const Text('Temizle'),
+                    label: Text(l10n.clear),
                   ),
                 ),
               ],
@@ -835,7 +840,7 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
                   child: FilledButton.tonalIcon(
                     onPressed: _sending ? null : _randomGenerate,
                     icon: const Icon(Icons.shuffle, size: 18),
-                    label: Text('Rastgele uret  $_randomCount'),
+                    label: Text(l10n.genRandomGenerate(_randomCount)),
                   ),
                 ),
               ],
@@ -867,7 +872,7 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
               isExpanded: true,
               isDense: true,
               decoration: InputDecoration(
-                labelText: f.label,
+                labelText: f.displayLabel,
                 border: const OutlineInputBorder(),
                 contentPadding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
@@ -884,7 +889,7 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
             ),
           ),
           IconButton(
-            tooltip: d.isLocked(f.key) ? 'kilitli - karisimda sabit' : 'kilitle',
+            tooltip: d.isLocked(f.key) ? l10n.genLockedTooltip : l10n.cardTplLock,
             icon: Icon(d.isLocked(f.key) ? Icons.lock : Icons.lock_open,
                 size: 20,
                 color: d.isLocked(f.key) ? AppColors.accent : Colors.grey),
@@ -902,15 +907,15 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
     final d = _det;
     if (t == null || d == null) return;
     if (!d.hasAnyOption) {
-      _snack(_profileError ?? 'Secenek listesi bos');
+      _snack(_profileError ?? l10n.genOptionsEmpty);
       return;
     }
     if (_useSlots && _missingSlots.isNotEmpty) {
-      _snack('Eksik girdi: ${_missingSlots.map((s) => s.label).join(', ')}');
+      _snack(l10n.genMissingInputs(_missingSlots.map((s) => s.label).join(', ')));
       return;
     }
     if (!_useSlots && t.needsImage && _source == null) {
-      _snack('Bu gorev bir girdi gorseli istiyor');
+      _snack(l10n.genNeedsImage);
       return;
     }
     HapticFeedback.lightImpact();
@@ -926,7 +931,7 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
         final p2 = d.templateFor(_p2.text,
             isVideo: t.isVideo, v: last);
         if (p1.isEmpty && p2.isEmpty) {
-          _snack('Prompt bos olamaz');
+          _snack(l10n.genPromptEmpty);
           break;
         }
         await GenerateService.submit(
@@ -947,7 +952,7 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
       }
       if (!mounted) return;
       if (last != null) setState(() => d.apply(last!));   // son cekilis gorunsun
-      _snack('$n is siraya eklendi');
+      _snack(l10n.genQueuedCount(n));
       _pollQueue();
     } catch (e) {
       if (!mounted) return;
@@ -991,14 +996,18 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
                     children: [
                       Row(
                         children: [
-                          Text(s.label,
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.bold, fontSize: 13)),
+                          Flexible(
+                            child: Text(s.label,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 13)),
+                          ),
                           if (!s.required)
-                            const Padding(
-                              padding: EdgeInsets.only(left: 6),
-                              child: Text('istege bagli',
-                                  style: TextStyle(fontSize: 10, color: Colors.grey)),
+                            Padding(
+                              padding: const EdgeInsets.only(left: 6),
+                              child: Text(l10n.genOptional,
+                                  style: const TextStyle(fontSize: 10, color: Colors.grey)),
                             ),
                         ],
                       ),
@@ -1011,9 +1020,9 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
                       const SizedBox(height: 2),
                       Text(
                         busy
-                            ? 'yukleniyor...'
+                            ? l10n.genUploading
                             : ref == null
-                                ? 'secilmedi'
+                                ? l10n.genNotSelected
                                 : ref.display,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -1028,7 +1037,7 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
                 ),
                 if (ref != null)
                   IconButton(
-                    tooltip: 'temizle',
+                    tooltip: l10n.clear,
                     icon: const Icon(Icons.close, size: 18),
                     onPressed: () => setState(() => _inputs.remove(s.slot)),
                   ),
@@ -1041,8 +1050,8 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
                   child: OutlinedButton.icon(
                     onPressed: busy ? null : () => _pickFromGallery(s),
                     icon: const Icon(Icons.photo_library, size: 16),
-                    label: const Text('Galeriden sec',
-                        style: TextStyle(fontSize: 12)),
+                    label: Text(l10n.genFromGallery,
+                        style: const TextStyle(fontSize: 12)),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -1055,8 +1064,8 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
                             height: 14,
                             child: CircularProgressIndicator(strokeWidth: 2))
                         : const Icon(Icons.folder_open, size: 16),
-                    label: const Text('Dosyadan sec',
-                        style: TextStyle(fontSize: 12)),
+                    label: Text(l10n.genFromFile,
+                        style: const TextStyle(fontSize: 12)),
                   ),
                 ),
               ],
@@ -1103,9 +1112,9 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
   /// Girdi gorseli secimi - metin listesi degil, kucuk kareler.
   Widget _sourceStrip() {
     if (_sourceOptions.isEmpty) {
-      return const Text(
-        'Girdi olarak kullanilabilecek uretim yok. Once bir gorsel uret.',
-        style: TextStyle(fontSize: 12, color: Colors.grey),
+      return Text(
+        l10n.genNoSource,
+        style: const TextStyle(fontSize: 12, color: Colors.grey),
       );
     }
     return SizedBox(
@@ -1226,6 +1235,7 @@ class _GalleryPickerSheetState extends State<_GalleryPickerSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final list = _shown;
     final mq = MediaQuery.of(context);
     // Sabit 0.72 yukseklik klavye acilinca ekrani asiyordu (gorev #289):
@@ -1246,12 +1256,13 @@ class _GalleryPickerSheetState extends State<_GalleryPickerSheet> {
               Row(
                 children: [
                   Expanded(
-                    child: Text('${widget.slot.label} - Uretilenlerden sec',
+                    child: Text(l10n.genPickerTitle(widget.slot.label),
                         style: const TextStyle(
                             fontSize: 15, fontWeight: FontWeight.bold)),
                   ),
                   IconButton(
                     icon: const Icon(Icons.refresh),
+                    tooltip: l10n.refresh,
                     onPressed: _loading ? null : _load,
                   ),
                 ],
@@ -1259,11 +1270,11 @@ class _GalleryPickerSheetState extends State<_GalleryPickerSheet> {
               TextField(
                 controller: _search,
                 onChanged: (_) => setState(() {}),
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   isDense: true,
-                  prefixIcon: Icon(Icons.search, size: 18),
-                  hintText: 'promptta ara',
-                  border: OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.search, size: 18),
+                  hintText: l10n.genPickerSearch,
+                  border: const OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: 10),
@@ -1276,10 +1287,11 @@ class _GalleryPickerSheetState extends State<_GalleryPickerSheet> {
                                 textAlign: TextAlign.center,
                                 style: TextStyle(color: AppColors.error)))
                         : list.isEmpty
-                            ? const Center(
+                            ? Center(
                                 child: Text(
-                                    'Bu ture uygun bitmis uretim yok.',
-                                    style: TextStyle(color: Colors.grey)))
+                                    l10n.genPickerEmpty,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(color: Colors.grey)))
                             : widget.slot.isAudio
                                 ? _audioList(list)
                                 : _thumbGrid(list),

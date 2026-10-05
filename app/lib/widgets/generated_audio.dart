@@ -5,7 +5,10 @@ import 'package:http/http.dart' as http;
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../l10n/app_localizations.dart';
+import '../services/api_service.dart';
 import '../services/generate_service.dart';
+import '../services/usage_events.dart';
 
 /// Download authenticated audio only when requested, then open its player.
 class GeneratedAudio extends StatefulWidget {
@@ -26,7 +29,9 @@ class _GeneratedAudioState extends State<GeneratedAudio> {
       final response = await http.get(Uri.parse(job.fileUrl),
           headers: GenerateService.authHeaders).timeout(const Duration(minutes: 2));
       if (response.statusCode != 200) {
-        throw Exception('Ses indirilemedi (${response.statusCode})');
+        throw Exception(ApiService.messageForCause(
+            Usage.causeOfStatus(response.statusCode),
+            status: response.statusCode));
       }
       final dir = await getTemporaryDirectory();
       final folder = await Directory('${dir.path}/generated_audio').create(recursive: true);
@@ -39,7 +44,8 @@ class _GeneratedAudioState extends State<GeneratedAudio> {
       if (result.type != ResultType.done) throw Exception(result.message);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', ''))));
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -47,13 +53,15 @@ class _GeneratedAudioState extends State<GeneratedAudio> {
   }
 
   @override
-  Widget build(BuildContext context) => Center(
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             const Icon(Icons.music_note, size: 72, color: Colors.white70),
             const SizedBox(height: 16),
-            Text(widget.job.fileName ?? 'Ses', maxLines: 2, overflow: TextOverflow.ellipsis),
+            Text(widget.job.fileName ?? l10n.audioLabel, maxLines: 2, overflow: TextOverflow.ellipsis),
             const SizedBox(height: 16),
             FilledButton.icon(
               onPressed: _loading ? null : _open,
@@ -61,9 +69,10 @@ class _GeneratedAudioState extends State<GeneratedAudio> {
                   ? const SizedBox(width: 18, height: 18,
                       child: CircularProgressIndicator(strokeWidth: 2))
                   : const Icon(Icons.play_arrow),
-              label: Text(_loading ? 'Indiriliyor...' : 'Sesi ac'),
+              label: Text(_loading ? l10n.audioDownloading : l10n.audioOpen),
             ),
           ],
         ),
       );
+  }
 }

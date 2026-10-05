@@ -2,6 +2,7 @@
 // and fix the import to the app's package name.
 import 'dart:ui' show AppLifecycleState;
 
+import 'package:flutter/services.dart' show MissingPluginException;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -35,6 +36,8 @@ void main() {
     Analytics.instance.resetForTest();
     Analytics.stabilityInTests = false;
     Analytics.postOverride = null;
+    Analytics.testLabProbe = null;
+    Analytics.exitInfoProbe = null;
   });
 
   test('a readable trace is signed by its first app frame, never a framework frame', () {
@@ -154,5 +157,71 @@ void main() {
     await Analytics.adoptInstallId('not-an-id');
     expect(events().length, n);
     expect(Analytics.instance.installId, old);
+  });
+
+  test('a Firebase Test Lab / Play pre-launch device reports test_device', () async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    Analytics.testLabProbe = () async => true;
+    await Analytics.init(package: 'com.lifecharger.test', appVersion: '1.0.0+1');
+    await Future<void>.delayed(Duration.zero);
+    final Map<String, Object?> e = events().lastWhere((e) => e['event'] == 'test_device');
+    expect((e['props'] as Map)['dim'], 'firebase.test.lab');
+  });
+
+  test("Android's reason for each earlier exit is reported once, with where the app was", () async {
+    final int now = DateTime.now().millisecondsSinceEpoch;
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final List<int> asked = <int>[];
+    Analytics.exitInfoProbe = (int since) async {
+      asked.add(since);
+      return <Object?>[
+        // killed for memory while on screen, then swiped away from recents in the background
+        <Object?, Object?>{'reason': 3, 'importance': 100, 'at': now - 60000, 'rss': 512 * 1024, 'status': 0, 'desc': 'low memory'},
+        <Object?, Object?>{'reason': 10, 'importance': 400, 'at': now - 30000, 'rss': 0, 'status': 0, 'desc': 'remove task'},
+        // a reason this client does not know yet keeps its number
+        <Object?, Object?>{'reason': 42, 'importance': 200, 'at': now - 10000},
+      ].where((Object? r) => ((r! as Map)['at']! as int) > since).toList();
+    };
+    await Analytics.init(package: 'com.lifecharger.test', appVersion: '1.0.0+1');
+    await Future<void>.delayed(Duration.zero);
+    expect(asked.single, closeTo(now - 86400000, 5000), reason: 'the first run looks back one day only');
+    final List<Map<String, Object?>> exits = events()
+        .where((Map<String, Object?> e) => e['event'] == 'app_exit')
+        .map((Map<String, Object?> e) => (e['props']! as Map).cast<String, Object?>())
+        .toList();
+    expect(exits.map((Map<String, Object?> p) => p['dim']), <String>['low_memory:fg', 'user_requested:bg', 'reason_42:visible']);
+    expect(exits.first['rss'], 512);
+    expect(exits.first['desc'], 'low memory');
+    expect(exits[1].containsKey('rss'), isFalse);
+
+    // the next start asks only for exits after the newest one already sent
+    Analytics.instance.resetForTest();
+    await Analytics.init(package: 'com.lifecharger.test', appVersion: '1.0.0+1');
+    await Future<void>.delayed(Duration.zero);
+    expect(asked.last, now - 10000);
+    expect(names().where((String n) => n == 'app_exit'), hasLength(3), reason: 'nothing is reported twice');
+  });
+
+  test('a build without the plugin reports no exit reasons and keeps working', () async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    Analytics.exitInfoProbe = (int since) async => throw MissingPluginException('no plugin');
+    await Analytics.init(package: 'com.lifecharger.test', appVersion: '1.0.0+1');
+    await Future<void>.delayed(Duration.zero);
+    expect(names(), isNot(contains('app_exit')));
+    expect(names(), contains('session_start'));
+  });
+
+  test('a real device, or a build without the test-lab plugin, reports no test_device', () async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    Analytics.testLabProbe = () async => false;
+    await Analytics.init(package: 'com.lifecharger.test', appVersion: '1.0.0+1');
+    await Future<void>.delayed(Duration.zero);
+    expect(names(), isNot(contains('test_device')));
+    Analytics.instance.resetForTest();
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    Analytics.testLabProbe = () async => throw MissingPluginException('no plugin');
+    await Analytics.init(package: 'com.lifecharger.test', appVersion: '1.0.0+1');
+    await Future<void>.delayed(Duration.zero);
+    expect(names(), isNot(contains('test_device')));
   });
 }

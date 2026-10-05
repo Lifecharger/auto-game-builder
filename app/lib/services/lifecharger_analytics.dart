@@ -24,6 +24,11 @@
 //                                                the previous run died while ON SCREEN (crash / ANR / OOM kill).
 //                                                The marker is cleared the moment the app leaves the foreground
 //                                                (inactive / hidden / paused), so a swipe from recents is never one.
+//   app_exit {dim: '<reason>:<fg|visible|bg>', rss: <MB>, desc, status}
+//                                                Android's own record of why each earlier run of the app ended
+//                                                (Android 11+): crash, crash_native, anr, low_memory,
+//                                                user_requested, ... and whether the app was on screen (fg).
+//                                                It tells a real crash from Android taking the memory back.
 // Call Analytics.init AFTER installing your own FlutterError.onError / PlatformDispatcher.onError:
 // the client chains to whatever handler it finds and never swallows an error.
 // Anything else: Analytics.log('snake_case_name', {...}) — a `dim`/`feature`/`placement`/`product`/
@@ -36,6 +41,7 @@ import 'dart:math';
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -50,6 +56,7 @@ class Analytics with WidgetsBindingObserver {
   static const String _kEnabled = 'lc_analytics_enabled';
   static const String _kSessions = 'lc_analytics_session_count';
   static const String _kForeground = 'lc_analytics_foreground_version';
+  static const String _kExitsSeen = 'lc_analytics_exits_seen_ms';
   static const int _maxErrorsPerSession = 5;
   static const int _stallReportMs = 2000;
   static const int _anrMs = 5000;
@@ -158,6 +165,8 @@ class Analytics with WidgetsBindingObserver {
     final bool stability = _stabilityActive;
     if (stability) _reportUncleanExit();
     _beginSession();
+    unawaited(_checkTestDevice());
+    if (stability) unawaited(_reportProcessExits());
     if (stability) {
       final DateTime initAt = DateTime.now();
       WidgetsBinding.instance.addPostFrameCallback((_) => _reportAppStart(initAt));
@@ -179,6 +188,88 @@ class Analytics with WidgetsBindingObserver {
     await _prefs?.setString(_kInstallId, id);
     _log('install_merged', {'orphan': orphan});
     unawaited(_flush());
+  }
+
+  /// Firebase Test Lab / Google Play pre-launch devices (2026-10-02). They install every uploaded build on
+  /// a few devices for a day; the server already guesses them from their network and from bursts, and this
+  /// makes it certain: Android's Settings.System "firebase.test.lab" == "true" (Google's documented check),
+  /// read by the tiny lifecharger_testlab plugin. The answer is sent as `test_device`, which marks the
+  /// install as a robot for good. An app built without the plugin logs that once and reports as before.
+  static const MethodChannel _testLab = MethodChannel('lifecharger/testlab');
+
+  /// Tests replace the platform answer (null = ask the plugin).
+  @visibleForTesting
+  static Future<bool?> Function()? testLabProbe;
+
+  Future<void> _checkTestDevice() async {
+    final Future<bool?> Function()? probe = testLabProbe;
+    if (probe == null && (kIsWeb || !Platform.isAndroid || Platform.environment.containsKey('FLUTTER_TEST'))) return;
+    try {
+      final bool? lab = probe != null ? await probe() : await _testLab.invokeMethod<bool>('isTestLab');
+      if (lab == true) {
+        _log('test_device', const <String, Object?>{'dim': 'firebase.test.lab'});
+        unawaited(_flush());
+      }
+    } on MissingPluginException {
+      debugPrint('LifechargerAnalytics: test-lab check unavailable (lifecharger_testlab plugin not in this build)');
+    } on PlatformException catch (e) {
+      debugPrint('LifechargerAnalytics: test-lab check failed: ${e.code} ${e.message}');
+    }
+  }
+
+  /// Why Android ended the app's earlier runs (2026-10-05). An "unclean exit" only says the app died on
+  /// screen; Android knows whether that was a crash, a freeze, or the system taking the memory back, and
+  /// keeps it per process exit (ApplicationExitInfo, Android 11+). Each exit is sent once as `app_exit`;
+  /// the first run with this client looks back one day only.
+  static const List<String> _exitReasons = <String>[
+    'unknown', 'exit_self', 'signaled', 'low_memory', 'crash', 'crash_native', 'anr', 'init_failure',
+    'permission_change', 'excessive_resources', 'user_requested', 'user_stopped', 'dependency_died',
+    'other', 'freezer', 'package_state_change', 'package_updated',
+  ];
+
+  /// Tests replace the platform answer (null = ask the plugin). Gets the newest reported exit time (ms).
+  @visibleForTesting
+  static Future<List<Object?>?> Function(int since)? exitInfoProbe;
+
+  Future<void> _reportProcessExits() async {
+    final Future<List<Object?>?> Function(int since)? probe = exitInfoProbe;
+    if (probe == null && (kIsWeb || !Platform.isAndroid || Platform.environment.containsKey('FLUTTER_TEST'))) return;
+    final int now = DateTime.now().millisecondsSinceEpoch;
+    final int since = _prefs?.getInt(_kExitsSeen) ?? now - const Duration(days: 1).inMilliseconds;
+    try {
+      final List<Object?>? rows = probe != null
+          ? await probe(since)
+          : await _testLab.invokeMethod<List<Object?>>('lastExits', <String, Object?>{'since': since});
+      if (rows == null || rows.isEmpty) return;
+      int newest = since;
+      for (final Object? row in rows) {
+        if (row is! Map) continue;
+        final int at = (row['at'] as num?)?.toInt() ?? 0;
+        if (at <= since) continue;
+        if (at > newest) newest = at;
+        final int reason = (row['reason'] as num?)?.toInt() ?? 0;
+        final int importance = (row['importance'] as num?)?.toInt() ?? 1000;
+        // ActivityManager.RunningAppProcessInfo: 100 foreground, 200 visible / 230 perceptible, above = background
+        final String where = importance <= 125 ? 'fg' : importance <= 230 ? 'visible' : 'bg';
+        final String name = reason >= 0 && reason < _exitReasons.length ? _exitReasons[reason] : 'reason_$reason';
+        final int rssKb = (row['rss'] as num?)?.toInt() ?? 0;
+        final Object? desc = row['desc'];
+        _log('app_exit', <String, Object?>{
+          'dim': '$name:$where',
+          if (rssKb > 0) 'rss': rssKb ~/ 1024,
+          if (row['status'] != null) 'status': row['status'],
+          // Android's own short text ("remove task", "crash", "low memory"...), never app data
+          if (desc is String && desc.isNotEmpty) 'desc': desc.length > 60 ? desc.substring(0, 60) : desc,
+          'ago': (now - at) ~/ 1000,
+        });
+      }
+      await _prefs?.setInt(_kExitsSeen, newest);
+      unawaited(_flush());
+    } on MissingPluginException {
+      debugPrint('LifechargerAnalytics: exit reasons unavailable (lifecharger_testlab plugin not in this build)');
+    } on PlatformException catch (e) {
+      debugPrint('LifechargerAnalytics: exit reasons failed: ${e.code} ${e.message}');
+    }
   }
 
   bool get _stabilityActive => !kIsWeb && (stabilityInTests || !Platform.environment.containsKey('FLUTTER_TEST'));
@@ -215,7 +306,7 @@ class Analytics with WidgetsBindingObserver {
   DateTime _markerWrittenAt = DateTime.fromMillisecondsSinceEpoch(0);
   static const Set<String> _markerNoise = {
     'session_start', 'session_end', 'session_resume', 'app_start', 'ui_stall', 'unclean_exit',
-    'app_error', 'coins_earned', 'coins_spent', 'first_open',
+    'app_error', 'coins_earned', 'coins_spent', 'first_open', 'app_exit',
   };
 
   /// Write the on-screen marker with its context; [force] ignores the 5 s throttle.

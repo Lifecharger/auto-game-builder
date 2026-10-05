@@ -2077,4 +2077,2370 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get agentsMdSaved => 'AGENTS.mdを保存しました';
+
+  @override
+  String get reportEmailLabel => 'メール (任意)';
+
+  @override
+  String get reportEmailHint => '返信が必要な場合のメールアドレス';
+
+  @override
+  String get reportEmailNote => 'このレポートへの返信にのみ使用します。空欄なら匿名のままです。';
+
+  @override
+  String get reportEmailInvalid => 'メールアドレスの形式ではありません。';
+
+  @override
+  String get reportReply => '返信';
+
+  @override
+  String reportReplySubject(String app) {
+    return '$app のレポートについて';
+  }
+
+  @override
+  String get navGenerate => '生成';
+
+  @override
+  String get navGallery => '生成済み';
+
+  @override
+  String get navFlow => 'ライン';
+
+  @override
+  String get navQueue => 'キュー';
+
+  @override
+  String get navDelivery => '配信';
+
+  @override
+  String get navBuckets => 'バケット';
+
+  @override
+  String get assetModeTooltip => 'アセットモード';
+
+  @override
+  String get deliveryModeTooltip => '配信モード';
+
+  @override
+  String get videoPlaybackFailed => '動画を再生できませんでした';
+
+  @override
+  String get apiKeyRefusedBanner => 'APIキーが拒否されました - タップして設定で修正';
+
+  @override
+  String get errOffline => 'サーバーに接続できません - 接続を確認してください';
+
+  @override
+  String get errTimeout => 'サーバーの応答がタイムアウトしました - もう一度お試しください';
+
+  @override
+  String errGatewayTimeout(int status) {
+    return 'サーバーが時間内に応答しませんでした（ゲートウェイタイムアウト $status）';
+  }
+
+  @override
+  String errGateway(int status) {
+    return 'ゲートウェイの先のサーバーに接続できません（ゲートウェイエラー $status）- サーバーが起動しているか確認してください';
+  }
+
+  @override
+  String errServer(int status) {
+    return 'サーバーエラー（$status）- 後でもう一度お試しください';
+  }
+
+  @override
+  String errUnauthorized(int status) {
+    return '認証されていません（$status）- 設定のAPIキーを確認してください';
+  }
+
+  @override
+  String errNotFound(int status) {
+    return 'サーバーに見つかりません（$status）';
+  }
+
+  @override
+  String errRateLimited(int status) {
+    return 'リクエストが多すぎます（$status）- 少し待ってからもう一度お試しください';
+  }
+
+  @override
+  String errTooLarge(int status) {
+    return 'サーバーには大きすぎます（$status）';
+  }
+
+  @override
+  String errRejected(int status) {
+    return 'サーバーがリクエストを拒否しました（$status）';
+  }
+
+  @override
+  String get errBadResponse => 'サーバーからアプリが読み取れない応答が返されました';
+
+  @override
+  String get errUnknown => 'リクエストに失敗しました - もう一度お試しください';
+
+  @override
+  String bucketsCounting(String bucket) {
+    return '$bucket を集計中...';
+  }
+
+  @override
+  String get bucketsTakedownTitle => 'テイクダウン（新 + 旧）';
+
+  @override
+  String get bucketsDeleteForeverTitle => '完全に削除';
+
+  @override
+  String bucketsDeleteWarning(int count) {
+    return '$count 個のオブジェクトが削除されます。元に戻せません。';
+  }
+
+  @override
+  String bucketsUnmappedNote(int count) {
+    return '$count 個のキーは旧ツインに対応がありません - このバケットからのみ削除されます。';
+  }
+
+  @override
+  String bucketsTypeNameToConfirm(String bucket) {
+    return '確認のためバケット名を入力してください: $bucket';
+  }
+
+  @override
+  String get bucketsTakedown => 'テイクダウン';
+
+  @override
+  String bucketsDeleted(int count) {
+    return '$count 個のオブジェクトを削除しました';
+  }
+
+  @override
+  String bucketsDeletedWithTwin(int count, int twin) {
+    return '$count 個のオブジェクトを削除、旧ツインから $twin 個';
+  }
+
+  @override
+  String bucketsCopySource(String path) {
+    return 'コピー元: $path';
+  }
+
+  @override
+  String bucketsCopySourceTree(String path) {
+    return 'コピー元ツリー: $path';
+  }
+
+  @override
+  String get bucketsWholeBucket => '（バケット全体）';
+
+  @override
+  String get bucketsCopyNote => 'コピーはストレージサービス内で実行されます - 端末をデータが通ることはありません。';
+
+  @override
+  String get bucketsTargetKey => 'コピー先キー';
+
+  @override
+  String get bucketsTargetPrefix => 'コピー先プレフィックス';
+
+  @override
+  String bucketsCopyStarted(String op) {
+    return 'コピーを開始しました（$op）';
+  }
+
+  @override
+  String get bucketsFixHeadersTitle => 'ヘッダーを修正';
+
+  @override
+  String bucketsFixHeadersBody(String path) {
+    return '$path 配下のオブジェクトの Cache-Control ヘッダーを確認し、標準から外れているものはその場で書き直します（Content-Type は保持）。データはダウンロードされません。\n\n意図的に可変のままにしているプレフィックスはスキップされます。';
+  }
+
+  @override
+  String bucketsFixStarted(String op) {
+    return 'ヘッダーの修復を開始しました（$op）';
+  }
+
+  @override
+  String get bucketsOperations => '操作';
+
+  @override
+  String get bucketsNoOperations => '操作はまだありません';
+
+  @override
+  String bucketsOpStatus(String status, int ok, int failed) {
+    return '$status  ·  成功 $ok  ·  失敗 $failed';
+  }
+
+  @override
+  String get bucketsTwinDiffRunning => 'ツインとの差分を計算中...';
+
+  @override
+  String get bucketsLocalDiffRunning => 'ローカルとの差分を計算中...';
+
+  @override
+  String bucketsTwinDiffTitle(String bucket, String twin) {
+    return '$bucket <-> $twin（旧ツイン）';
+  }
+
+  @override
+  String bucketsLocalDiffTitle(String bucket) {
+    return 'ローカルの送信済みフォルダー <-> $bucket';
+  }
+
+  @override
+  String get bucketsMissingInLegacy => '旧ツインにないもの';
+
+  @override
+  String get bucketsMissingInBucket => 'バケットにないもの';
+
+  @override
+  String get bucketsOnlyInLegacy => '旧ツインのみ';
+
+  @override
+  String get bucketsOnlyInBucket => 'バケットのみ';
+
+  @override
+  String get bucketsSizeMismatch => 'サイズが異なる';
+
+  @override
+  String get bucketsUnmapped => '対応なし（ルールなし）';
+
+  @override
+  String get bucketsDerived => 'バケット内で生成（サムネイル）';
+
+  @override
+  String bucketsDiffCount(String title, int count) {
+    return '$title: $count';
+  }
+
+  @override
+  String get bucketsFixFolderHeaders => 'このフォルダーのヘッダーを修正';
+
+  @override
+  String get bucketsDiffs => '差分';
+
+  @override
+  String get bucketsTwinDiff => '旧ツインとの差分';
+
+  @override
+  String get bucketsLocalDiff => 'ローカルの送信済みフォルダーとの差分';
+
+  @override
+  String get bucketsIntro =>
+      'バケットは内容の名前が付いた保管場所です。件数は要求時に計算されます（一覧取得のみで、データはダウンロードされません）。';
+
+  @override
+  String get bucketsBadgeLegacy => '旧';
+
+  @override
+  String get bucketsBadgePrivate => '非公開';
+
+  @override
+  String get bucketsBadgeContent => 'コンテンツ';
+
+  @override
+  String get bucketsNotCounted => '未集計';
+
+  @override
+  String bucketsObjectCount(int count) {
+    return '$count 個のオブジェクト';
+  }
+
+  @override
+  String bucketsTwinLabel(String twin) {
+    return 'ツイン: $twin';
+  }
+
+  @override
+  String get bucketsCount => '集計';
+
+  @override
+  String get bucketsEmptyFolder => 'このフォルダーは空です';
+
+  @override
+  String get bucketsTruncated => '一覧が途中で切れました - より絞ったフォルダーを開いてください';
+
+  @override
+  String bucketsSelectedCount(int count) {
+    return '$count 件選択中';
+  }
+
+  @override
+  String get bucketsClearSelection => '選択を解除';
+
+  @override
+  String get bucketsTakedownTooltip => 'テイクダウン（旧ツインからも削除）';
+
+  @override
+  String get bucketsSize => 'サイズ';
+
+  @override
+  String get bucketsContentType => '種類';
+
+  @override
+  String get bucketsModified => '更新日時';
+
+  @override
+  String get bucketsNone => '（なし）';
+
+  @override
+  String get bucketsMutableOnPurpose => '意図的に可変 - 標準の対象外';
+
+  @override
+  String bucketsHeaderOk(String kind) {
+    return 'キャッシュ標準に適合（$kind）';
+  }
+
+  @override
+  String bucketsHeaderExpected(String expected) {
+    return '標準: $expected';
+  }
+
+  @override
+  String get bucketsLegacyTwin => '旧ツイン';
+
+  @override
+  String get bucketsAddressCopied => 'アドレスをコピーしました';
+
+  @override
+  String get bucketsCopyAddress => 'アドレスをコピー';
+
+  @override
+  String get bucketsOpen => '開く';
+
+  @override
+  String get bucketsPrivateNoAddress => 'このバケットは非公開です - 公開アドレスはありません';
+
+  @override
+  String get kindCard => 'カード';
+
+  @override
+  String get kindCharacter => 'キャラクター';
+
+  @override
+  String get assetCodeMode => 'コードモード';
+
+  @override
+  String get assetPickFinishedImage => '完成した画像を選択してください';
+
+  @override
+  String get assetGenerateVideo => '動画を生成';
+
+  @override
+  String get assetEnlarge => '拡大';
+
+  @override
+  String percentValue(Object value) {
+    return '$value%';
+  }
+
+  @override
+  String get commonCategory => 'カテゴリ';
+
+  @override
+  String durSeconds(Object seconds) {
+    return '$seconds秒';
+  }
+
+  @override
+  String durMinutesSeconds(Object minutes, Object seconds) {
+    return '$minutes分$seconds秒';
+  }
+
+  @override
+  String durHoursMinutes(Object hours, Object minutes) {
+    return '$hours時間$minutes分';
+  }
+
+  @override
+  String get charKindFemale => '女性';
+
+  @override
+  String get charKindMale => '男性';
+
+  @override
+  String get charKindAnimal => '動物';
+
+  @override
+  String get charKindMachine => '機械';
+
+  @override
+  String get outfitCatSet => 'セット';
+
+  @override
+  String get outfitCatTop => 'トップス';
+
+  @override
+  String get outfitCatBottom => 'ボトムス';
+
+  @override
+  String get outfitCatShoes => '靴';
+
+  @override
+  String get outfitCatSocks => '靴下';
+
+  @override
+  String get outfitCatHat => '帽子';
+
+  @override
+  String get outfitCatHeadgear => 'ヘッドギア';
+
+  @override
+  String get outfitCatAccessory => 'アクセサリー';
+
+  @override
+  String get outfitCatWeapon => '武器';
+
+  @override
+  String get audioLabel => 'オーディオ';
+
+  @override
+  String get audioDownloading => 'ダウンロード中...';
+
+  @override
+  String get audioOpen => 'オーディオを開く';
+
+  @override
+  String get outfitExtractTitle => '衣装を抽出';
+
+  @override
+  String get outfitExtractBody =>
+      '選択した画像から人物を消し、衣装を無地グレー背景のゴーストマネキン商品カットとしてワードローブに保存します。その後、どのキャラクターにもスキンとして着せられます。';
+
+  @override
+  String get outfitExtractName => '衣装名';
+
+  @override
+  String get outfitExtractNameHint => '例: 赤いイブニングドレス';
+
+  @override
+  String get outfitExtractNote => 'メモ (任意)';
+
+  @override
+  String get outfitExtractNoteHint => '例: ドレスのみ、靴は除く';
+
+  @override
+  String get outfitExtractHelp =>
+      'セット: 人物が身に着けているものすべてを1枚に。武器 / アクセサリー: その品だけ、マネキンなし。';
+
+  @override
+  String get outfitExtractAction => '抽出';
+
+  @override
+  String equipSlotTitle(Object category) {
+    return '$categoryスロット';
+  }
+
+  @override
+  String get equipSlotMultiHint => '複数選択 - タップで着ける / 外す';
+
+  @override
+  String get equipSlotSingleHint => '単一選択 - タップで着ける、もう一度タップで外す';
+
+  @override
+  String get equipSlotEmpty => '(なし)';
+
+  @override
+  String get equipSlotNoOutfits =>
+      'このカテゴリに使用できる衣装がありません -「+ 衣装を生成」または「衣装を抽出」を使ってください';
+
+  @override
+  String get equipBaseLabel => 'ベース:';
+
+  @override
+  String get equipUndress => 'すべて外す';
+
+  @override
+  String get equipPickSourceTitle => '元画像を選択';
+
+  @override
+  String get equipPickSourceHint =>
+      '最新の完了済み生成 (全モード)。Jigsawラインの incoming / staging / pushed の画像は「ライン > Jigsaw」画面を使ってください。';
+
+  @override
+  String get equipNoFinishedImage => '完成した画像がありません';
+
+  @override
+  String get freeFlowTitle => 'Freeライン';
+
+  @override
+  String get freeFlowEditTitle => '編集 - 編集エンジン';
+
+  @override
+  String get freeFlowEditLabel => '変更したい内容';
+
+  @override
+  String get freeFlowEditHint =>
+      '例: change the dress to red, keep face and pose';
+
+  @override
+  String get freeFlowEditQueued => '編集をキューに追加しました';
+
+  @override
+  String get freeFlowNoVideoTask => 'Freeモードには動画タスクがありません';
+
+  @override
+  String freeFlowVideoTitle(Object task) {
+    return '動画を生成 - $task';
+  }
+
+  @override
+  String get freeFlowMotionLabel => '動き';
+
+  @override
+  String get freeFlowMotionHint =>
+      '例: she turns her head slowly toward the camera, hair moving in the breeze';
+
+  @override
+  String get freeFlowVideoQueued => '動画をキューに追加しました - 完了するとこのカードに再生マークが表示されます';
+
+  @override
+  String get freeFlowDeleteConfirm => 'この生成を削除しますか?';
+
+  @override
+  String get freeFlowDeleteWithVideosConfirm => 'この生成とその動画を削除しますか?';
+
+  @override
+  String get freeFlowEmpty => 'Freeモードの生成はまだありません -「生成」タブから始めてください';
+
+  @override
+  String get queueKindGeneration => '生成';
+
+  @override
+  String get queueKindTag => 'タグ付け';
+
+  @override
+  String get queueKindMusic => '音楽';
+
+  @override
+  String get queueKindJob => 'ジョブ';
+
+  @override
+  String get queueCancelRunningTitle => '実行中のジョブをキャンセル';
+
+  @override
+  String get queueRemoveTitle => 'キューから外す';
+
+  @override
+  String get queueCancelIt => 'キャンセルする';
+
+  @override
+  String get queueClearTitle => 'キューを空にする';
+
+  @override
+  String get queueClearBody => '待機中の生成ジョブをキャンセルしますか? 実行中のジョブは続行されます。';
+
+  @override
+  String get queueCancelWaiting => '待機中のジョブをキャンセル';
+
+  @override
+  String get queueEmpty => 'キューは空です';
+
+  @override
+  String get queueEmptyHint => '「生成」タブからジョブを追加できます';
+
+  @override
+  String get queueNow => '実行中';
+
+  @override
+  String queueWaitingCount(Object count) {
+    return '待機中 ($count)';
+  }
+
+  @override
+  String queueGenerationJobsCount(Object count) {
+    return '生成ジョブ ($count)';
+  }
+
+  @override
+  String get queueOneQueue => '単一キュー - すべてのジョブ';
+
+  @override
+  String queueJobCount(Object count) {
+    return '$count 件';
+  }
+
+  @override
+  String get queueMoveUp => '上へ移動';
+
+  @override
+  String get queueMoveDown => '下へ移動';
+
+  @override
+  String get queueUp => '上へ';
+
+  @override
+  String get queueDown => '下へ';
+
+  @override
+  String queueElapsed(Object time) {
+    return '経過 $time';
+  }
+
+  @override
+  String queueWaitingFor(Object time) {
+    return '待機 $time';
+  }
+
+  @override
+  String get queueWaiting => '待機中';
+
+  @override
+  String get queueComfyReady => 'ComfyUI 準備完了';
+
+  @override
+  String get queueComfyOff => 'ComfyUI は停止中';
+
+  @override
+  String get deliveryPoolNeverRan => '未実行';
+
+  @override
+  String deliveryPoolDryRun(Object status) {
+    return '$status (試行)';
+  }
+
+  @override
+  String deliveryPoolSummary(
+    Object status,
+    Object total,
+    Object valid,
+    Object tagged,
+    Object failed,
+  ) {
+    return '$status · 画像 $total、有効 $valid、タグ付け $tagged、失敗 $failed';
+  }
+
+  @override
+  String get reportErrEmpty => '先にメッセージを入力してください。';
+
+  @override
+  String get reportErrTooLarge => '添付ファイルが大きすぎます。1つ削除してもう一度お試しください。';
+
+  @override
+  String flowOpError(Object message) {
+    return '処理に失敗しました: $message';
+  }
+
+  @override
+  String get flowOpCancelled => '処理をキャンセルしました';
+
+  @override
+  String flowOpDone(Object ok) {
+    return '$ok 件完了';
+  }
+
+  @override
+  String flowOpDoneWithFailed(Object ok, Object failed) {
+    return '$ok 件完了、$failed 件失敗';
+  }
+
+  @override
+  String get flowCollection => 'コレクション';
+
+  @override
+  String get flowAllParen => '(すべて)';
+
+  @override
+  String get flowAll => 'すべて';
+
+  @override
+  String get flowSelectAll => 'すべて選択';
+
+  @override
+  String get flowRetag => 'タグを付け直す';
+
+  @override
+  String get flowRetagShort => 'タグ';
+
+  @override
+  String get flowRetagStarted => 'タグ付けを開始しました';
+
+  @override
+  String get flowReadOnly => '閲覧のみ';
+
+  @override
+  String get flowPush => 'プッシュ';
+
+  @override
+  String get flowPreview => 'プレビュー';
+
+  @override
+  String get flowYes => 'あり';
+
+  @override
+  String get flowNo => 'なし';
+
+  @override
+  String get flowMissingUpper => 'なし';
+
+  @override
+  String get flowBadgeNoTags => 'タグなし';
+
+  @override
+  String get flowTabPushed => '4 プッシュ済み';
+
+  @override
+  String get flowSelectAssetFirst => '先にアセットを選択してください';
+
+  @override
+  String get flowAccept => '承認';
+
+  @override
+  String get flowReject => '却下';
+
+  @override
+  String get flowUpload => 'アップロード';
+
+  @override
+  String get flowNew => '新規';
+
+  @override
+  String get flowReadFailed => 'ラインを読み込めませんでした';
+
+  @override
+  String flowFilesDeleted(Object count) {
+    return '$count 個のファイルを削除しました';
+  }
+
+  @override
+  String get flowNegative => 'ネガティブ';
+
+  @override
+  String get flowPositive2 => 'ポジティブ 2';
+
+  @override
+  String get flowDuration => '長さ';
+
+  @override
+  String get flowAddToQueue => 'キューに追加';
+
+  @override
+  String get commonDescription => '説明';
+
+  @override
+  String get cbnFlowTitle => 'CBNライン';
+
+  @override
+  String get cbnFlowTabIncoming => '2 受信';
+
+  @override
+  String get cbnFlowTabReady => '3 準備完了';
+
+  @override
+  String cbnFlowBuildTitle(Object count) {
+    return 'ビルド - $count 件';
+  }
+
+  @override
+  String get cbnFlowBuildBodyHot =>
+      '領域分割 + パレット + 番号付きテンプレート + リビール動画 (CPU)。SAM工程は事前に完了している必要があります。輪郭はSAMの境界から作られます。(Hot: ビルドが線画ページをQwenで自動生成します。C工程は任意のプレビューです。)';
+
+  @override
+  String get cbnFlowBuildBodyKid =>
+      '領域分割 + パレット + 番号付きテンプレート + SVG (CPU)。SAM工程は事前に完了している必要があります。';
+
+  @override
+  String get cbnFlowBuild => 'ビルド';
+
+  @override
+  String get cbnFlowBuildStarted => 'ビルドを開始しました - 進行状況は上部に表示されます';
+
+  @override
+  String cbnFlowStageStarted(Object stage, Object count) {
+    return '$stageを開始しました ($count 件)';
+  }
+
+  @override
+  String get cbnFlowStageObjects => 'オブジェクト一覧';
+
+  @override
+  String get cbnFlowLineart => '線画';
+
+  @override
+  String cbnFlowPushTitle(Object count) {
+    return 'プッシュ - $count 件';
+  }
+
+  @override
+  String get cbnFlowPushBody =>
+      'アセットフォルダーをR2にアップロードし、「プッシュ済み」へ移動します。\n\nこれは公開操作で、元に戻せません。';
+
+  @override
+  String cbnFlowDeleteBody(Object count) {
+    return '$count 件のアセットを削除します。';
+  }
+
+  @override
+  String cbnFlowDeleted(Object count) {
+    return '$count 件削除しました';
+  }
+
+  @override
+  String get cbnFlowEmptyIncoming =>
+      'このステージにアセットはありません。\n「生成済み」画面のCBNモードで「承認」するとここに届きます。';
+
+  @override
+  String get cbnFlowEmptyStaging =>
+      'ビルド済みのアセットはまだありません。\n「受信」タブで選択して「ビルド」をタップしてください。';
+
+  @override
+  String get cbnFlowEmptyPushed => 'プッシュ済みのアセットはありません。';
+
+  @override
+  String get cbnFlowBadgeTagged => 'タ';
+
+  @override
+  String get cbnFlowBadgeObjects => '物';
+
+  @override
+  String cbnFlowBadgeBuilt(Object regions, Object colors) {
+    return '$regions域 $colors色';
+  }
+
+  @override
+  String get cbnFlowLayerNumbered => '番号付き';
+
+  @override
+  String get cbnFlowLayerFinished => '完成';
+
+  @override
+  String get cbnFlowLayerSource => '元画像';
+
+  @override
+  String get cbnFlowLayerObjects => 'オブジェクト';
+
+  @override
+  String cbnFlowInfo(
+    Object label,
+    Object regions,
+    Object colors,
+    Object verdict,
+  ) {
+    return '$label   $regions 領域 · $colors 色 · $verdict';
+  }
+
+  @override
+  String cbnFlowTagLine(Object label, Object state) {
+    return '$label   タグ: $state';
+  }
+
+  @override
+  String get cbnFlowFindObjects => 'A) オブジェクトを検出';
+
+  @override
+  String get cbnFlowSamMasks => 'B) SAMマスク';
+
+  @override
+  String get cbnFlowLineartPage => 'C) 線画ページ (任意、Qwen)';
+
+  @override
+  String get cbnFlowBuildStep => 'D) ビルド';
+
+  @override
+  String get cbnFlowStepMissingA => 'A工程 (オブジェクト一覧) は未実行です';
+
+  @override
+  String get cbnFlowStepMissingB => 'B工程 (SAMマスク) は未実行です';
+
+  @override
+  String get cbnFlowStepMissingC => 'C工程 (線画ページ) は未実行です';
+
+  @override
+  String get cbnFlowImageFailed => '画像を読み込めませんでした';
+
+  @override
+  String get jigsawFlowTitle => 'Jigsawライン';
+
+  @override
+  String get jigsawFlowTabTagged => '2 タグ済み';
+
+  @override
+  String get jigsawFlowTabToPush => '3 プッシュ待ち';
+
+  @override
+  String get jigsawFlowQueueAll => 'すべてキューへ';
+
+  @override
+  String jigsawFlowQueueAllTitle(Object count) {
+    return 'すべてキューへ - $count 件';
+  }
+
+  @override
+  String jigsawFlowVideoTitle(Object count) {
+    return '動画を生成 - $count 件';
+  }
+
+  @override
+  String get jigsawFlowPositive1 => 'ポジティブ 1 - 被写体';
+
+  @override
+  String get jigsawFlowPositive1Help => '空欄 = 各アセット自身のプロンプト';
+
+  @override
+  String get jigsawFlowMotionPreset => '動きのプリセット';
+
+  @override
+  String get jigsawFlowSpreadInTurn => '(順番に割り当て)';
+
+  @override
+  String get jigsawFlowPositive2 => 'ポジティブ 2 - 動き';
+
+  @override
+  String jigsawFlowPositive2Help(Object marker) {
+    return '$marker = 被写体プロンプトの位置。空欄 = プリセットを順番に使用。';
+  }
+
+  @override
+  String jigsawFlowPresetsSpread(Object count) {
+    return '$count 個のプリセットを順番に割り当てます。';
+  }
+
+  @override
+  String get jigsawFlowNoAssetWithoutVideo => '動画のないアセットはありません';
+
+  @override
+  String get jigsawFlowSelectWithoutVideo => '動画のないアセットを選択してください';
+
+  @override
+  String jigsawFlowVideosQueued(Object queued) {
+    return '$queued 本の動画をキューに追加しました - 完了するとここに届きます';
+  }
+
+  @override
+  String jigsawFlowVideosQueuedSkipped(Object queued, Object skipped) {
+    return '$queued 本の動画をキューに追加、$skipped 本をスキップしました - 完了するとここに届きます';
+  }
+
+  @override
+  String get jigsawFlowNoVideoTitle => '動画なし';
+
+  @override
+  String jigsawFlowNoVideoBody(Object count) {
+    return '$count 件のアセットに動画がありません - jpgのみ書き出されます。続行しますか?';
+  }
+
+  @override
+  String get jigsawFlowMusicNotReady => '音楽モデルの準備ができていません';
+
+  @override
+  String get jigsawFlowNoMusicMissing => '音楽が未設定のテーマコレクションはありません';
+
+  @override
+  String jigsawFlowHasMusic(Object collection) {
+    return '$collection には既に音楽があるか、Generic です';
+  }
+
+  @override
+  String jigsawFlowMusicBody(Object count, Object names) {
+    return '$count 個のコレクション用に30秒のインストゥルメンタル曲を生成します (ACE-Step、ローカル)。\n\n$names\n\n1曲あたり数分かかることがあります。';
+  }
+
+  @override
+  String jigsawFlowPushBody(Object count) {
+    return '$count 件のアセットをR2バケットにアップロードします。\n\nこれは元に戻せない公開操作です - アップロードしたファイルはアプリに表示されます。';
+  }
+
+  @override
+  String jigsawFlowDeleteBody(Object count) {
+    return '$count 件のアセット (jpg + mp4 + webp + json) を完全に削除しますか?';
+  }
+
+  @override
+  String get jigsawFlowWebpStarted => '不足しているwebpの生成を開始しました';
+
+  @override
+  String jigsawFlowCollectionTitle(Object mode) {
+    return '$mode コレクション';
+  }
+
+  @override
+  String get jigsawFlowCollectionHelp => '一覧から選ぶか、新しい名前を入力';
+
+  @override
+  String jigsawFlowCollectionHelpFull(Object count) {
+    return '一覧から選ぶか、新しい名前を入力  -  満杯のコレクション $count 個は非表示';
+  }
+
+  @override
+  String jigsawFlowCollectionRow(Object total, Object next) {
+    return '$total 件 - 次は $next';
+  }
+
+  @override
+  String get jigsawFlowEmptyIncoming =>
+      'このステージにアセットはありません。\n「生成済み」画面で「承認」するとここに届きます。';
+
+  @override
+  String get jigsawFlowEmpty => 'このステージにアセットはありません。';
+
+  @override
+  String get jigsawFlowBadgeNoWebp => 'webpなし';
+
+  @override
+  String jigsawFlowPreviewInfo(Object label, Object video, Object webp) {
+    return '$label\n動画: $video   webp: $webp';
+  }
+
+  @override
+  String jigsawFlowPreviewTags(Object state) {
+    return 'タグ: $state';
+  }
+
+  @override
+  String get jigsawFlowNoVideoInSelection => '選択したアセットに動画はありません';
+
+  @override
+  String get jigsawFlowDeleteVideo => '動画を削除';
+
+  @override
+  String jigsawFlowDeleteVideoBody(Object count) {
+    return '$count 件のアセットの mp4 + webp を削除します。画像は残り、動画を再生成できます。';
+  }
+
+  @override
+  String get jigsawFlowDeleteVideoTooltip => '動画を削除 (画像は残ります)';
+
+  @override
+  String get jigsawFlowExtractNeedsOne => '衣装は1枚の画像から抽出します - 1枚選択してください';
+
+  @override
+  String outfitExtractStarted(Object name) {
+    return '$name をワードローブへ抽出しています - キャラクター > ワードローブ';
+  }
+
+  @override
+  String get jigsawFlowMetaFile => 'ファイル';
+
+  @override
+  String get jigsawFlowMetaTags => 'タグ';
+
+  @override
+  String get jigsawFlowMetaSubject => '被写体';
+
+  @override
+  String get jigsawFlowMetaPolicy => 'ポリシー';
+
+  @override
+  String jigsawFlowMetaVideoValue(Object video, Object webp) {
+    return '$video   webp: $webp';
+  }
+
+  @override
+  String get jigsawFlowTagsMetadata => 'タグ / メタデータ';
+
+  @override
+  String get jigsawFlowMissingWebp => '不足しているwebp';
+
+  @override
+  String deliverySavedLive(Object time) {
+    return '保存して公開しました ($time) - 件数を更新しています';
+  }
+
+  @override
+  String get deliveryReindexTitle => 'メタデータを再読み込み';
+
+  @override
+  String get deliveryReindexBody =>
+      'バケット内でEXIFが変わった画像用です。ファイル名をカンマ区切りで入力してください (例: 12.jpg, 340.jpg)。空欄にすると Generic 全体を再読み込みします (約1500ファイル、数分)。';
+
+  @override
+  String get deliveryReindexNames => 'ファイル名';
+
+  @override
+  String get deliveryReindexAction => '読み込む';
+
+  @override
+  String deliveryReindexed(Object count) {
+    return '$count 枚の画像を再読み込みしました - マニフェストを更新しました';
+  }
+
+  @override
+  String deliveryReindexedMissing(Object count, Object missing) {
+    return '$count 枚の画像を再読み込み、$missing 枚は見つかりませんでした - マニフェストを更新しました';
+  }
+
+  @override
+  String get deliveryDryRunStarted => '試行を開始しました - レポートのみ作成します';
+
+  @override
+  String get deliveryNormalizeStarted => '正規化を開始しました';
+
+  @override
+  String get deliveryCancelRequested => 'キャンセルを要求しました';
+
+  @override
+  String get deliveryNeverSaved => '未保存';
+
+  @override
+  String get deliveryPoolJigsaw => 'Jigsawプール';
+
+  @override
+  String get deliveryPoolCards => 'カード';
+
+  @override
+  String get deliveryPoolEvents => 'イベント';
+
+  @override
+  String get deliveryEvent => 'イベント';
+
+  @override
+  String deliverySummaryLine(
+    Object pool,
+    Object total,
+    Object tagged,
+    Object untagged,
+  ) {
+    return '$poolプール: 画像 $total、タグ済み $tagged、タグなし $untagged';
+  }
+
+  @override
+  String get deliverySaveBeforeSwitch => 'プールを切り替える前に変更を保存してください。';
+
+  @override
+  String get deliveryReindexTooltip => 'メタデータを再読み込み (EXIFが変わった場合)';
+
+  @override
+  String deliveryLastRule(Object time, Object served, Object total) {
+    return '最終ルール: $time  ·  既定で配信: $served / $total';
+  }
+
+  @override
+  String get deliveryIntro =>
+      'スイッチOFF = その値の画像はマニフェストから外れます。保存は即時に反映され、すべてのコレクション / デッキが対象になります。ルールで漏れた個別の項目はブロックリストで止められます。';
+
+  @override
+  String get deliveryNormalizeTitle => '正規化 - 不足しているタグを生成';
+
+  @override
+  String get deliveryDryRun => '試行';
+
+  @override
+  String get deliveryNormalizeNoStatus =>
+      '状態を取得できません - サーバーが /api/normalize/status に応答しませんでした';
+
+  @override
+  String deliveryIndex(Object index) {
+    return 'インデックス: $index';
+  }
+
+  @override
+  String deliveryLastRun(Object summary) {
+    return '前回の実行: $summary';
+  }
+
+  @override
+  String get deliveryBlockScopeGlobal => '全アプリ (グローバル)';
+
+  @override
+  String deliveryBlockTitle(Object scope) {
+    return 'ブロック · $scope';
+  }
+
+  @override
+  String get deliveryOpenList => 'リストを開く';
+
+  @override
+  String get deliveryBlockIntro =>
+      'グローバルブロックはすべてのアプリに適用されます。アプリを選ぶと、そのアプリだけをブロックします。ルールの後に適用されます。';
+
+  @override
+  String get deliveryBlockEmpty => 'このプールにブロックできる項目はありません (バケットは空です)。';
+
+  @override
+  String deliveryGroupSubtitle(Object count, Object tagged) {
+    return '$count 件 · タグ済み $tagged/$count';
+  }
+
+  @override
+  String deliveryGroupSubtitleBlocked(Object count, Object tagged) {
+    return '$count 件 · タグ済み $tagged/$count · すべてブロック中';
+  }
+
+  @override
+  String get deliveryAppsHint => 'アプリ - タップしてそのアプリのルールを編集';
+
+  @override
+  String deliveryDefaultChip(Object served, Object total) {
+    return '既定  $served/$total';
+  }
+
+  @override
+  String get deliveryDefaultRuleTitle =>
+      '既定ルール - ?app= を送らない旧バージョンと、独自ルールのないアプリ';
+
+  @override
+  String deliveryCustomRuleTitle(Object app) {
+    return '$app 用の独自ルール';
+  }
+
+  @override
+  String get deliveryCustomRuleOn => 'オフにすると既定に戻ります';
+
+  @override
+  String get deliveryCustomRuleOff => 'オフ: 既定ルールが適用されます。オンにすると既定のコピーから始まります。';
+
+  @override
+  String get deliveryScopeTitle => '選択したコレクションのみ';
+
+  @override
+  String deliveryScopeOn(Object selected, Object total) {
+    return '$selected/$total コレクション - 新しく公開されたものはこのアプリに届きません';
+  }
+
+  @override
+  String get deliveryScopeOff => 'オフ: 新しく公開されたコレクションはすべてこのアプリにも届きます';
+
+  @override
+  String get deliveryScopeNone => '何も選択されていません - 空のリストは保存されず、ルールは「すべて」に戻ります。';
+
+  @override
+  String get deliveryRulesEnabled => 'ルール有効';
+
+  @override
+  String get deliveryRulesEnabledHint => 'オフ = このルールセットは何もフィルターしません';
+
+  @override
+  String get deliveryServeUntagged => 'タグなし画像を配信';
+
+  @override
+  String deliveryUntaggedCount(Object count) {
+    return '$count 枚の画像にメタデータがありません';
+  }
+
+  @override
+  String get deliveryQuick => 'クイック:';
+
+  @override
+  String deliveryOffCount(Object count) {
+    return '$count 件オフ';
+  }
+
+  @override
+  String deliveryFieldSubtitle(Object field, Object count) {
+    return '$field · $count 個の値';
+  }
+
+  @override
+  String get deliveryUnsaved => '未保存の変更があります';
+
+  @override
+  String get deliveryInSync => 'サーバーと同じ';
+
+  @override
+  String get deliverySavePublish => '保存して公開';
+
+  @override
+  String get commonApply => '適用';
+
+  @override
+  String get commonModel => 'モデル';
+
+  @override
+  String get cardTplShuffled => 'シャッフルしました - ロックした軸は変更していません';
+
+  @override
+  String cardTplRankShuffled(Object rank) {
+    return '$rank をシャッフルしました';
+  }
+
+  @override
+  String cardTplAxisAllTitle(Object axis) {
+    return '$axis - すべてに適用';
+  }
+
+  @override
+  String get cardTplAxisAllBack => 'カード裏面に書き込み、ロックします。';
+
+  @override
+  String get cardTplAxisAllFront =>
+      '13枚のカード + ジョーカー2枚にまとめて書き込み、ロックします - シャッフルでは変わりません。';
+
+  @override
+  String get cardTplValue => '値';
+
+  @override
+  String get cardTplAllWritten => 'すべてに書き込み、ロックしました';
+
+  @override
+  String cardTplRankTitle(Object rank) {
+    return '$rank のテンプレート';
+  }
+
+  @override
+  String get cardTplLocked => 'ロック中';
+
+  @override
+  String get cardTplLock => 'ロック';
+
+  @override
+  String get cardTplManual => '手動の追加 (自由入力)';
+
+  @override
+  String get cardTplManualHint => '例: holding a golden card fan';
+
+  @override
+  String get cardTplManualHelp => 'テンプレートの末尾に追加されます - シャッフルしても消えません';
+
+  @override
+  String cardTplRankSaved(Object rank) {
+    return '$rank を保存しました';
+  }
+
+  @override
+  String cardTplSlotQueued(Object slot) {
+    return '$slot をキューに追加しました';
+  }
+
+  @override
+  String cardTplTitle(Object title) {
+    return 'コレクションカード - $title';
+  }
+
+  @override
+  String get cardTplShuffle => 'シャッフル';
+
+  @override
+  String get cardTplNoTheme => 'テーマなし - タップして入力';
+
+  @override
+  String get cardTplThemeTitle => 'テーマ (P1)';
+
+  @override
+  String get cardTplPresetCard => 'プリセットカード';
+
+  @override
+  String get cardTplTheme => 'テーマ';
+
+  @override
+  String get cardTplThemeHelp => 'アイデンティティ + STRICT PALETTE + Signature pieces';
+
+  @override
+  String get cardTplThemeEmpty => 'テーマは空にできません';
+
+  @override
+  String get cardTplThemeSaved => 'テーマを保存しました';
+
+  @override
+  String cardTplModelSet(Object name) {
+    return 'モデル: $name';
+  }
+
+  @override
+  String get cardTplFaceDetail => '顔のレタッチ';
+
+  @override
+  String get cardTplFaceDetailHint => '+15秒/枚 - 顔を別パスで処理します';
+
+  @override
+  String get cardTplFaceDetailOn => '顔のレタッチ: オン';
+
+  @override
+  String get cardTplFaceDetailOff => '顔のレタッチ: オフ';
+
+  @override
+  String get cardTplVideoEngine => '動画エンジン (最初のフレーム = 最後のフレーム)';
+
+  @override
+  String cardTplEngineUnavailable(Object engine) {
+    return '$engine (未インストール)';
+  }
+
+  @override
+  String cardTplVideoEngineSet(Object name) {
+    return '動画エンジン: $name';
+  }
+
+  @override
+  String get cardTplApplyToAll => 'すべてに適用:';
+
+  @override
+  String get cardTplPickAxis => '軸を選択';
+
+  @override
+  String cardTplBackAxis(Object axis) {
+    return '$axis  (裏面)';
+  }
+
+  @override
+  String cardTplLockedAxes(Object count) {
+    return '$count 個の軸をロック中';
+  }
+
+  @override
+  String get cardTplShuffleSlot => 'このスロットをシャッフル';
+
+  @override
+  String get cardTplGenerateSlot => 'このスロットを生成';
+
+  @override
+  String galleryDeleteSelectedConfirm(Object count) {
+    return '$count 件の生成とそのファイルを削除しますか?';
+  }
+
+  @override
+  String galleryDeleted(Object count) {
+    return '$count 件の生成を削除しました';
+  }
+
+  @override
+  String galleryDeleteFailed(Object count) {
+    return '$count 件を削除できませんでした';
+  }
+
+  @override
+  String get galleryCharacterNeedsOne => 'キャラクターは1枚の画像から作成します - 1枚選択してください';
+
+  @override
+  String get galleryMakeCharacter => 'キャラクターを作成';
+
+  @override
+  String get galleryMakeCharacterBody =>
+      '選択した画像がそのままベースになります。ポートレート、ストーリー、7方向は自動で生成されます - 確認はありません。';
+
+  @override
+  String galleryCharacterQueued(Object name) {
+    return '$name をキューに追加しました - 進行状況は「キュー」タブで確認できます';
+  }
+
+  @override
+  String get galleryCreateCharacterFirst => '先に「キャラクターを作成」でキャラクターを作成してください';
+
+  @override
+  String galleryAddToCandidatesTitle(Object count) {
+    return '候補に追加 - $count 枚';
+  }
+
+  @override
+  String galleryAddedToCandidates(Object count, Object name) {
+    return '$name の候補に $count 枚の画像を追加しました';
+  }
+
+  @override
+  String get galleryCollectionNeedsOne => 'コレクションに追加できる画像は1枚です - 1枚選択してください';
+
+  @override
+  String get galleryCreateCollectionFirst => '先にカードラインでコレクションまたはディーラーを作成してください';
+
+  @override
+  String get galleryAddToCollection => 'コレクションに追加';
+
+  @override
+  String get galleryDealerNoRank => 'ディーラー (ランクなし)';
+
+  @override
+  String galleryPickRank(Object name) {
+    return '$name - ランクを選択';
+  }
+
+  @override
+  String get galleryQueuedOne => 'キューに追加しました (1件) -「キュー」タブで確認できます';
+
+  @override
+  String galleryAcceptBodyCbn(Object count) {
+    return '$count 枚の画像をCBNラインの「受信」ステージへ移動します: jpg + EXIFタグ。ビルド (SAM、線画、領域) はそこで開始します。\n\nどのレーティングにしますか?';
+  }
+
+  @override
+  String galleryAcceptBodyJigsaw(Object count) {
+    return '$count 枚の画像をステージ2へ移動します: jpg + EXIFタグ。動画があれば一緒に移動します。\n\nどのレーティングにしますか?';
+  }
+
+  @override
+  String get galleryAcceptStarted => '開始しました - 進行状況は「ライン」タブで確認できます';
+
+  @override
+  String get galleryExtractTooltip => '衣装を抽出 - 画像の衣装をワードローブに取り込む';
+
+  @override
+  String get galleryMakeCharacterTooltip => 'キャラクターを作成 - 新しいキャラクターを作る';
+
+  @override
+  String get galleryAddToCandidatesTooltip => '候補に追加 - 既存のキャラクターにコピー';
+
+  @override
+  String get galleryAddToCollectionTooltip => 'コレクションに追加 - ランクを選択';
+
+  @override
+  String get galleryAcceptTooltip => '承認 - ステージ2へ送る';
+
+  @override
+  String get galleryDeleteSelected => '選択した項目を削除';
+
+  @override
+  String get galleryFilterImage => '画像';
+
+  @override
+  String get galleryFilterVideo => '動画';
+
+  @override
+  String get galleryFilterFavorite => 'お気に入り';
+
+  @override
+  String galleryQueuedAt(Object position) {
+    return 'キュー待ち $position';
+  }
+
+  @override
+  String get galleryEmpty => '生成はまだありません';
+
+  @override
+  String get galleryEmptyHint => '「生成」タブから始められます';
+
+  @override
+  String get galleryDeleteOneConfirm => 'この生成とそのファイルを削除しますか?';
+
+  @override
+  String get galleryAcceptOneCbn =>
+      'CBNラインの「受信」ステージへ移動します (jpg + EXIFタグ)。\n\nどのレーティングにしますか?';
+
+  @override
+  String get galleryAcceptOneJigsaw =>
+      'ステージ2へ移動します (jpg + EXIFタグ)。\n\nどのレーティングにしますか?';
+
+  @override
+  String get galleryAccepted => '承認しました - タグ付け中です。「ライン」タブで確認できます';
+
+  @override
+  String get galleryRejected => '却下しました';
+
+  @override
+  String get galleryEditBody =>
+      'この画像が元画像になり、編集エンジン (Qwen Image Edit、人物の同一性を保持) が新しい生成を開始します。何を変更しますか?';
+
+  @override
+  String get galleryEditPromptLabel => '追加プロンプト';
+
+  @override
+  String get galleryEditPromptHint =>
+      '例: change the dress to a red pleated miniskirt, keep face and pose';
+
+  @override
+  String get galleryEditQueued => '編集をキューに追加しました - 結果は「生成済み」に表示されます';
+
+  @override
+  String get galleryEditTooltip => '編集 - 編集エンジンで新しく生成';
+
+  @override
+  String galleryPoolInfo(Object name) {
+    return 'プール $name';
+  }
+
+  @override
+  String get genPromptUnchanged => 'プロンプトは変更されませんでした (ローカルLLMが応答しませんでした)';
+
+  @override
+  String get genPromptWritten => 'プロンプトを書き込みました';
+
+  @override
+  String get commonUndo => '元に戻す';
+
+  @override
+  String get genVariantFailed => 'バリエーションを生成できませんでした (ローカルLLMが応答しませんでした)';
+
+  @override
+  String get genPickVariant => 'バリエーションを選択';
+
+  @override
+  String get genEnrich => '肉付け';
+
+  @override
+  String get genFix => '修正';
+
+  @override
+  String get genVariant => 'バリエーション';
+
+  @override
+  String get genFileUnreadable => 'ファイルを読み込めませんでした';
+
+  @override
+  String get genPromptEmpty => 'プロンプトは空にできません';
+
+  @override
+  String genMissingInputs(Object inputs) {
+    return '不足している入力: $inputs';
+  }
+
+  @override
+  String get genNeedsImagePick => 'このタスクには入力画像が必要です - 生成済みから1枚選択してください';
+
+  @override
+  String get genNeedsImage => 'このタスクには入力画像が必要です';
+
+  @override
+  String genQueuedCount(Object count) {
+    return '$count 件のジョブをキューに追加しました';
+  }
+
+  @override
+  String get genQueued => 'キューに追加しました';
+
+  @override
+  String genQueueBadge(Object count) {
+    return '$count 件待機中';
+  }
+
+  @override
+  String get genComfyOffBody =>
+      'ComfyUI は停止中です。ジョブはキューに入りますが開始されません - パソコンで起動する必要があります。';
+
+  @override
+  String get genTask => 'タスク';
+
+  @override
+  String get genWorkflowInputs => 'ワークフローの入力';
+
+  @override
+  String get genInputImage => '入力画像';
+
+  @override
+  String get genPositive1 => 'ポジティブプロンプト 1 - 被写体';
+
+  @override
+  String get genPositive1Hint => '例: police officer';
+
+  @override
+  String get genPositive2 => 'ポジティブプロンプト 2 - テンプレート';
+
+  @override
+  String genPositive2Help(Object marker) {
+    return '$marker は1つ目のプロンプトに置き換えられます。空欄でも構いません。';
+  }
+
+  @override
+  String get genFinalPrompt => '送信されるプロンプト';
+
+  @override
+  String get genNegative => 'ネガティブプロンプト';
+
+  @override
+  String get genTurboHint => '高速モード';
+
+  @override
+  String genDurationSeconds(Object seconds) {
+    return '長さ: $seconds 秒';
+  }
+
+  @override
+  String genCount(Object count) {
+    return '枚数: $count';
+  }
+
+  @override
+  String genSizeAspect(Object width, Object height, Object aspect) {
+    return 'サイズ: $width x $height  ($aspect)';
+  }
+
+  @override
+  String genSize(Object width, Object height) {
+    return 'サイズ: $width x $height';
+  }
+
+  @override
+  String get genAddToQueueUpper => 'キューに追加';
+
+  @override
+  String get genFootnote => 'ジョブは順番に生成されます。「キュー」タブで確認できます。';
+
+  @override
+  String get genDetailsTitle => '詳細 - 空欄可、ロックした項目はシャッフルされません';
+
+  @override
+  String genRandomGenerate(Object count) {
+    return 'ランダム生成  $count';
+  }
+
+  @override
+  String get genLockedTooltip => 'ロック中 - シャッフルしても固定';
+
+  @override
+  String get genOptionsEmpty => '選択肢のリストが空です';
+
+  @override
+  String get genOptional => '任意';
+
+  @override
+  String get genUploading => 'アップロード中...';
+
+  @override
+  String get genNotSelected => '未選択';
+
+  @override
+  String get genFromGallery => 'ギャラリーから';
+
+  @override
+  String get genFromFile => 'ファイルから';
+
+  @override
+  String get genNoSource => '入力に使える生成がありません。先に画像を生成してください。';
+
+  @override
+  String genPickerTitle(Object slot) {
+    return '$slot -「生成済み」から選択';
+  }
+
+  @override
+  String get genPickerSearch => 'プロンプト内を検索';
+
+  @override
+  String get genPickerEmpty => 'この種類の完了済み生成はありません。';
+
+  @override
+  String optionsFileMissing(Object items) {
+    return 'オプションファイルに不足: $items';
+  }
+
+  @override
+  String optionsFieldsMissing(Object label) {
+    return '$label (フィールド定義なし)';
+  }
+
+  @override
+  String optionsFileUnreadable(Object error) {
+    return 'オプションファイルを読み込めませんでした: $error';
+  }
+
+  @override
+  String optionsFileUnreadableNamed(Object name, Object error) {
+    return '$name のオプションファイルを読み込めませんでした: $error';
+  }
+
+  @override
+  String get fieldLocation => '場所';
+
+  @override
+  String get fieldEra => '時代 / 美学';
+
+  @override
+  String get fieldWeather => '天気';
+
+  @override
+  String get fieldWeatherLight => '天気 / 光';
+
+  @override
+  String get fieldJob => '職業';
+
+  @override
+  String get fieldFantasy => 'ファンタジー';
+
+  @override
+  String get fieldOutfitColor => '衣装の色';
+
+  @override
+  String get fieldOutfit => '衣装';
+
+  @override
+  String get fieldHair => '髪';
+
+  @override
+  String get fieldHairColor => '髪の色';
+
+  @override
+  String get fieldHairstyle => '髪型';
+
+  @override
+  String get fieldEyes => '目';
+
+  @override
+  String get fieldRace => '人種';
+
+  @override
+  String get fieldExpression => '表情';
+
+  @override
+  String get fieldPose => 'ポーズ';
+
+  @override
+  String get fieldAngle => 'アングル';
+
+  @override
+  String get fieldStyle => 'スタイル';
+
+  @override
+  String get fieldMood => '雰囲気';
+
+  @override
+  String get fieldColor => '色';
+
+  @override
+  String get fieldCreature => 'クリーチャー';
+
+  @override
+  String get fieldClass => 'クラス';
+
+  @override
+  String get fieldAge => '年齢';
+
+  @override
+  String get fieldOrigin => '出身';
+
+  @override
+  String get fieldBody => '体型';
+
+  @override
+  String get fieldSkin => '肌';
+
+  @override
+  String get fieldFace => '顔';
+
+  @override
+  String get fieldGesture => 'ジェスチャー';
+
+  @override
+  String get cardNotReady => 'サーバーのエンドポイントはまだ準備できていません';
+
+  @override
+  String get cardKindNormal => '通常';
+
+  @override
+  String get cardKindDealer => 'ディーラー';
+
+  @override
+  String get cardStagePushed => 'プッシュ済み';
+
+  @override
+  String get cardStageWebp => 'webp完了';
+
+  @override
+  String get cardStageVideo => '動画完了';
+
+  @override
+  String get cardStageStill => 'スチル完了';
+
+  @override
+  String get cardStageEmpty => '空';
+
+  @override
+  String cardRankTooltip(Object rank, Object stage) {
+    return '$rank - $stage';
+  }
+
+  @override
+  String cardRankTooltipWarn(Object rank, Object stage) {
+    return '$rank - $stage (要確認)';
+  }
+
+  @override
+  String get cardVideoIntro =>
+      '最初のフレーム = 最後のフレーム (ループ)。カメラは固定されます - 構図、スケール、背景は変わりません。出力はまずプールに入り、タグを選ぶとそこにも割り当てられます。';
+
+  @override
+  String get cardVideoTemplate => 'テンプレート (テキストを入力)';
+
+  @override
+  String get cardVideoMotion => '動きの文 (送信されるプロンプト)';
+
+  @override
+  String get cardVideoMotionHelp => '見える動きを記述してください。最後は開始ポーズに戻るようにします';
+
+  @override
+  String get cardVideoAssignTag => 'タグに割り当て';
+
+  @override
+  String get cardVideoPoolOnly => '(プールのみ - 後で割り当てる)';
+
+  @override
+  String get cardVideoNewTag => '新しいタグ...';
+
+  @override
+  String get cardVideoNewTagName => '新しいタグ名';
+
+  @override
+  String get cardTagHint => '例: victory';
+
+  @override
+  String get cardGestureTitle => 'アニメーション - ジェスチャーを選択';
+
+  @override
+  String get cardGestureIntro =>
+      'MiniMax H3: idle 6秒、victory 2秒。カメラは固定されます - 構図、スケール、背景は変わりません。';
+
+  @override
+  String get cardGestureCustom => 'カスタムの動き';
+
+  @override
+  String get cardGestureCustomHint => '例: 腰を軽く揺らす、足は固定';
+
+  @override
+  String get cardGestureCustomHelp => '短い動きの文 - カメラは固定のまま';
+
+  @override
+  String get cardCutTitle => '3 WebP - 切り抜きモード';
+
+  @override
+  String get cardCutHybrid => '旧グリーンバックのGrokマスター - クロマ + SAM 併用';
+
+  @override
+  String get cardCutSam => '既定 - SAM3のみ、無地のライトグレー背景';
+
+  @override
+  String get cardCutAction => '切り抜く';
+
+  @override
+  String cardEditTitle(Object name) {
+    return '編集 - $name';
+  }
+
+  @override
+  String get cardEditSentence => '修正の指示文';
+
+  @override
+  String get cardEditSentenceHint => '例: 髪を短くする / 手袋を外す';
+
+  @override
+  String get cardEditBody =>
+      '承認済みのスチルをこの文で編集します。人物の同一性、ポーズ、背景は保持されます。新しい画像は自動的に承認されます。';
+
+  @override
+  String get cardEditUnrestricted => '制限なし編集 (NSFW LoRA)';
+
+  @override
+  String get cardEditUnrestrictedHint =>
+      'Qwenが拒否する場合にオン - MCNL LoRA、20ステップ、少し遅くなります';
+
+  @override
+  String cardQueuedJobs(Object count) {
+    return 'キューに追加しました ($count 件) -「キュー」タブで確認できます';
+  }
+
+  @override
+  String get cardQueued => 'キューに追加しました -「キュー」タブで確認できます';
+
+  @override
+  String cardQueuedOp(Object op) {
+    return 'キューに追加しました (op $op) -「キュー」タブで確認できます';
+  }
+
+  @override
+  String cardSoonTitle(Object what) {
+    return '$what - 近日対応';
+  }
+
+  @override
+  String get cardSoonBody =>
+      'サーバーのカード用エンドポイントはまだ公開されていません。公開されると、この画面は自動的に使えるようになります。';
+
+  @override
+  String get cardNewCollection => '新しいコレクション';
+
+  @override
+  String get cardIdLabel => '識別子 (id)';
+
+  @override
+  String get cardIdHintCollection => '例: police_royale';
+
+  @override
+  String get commonName => '名前';
+
+  @override
+  String get cardNameHintCollection => '例: Police Royale';
+
+  @override
+  String get cardPickPreset => 'プリセットカードを選択 (任意)';
+
+  @override
+  String get cardThemeHint => '例: sexy police costume with badge and duty belt';
+
+  @override
+  String get cardThemeFormula =>
+      '書式: アイデンティティ + STRICT PALETTE + Signature pieces';
+
+  @override
+  String get cardJokers => 'ジョーカー (2枚)';
+
+  @override
+  String get cardJokersHint => '13ランクではなく15ランク';
+
+  @override
+  String get cardNewCollectionNote =>
+      'ランクごとにスチル1枚がキューに入ります (肌 / 髪 / 衣装 / ポーズのローテーション)。確認はありません - 微調整は ✎ / ↻ で行います。';
+
+  @override
+  String get cardIdNameRequired => '識別子と名前は空にできません';
+
+  @override
+  String get cardNewDealer => '新しいディーラー';
+
+  @override
+  String get cardIdHintDealer => '例: scarlett';
+
+  @override
+  String get cardNameHintDealer => '例: Scarlett';
+
+  @override
+  String get cardDealerTheme => 'テーマ / 衣装';
+
+  @override
+  String get cardDealerThemeHint => '例: カジノベストと蝶ネクタイ、ノワール調の赤いドレス';
+
+  @override
+  String get cardDealerNote =>
+      'ディーラーは上半身の構図で生成されます (手はテーブルの上、カメラ目線)。ランクはなく、1つの項目が4つのステージを通ります。';
+
+  @override
+  String get cardNightPickGesture => '夜間モード - ジェスチャーを選択';
+
+  @override
+  String get cardNightMode => '夜間モード';
+
+  @override
+  String cardNightBody(Object gesture) {
+    return 'すべてのカードとディーラーを再アニメーション化します: 現在のスチル -> LTX-2.5 i2v ($gesture) -> SAM切り抜き -> シート。\n\n時間がかかり、すべてキューに入ります。プッシュは行いません。';
+  }
+
+  @override
+  String get cardRestillTitle => '背景をグレーにする';
+
+  @override
+  String get cardRestillBody =>
+      'すべてのカードとディーラーのスチル背景を無地のライトグレーに変更します (人物はそのまま)。元の画像は still_green.png として保存され、既にグレーのものはスキップされます。\n\n動画は生成しません。';
+
+  @override
+  String get cardManifestPreview => 'マニフェストのプレビュー';
+
+  @override
+  String cardManifestCounts(Object collections, Object dealers) {
+    return 'コレクション $collections、ディーラー $dealers';
+  }
+
+  @override
+  String get cardManifestNote =>
+      'マニフェストファイルはプッシュ時に書き込まれます (先にファイル、次にマニフェスト)。これはプレビューのみです。';
+
+  @override
+  String get cardCollectionCardSettings => 'コレクションカード (設定)';
+
+  @override
+  String get cardCollectionCardSettingsHint => 'テーマ、16スロット、モデル、顔のレタッチ';
+
+  @override
+  String get cardReanimate => '再アニメーション化';
+
+  @override
+  String get cardReanimateHint => 'スチル -> i2v -> 切り抜き (このコレクション)';
+
+  @override
+  String get cardRealify => 'アニメ -> 実写風 (コレクション)';
+
+  @override
+  String get cardRealifyHint => '各スチルを edit_qwen で実写風の写真に変換';
+
+  @override
+  String get cardDeleteCollection => 'コレクションを削除';
+
+  @override
+  String get cardDeleteCollectionHint => 'フォルダーは全カードごと削除されます - 元に戻せません';
+
+  @override
+  String cardDeleteCollectionTitle(Object name) {
+    return 'コレクションを削除 - $name';
+  }
+
+  @override
+  String cardDeleteDealerTitle(Object name) {
+    return 'ディーラーを削除 - $name';
+  }
+
+  @override
+  String get cardDeleteCollectionBody =>
+      'コレクションフォルダーは全ファイルごと削除されます。\n\n元に戻せません。R2にプッシュ済みのファイルはバケットに残ります。';
+
+  @override
+  String get cardDeleteDealerBody =>
+      'ディーラーフォルダーは全ファイルごと削除されます。\n\n元に戻せません。R2にプッシュ済みのファイルはバケットに残ります。';
+
+  @override
+  String cardDeletedNamed(Object name) {
+    return '$name を削除しました';
+  }
+
+  @override
+  String get cardDealerCardSettings => 'ディーラーカード (設定)';
+
+  @override
+  String get cardDealerCardSettingsHint => 'テーマ、テンプレート、モデル、顔のレタッチ';
+
+  @override
+  String get cardDeleteDealer => 'ディーラーを削除';
+
+  @override
+  String get cardDeleteDealerHint => 'フォルダーは全ファイルごと削除されます - 元に戻せません';
+
+  @override
+  String get cardFlowTitle => 'カードライン';
+
+  @override
+  String get cardBulkActions => '一括操作';
+
+  @override
+  String get cardNightMenu => '夜間モード: すべて再アニメーション化';
+
+  @override
+  String get cardRestillMenu => '背景をグレーにする (すべて)';
+
+  @override
+  String get cardManifestMenu => 'マニフェストをプレビュー';
+
+  @override
+  String get cardDealers => 'ディーラー';
+
+  @override
+  String get cardEmptyCollections =>
+      'コレクションはまだありません。\n\n「+ 新しいコレクション」で識別子、名前、テーマを入力すると、13 (または15) ランク分のスチルが1枚ずつキューに入り、その後 2 Video と 3 WebP のステージに進みます。';
+
+  @override
+  String get cardEmptyDealers =>
+      'ディーラーはまだいません。\n\n「+ 新しいディーラー」で名前、テーマ、ジェスチャーを入力すると、上半身の構図で1つの項目が生成され、4つのステージを通ります。';
+
+  @override
+  String cardGestureLine(Object gesture) {
+    return 'ジェスチャー: $gesture';
+  }
+
+  @override
+  String cardAnimateTitle(Object count) {
+    return '2 Video ($count 枚)';
+  }
+
+  @override
+  String cardAnimateBody(Object total) {
+    return '各カードに2つのアニメーションを生成し、それぞれのタグに割り当てます:\n• idle - 6秒、制御された1つのジェスチャー\n• victory - 2秒、フレーム内での短い喜びの動き\n合計 $total 本の動画。古いものはプールに残ります。';
+  }
+
+  @override
+  String get cardEditNeedsOne => '編集は1ランクのみ対象です - カードを1枚選択してください';
+
+  @override
+  String cardPushTitle(Object name) {
+    return 'プッシュ - $name';
+  }
+
+  @override
+  String cardPushBody(Object ready, Object total) {
+    return 'シートとサムネイルのファイルをR2 (cards) にアップロードし、その後マニフェストを書き込みます。現在 $ready/$total ランクのwebpが完成しています。\n\nこれは公開操作で、元に戻せません。';
+  }
+
+  @override
+  String get cardPushQueued => 'プッシュをキューに追加しました -「キュー」タブで確認できます';
+
+  @override
+  String get cardCollectionCardTooltip => 'コレクションカード - テーマ、16スロット、モデル、顔のレタッチ';
+
+  @override
+  String get commonMore => 'その他';
+
+  @override
+  String get cardNoThemeTap => 'テーマなし - タップ: コレクションカード';
+
+  @override
+  String cardThemeTap(Object theme) {
+    return '$theme\nコレクションカード: タップ (テーマ、16スロット、モデル、顔のレタッチ)';
+  }
+
+  @override
+  String cardDeleteCollectionStills(Object stills) {
+    return 'コレクションフォルダーは全カードごと削除されます (スチル $stills 枚)。\n\n元に戻せません。R2にプッシュ済みのファイルはバケットに残ります。';
+  }
+
+  @override
+  String cardDeleteCollectionStillsPushed(Object stills, Object pushed) {
+    return 'コレクションフォルダーは全カードごと削除されます (スチル $stills 枚、プッシュ済み $pushed 枚)。\n\n元に戻せません。R2にプッシュ済みのファイルはバケットに残ります。';
+  }
+
+  @override
+  String get cardClearCards => 'カードをクリア';
+
+  @override
+  String cardClearCardsBody(Object ranks) {
+    return '$ranks - スチル、候補、動画、webpを削除します。ランクは空のまま残ります (「1 Still」で再生成できます)。';
+  }
+
+  @override
+  String cardsCleared(Object count) {
+    return '$count 枚のカードをクリアしました';
+  }
+
+  @override
+  String cardsClearFailed(Object count) {
+    return '$count 枚のカードをクリアできませんでした';
+  }
+
+  @override
+  String get cardGenerateStill => '1 Still を生成';
+
+  @override
+  String get cardGenerateVideo => '2 Video を生成';
+
+  @override
+  String get cardGenerateWebp => '3 WebP を生成';
+
+  @override
+  String get cardBackUpper => '裏面';
+
+  @override
+  String cardAssetVideo(Object tag) {
+    return '動画 ($tag)';
+  }
+
+  @override
+  String cardAssetSheet(Object tag) {
+    return 'WebP / 切り抜き ($tag)';
+  }
+
+  @override
+  String cardAssetMissing(Object asset) {
+    return '$asset がありません';
+  }
+
+  @override
+  String cardAssetDeleteConfirm(Object asset) {
+    return '$asset を削除しますか?';
+  }
+
+  @override
+  String get cardAssetDeleteVideoBody =>
+      'このタグの動画だけを削除します。プール内のコピー、スチル、webpは残ります。';
+
+  @override
+  String get cardAssetDeleteSheetBody =>
+      'sheet.webp、サムネイル、切り抜きフレームだけを削除します。動画とスチルは残ります。';
+
+  @override
+  String get cardAssetDeleteStillBody => '選択中のスチルだけを削除します。候補、動画、webpは残ります。';
+
+  @override
+  String get cardPoolDelete => 'プールから削除';
+
+  @override
+  String cardPoolDeleteBody(Object id, Object tags) {
+    return '$id をプールから削除します。タグに割り当て済みのコピー ($tags) は残ります。';
+  }
+
+  @override
+  String get cardNone => 'なし';
+
+  @override
+  String get cardNewAnimTag => '新しいアニメーションタグ';
+
+  @override
+  String get cardNewAnimTagHelp => 'ゲームはこの名前で読み込みます (idle, wink, victory ...)';
+
+  @override
+  String get cardUnassigned => '未割り当て';
+
+  @override
+  String cardAssignedTo(Object tags) {
+    return '割り当て済み: $tags';
+  }
+
+  @override
+  String cardAssignTo(Object name) {
+    return '割り当て: $name';
+  }
+
+  @override
+  String get cardAssignNewTag => '新しいタグに割り当て...';
+
+  @override
+  String get cardAnimReady => '動画 + webp 完了';
+
+  @override
+  String get cardAnimVideoOnly => '動画あり、webpなし';
+
+  @override
+  String get cardPoolEmpty => 'プールに動画がありません - 先に「2 Video」を実行してください';
+
+  @override
+  String get cardDeleteVideoKeepTag => '動画を削除 (タグは残ります)';
+
+  @override
+  String get cardDeleteSheet => 'WebP / 切り抜きを削除';
+
+  @override
+  String get cardDeleteTag => 'タグを削除 (動画 + webp ごと)';
+
+  @override
+  String cardVideosHeader(Object count) {
+    return '動画 ($count) - タップ = 割り当て / プレビュー / 削除';
+  }
+
+  @override
+  String cardDeleteThisDealerBody(Object name) {
+    return '$name のフォルダーは全ファイルごと削除されます。元に戻せません。';
+  }
+
+  @override
+  String get cardClearCard => 'カードをクリア';
+
+  @override
+  String cardClearCardBody(Object name) {
+    return '$name: スチル、候補、動画、webp、アニメーションを削除します。ランクは空のまま残ります (「1 Still」で再生成できます)。';
+  }
+
+  @override
+  String get cardClearCardTooltip => 'カードをクリア (ランクは空に戻ります)';
+
+  @override
+  String get cardViewCut => '切り抜き';
+
+  @override
+  String cardDeleteThisVideo(Object tag) {
+    return 'この動画を削除 ($tag)';
+  }
+
+  @override
+  String cardDeleteSheetTag(Object tag) {
+    return 'WebP / 切り抜きを削除 ($tag)';
+  }
+
+  @override
+  String get cardDeleteStill => 'スチルを削除';
+
+  @override
+  String get cardNoVideo => '動画がありません -「2 Video」で生成してください';
+
+  @override
+  String get cardNoCut => '切り抜きがありません -「3 WebP」で生成してください';
+
+  @override
+  String get cardCutFrameFailed => '切り抜きフレームを読み込めませんでした';
+
+  @override
+  String get cardNoStill => 'スチルがありません -「1 Still」で生成してください';
+
+  @override
+  String get cardStillFailed => 'スチルを読み込めませんでした';
+
+  @override
+  String cardPromptTitleAge(Object age) {
+    return 'プロンプト  ·  $age歳';
+  }
+
+  @override
+  String get cardGuardFail =>
+      'Guard FAIL - 構図のずれ / ズーム / マスク欠け。動画または切り抜きを再生成してください。';
+
+  @override
+  String get cardAnimsHeader => 'アニメーション - タップ = 選択、長押し = 割り当て / 削除';
+
+  @override
+  String cardAnimOpened(Object tag) {
+    return '「$tag」を作成しました - 2 Video で生成するか、プールから割り当ててください';
+  }
+
+  @override
+  String cardPickPoolVideo(Object tag) {
+    return '「$tag」用の動画をプールから選択';
+  }
+
+  @override
+  String cardCandidatesHeader(Object count) {
+    return '候補 ($count) - タップ = 選択';
+  }
+
+  @override
+  String get cardCandidatePicked => '候補を選択中のスチルにしました';
+
+  @override
+  String cardRunFailed(Object step, Object error) {
+    return '$step: $error';
+  }
 }

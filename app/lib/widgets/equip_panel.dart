@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/app_localizations.dart';
+import '../services/app_l10n.dart';
 import '../services/character_flow_service.dart';
 import '../services/generate_service.dart';
 import '../theme.dart';
@@ -64,18 +66,20 @@ class EquipSelection {
 /// #331: RPG yuvalari - sol sutun / sag sutun, ortada base. Sira = ekranda
 /// yukaridan asagiya. `set` bir yuvadir (tam takim), parcalarla birlikte
 /// kullanilabilir (sunucu once seti giydirir, sonra parcalari).
-const kEquipLeft = <(String, String, IconData)>[
-  ('hat', 'Kafa', Icons.face_retouching_natural),
-  ('headgear', 'Kafalik', Icons.auto_awesome),
-  ('top', 'Ust', Icons.checkroom),
-  ('bottom', 'Alt', Icons.airline_seat_legroom_normal),
-  ('socks', 'Corap', Icons.airline_seat_legroom_extra),
+/// Yuvanin gorunen adi kategori adidir (`CharacterFlowService.categoryLabel`):
+/// yuva, secici ve katalog ayni kelimeyi kullanir.
+const kEquipLeft = <(String, IconData)>[
+  ('hat', Icons.face_retouching_natural),
+  ('headgear', Icons.auto_awesome),
+  ('top', Icons.checkroom),
+  ('bottom', Icons.airline_seat_legroom_normal),
+  ('socks', Icons.airline_seat_legroom_extra),
 ];
-const kEquipRight = <(String, String, IconData)>[
-  ('set', 'Set', Icons.dry_cleaning),
-  ('shoes', 'Ayakkabi', Icons.ice_skating),
-  ('accessory', 'Kolluk / Aks.', Icons.watch),
-  ('weapon', 'Silah', Icons.gavel),
+const kEquipRight = <(String, IconData)>[
+  ('set', Icons.dry_cleaning),
+  ('shoes', Icons.ice_skating),
+  ('accessory', Icons.watch),
+  ('weapon', Icons.gavel),
 ];
 
 /// Kiyafet kucuk resmi (9:16 contain) - her yerde ayni gorunum.
@@ -107,8 +111,8 @@ Widget outfitThumb(OutfitItem o, {double width = 78, double height = 132,
             : Container(
                 color: Colors.white10,
                 alignment: Alignment.center,
-                child: const Text('kuyrukta',
-                    style: TextStyle(fontSize: 10, color: Colors.orange)),
+                child: Text(appL10n.appStatusQueued,
+                    style: const TextStyle(fontSize: 10, color: Colors.orange)),
               ),
       ),
     );
@@ -168,17 +172,20 @@ Future<void> showSlotPicker(
     context: context,
     isScrollControlled: true,
     builder: (c) => StatefulBuilder(
-      builder: (c, setLocal) => SafeArea(
+      builder: (c, setLocal) {
+        final l10n = AppLocalizations.of(c)!;
+        return SafeArea(
         child: SizedBox(
           height: MediaQuery.of(c).size.height * 0.7,
           child: Column(
             children: [
               ListTile(
-                title: Text('${CharacterFlowService.categoryLabel(cat)} yuvasi'),
+                title: Text(l10n.equipSlotTitle(
+                    CharacterFlowService.categoryLabel(cat))),
                 subtitle: Text(
                     multi
-                        ? 'coklu secim - dokun: giydir / cikar'
-                        : 'tek secim - dokun: giydir, tekrar dokun: cikar',
+                        ? l10n.equipSlotMultiHint
+                        : l10n.equipSlotSingleHint,
                     style: const TextStyle(fontSize: 11)),
                 trailing: TextButton(
                   onPressed: () {
@@ -187,17 +194,20 @@ Future<void> showSlotPicker(
                     setLocal(() {});
                     if (!multi) Navigator.pop(c);
                   },
-                  child: const Text('(bos)'),
+                  child: Text(l10n.equipSlotEmpty),
                 ),
               ),
               const Divider(height: 1),
               Expanded(
                 child: list.isEmpty
-                    ? const Center(
-                        child: Text('Bu kategoride hazir kiyafet yok - '
-                            '"+ Kiyafet uret" ya da "Kiyafet cikar"',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(fontSize: 12, color: Colors.grey)))
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Text(l10n.equipSlotNoOutfits,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                  fontSize: 12, color: Colors.grey)),
+                        ))
                     : OutfitCatalogGrid(
                         outfits: list,
                         selected: (o) => selection.of(cat).contains(o.slug),
@@ -213,7 +223,8 @@ Future<void> showSlotPicker(
             ],
           ),
         ),
-      ),
+      );
+      },
     ),
   );
 }
@@ -316,6 +327,7 @@ class EquipPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final sol = [for (final s in kEquipLeft) _slot(context, s)];
     final sag = [for (final s in kEquipRight) _slot(context, s)];
     return Column(
@@ -323,8 +335,8 @@ class EquipPanel extends StatelessWidget {
       children: [
         Row(
           children: [
-            const Text('Base:',
-                style: TextStyle(fontSize: 12, color: Colors.grey)),
+            Text(l10n.equipBaseLabel,
+                style: const TextStyle(fontSize: 12, color: Colors.grey)),
             const SizedBox(width: 8),
             Expanded(
               child: DropdownButton<String>(
@@ -357,7 +369,7 @@ class EquipPanel extends StatelessWidget {
                       selection.clearAll();
                       onChanged();
                     },
-              child: const Text('Soyun', style: TextStyle(fontSize: 12)),
+              child: Text(l10n.equipUndress, style: const TextStyle(fontSize: 12)),
             ),
           ],
         ),
@@ -397,8 +409,9 @@ class EquipPanel extends StatelessWidget {
     );
   }
 
-  Widget _slot(BuildContext context, (String, String, IconData) s) {
-    final (cat, etiket, ikon) = s;
+  Widget _slot(BuildContext context, (String, IconData) s) {
+    final (cat, ikon) = s;
+    final etiket = CharacterFlowService.categoryLabel(cat);
     final secili = selection.of(cat);
     final ilk = secili.isEmpty ? null : _find(secili.first);
     final dolu = secili.isNotEmpty;
@@ -487,6 +500,7 @@ Future<GenerateJob?> pickGeneratedImage(BuildContext context) async {
     return null;
   }
   if (!context.mounted) return null;
+  final l10n = AppLocalizations.of(context)!;
   return showModalBottomSheet<GenerateJob>(
     context: context,
     isScrollControlled: true,
@@ -495,18 +509,17 @@ Future<GenerateJob?> pickGeneratedImage(BuildContext context) async {
         height: MediaQuery.of(c).size.height * 0.75,
         child: Column(
           children: [
-            const ListTile(
-              title: Text('Kaynak gorsel sec'),
-              subtitle: Text('Son tamamlanmis uretimler (her kip). Jigsaw akisindaki '
-                  'incoming/staging/pushed icin FlowHub > Jigsaw ekranini kullan.',
-                  style: TextStyle(fontSize: 11)),
+            ListTile(
+              title: Text(l10n.equipPickSourceTitle),
+              subtitle: Text(l10n.equipPickSourceHint,
+                  style: const TextStyle(fontSize: 11)),
             ),
             const Divider(height: 1),
             Expanded(
               child: jobs.isEmpty
-                  ? const Center(
-                      child: Text('Tamamlanmis gorsel yok',
-                          style: TextStyle(color: Colors.grey)))
+                  ? Center(
+                      child: Text(l10n.equipNoFinishedImage,
+                          style: const TextStyle(color: Colors.grey)))
                   : GridView.builder(
                       padding: const EdgeInsets.all(8),
                       gridDelegate:

@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:flutter/services.dart' show rootBundle;
 
+import 'app_l10n.dart';
 import 'jigsaw_flow_service.dart' show JigsawFlowService;
 
 /// Jigsaw kipinin derece profilleri (Hot Jigsaw / Kid Jigsaw).
@@ -14,8 +15,49 @@ import 'jigsaw_flow_service.dart' show JigsawFlowService;
 /// settings.json'inda `jigsaw.options_file` altinda tutulur).
 class JigsawField {
   final String key;
+
+  /// Secenek dosyasindaki ad (dosya masaustu studyosuyla ortaktir).
   final String label;
   const JigsawField(this.key, this.label);
+
+  /// Alanin uygulama dilindeki adi. Alan kimligi bilinen bir alansa dil
+  /// dosyasindan okunur; dosyaya sonradan eklenen bir alan kendi adiyla
+  /// gorunur.
+  String get displayLabel {
+    final l = appL10n;
+    final ad = label.toLowerCase();
+    return switch (key) {
+      'location' => l.fieldLocation,
+      'theme' => ad.contains('estetik') ? l.fieldEra : l.cardTplTheme,
+      'weather' => ad.contains('isik') ? l.fieldWeatherLight : l.fieldWeather,
+      'job' => l.fieldJob,
+      'fantasy' => l.fieldFantasy,
+      'outfit_color' => l.fieldOutfitColor,
+      'outfit' => l.fieldOutfit,
+      'hair' => ad.contains('reng') ? l.fieldHairColor : l.fieldHair,
+      'hairstyle' => l.fieldHairstyle,
+      'eyes' => l.fieldEyes,
+      'race' => l.fieldRace,
+      'expression' => l.fieldExpression,
+      'pose' => l.fieldPose,
+      'angle' => l.fieldAngle,
+      'subject' => l.jigsawFlowMetaSubject,
+      'style' => l.fieldStyle,
+      'mood' => l.fieldMood,
+      'palette' => l.fieldColor,
+      'creature' => l.fieldCreature,
+      'class' => l.fieldClass,
+      'set' => l.outfitCatSet,
+      'age' => l.fieldAge,
+      'origin' => l.fieldOrigin,
+      'body' => l.fieldBody,
+      'skin' => l.fieldSkin,
+      'face' => l.fieldFace,
+      'prop' => l.outfitCatWeapon,
+      'gesture' => l.fieldGesture,
+      _ => label,
+    };
+  }
 }
 
 class JigsawProfile {
@@ -127,7 +169,7 @@ class JigsawProfiles {
           opts[f.key] = list;
           if (list.isEmpty) eksik.add('$label/${f.key}');
         }
-        if (fields.isEmpty) eksik.add('$label (alan tanimi yok)');
+        if (fields.isEmpty) eksik.add(appL10n.optionsFieldsMissing(label));
         out[id] = JigsawProfile(
           id: id,
           label: label,
@@ -137,12 +179,12 @@ class JigsawProfiles {
           negative: '${blok['negatif'] ?? ''}',
         );
       });
-      loadError = eksik.isEmpty ? null : 'secenek dosyasinda eksik: ${eksik.join(", ")}';
+      loadError = eksik.isEmpty ? null : appL10n.optionsFileMissing(eksik.join(', '));
       _cache = out;
       return out;
     } catch (e) {
       // Sessizce bos gecmiyoruz: ekran bunu kullaniciya gosterir.
-      loadError = 'secenek dosyasi okunamadi: $e';
+      loadError = appL10n.optionsFileUnreadable('$e');
       _cache = {
         for (final e in ratings.entries)
           e.key: JigsawProfile(
@@ -286,7 +328,7 @@ class CbnProfiles {
       _cache = await JigsawProfiles.loadFrom('assets/cbn_secenekler.json', ratings);
       loadError = null;
     } catch (e) {
-      loadError = 'CBN secenek dosyasi okunamadi: $e';
+      loadError = appL10n.optionsFileUnreadableNamed('CBN', '$e');
       _cache = {
         for (final e in ratings.entries)
           e.key: JigsawProfile(
@@ -317,7 +359,7 @@ class CharacterProfiles {
       _cache = await JigsawProfiles.loadFrom('assets/karakter_secenekler.json', ratings);
       loadError = null;
     } catch (e) {
-      loadError = 'Karakter secenek dosyasi okunamadi: $e';
+      loadError = appL10n.optionsFileUnreadableNamed(appL10n.kindCharacter, '$e');
       _cache = {
         id: const JigsawProfile(
             id: id, label: 'Karakter', fields: [],
@@ -352,7 +394,7 @@ class CardProfiles {
       _cache = await JigsawProfiles.loadFrom('assets/kart_secenekler.json', ratings);
       loadError = null;
     } catch (e) {
-      loadError = 'Kart secenek dosyasi okunamadi: $e';
+      loadError = appL10n.optionsFileUnreadableNamed(appL10n.kindCard, '$e');
       _cache = {
         id: const JigsawProfile(
             id: id, label: 'Kart Modu', fields: [],

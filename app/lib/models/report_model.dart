@@ -15,6 +15,7 @@ class ReportModel {
   final String pulledAt;
   final String closedAt;
   final Map<String, dynamic> meta; // device brand/model, os version, sdk, ...
+  final String _contactEmail;
 
   const ReportModel({
     required this.id,
@@ -32,7 +33,8 @@ class ReportModel {
     this.pulledAt = '',
     this.closedAt = '',
     this.meta = const {},
-  });
+    String contactEmail = '',
+  }) : _contactEmail = contactEmail;
 
   bool get isOpen => status != 'closed';
 
@@ -63,6 +65,11 @@ class ReportModel {
     return sdk.isNotEmpty ? '$base (API $sdk)' : base;
   }
 
+  /// The reply address the reporter typed (optional on the form), or ''.
+  /// The server sends it top-level; older servers only carry it in meta.
+  String get contactEmail =>
+      _contactEmail.isNotEmpty ? _contactEmail : _metaStr('contact_email');
+
   static String _cap(String s) =>
       s.isEmpty ? s : '${s[0].toUpperCase()}${s.substring(1)}';
 
@@ -87,5 +94,6 @@ class ReportModel {
         pulledAt: (j['pulled_at'] ?? '').toString(),
         closedAt: (j['closed_at'] ?? '').toString(),
         meta: (j['meta'] is Map) ? Map<String, dynamic>.from(j['meta'] as Map) : const {},
+        contactEmail: (j['contact_email'] ?? '').toString(),
       );
 }

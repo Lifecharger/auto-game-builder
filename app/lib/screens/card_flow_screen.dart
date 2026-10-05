@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../l10n/app_localizations.dart';
+import '../services/app_l10n.dart';
 import '../services/card_flow_service.dart';
 import '../services/jigsaw_flow_service.dart' show FlowOp;
 import '../services/mode_service.dart';
@@ -40,17 +42,18 @@ Color cardStageColor(int stage) => switch (stage) {
 
 /// Rozetin ustundeki kisa asama adi (ipucu metni).
 String cardStageName(int stage) => switch (stage) {
-      4 => 'push edilmis',
-      3 => 'webp hazir',
-      2 => 'video hazir',
-      1 => 'still hazir',
-      _ => 'bos',
+      4 => appL10n.cardStagePushed,
+      3 => appL10n.cardStageWebp,
+      2 => appL10n.cardStageVideo,
+      1 => appL10n.cardStageStill,
+      _ => appL10n.cardStageEmpty,
     };
 
 /// Bir rutbenin kucuk durum rozeti - liste kartinda 13 (+2) tane yan yana.
 Widget cardRankBadge(String rank, CardRankState s, {double size = 9}) => Tooltip(
-      message: '$rank - ${cardStageName(s.stage)}'
-          '${s.warn ? " (kontrol)" : ""}',
+      message: s.warn
+          ? appL10n.cardRankTooltipWarn(rank, cardStageName(s.stage))
+          : appL10n.cardRankTooltip(rank, cardStageName(s.stage)),
       child: Container(
         alignment: Alignment.center,
         padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 2),
@@ -151,6 +154,7 @@ Future<VideoIstek?> videoDialog(
   String secili = '',
   String baslik = '2 Video',
 }) async {
+  final l10n = AppLocalizations.of(context)!;
   const havuz = '__havuz__';
   const yeni = '__yeni__';
   final ilkSablon = secili.isNotEmpty && gestures.contains(secili)
@@ -178,19 +182,16 @@ Future<VideoIstek?> videoDialog(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                  'Ilk kare = son kare (dongu). Kamera kilitli kalir - kadraj, '
-                  'olcek ve fon degismez. Cikti once HAVUZA girer; etiket '
-                  'secersen oraya da atanir.',
-                  style: TextStyle(fontSize: 11, color: Colors.grey)),
+              Text(l10n.cardVideoIntro,
+                  style: const TextStyle(fontSize: 11, color: Colors.grey)),
               const SizedBox(height: 10),
               DropdownButtonFormField<String>(
                 initialValue: sablon,
                 isExpanded: true,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                     isDense: true,
-                    border: OutlineInputBorder(),
-                    labelText: 'Sablon (metni doldurur)'),
+                    border: const OutlineInputBorder(),
+                    labelText: l10n.cardVideoTemplate),
                 items: [
                   for (final g in gestures)
                     DropdownMenuItem(
@@ -211,35 +212,36 @@ Future<VideoIstek?> videoDialog(
                 minLines: 2,
                 maxLines: 5,
                 style: const TextStyle(fontSize: 13),
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   isDense: true,
-                  border: OutlineInputBorder(),
-                  labelText: 'Hareket cumlesi (giden prompt)',
-                  helperText: 'Gorunur hareket tarif et; sonunda baslangic pozuna donsun',
-                  helperMaxLines: 2,
+                  border: const OutlineInputBorder(),
+                  labelText: l10n.cardVideoMotion,
+                  helperText: l10n.cardVideoMotionHelp,
+                  helperMaxLines: 3,
                 ),
               ),
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
                 initialValue: hedef,
                 isExpanded: true,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                     isDense: true,
-                    border: OutlineInputBorder(),
-                    labelText: 'Etikete ata'),
+                    border: const OutlineInputBorder(),
+                    labelText: l10n.cardVideoAssignTag),
                 items: [
-                  const DropdownMenuItem(
+                  DropdownMenuItem(
                       value: havuz,
-                      child: Text('(yalniz havuza - sonra atarim)',
-                          style: TextStyle(fontSize: 13))),
+                      child: Text(l10n.cardVideoPoolOnly,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 13))),
                   for (final a in anims)
                     DropdownMenuItem(
                         value: a,
                         child: Text(a, style: const TextStyle(fontSize: 13))),
-                  const DropdownMenuItem(
+                  DropdownMenuItem(
                       value: yeni,
-                      child: Text('Yeni etiket...',
-                          style: TextStyle(fontSize: 13))),
+                      child: Text(l10n.cardVideoNewTag,
+                          style: const TextStyle(fontSize: 13))),
                 ],
                 onChanged: (v) => setLocal(() => hedef = v ?? havuz),
               ),
@@ -250,11 +252,11 @@ Future<VideoIstek?> videoDialog(
                     controller: yeniC,
                     autofocus: true,
                     style: const TextStyle(fontSize: 13),
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                         isDense: true,
-                        border: OutlineInputBorder(),
-                        labelText: 'Yeni etiket adi',
-                        hintText: 'orn. victory'),
+                        border: const OutlineInputBorder(),
+                        labelText: l10n.cardVideoNewTagName,
+                        hintText: l10n.cardTagHint),
                   ),
                 ),
               if (engines.length > 1) ...[
@@ -262,16 +264,16 @@ Future<VideoIstek?> videoDialog(
                 DropdownButtonFormField<String>(
                   initialValue: motor,
                   isExpanded: true,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                       isDense: true,
-                      border: OutlineInputBorder(),
-                      labelText: 'Motor'),
+                      border: const OutlineInputBorder(),
+                      labelText: l10n.engine),
                   items: [
                     for (final e in engines)
                       DropdownMenuItem(
                           value: e.id,
                           enabled: e.available,
-                          child: Text(e.available ? e.label : '${e.label} (kurulu degil)',
+                          child: Text(e.available ? e.label : l10n.cardTplEngineUnavailable(e.label),
                               style: const TextStyle(fontSize: 13))),
                   ],
                   onChanged: (v) => setLocal(() => motor = v ?? motor),
@@ -282,7 +284,7 @@ Future<VideoIstek?> videoDialog(
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(c), child: const Text('Vazgec')),
+              onPressed: () => Navigator.pop(c), child: Text(l10n.cancel)),
           FilledButton(
             onPressed: () {
               final metin = metinC.text.trim();
@@ -294,7 +296,7 @@ Future<VideoIstek?> videoDialog(
               }
               Navigator.pop(c, VideoIstek(metin, tag: t, engine: motor));
             },
-            child: const Text('Uret'),
+            child: Text(l10n.generate),
           ),
         ],
       ),
@@ -303,7 +305,8 @@ Future<VideoIstek?> videoDialog(
 }
 
 Future<String?> gestureDialog(BuildContext context, List<String> gestures,
-    {String baslik = 'Animasyon - jest sec', String secili = ''}) async {
+    {String? baslik, String secili = ''}) async {
+  final l10n = AppLocalizations.of(context)!;
   var v = secili.isNotEmpty && gestures.contains(secili)
       ? secili
       : (gestures.isNotEmpty ? gestures.first : 'idle');
@@ -319,17 +322,15 @@ Future<String?> gestureDialog(BuildContext context, List<String> gestures,
     builder: (c) => StatefulBuilder(
       builder: (c, setLocal) => AlertDialog(
         scrollable: true,
-        title: Text(baslik),
+        title: Text(baslik ?? l10n.cardGestureTitle),
         content: SizedBox(
           width: 380,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                  'MiniMax H3: idle 6 sn, victory 2 sn. Kamera kilitli kalir - kadraj, olcek ve '
-                  'fon degismez.',
-                  style: TextStyle(fontSize: 11, color: Colors.grey)),
+              Text(l10n.cardGestureIntro,
+                  style: const TextStyle(fontSize: 11, color: Colors.grey)),
               const SizedBox(height: 10),
               // RadioListTile Flutter 3.32'de kullanimdan kalkti - duz
               // ListTile + isaret ayni isi gorur.
@@ -355,7 +356,7 @@ Future<String?> gestureDialog(BuildContext context, List<String> gestures,
                         : Icons.radio_button_unchecked,
                     size: 18,
                     color: v == ozel ? AppColors.accent : Colors.grey),
-                title: const Text('Ozel hareket'),
+                title: Text(l10n.cardGestureCustom),
                 onTap: () => setLocal(() => v = ozel),
               ),
               if (v == ozel)
@@ -367,11 +368,11 @@ Future<String?> gestureDialog(BuildContext context, List<String> gestures,
                     minLines: 1,
                     maxLines: 3,
                     style: const TextStyle(fontSize: 13),
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       isDense: true,
-                      border: OutlineInputBorder(),
-                      hintText: 'ornek: hafifce kalca sallama, ayaklar sabit',
-                      helperText: 'Kisa bir hareket cumlesi - kamera yine kilitli',
+                      border: const OutlineInputBorder(),
+                      hintText: l10n.cardGestureCustomHint,
+                      helperText: l10n.cardGestureCustomHelp,
                       helperMaxLines: 2,
                     ),
                   ),
@@ -381,14 +382,14 @@ Future<String?> gestureDialog(BuildContext context, List<String> gestures,
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(c), child: const Text('Vazgec')),
+              onPressed: () => Navigator.pop(c), child: Text(l10n.cancel)),
           FilledButton(
               onPressed: () {
                 final t = ozelC.text.trim();
                 if (v == ozel && t.isEmpty) return;   // bos ozel metinle uretme
                 Navigator.pop(c, v == ozel ? t : v);
               },
-              child: const Text('Uret')),
+              child: Text(l10n.generate)),
         ],
       ),
     ),
@@ -397,13 +398,14 @@ Future<String?> gestureDialog(BuildContext context, List<String> gestures,
 
 /// Kesim kipi secici - `sam` (duz gri fon) | `hybrid` (eski yesil masterlar).
 Future<String?> cutModeDialog(BuildContext context, List<String> modes) async {
+  final l10n = AppLocalizations.of(context)!;
   var v = modes.isNotEmpty ? modes.first : 'sam';
   return showDialog<String>(
     context: context,
     builder: (c) => StatefulBuilder(
       builder: (c, setLocal) => AlertDialog(
         scrollable: true,
-        title: const Text('3 WebP - kesim kipi'),
+        title: Text(l10n.cardCutTitle),
         content: SizedBox(
           width: 380,
           child: Column(
@@ -423,8 +425,8 @@ Future<String?> cutModeDialog(BuildContext context, List<String> modes) async {
                   title: Text(m),
                   subtitle: Text(
                       m == 'hybrid'
-                          ? 'Eski yesil Grok masterlari - chroma + SAM birlikte'
-                          : 'Varsayilan - yalniz SAM3, duz acik gri fon',
+                          ? l10n.cardCutHybrid
+                          : l10n.cardCutSam,
                       style: const TextStyle(fontSize: 11)),
                   onTap: () => setLocal(() => v = m),
                 ),
@@ -433,9 +435,9 @@ Future<String?> cutModeDialog(BuildContext context, List<String> modes) async {
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(c), child: const Text('Vazgec')),
+              onPressed: () => Navigator.pop(c), child: Text(l10n.cancel)),
           FilledButton(
-              onPressed: () => Navigator.pop(c, v), child: const Text('Kes')),
+              onPressed: () => Navigator.pop(c, v), child: Text(l10n.cardCutAction)),
         ],
       ),
     ),
@@ -451,6 +453,7 @@ class CardEditIstek {
 }
 
 Future<CardEditIstek?> cardEditDialog(BuildContext context, String baslik) async {
+  final l10n = AppLocalizations.of(context)!;
   final ctl = TextEditingController();
   var nsfw = false;
   final ok = await showDialog<bool>(
@@ -458,7 +461,7 @@ Future<CardEditIstek?> cardEditDialog(BuildContext context, String baslik) async
     builder: (c) => StatefulBuilder(
       builder: (c, setLocal) => AlertDialog(
         scrollable: true,
-        title: Text('Duzenle - $baslik'),
+        title: Text(l10n.cardEditTitle(baslik)),
         content: SizedBox(
           width: 440,
           child: Column(
@@ -469,28 +472,25 @@ Future<CardEditIstek?> cardEditDialog(BuildContext context, String baslik) async
                 controller: ctl,
                 autofocus: true,
                 maxLines: 3,
-                decoration: const InputDecoration(
-                  labelText: 'Duzeltme cumlesi',
-                  hintText: 'orn. sacini kisalt / eldivenleri cikar',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: l10n.cardEditSentence,
+                  hintText: l10n.cardEditSentenceHint,
+                  border: const OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: 8),
-              const Text(
-                  'Kabul edilen still bu cumleyle duzenlenir; kimlik, poz ve '
-                  'fon korunur. Yeni gorsel otomatik kabul edilir.',
-                  style: TextStyle(fontSize: 11, color: Colors.grey)),
+              Text(l10n.cardEditBody,
+                  style: const TextStyle(fontSize: 11, color: Colors.grey)),
               // #361: temel Qwen bir noktadan sonra reddediyor (etek kisaltma
               // vb.); MCNL LoRA'li akis sinirsiz duzenler.
               SwitchListTile(
                 dense: true,
                 contentPadding: EdgeInsets.zero,
                 value: nsfw,
-                title: const Text('Sinirsiz duzenleme (NSFW LoRA)',
-                    style: TextStyle(fontSize: 13)),
-                subtitle: const Text(
-                    'Qwen reddederse ac - MCNL LoRA, 20 adim, biraz daha yavas',
-                    style: TextStyle(fontSize: 10, color: Colors.grey)),
+                title: Text(l10n.cardEditUnrestricted,
+                    style: const TextStyle(fontSize: 13)),
+                subtitle: Text(l10n.cardEditUnrestrictedHint,
+                    style: const TextStyle(fontSize: 10, color: Colors.grey)),
                 onChanged: (v) => setLocal(() => nsfw = v),
               ),
             ],
@@ -498,9 +498,9 @@ Future<CardEditIstek?> cardEditDialog(BuildContext context, String baslik) async
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(c, false), child: const Text('Vazgec')),
+              onPressed: () => Navigator.pop(c, false), child: Text(l10n.cancel)),
           FilledButton(
-              onPressed: () => Navigator.pop(c, true), child: const Text('Duzenle')),
+              onPressed: () => Navigator.pop(c, true), child: Text(l10n.edit)),
         ],
       ),
     ),
@@ -511,8 +511,7 @@ Future<CardEditIstek?> cardEditDialog(BuildContext context, String baslik) async
 }
 
 /// Kuyruk bildirimi - ev kurali: "Siraya eklendi (N is) - Sira sekmesinden izle".
-String queueSnackText(int adet) =>
-    'Siraya eklendi ($adet is) - Sira sekmesinden izle';
+String queueSnackText(int adet) => appL10n.cardQueuedJobs(adet);
 
 /// Sunucu ucu yoksa gosterilen "yakinda" gorunumu (#321 paralel yaziliyor).
 Widget cardSoonView(String ne) => Center(
@@ -523,15 +522,13 @@ Widget cardSoonView(String ne) => Center(
           children: [
             const Icon(Icons.hourglass_empty, size: 36, color: Colors.grey),
             const SizedBox(height: 10),
-            Text('$ne - yakinda',
+            Text(appL10n.cardSoonTitle(ne),
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 6),
-            const Text(
-                'Sunucudaki kart uclari henuz acik degil. Uclar acilinca bu '
-                'ekran kendiliginden calisir.',
+            Text(appL10n.cardSoonBody,
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 12, color: Colors.grey)),
+                style: const TextStyle(fontSize: 12, color: Colors.grey)),
           ],
         ),
       ),
@@ -552,6 +549,8 @@ class CardFlowScreen extends StatefulWidget {
 
 class _CardFlowScreenState extends State<CardFlowScreen>
     with WidgetsBindingObserver {
+  AppLocalizations get l10n => AppLocalizations.of(context)!;
+
   // #340: uygulamaya donunce liste kendiliginden tazelenir - eskiden
   // arkaplandayken uretilen yeni gorseller listede bayat kaliyordu.
 
@@ -648,10 +647,12 @@ class _CardFlowScreenState extends State<CardFlowScreen>
         if (!o.running) {
           t.cancel();
           _snack(o.status == 'error'
-              ? 'Islem hatasi: ${o.message}'
+              ? l10n.flowOpError(o.message)
               : o.status == 'cancelled'
-                  ? 'Islem iptal edildi'
-                  : '${o.ok} tamam${o.failed > 0 ? ", ${o.failed} hata" : ""}');
+                  ? l10n.flowOpCancelled
+                  : o.failed > 0
+                      ? l10n.flowOpDoneWithFailed(o.ok, o.failed)
+                      : l10n.flowOpDone(o.ok));
           _load();
         }
       } catch (_) {
@@ -681,7 +682,7 @@ class _CardFlowScreenState extends State<CardFlowScreen>
         builder: (c, setLocal) => AlertDialog(
           // #289: uzun icerik + klavye kucuk ekranda tasiyordu.
           scrollable: true,
-          title: const Text('Yeni koleksiyon'),
+          title: Text(l10n.cardNewCollection),
           content: SizedBox(
             width: 440,
             child: Column(
@@ -691,26 +692,26 @@ class _CardFlowScreenState extends State<CardFlowScreen>
                 TextField(
                   controller: idC,
                   autofocus: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Kimlik (id)',
-                    hintText: 'orn. police_royale',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: l10n.cardIdLabel,
+                    hintText: l10n.cardIdHintCollection,
+                    border: const OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 10),
                 TextField(
                   controller: adC,
-                  decoration: const InputDecoration(
-                    labelText: 'Ad',
-                    hintText: 'orn. Police Royale',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: l10n.commonName,
+                    hintText: l10n.cardNameHintCollection,
+                    border: const OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 10),
                 if (sablonlar.isNotEmpty) ...[
                   const SizedBox(height: 10),
-                  const Text('Hazir kart sec (istege bagli)',
-                      style: TextStyle(fontSize: 11, color: Colors.grey)),
+                  Text(l10n.cardPickPreset,
+                      style: const TextStyle(fontSize: 11, color: Colors.grey)),
                   const SizedBox(height: 4),
                   Wrap(
                     spacing: 6,
@@ -733,46 +734,45 @@ class _CardFlowScreenState extends State<CardFlowScreen>
                 TextField(
                   controller: temaC,
                   maxLines: 4,
-                  decoration: const InputDecoration(
-                    labelText: 'Tema',
-                    hintText: 'orn. sexy police costume with badge and duty belt',
-                    helperText: 'Formul: kimlik + STRICT PALETTE + Signature pieces',
+                  decoration: InputDecoration(
+                    labelText: l10n.cardTplTheme,
+                    hintText: l10n.cardThemeHint,
+                    hintMaxLines: 2,
+                    helperText: l10n.cardThemeFormula,
                     helperMaxLines: 2,
-                    border: OutlineInputBorder(),
+                    border: const OutlineInputBorder(),
                   ),
                 ),
                 SwitchListTile(
                   dense: true,
                   contentPadding: EdgeInsets.zero,
                   value: jokers,
-                  title: const Text('Joker (2 adet)'),
-                  subtitle: const Text('13 rutbe yerine 15',
-                      style: TextStyle(fontSize: 11)),
+                  title: Text(l10n.cardJokers),
+                  subtitle: Text(l10n.cardJokersHint,
+                      style: const TextStyle(fontSize: 11)),
                   onChanged: (v) => setLocal(() => jokers = v),
                 ),
-                const Text(
-                    'Her rutbe icin 1 still kuyruga girer (ten/sac/kiyafet/poz '
-                    'rotasyonu). Onay sorulmaz - ince ayar ✎ / ↻ ile yapilir.',
-                    style: TextStyle(fontSize: 11, color: Colors.grey)),
+                Text(l10n.cardNewCollectionNote,
+                    style: const TextStyle(fontSize: 11, color: Colors.grey)),
               ],
             ),
           ),
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(c, false),
-                child: const Text('Vazgec')),
+                child: Text(l10n.cancel)),
             FilledButton(
                 onPressed: () => Navigator.pop(c, true),
-                child: const Text('Olustur')),
+                child: Text(l10n.create)),
           ],
         ),
       ),
     );
-    if (ok != true) return;
+    if (ok != true || !mounted) return;
     final id = idC.text.trim();
     final ad = adC.text.trim();
     if (id.isEmpty || ad.isEmpty) {
-      _snack('Kimlik ve ad bos olamaz');
+      _snack(l10n.cardIdNameRequired);
       return;
     }
     final adet = jokers ? 15 : 13;
@@ -802,7 +802,7 @@ class _CardFlowScreenState extends State<CardFlowScreen>
       builder: (c) => StatefulBuilder(
         builder: (c, setLocal) => AlertDialog(
           scrollable: true,
-          title: const Text('Yeni krupiye'),
+          title: Text(l10n.cardNewDealer),
           content: SizedBox(
             width: 440,
             child: Column(
@@ -812,37 +812,38 @@ class _CardFlowScreenState extends State<CardFlowScreen>
                 TextField(
                   controller: idC,
                   autofocus: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Kimlik (id)',
-                    hintText: 'orn. scarlett',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: l10n.cardIdLabel,
+                    hintText: l10n.cardIdHintDealer,
+                    border: const OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 10),
                 TextField(
                   controller: adC,
-                  decoration: const InputDecoration(
-                    labelText: 'Ad',
-                    hintText: 'orn. Scarlett',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: l10n.commonName,
+                    hintText: l10n.cardNameHintDealer,
+                    border: const OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 10),
                 TextField(
                   controller: temaC,
                   maxLines: 3,
-                  decoration: const InputDecoration(
-                    labelText: 'Tema / kiyafet',
-                    hintText: 'orn. kumarhane yelegi ve papyon, noir kirmizi elbise',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: l10n.cardDealerTheme,
+                    hintText: l10n.cardDealerThemeHint,
+                    hintMaxLines: 2,
+                    border: const OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 10),
                 DropdownButtonFormField<String>(
                   initialValue: jest,
-                  decoration: const InputDecoration(
-                    labelText: 'Jest',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: l10n.fieldGesture,
+                    border: const OutlineInputBorder(),
                   ),
                   items: [
                     for (final g in _profiles.dealerGestures)
@@ -851,29 +852,27 @@ class _CardFlowScreenState extends State<CardFlowScreen>
                   onChanged: (v) => setLocal(() => jest = v ?? jest),
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                    'Krupiye bel ustu kadrajda uretilir (eller masada, kameraya '
-                    'bakiyor). Rutbe yoktur - tek oge dort asamadan gecer.',
-                    style: TextStyle(fontSize: 11, color: Colors.grey)),
+                Text(l10n.cardDealerNote,
+                    style: const TextStyle(fontSize: 11, color: Colors.grey)),
               ],
             ),
           ),
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(c, false),
-                child: const Text('Vazgec')),
+                child: Text(l10n.cancel)),
             FilledButton(
                 onPressed: () => Navigator.pop(c, true),
-                child: const Text('Olustur')),
+                child: Text(l10n.create)),
           ],
         ),
       ),
     );
-    if (ok != true) return;
+    if (ok != true || !mounted) return;
     final id = idC.text.trim();
     final ad = adC.text.trim();
     if (id.isEmpty || ad.isEmpty) {
-      _snack('Kimlik ve ad bos olamaz');
+      _snack(l10n.cardIdNameRequired);
       return;
     }
     try {
@@ -890,7 +889,7 @@ class _CardFlowScreenState extends State<CardFlowScreen>
   }
 
   Future<bool> _confirm(String baslik, String metin,
-          {String onay = 'Devam'}) async =>
+          {String? onay}) async =>
       await showDialog<bool>(
         context: context,
         builder: (c) => AlertDialog(
@@ -900,9 +899,10 @@ class _CardFlowScreenState extends State<CardFlowScreen>
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(c, false),
-                child: const Text('Vazgec')),
+                child: Text(l10n.cancel)),
             FilledButton(
-                onPressed: () => Navigator.pop(c, true), child: Text(onay)),
+                onPressed: () => Navigator.pop(c, true),
+                child: Text(onay ?? l10n.continueLabel)),
           ],
         ),
       ) ??
@@ -912,23 +912,21 @@ class _CardFlowScreenState extends State<CardFlowScreen>
   /// canlandirilir (dokuman §0). Sabaha 3. asamaya kadar biter, push elle.
   Future<void> _reanimateAll() async {
     final jest = await gestureDialog(context, _profiles.gestures,
-        baslik: 'Gece modu - jest sec');
+        baslik: l10n.cardNightPickGesture);
     if (jest == null) return;
     if (!mounted) return;
     final ok = await _confirm(
-        'Gece modu',
-        'Butun kartlar VE krupiyeler yeniden canlandirilir: mevcut still -> '
-            'LTX-2.5 i2v ($jest) -> SAM kesim -> sheet.\n\n'
-            'Uzun surer, hepsi kuyruga girer. Push YAPILMAZ.',
-        onay: 'Kuyruga ekle');
+        l10n.cardNightMode,
+        l10n.cardNightBody(jest),
+        onay: l10n.flowAddToQueue);
     if (!ok) return;
     try {
       final op = await CardFlowService.reanimate(
           collection: 'all', gesture: jest, includeDealers: true);
       _watch(op);
       _snack(op.isEmpty
-          ? 'Siraya eklendi - Sira sekmesinden izle'
-          : 'Siraya eklendi (op $op) - Sira sekmesinden izle');
+          ? l10n.cardQueued
+          : l10n.cardQueuedOp(op));
     } on CardNotReadyException catch (e) {
       _snack(e.message);
     } catch (e) {
@@ -941,17 +939,15 @@ class _CardFlowScreenState extends State<CardFlowScreen>
   /// fonuna cevirir - yeniden canlandirmadan once bir kez calistirilir.
   Future<void> _restillAll() async {
     final ok = await _confirm(
-        'Fonlari griye al',
-        'Butun kartlarin VE krupiyelerin still fonu duz acik griye cevrilir '
-            '(kadin aynen kalir). Ilk hal still_green.png olarak saklanir, '
-            'zaten gri olanlar atlanir.\n\nVideo uretilmez.',
-        onay: 'Kuyruga ekle');
+        l10n.cardRestillTitle,
+        l10n.cardRestillBody,
+        onay: l10n.flowAddToQueue);
     if (!ok) return;
     try {
       final op = await CardFlowService.restill(
           collection: 'all', includeDealers: true);
       _watch(op);
-      _snack('Siraya eklendi - Sira sekmesinden izle');
+      _snack(l10n.cardQueued);
     } on CardNotReadyException catch (e) {
       _snack(e.message);
     } catch (e) {
@@ -978,20 +974,18 @@ class _CardFlowScreenState extends State<CardFlowScreen>
       context: context,
       builder: (c) => AlertDialog(
         scrollable: true,
-        title: const Text('Manifest onizleme'),
+        title: Text(l10n.cardManifestPreview),
         content: SizedBox(
           width: 460,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('$koleksiyonlar koleksiyon, $krupiyeler krupiye',
+              Text(l10n.cardManifestCounts(koleksiyonlar, krupiyeler),
                   style: const TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
-              const Text(
-                  'Manifest dosyasi PUSH sirasinda yazilir (once dosyalar, '
-                  'sonra manifest). Bu yalnizca onizlemedir.',
-                  style: TextStyle(fontSize: 11, color: Colors.grey)),
+              Text(l10n.cardManifestNote,
+                  style: const TextStyle(fontSize: 11, color: Colors.grey)),
               const SizedBox(height: 10),
               SelectableText(m.toString(),
                   style: const TextStyle(fontSize: 10, fontFamily: 'monospace')),
@@ -1000,7 +994,7 @@ class _CardFlowScreenState extends State<CardFlowScreen>
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(c), child: const Text('Kapat')),
+              onPressed: () => Navigator.pop(c), child: Text(l10n.close)),
         ],
       ),
     );
@@ -1020,32 +1014,32 @@ class _CardFlowScreenState extends State<CardFlowScreen>
             // #352: koleksiyon ayarlari listeden de acilir.
             ListTile(
               leading: const Icon(Icons.tune),
-              title: const Text('Koleksiyon Karti (ayarlar)'),
-              subtitle: const Text('tema, 16 yuva, model, yuz rotusu',
-                  style: TextStyle(fontSize: 11)),
+              title: Text(l10n.cardCollectionCardSettings),
+              subtitle: Text(l10n.cardCollectionCardSettingsHint,
+                  style: const TextStyle(fontSize: 11)),
               onTap: () => Navigator.pop(c, 'card'),
             ),
             ListTile(
               leading: const Icon(Icons.autorenew),
-              title: const Text('Yeniden canlandir'),
-              subtitle: const Text('still -> i2v -> kesim (bu koleksiyon)',
-                  style: TextStyle(fontSize: 11)),
+              title: Text(l10n.cardReanimate),
+              subtitle: Text(l10n.cardReanimateHint,
+                  style: const TextStyle(fontSize: 11)),
               onTap: () => Navigator.pop(c, 'reanimate'),
             ),
             // #325: anime koleksiyonu gercekci kadina cevirir (id/ad degismez).
             ListTile(
               leading: const Icon(Icons.photo_camera_outlined),
-              title: const Text('Anime -> gercekci (koleksiyon)'),
-              subtitle: const Text('her still edit_qwen ile gercekci fotografa',
-                  style: TextStyle(fontSize: 11)),
+              title: Text(l10n.cardRealify),
+              subtitle: Text(l10n.cardRealifyHint,
+                  style: const TextStyle(fontSize: 11)),
               onTap: () => Navigator.pop(c, 'realify'),
             ),
             ListTile(
               leading: Icon(Icons.delete_outline, color: AppColors.error),
-              title: Text('Koleksiyonu sil',
+              title: Text(l10n.cardDeleteCollection,
                   style: TextStyle(color: AppColors.error)),
-              subtitle: const Text('klasor butun kartlariyla silinir - geri alinamaz',
-                  style: TextStyle(fontSize: 11)),
+              subtitle: Text(l10n.cardDeleteCollectionHint,
+                  style: const TextStyle(fontSize: 11)),
               onTap: () => Navigator.pop(c, 'delete'),
             ),
           ],
@@ -1069,14 +1063,14 @@ class _CardFlowScreenState extends State<CardFlowScreen>
       // canlandirma zaten still'den yeni video uretiyor).
       if (secim == 'reanimate') {
         final jest = await gestureDialog(context, _profiles.gestures);
-        if (jest == null) return;
+        if (jest == null || !mounted) return;
         final op = await CardFlowService.reanimate(
             collection: id, gesture: jest, includeDealers: false);
         _watch(op);
       } else if (secim == 'realify') {
         _watch(await CardFlowService.realify(collection: id, kind: _kind));
       }
-      _snack('Siraya eklendi - Sira sekmesinden izle');
+      _snack(l10n.cardQueued);
     } on CardNotReadyException catch (e) {
       _snack(e.message);
     } catch (e) {
@@ -1088,14 +1082,15 @@ class _CardFlowScreenState extends State<CardFlowScreen>
   Future<void> _deleteEntry(String id, String ad, {required String kind}) async {
     final krupiye = kind == 'dealer';
     final ok = await _confirm(
-        '${krupiye ? "Krupiyeyi" : "Koleksiyonu"} sil - $ad',
-        '${krupiye ? "Krupiye" : "Koleksiyon"} klasoru butun dosyalariyla silinir.\n\n'
-            'GERI ALINAMAZ. R2\'ye push edilmis dosyalar kovada kalir.',
-        onay: 'Sil');
+        krupiye
+            ? l10n.cardDeleteDealerTitle(ad)
+            : l10n.cardDeleteCollectionTitle(ad),
+        krupiye ? l10n.cardDeleteDealerBody : l10n.cardDeleteCollectionBody,
+        onay: l10n.delete);
     if (!ok) return;
     try {
       await CardFlowService.deleteCollection(id, kind: kind);
-      _snack('$ad silindi');
+      _snack(l10n.cardDeletedNamed(ad));
     } on CardNotReadyException catch (e) {
       _snack(e.message);
     } catch (e) {
@@ -1117,16 +1112,16 @@ class _CardFlowScreenState extends State<CardFlowScreen>
                 title: Text(d.name, style: const TextStyle(fontWeight: FontWeight.bold))),
             ListTile(
               leading: const Icon(Icons.tune),
-              title: const Text('Krupiye Karti (ayarlar)'),
-              subtitle: const Text('tema, sablon, model, yuz rotusu',
-                  style: TextStyle(fontSize: 11)),
+              title: Text(l10n.cardDealerCardSettings),
+              subtitle: Text(l10n.cardDealerCardSettingsHint,
+                  style: const TextStyle(fontSize: 11)),
               onTap: () => Navigator.pop(c, 'card'),
             ),
             ListTile(
               leading: Icon(Icons.delete_outline, color: AppColors.error),
-              title: Text('Krupiyeyi sil', style: TextStyle(color: AppColors.error)),
-              subtitle: const Text('klasor butun dosyalariyla silinir - geri alinamaz',
-                  style: TextStyle(fontSize: 11)),
+              title: Text(l10n.cardDeleteDealer, style: TextStyle(color: AppColors.error)),
+              subtitle: Text(l10n.cardDeleteDealerHint,
+                  style: const TextStyle(fontSize: 11)),
               onTap: () => Navigator.pop(c, 'delete'),
             ),
           ],
@@ -1149,35 +1144,33 @@ class _CardFlowScreenState extends State<CardFlowScreen>
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(
-          title: const Text('Kart hatti'),
+          title: Text(l10n.cardFlowTitle),
           // #353: hat anahtari app bar'in altinda tam genislikte.
           bottom: kindSwitchBottom(widget.kindSwitch),
           actions: [
             IconButton(
               icon: const Icon(Icons.code),
-              tooltip: 'Code Mod',
+              tooltip: l10n.assetCodeMode,
               onPressed: () => ModeService.set(false),
             ),
             IconButton(
                 icon: const Icon(Icons.refresh),
-                tooltip: 'Yenile',
+                tooltip: l10n.refresh,
                 onPressed: _load),
             PopupMenuButton<String>(
-              tooltip: 'Toplu islemler',
+              tooltip: l10n.cardBulkActions,
               onSelected: (v) => switch (v) {
                 'night' => _reanimateAll(),
                 'restill' => _restillAll(),          // #325
                 _ => _manifestPreview(),
               },
-              itemBuilder: (_) => const [
+              itemBuilder: (_) => [
                 PopupMenuItem(
-                    value: 'night',
-                    child: Text('Gece modu: hepsini yeniden canlandir')),
+                    value: 'night', child: Text(l10n.cardNightMenu)),
                 PopupMenuItem(
-                    value: 'restill',
-                    child: Text('Fonlari griye al (hepsi)')),
+                    value: 'restill', child: Text(l10n.cardRestillMenu)),
                 PopupMenuItem(
-                    value: 'manifest', child: Text('Manifest onizle')),
+                    value: 'manifest', child: Text(l10n.cardManifestMenu)),
               ],
             ),
           ],
@@ -1187,7 +1180,7 @@ class _CardFlowScreenState extends State<CardFlowScreen>
             : FloatingActionButton.extended(
                 onPressed: _dealerMode ? _newDealer : _newCollection,
                 icon: const Icon(Icons.add),
-                label: Text(_dealerMode ? 'Yeni krupiye' : 'Yeni koleksiyon'),
+                label: Text(_dealerMode ? l10n.cardNewDealer : l10n.cardNewCollection),
               ),
         body: Column(
           children: [
@@ -1197,7 +1190,7 @@ class _CardFlowScreenState extends State<CardFlowScreen>
               child: _loading
                   ? const Center(child: CircularProgressIndicator())
                   : _soon
-                      ? cardSoonView(_dealerMode ? 'Krupiyeler' : 'Kart hatti')
+                      ? cardSoonView(_dealerMode ? l10n.cardDealers : l10n.cardFlowTitle)
                       : _error != null
                           ? errorView(_error!, _load)
                           : _dealerMode
@@ -1250,15 +1243,13 @@ class _CardFlowScreenState extends State<CardFlowScreen>
 
   Widget _collectionList() {
     if (_colls.isEmpty) {
-      return const Center(
+      return Center(
         child: Padding(
-          padding: EdgeInsets.all(28),
+          padding: const EdgeInsets.all(28),
           child: Text(
-            'Henuz koleksiyon yok.\n\n"+ Yeni koleksiyon" ile kimlik, ad ve '
-            'tema ver - 13 (istersen 15) rutbe icin 1\'er still kuyruga girer, '
-            'sonra 2 Video ve 3 WebP asamalari.',
+            l10n.cardEmptyCollections,
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey),
+            style: const TextStyle(color: Colors.grey),
           ),
         ),
       );
@@ -1385,14 +1376,13 @@ class _CardFlowScreenState extends State<CardFlowScreen>
 
   Widget _dealerList() {
     if (_dealers.isEmpty) {
-      return const Center(
+      return Center(
         child: Padding(
-          padding: EdgeInsets.all(28),
+          padding: const EdgeInsets.all(28),
           child: Text(
-            'Henuz krupiye yok.\n\n"+ Yeni krupiye" ile ad, tema ve jest ver - '
-            'bel ustu kadrajda tek oge uretilir ve dort asamadan gecer.',
+            l10n.cardEmptyDealers,
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey),
+            style: const TextStyle(color: Colors.grey),
           ),
         ),
       );
@@ -1475,7 +1465,7 @@ class _CardFlowScreenState extends State<CardFlowScreen>
                     cardStageChips(s),
                     if (d.gesture.isNotEmpty) ...[
                       const SizedBox(height: 4),
-                      Text('jest ${d.gesture}',
+                      Text(l10n.cardGestureLine(d.gesture),
                           style:
                               const TextStyle(fontSize: 11, color: Colors.grey)),
                     ],
@@ -1524,6 +1514,8 @@ class CardCollectionPage extends StatefulWidget {
 }
 
 class _CardCollectionPageState extends State<CardCollectionPage> {
+  AppLocalizations get l10n => AppLocalizations.of(context)!;
+
   CardCollection? _c;
   CardProfilesInfo _profiles = const CardProfilesInfo();
   final Set<String> _sel = {};
@@ -1590,10 +1582,12 @@ class _CardCollectionPageState extends State<CardCollectionPage> {
         if (!o.running) {
           t.cancel();
           _snack(o.status == 'error'
-              ? 'Islem hatasi: ${o.message}'
+              ? l10n.flowOpError(o.message)
               : o.status == 'cancelled'
-                  ? 'Islem iptal edildi'
-                  : '${o.ok} tamam${o.failed > 0 ? ", ${o.failed} hata" : ""}');
+                  ? l10n.flowOpCancelled
+                  : o.failed > 0
+                      ? l10n.flowOpDoneWithFailed(o.ok, o.failed)
+                      : l10n.flowOpDone(o.ok));
           _load();
         }
       } catch (_) {
@@ -1607,7 +1601,7 @@ class _CardCollectionPageState extends State<CardCollectionPage> {
   }
 
   Future<bool> _confirm(String baslik, String metin,
-          {String onay = 'Devam'}) async =>
+          {String? onay}) async =>
       await showDialog<bool>(
         context: context,
         builder: (c) => AlertDialog(
@@ -1617,9 +1611,10 @@ class _CardCollectionPageState extends State<CardCollectionPage> {
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(c, false),
-                child: const Text('Vazgec')),
+                child: Text(l10n.cancel)),
             FilledButton(
-                onPressed: () => Navigator.pop(c, true), child: Text(onay)),
+                onPressed: () => Navigator.pop(c, true),
+                child: Text(onay ?? l10n.continueLabel)),
           ],
         ),
       ) ??
@@ -1634,6 +1629,7 @@ class _CardCollectionPageState extends State<CardCollectionPage> {
     final r = _targets(hepsi: hepsi);
     try {
       final op = await CardFlowService.stills(collection: widget.id, ranks: r);
+      if (!mounted) return;
       setState(_sel.clear);
       _watch(op);
       _snack(queueSnackText(r.length));
@@ -1654,23 +1650,22 @@ class _CardCollectionPageState extends State<CardCollectionPage> {
       context: context,
       builder: (c) => StatefulBuilder(
         builder: (c, setLocal) => AlertDialog(
-          title: Text('2 Video (${r.length} kart)'),
+          title: Text(l10n.cardAnimateTitle(r.length)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Her karta 2 animasyon uretilir ve etiketine atanir:\n'
-                  '• idle - 6 sn, tek kontrollu jest\n'
-                  '• victory - 2 sn, kadraj icinde kisa sevinme\n'
-                  'Toplam ${r.length * 2} video; eskileri havuzda kalir.',
+              Text(l10n.cardAnimateBody(r.length * 2),
                   style: const TextStyle(fontSize: 12)),
               if (motorlar.length > 1) ...[
                 const SizedBox(height: 10),
                 DropdownButtonFormField<String>(
                   initialValue: motorlar.any((e) => e.id == motor) ? motor : motorlar.first.id,
                   isExpanded: true,
-                  decoration: const InputDecoration(
-                      isDense: true, border: OutlineInputBorder(), labelText: 'Motor'),
+                  decoration: InputDecoration(
+                      isDense: true,
+                      border: const OutlineInputBorder(),
+                      labelText: l10n.engine),
                   items: [
                     for (final e in motorlar)
                       DropdownMenuItem(
@@ -1684,8 +1679,8 @@ class _CardCollectionPageState extends State<CardCollectionPage> {
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Vazgec')),
-            FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Uret')),
+            TextButton(onPressed: () => Navigator.pop(c, false), child: Text(l10n.cancel)),
+            FilledButton(onPressed: () => Navigator.pop(c, true), child: Text(l10n.generate)),
           ],
         ),
       ),
@@ -1694,6 +1689,7 @@ class _CardCollectionPageState extends State<CardCollectionPage> {
     try {
       final op = await CardFlowService.animateSet(
           collection: widget.id, ranks: r, engine: motor);
+      if (!mounted) return;
       setState(_sel.clear);
       _watch(op);
       _snack(queueSnackText(r.length * 2));
@@ -1712,6 +1708,7 @@ class _CardCollectionPageState extends State<CardCollectionPage> {
       // #362: videosu olan her animasyon kesilir (kart basina 2 webp).
       final op = await CardFlowService.cut(
           collection: widget.id, ranks: r, mode: mode, anim: CardFlowService.allAnims);
+      if (!mounted) return;
       setState(_sel.clear);
       _watch(op);
       _snack(queueSnackText(r.length));
@@ -1724,7 +1721,7 @@ class _CardCollectionPageState extends State<CardCollectionPage> {
 
   Future<void> _edit() async {
     if (_sel.length != 1) {
-      _snack('Duzenleme tek rutbe icin - bir kart sec');
+      _snack(l10n.cardEditNeedsOne);
       return;
     }
     final rank = _sel.first;
@@ -1733,6 +1730,7 @@ class _CardCollectionPageState extends State<CardCollectionPage> {
     try {
       final op = await CardFlowService.edit(
           collection: widget.id, rank: rank, prompt: ist.prompt, nsfw: ist.nsfw);
+      if (!mounted) return;
       setState(_sel.clear);
       _watch(op);
       _snack(queueSnackText(1));
@@ -1747,17 +1745,16 @@ class _CardCollectionPageState extends State<CardCollectionPage> {
   Future<void> _push() async {
     final (_, _, w, _) = _c?.progress ?? (0, 0, 0, 0);
     final ok = await _confirm(
-        'Push - ${widget.title}',
-        'Sheet ve thumb dosyalari R2 (cards) uzerine yuklenir, sonra '
-            'manifest yazilir. Su an $w/${_ranks.length} rutbenin webp\'i hazir.'
-            '\n\nBu bir YAYIN islemidir, GERI ALINAMAZ.',
-        onay: 'Push');
+        l10n.cardPushTitle(widget.title),
+        l10n.cardPushBody(w, _ranks.length),
+        onay: l10n.flowPush);
     if (!ok) return;
     try {
       final op = await CardFlowService.push(collection: widget.id);
+      if (!mounted) return;
       setState(_sel.clear);
       _watch(op);
-      _snack('Push siraya eklendi - Sira sekmesinden izle');
+      _snack(l10n.cardPushQueued);
     } on CardNotReadyException catch (e) {
       _snack(e.message);
     } catch (e) {
@@ -1772,15 +1769,15 @@ class _CardCollectionPageState extends State<CardCollectionPage> {
           leading: _selecting
               ? IconButton(
                   icon: const Icon(Icons.close),
-                  tooltip: 'Secimi birak',
+                  tooltip: l10n.bucketsClearSelection,
                   onPressed: () => setState(_sel.clear))
               : null,
-          title: Text(_selecting ? '${_sel.length} secili' : widget.title),
+          title: Text(_selecting ? l10n.bucketsSelectedCount(_sel.length) : widget.title),
           actions: [
             if (_selecting)
               IconButton(
                 icon: const Icon(Icons.select_all),
-                tooltip: 'Tumunu sec',
+                tooltip: l10n.flowSelectAll,
                 onPressed: () => setState(() => _sel.addAll(_ranks)),
               ),
             // #352: Koleksiyon Karti (16 yuva + model + yuz rotusu) artik
@@ -1788,23 +1785,23 @@ class _CardCollectionPageState extends State<CardCollectionPage> {
             // cubuktaki "Kart" dugmesinin arkasindaydi, bulunamiyordu.
             IconButton(
                 icon: const Icon(Icons.tune),
-                tooltip: 'Koleksiyon Karti - tema, 16 yuva, model, yuz rotusu',
+                tooltip: l10n.cardCollectionCardTooltip,
                 onPressed: _sablonlariAc),
             IconButton(
                 icon: const Icon(Icons.refresh),
-                tooltip: 'Yenile',
+                tooltip: l10n.refresh,
                 onPressed: _load),
             PopupMenuButton<String>(
-              tooltip: 'Daha fazla',
+              tooltip: l10n.commonMore,
               onSelected: (v) => switch (v) {
                 'delete' => _deleteCollection(),
                 _ => _sablonlariAc(),
               },
-              itemBuilder: (_) => const [
+              itemBuilder: (_) => [
                 PopupMenuItem(
-                    value: 'card', child: Text('Koleksiyon Karti (ayarlar)')),
+                    value: 'card', child: Text(l10n.cardCollectionCardSettings)),
                 PopupMenuItem(
-                    value: 'delete', child: Text('Koleksiyonu sil')),
+                    value: 'delete', child: Text(l10n.cardDeleteCollection)),
               ],
             ),
           ],
@@ -1852,8 +1849,8 @@ class _CardCollectionPageState extends State<CardCollectionPage> {
             Expanded(
               child: Text(
                   tema.isEmpty
-                      ? 'Tema yok - dokun: Koleksiyon Karti'
-                      : '$tema\nKoleksiyon Karti: dokun (tema, 16 yuva, model, yuz rotusu)',
+                      ? l10n.cardNoThemeTap
+                      : l10n.cardThemeTap(tema),
                   maxLines: 3,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -1871,11 +1868,11 @@ class _CardCollectionPageState extends State<CardCollectionPage> {
   Future<void> _deleteCollection() async {
     final (s, _, _, p) = _c?.progress ?? (0, 0, 0, 0);
     final ok = await _confirm(
-        'Koleksiyonu sil - ${widget.title}',
-        'Koleksiyon klasoru butun kartlariyla silinir ($s still'
-            '${p > 0 ? ", $p push edilmis" : ""}).\n\n'
-            'GERI ALINAMAZ. R2\'ye push edilmis dosyalar kovada kalir.',
-        onay: 'Sil');
+        l10n.cardDeleteCollectionTitle(widget.title),
+        p > 0
+            ? l10n.cardDeleteCollectionStillsPushed(s, p)
+            : l10n.cardDeleteCollectionStills(s),
+        onay: l10n.delete);
     if (!ok) return;
     try {
       await CardFlowService.deleteCollection(widget.id, kind: 'card');
@@ -1894,10 +1891,9 @@ class _CardCollectionPageState extends State<CardCollectionPage> {
     final r = _sel.toList()..sort();
     if (r.isEmpty) return;
     final ok = await _confirm(
-        'Kartlari temizle',
-        '${r.join(", ")} - still, adaylar, video ve webp silinir; rutbe bos '
-            'kalir ("1 Still" ile yeniden uretilir).',
-        onay: 'Temizle');
+        l10n.cardClearCards,
+        l10n.cardClearCardsBody(r.join(', ')),
+        onay: l10n.clear);
     if (!ok) return;
     var hata = 0;
     for (final rank in r) {
@@ -1909,7 +1905,7 @@ class _CardCollectionPageState extends State<CardCollectionPage> {
     }
     if (!mounted) return;
     setState(_sel.clear);
-    _snack(hata == 0 ? '${r.length} kart temizlendi' : '$hata kart temizlenemedi');
+    _snack(hata == 0 ? l10n.cardsCleared(r.length) : l10n.cardsClearFailed(hata));
     _load();
   }
 
@@ -1938,13 +1934,13 @@ class _CardCollectionPageState extends State<CardCollectionPage> {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         child: Row(
           children: [
-            _stageButton(Icons.image_outlined, '1 Still uret',
+            _stageButton(Icons.image_outlined, l10n.cardGenerateStill,
                 () => _stills(hepsi: true)),
             const SizedBox(width: 8),
-            _stageButton(Icons.movie_creation_outlined, '2 Video uret',
+            _stageButton(Icons.movie_creation_outlined, l10n.cardGenerateVideo,
                 () => _animate(hepsi: true)),
             const SizedBox(width: 8),
-            _stageButton(Icons.content_cut, '3 WebP uret', () => _cut(hepsi: true)),
+            _stageButton(Icons.content_cut, l10n.cardGenerateWebp, () => _cut(hepsi: true)),
             const SizedBox(width: 8),
             _stageButton(Icons.cloud_upload_outlined, '4 Push', _push,
                 vurgulu: true),
@@ -1970,9 +1966,9 @@ class _CardCollectionPageState extends State<CardCollectionPage> {
               _act(Icons.image_outlined, '1 Still', () => _stills()),
               _act(Icons.movie_creation_outlined, '2 Video', () => _animate()),
               _act(Icons.content_cut, '3 WebP', () => _cut()),
-              _act(Icons.edit_outlined, 'Duzenle', _edit),
+              _act(Icons.edit_outlined, l10n.edit, _edit),
               // #352: begenilmeyen karti at (rutbe bosa doner).
-              _act(Icons.delete_sweep_outlined, 'Temizle', _clearSelected),
+              _act(Icons.delete_sweep_outlined, l10n.clear, _clearSelected),
             ],
           ),
         ),
@@ -2062,7 +2058,7 @@ class _CardCollectionPageState extends State<CardCollectionPage> {
                       color: s.still ? Colors.deepPurple.shade400 : Colors.white10,
                       borderRadius: BorderRadius.circular(5),
                     ),
-                    child: Text('ARKA',
+                    child: Text(l10n.cardBackUpper,
                         style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
@@ -2205,6 +2201,8 @@ class CardDetailPage extends StatefulWidget {
 }
 
 class _CardDetailPageState extends State<CardDetailPage> {
+  AppLocalizations get l10n => AppLocalizations.of(context)!;
+
   String _view = 'still';
   CardRankState _state = const CardRankState();
   CardProfilesInfo _profiles = const CardProfilesInfo();
@@ -2323,10 +2321,12 @@ class _CardDetailPageState extends State<CardDetailPage> {
         if (!o.running) {
           t.cancel();
           _snack(o.status == 'error'
-              ? 'Islem hatasi: ${o.message}'
+              ? l10n.flowOpError(o.message)
               : o.status == 'cancelled'
-                  ? 'Islem iptal edildi'
-                  : '${o.ok} tamam${o.failed > 0 ? ", ${o.failed} hata" : ""}');
+                  ? l10n.flowOpCancelled
+                  : o.failed > 0
+                      ? l10n.flowOpDoneWithFailed(o.ok, o.failed)
+                      : l10n.flowOpDone(o.ok));
           _load();
         }
       } catch (_) {
@@ -2349,7 +2349,7 @@ class _CardDetailPageState extends State<CardDetailPage> {
     } on CardNotReadyException catch (e) {
       _snack(e.message);
     } catch (e) {
-      _snack('$ad: ${e.toString().replaceFirst('Exception: ', '')}');
+      _snack(l10n.cardRunFailed(ad, e.toString().replaceFirst('Exception: ', '')));
     }
   }
 
@@ -2357,7 +2357,7 @@ class _CardDetailPageState extends State<CardDetailPage> {
     final ist = await cardEditDialog(context, widget.title);
     if (ist == null) return;
     await _run(
-        'Duzenle',
+        l10n.edit,
         () => CardFlowService.edit(
             collection: widget.collection,
             rank: widget.rank,
@@ -2399,8 +2399,8 @@ class _CardDetailPageState extends State<CardDetailPage> {
   Future<void> _deleteAsset() async {
     final what = _view == 'cut' ? 'sheet' : _view;
     final ad = switch (what) {
-      'video' => 'Video ($_anim)',
-      'sheet' => 'WebP / kesim ($_anim)',
+      'video' => l10n.cardAssetVideo(_anim),
+      'sheet' => l10n.cardAssetSheet(_anim),
       _ => 'Still',
     };
     final var_ = switch (what) {
@@ -2409,23 +2409,21 @@ class _CardDetailPageState extends State<CardDetailPage> {
       _ => _state.still,
     };
     if (!var_) {
-      _snack('$ad yok');
+      _snack(l10n.cardAssetMissing(ad));
       return;
     }
     final ok = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
-        title: Text('$ad silinsin mi?'),
+        title: Text(l10n.cardAssetDeleteConfirm(ad)),
         content: Text(switch (what) {
-          'video' => 'Yalniz bu etiketin videosu silinir; havuzdaki kopya, '
-              'still ve webp kalir.',
-          'sheet' => 'Yalniz sheet.webp, thumb ve kesim kareleri silinir; '
-              'video ve still kalir.',
-          _ => 'Yalniz secili still silinir; adaylar, video ve webp kalir.',
+          'video' => l10n.cardAssetDeleteVideoBody,
+          'sheet' => l10n.cardAssetDeleteSheetBody,
+          _ => l10n.cardAssetDeleteStillBody,
         }),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Vazgec')),
-          FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Sil')),
+          TextButton(onPressed: () => Navigator.pop(c, false), child: Text(l10n.cancel)),
+          FilledButton(onPressed: () => Navigator.pop(c, true), child: Text(l10n.delete)),
         ],
       ),
     );
@@ -2434,7 +2432,7 @@ class _CardDetailPageState extends State<CardDetailPage> {
       await CardFlowService.deleteAsset(widget.collection, widget.rank, what,
           kind: widget.kind, anim: what == 'still' ? '' : _anim);
       if (!mounted) return;
-      _snack('$ad silindi');
+      _snack(l10n.cardDeletedNamed(ad));
       await _load();
     } catch (e) {
       _snack(e.toString().replaceFirst('Exception: ', ''));
@@ -2459,12 +2457,12 @@ class _CardDetailPageState extends State<CardDetailPage> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
-        title: const Text('Havuzdan sil'),
-        content: Text('${v.id} havuzdan silinir. Etiketlere atanmis kopyalar '
-            '(${v.tags.isEmpty ? 'yok' : v.tags.join(', ')}) kalir.'),
+        title: Text(l10n.cardPoolDelete),
+        content: Text(l10n.cardPoolDeleteBody(
+            v.id, v.tags.isEmpty ? l10n.cardNone : v.tags.join(', '))),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Vazgec')),
-          FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Sil')),
+          TextButton(onPressed: () => Navigator.pop(c, false), child: Text(l10n.cancel)),
+          FilledButton(onPressed: () => Navigator.pop(c, true), child: Text(l10n.delete)),
         ],
       ),
     );
@@ -2484,23 +2482,23 @@ class _CardDetailPageState extends State<CardDetailPage> {
     final ad = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Yeni animasyon etiketi'),
+        title: Text(l10n.cardNewAnimTag),
         content: TextField(
           controller: c,
           autofocus: true,
-          decoration: const InputDecoration(
-            labelText: 'Ad',
-            hintText: 'orn. victory',
-            helperText: 'Oyun bu adla okur (idle, wink, victory ...)',
+          decoration: InputDecoration(
+            labelText: l10n.commonName,
+            hintText: l10n.cardTagHint,
+            helperText: l10n.cardNewAnimTagHelp,
             helperMaxLines: 2,
-            border: OutlineInputBorder(),
+            border: const OutlineInputBorder(),
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Vazgec')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(l10n.cancel)),
           FilledButton(
               onPressed: () => Navigator.pop(ctx, c.text.trim()),
-              child: const Text('Ekle')),
+              child: Text(l10n.add)),
         ],
       ),
     );
@@ -2523,7 +2521,7 @@ class _CardDetailPageState extends State<CardDetailPage> {
               title: Text(v.id, style: const TextStyle(fontSize: 13)),
               subtitle: Text(
                   '${v.engine.isNotEmpty ? '${v.engine} · ' : ''}'
-                  '${v.tags.isEmpty ? 'atanmadi' : 'atandi: ${v.tags.join(', ')}'}'
+                  '${v.tags.isEmpty ? l10n.cardUnassigned : l10n.cardAssignedTo(v.tags.join(', '))}'
                   '${v.prompt.isNotEmpty ? '\n${v.prompt}' : ''}',
                   style: const TextStyle(fontSize: 11)),
             ),
@@ -2531,7 +2529,7 @@ class _CardDetailPageState extends State<CardDetailPage> {
             ListTile(
               dense: true,
               leading: const Icon(Icons.play_circle_outline),
-              title: const Text('Onizle'),
+              title: Text(l10n.flowPreview),
               onTap: () => Navigator.pop(c, 'play'),
             ),
             for (final a in _anims)
@@ -2540,19 +2538,19 @@ class _CardDetailPageState extends State<CardDetailPage> {
                 leading: Icon(v.tags.contains(a.name)
                     ? Icons.check_box
                     : Icons.label_outline),
-                title: Text('Ata: ${a.name}'),
+                title: Text(l10n.cardAssignTo(a.name)),
                 onTap: () => Navigator.pop(c, 'ata:${a.name}'),
               ),
             ListTile(
               dense: true,
               leading: const Icon(Icons.add),
-              title: const Text('Yeni etikete ata...'),
+              title: Text(l10n.cardAssignNewTag),
               onTap: () => Navigator.pop(c, 'yeni'),
             ),
             ListTile(
               dense: true,
               leading: Icon(Icons.delete_outline, color: AppColors.error),
-              title: const Text('Havuzdan sil'),
+              title: Text(l10n.cardPoolDelete),
               onTap: () => Navigator.pop(c, 'sil'),
             ),
           ],
@@ -2597,14 +2595,14 @@ class _CardDetailPageState extends State<CardDetailPage> {
                 dense: true,
                 title: Text(a.name, style: const TextStyle(fontSize: 13)),
                 subtitle: Text(
-                    a.stage >= 3 ? 'video + webp hazir' : (a.video ? 'video var, webp yok' : 'bos'),
+                    a.stage >= 3 ? l10n.cardAnimReady : (a.video ? l10n.cardAnimVideoOnly : l10n.cardStageEmpty),
                     style: const TextStyle(fontSize: 11))),
             const Divider(height: 8),
             for (final v in _videos)
               ListTile(
                 dense: true,
                 leading: Icon(v.tags.contains(a.name) ? Icons.check_box : Icons.movie_outlined),
-                title: Text('Ata: ${v.id}', style: const TextStyle(fontSize: 13)),
+                title: Text(l10n.cardAssignTo(v.id), style: const TextStyle(fontSize: 13)),
                 subtitle: v.prompt.isEmpty
                     ? null
                     : Text(v.prompt, maxLines: 1, overflow: TextOverflow.ellipsis,
@@ -2612,29 +2610,29 @@ class _CardDetailPageState extends State<CardDetailPage> {
                 onTap: () => Navigator.pop(c, 'ata:${v.id}'),
               ),
             if (_videos.isEmpty)
-              const ListTile(
+              ListTile(
                   dense: true,
-                  title: Text('Havuzda video yok - once "2 Video"',
-                      style: TextStyle(fontSize: 12, color: Colors.grey))),
+                  title: Text(l10n.cardPoolEmpty,
+                      style: const TextStyle(fontSize: 12, color: Colors.grey))),
             if (a.video)
               ListTile(
                 dense: true,
                 leading: Icon(Icons.delete_outline, color: AppColors.error),
-                title: const Text('Videoyu sil (etiket kalir)'),
+                title: Text(l10n.cardDeleteVideoKeepTag),
                 onTap: () => Navigator.pop(c, 'video'),
               ),
             if (a.sheet)
               ListTile(
                 dense: true,
                 leading: Icon(Icons.delete_outline, color: AppColors.error),
-                title: const Text('WebP / kesimi sil'),
+                title: Text(l10n.cardDeleteSheet),
                 onTap: () => Navigator.pop(c, 'sheet'),
               ),
             if (!a.isIdle)
               ListTile(
                 dense: true,
                 leading: Icon(Icons.label_off_outlined, color: AppColors.error),
-                title: const Text('Etiketi sil (video + webp ile)'),
+                title: Text(l10n.cardDeleteTag),
                 onTap: () => Navigator.pop(c, 'etiket'),
               ),
           ],
@@ -2667,7 +2665,7 @@ class _CardDetailPageState extends State<CardDetailPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Videolar (${_videos.length}) - dokun = ata / onizle / sil',
+          Text(l10n.cardVideosHeader(_videos.length),
               style: const TextStyle(fontSize: 11, color: Colors.grey)),
           const SizedBox(height: 4),
           SizedBox(
@@ -2706,7 +2704,7 @@ class _CardDetailPageState extends State<CardDetailPage> {
                           ),
                         ),
                         const SizedBox(height: 2),
-                        Text(atandi ? v.tags.join(', ') : 'atanmadi',
+                        Text(atandi ? v.tags.join(', ') : l10n.cardUnassigned,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             textAlign: TextAlign.center,
@@ -2745,17 +2743,16 @@ class _CardDetailPageState extends State<CardDetailPage> {
       context: context,
       builder: (c) => AlertDialog(
         scrollable: true,
-        title: Text(_dealer ? 'Krupiyeyi sil' : 'Karti temizle'),
+        title: Text(_dealer ? l10n.cardDeleteDealer : l10n.cardClearCard),
         content: Text(_dealer
-            ? '${widget.title} klasoru butun dosyalariyla silinir. GERI ALINAMAZ.'
-            : '${widget.title}: still, adaylar, video, webp ve animasyonlar '
-                'silinir; rutbe bos kalir ("1 Still" ile yeniden uretilir).'),
+            ? l10n.cardDeleteThisDealerBody(widget.title)
+            : l10n.cardClearCardBody(widget.title)),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(c, false), child: const Text('Vazgec')),
+              onPressed: () => Navigator.pop(c, false), child: Text(l10n.cancel)),
           FilledButton(
               onPressed: () => Navigator.pop(c, true),
-              child: Text(_dealer ? 'Sil' : 'Temizle')),
+              child: Text(_dealer ? l10n.delete : l10n.clear)),
         ],
       ),
     );
@@ -2784,11 +2781,11 @@ class _CardDetailPageState extends State<CardDetailPage> {
           actions: [
             IconButton(
                 icon: const Icon(Icons.refresh),
-                tooltip: 'Yenile',
+                tooltip: l10n.refresh,
                 onPressed: _load),
             IconButton(
                 icon: Icon(Icons.delete_outline, color: AppColors.error),
-                tooltip: _dealer ? 'Krupiyeyi sil' : 'Karti temizle (rutbe bosa doner)',
+                tooltip: _dealer ? l10n.cardDeleteDealer : l10n.cardClearCardTooltip,
                 onPressed: _deleteThis),
           ],
         ),
@@ -2819,9 +2816,9 @@ class _CardDetailPageState extends State<CardDetailPage> {
                                 segments: [
                                   const ButtonSegment(value: 'still', label: Text('Still')),
                                   // #353: kart arkasinin videosu/kesimi yoktur.
-                                  if (!_arka) ...const [
-                                    ButtonSegment(value: 'video', label: Text('Video')),
-                                    ButtonSegment(value: 'cut', label: Text('Kesim')),
+                                  if (!_arka) ...[
+                                    const ButtonSegment(value: 'video', label: Text('Video')),
+                                    ButtonSegment(value: 'cut', label: Text(l10n.cardViewCut)),
                                   ],
                                 ],
                                 selected: {_view},
@@ -2841,9 +2838,9 @@ class _CardDetailPageState extends State<CardDetailPage> {
                             IconButton(
                               icon: Icon(Icons.delete_outline, color: AppColors.error),
                               tooltip: switch (_view) {
-                                'video' => 'Bu videoyu sil ($_anim)',
-                                'cut' => 'WebP / kesimi sil ($_anim)',
-                                _ => 'Still\'i sil',
+                                'video' => l10n.cardDeleteThisVideo(_anim),
+                                'cut' => l10n.cardDeleteSheetTag(_anim),
+                                _ => l10n.cardDeleteStill,
                               },
                               visualDensity: VisualDensity.compact,
                               onPressed: _deleteAsset,
@@ -2873,14 +2870,14 @@ class _CardDetailPageState extends State<CardDetailPage> {
   Widget _preview() {
     switch (_view) {
       case 'video':
-        if (!_state.video) return _bos('Video yok - "2 Video" ile uret');
+        if (!_state.video) return _bos(l10n.cardNoVideo);
         return NetworkVideo(
           url: CardFlowService.fileUrl(widget.collection, widget.rank,
               kind: 'video', v: _state.rev, type: widget.kind),
           headers: CardFlowService.authHeaders,
         );
       case 'cut':
-        if (!_state.sheet) return _bos('Kesim yok - "3 WebP" ile uret');
+        if (!_state.sheet) return _bos(l10n.cardNoCut);
         // Sheet'in ILK karesi damali zeminde - alfa gorunur olsun.
         return CheckerBackground(
           child: InteractiveViewer(
@@ -2891,13 +2888,13 @@ class _CardDetailPageState extends State<CardDetailPage> {
                 headers: CardFlowService.authHeaders,
                 fit: BoxFit.contain,
                 errorBuilder: (_, _, _) =>
-                    const Center(child: Text('Kesim karesi okunamadi')),
+                    Center(child: Text(l10n.cardCutFrameFailed)),
               ),
             ),
           ),
         );
       default:
-        if (!_state.still) return _bos('Still yok - "1 Still" ile uret');
+        if (!_state.still) return _bos(l10n.cardNoStill);
         return InteractiveViewer(
           child: Center(
             child: Image.network(
@@ -2906,7 +2903,7 @@ class _CardDetailPageState extends State<CardDetailPage> {
               headers: CardFlowService.authHeaders,
               fit: BoxFit.contain,
               errorBuilder: (_, _, _) =>
-                  const Center(child: Text('Still okunamadi')),
+                  Center(child: Text(l10n.cardStillFailed)),
             ),
           ),
         );
@@ -2937,13 +2934,13 @@ class _CardDetailPageState extends State<CardDetailPage> {
                   context: context,
                   builder: (c) => AlertDialog(
                     scrollable: true,
-                    title: Text('Prompt${_state.age > 0 ? '  ·  ${_state.age} yas' : ''}'),
+                    title: Text(_state.age > 0 ? l10n.cardPromptTitleAge(_state.age) : 'Prompt'),
                     content: SelectableText(_state.prompt,
                         style: const TextStyle(fontSize: 12)),
                     actions: [
                       TextButton(
                           onPressed: () => Navigator.pop(c),
-                          child: const Text('Kapat')),
+                          child: Text(l10n.close)),
                     ],
                   ),
                 ),
@@ -2964,7 +2961,7 @@ class _CardDetailPageState extends State<CardDetailPage> {
             ],
             if (_state.gesture.isNotEmpty) ...[
               const SizedBox(height: 4),
-              Text('jest: ${_state.gesture}',
+              Text(l10n.cardGestureLine(_state.gesture),
                   style: const TextStyle(fontSize: 11, color: Colors.grey)),
             ],
             if (_state.metrics.isNotEmpty) ...[
@@ -2986,8 +2983,7 @@ class _CardDetailPageState extends State<CardDetailPage> {
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
-                        'Guard FAIL - kadraj kaymasi / zoom / maske kopmasi. '
-                        'Videoyu ya da kesimi yeniden uret.',
+                        l10n.cardGuardFail,
                         style:
                             TextStyle(fontSize: 11, color: AppColors.error)),
                   ),
@@ -3008,8 +3004,8 @@ class _CardDetailPageState extends State<CardDetailPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Animasyonlar - dokun = sec, uzun bas = ata / sil',
-              style: TextStyle(fontSize: 11, color: Colors.grey)),
+          Text(l10n.cardAnimsHeader,
+              style: const TextStyle(fontSize: 11, color: Colors.grey)),
           const SizedBox(height: 4),
           SizedBox(
             height: 118,
@@ -3029,11 +3025,14 @@ class _CardDetailPageState extends State<CardDetailPage> {
                       border: Border.all(color: Colors.white24),
                       borderRadius: BorderRadius.circular(6),
                     ),
-                    child: const Column(
+                    child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.add, size: 20),
-                        Text('Yeni', style: TextStyle(fontSize: 10)),
+                        const Icon(Icons.add, size: 20),
+                        Text(l10n.flowNew,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 10)),
                       ],
                     ),
                   ),
@@ -3103,7 +3102,7 @@ class _CardDetailPageState extends State<CardDetailPage> {
       _anim = t;
     });
     if (_videos.isEmpty) {
-      _snack('"$t" acildi - 2 Video ile uret ya da havuzdan ata');
+      _snack(l10n.cardAnimOpened(t));
       return;
     }
     // #357: havuzda video varsa hemen sec-ata.
@@ -3117,7 +3116,7 @@ class _CardDetailPageState extends State<CardDetailPage> {
           children: [
             ListTile(
                 dense: true,
-                title: Text('"$t" icin havuzdan video sec',
+                title: Text(l10n.cardPickPoolVideo(t),
                     style: const TextStyle(fontSize: 13))),
             for (final v in _videos)
               ListTile(
@@ -3125,7 +3124,7 @@ class _CardDetailPageState extends State<CardDetailPage> {
                 leading: const Icon(Icons.movie_outlined),
                 title: Text(v.id, style: const TextStyle(fontSize: 13)),
                 subtitle: Text(
-                    v.tags.isEmpty ? 'atanmadi' : v.tags.join(', '),
+                    v.tags.isEmpty ? l10n.cardUnassigned : v.tags.join(', '),
                     style: const TextStyle(fontSize: 11)),
                 onTap: () => Navigator.pop(c, v),
               ),
@@ -3157,7 +3156,7 @@ class _CardDetailPageState extends State<CardDetailPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Adaylar (${_adaylar.length}) - dokun = sec',
+          Text(l10n.cardCandidatesHeader(_adaylar.length),
               style: const TextStyle(fontSize: 11, color: Colors.grey)),
           const SizedBox(height: 6),
           SizedBox(
@@ -3223,8 +3222,7 @@ class _CardDetailPageState extends State<CardDetailPage> {
       await CardFlowService.pickCandidate(widget.collection, widget.rank, file,
           kind: widget.kind);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Aday secili still oldu')));
+      _snack(l10n.cardCandidatePicked);
       await _load();
     } catch (e) {
       if (!mounted) return;
@@ -3258,7 +3256,7 @@ class _CardDetailPageState extends State<CardDetailPage> {
               FilledButton.tonalIcon(
                   onPressed: _edit,
                   icon: const Icon(Icons.edit_outlined, size: 16),
-                  label: const Text('Duzenle')),
+                  label: Text(l10n.edit)),
               const SizedBox(width: 8),
               FilledButton.tonalIcon(
                   onPressed: _redoStill,

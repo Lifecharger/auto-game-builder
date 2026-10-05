@@ -8,6 +8,10 @@ import 'package:http_parser/http_parser.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'api_service.dart';
+import 'app_l10n.dart';
+import 'usage_events.dart';
+
 /// One screenshot the user attached to a report.
 class ReportShot {
   final List<int> bytes;
@@ -120,15 +124,43 @@ class ReportService {
     return {};
   }
 
+  /// Longest address the form accepts (the RFC limit for a mailbox).
+  static const int maxEmailLength = 254;
+
+  static final RegExp _emailShape = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]{2,}$');
+
+  /// The contact address a user typed, cleaned up: trimmed, or empty when
+  /// the field was left blank. Null when something was typed that is not
+  /// an e-mail address (the form shows an error and does not send).
+  static String? cleanEmail(String raw) {
+    final e = raw.trim();
+    if (e.isEmpty) return '';
+    if (e.length > maxEmailLength || !_emailShape.hasMatch(e)) return null;
+    return e;
+  }
+
+  /// [meta] plus the optional reply address under `contact_email`. The
+  /// key is only there when the user typed a valid address.
+  static Map<String, dynamic> metaWithContact(
+    Map<String, dynamic> meta,
+    String contactEmail,
+  ) {
+    final email = cleanEmail(contactEmail) ?? '';
+    return {...meta, if (email.isNotEmpty) 'contact_email': email};
+  }
+
   /// Submit a report. [category] is `bug`, `suggestion` or `other`.
+  /// [contactEmail] is OPTIONAL: the address the user typed so the
+  /// developer can answer this report.
   /// Returns `null` on success, or a short human-readable error otherwise.
   static Future<String?> submit({
     required String category,
     required String message,
+    String contactEmail = '',
     List<ReportShot> shots = const [],
   }) async {
     final trimmed = message.trim();
-    if (trimmed.isEmpty) return 'Please write a message first.';
+    if (trimmed.isEmpty) return appL10n.reportErrEmpty;
 
     try {
       final req = http.MultipartRequest('POST', Uri.parse(_endpoint));
@@ -138,7 +170,8 @@ class ReportService {
       req.fields['app_version'] = await _appVersion();
       req.fields['platform'] = _platform;
       req.fields['install_id'] = await _installId();
-      req.fields['meta'] = jsonEncode(await _deviceMeta());
+      req.fields['meta'] = jsonEncode(
+          metaWithContact(await _deviceMeta(), contactEmail));
 
       var total = 0;
       var i = 0;
@@ -155,13 +188,22 @@ class ReportService {
       }
 
       final streamed = await req.send().timeout(const Duration(seconds: 30));
-      if (streamed.statusCode == 200) return null;
-      if (streamed.statusCode == 413) {
-        return 'Attachments are too large. Remove one and try again.';
+      // Only that a report was sent, or why it was not - never its text,
+      // its category or the contact address.
+      if (streamed.statusCode == 200) {
+        Usage.used('report_send');
+        return null;
       }
-      return 'Could not send (server ${streamed.statusCode}). Please try later.';
-    } catch (_) {
-      return 'Could not send. Check your connection and try again.';
+      Usage.fail('report_send', Usage.causeOfStatus(streamed.statusCode));
+      if (streamed.statusCode == 413) {
+        return appL10n.reportErrTooLarge;
+      }
+      return ApiService.messageForCause(
+          Usage.causeOfStatus(streamed.statusCode),
+          status: streamed.statusCode);
+    } catch (e) {
+      Usage.fail('report_send', Usage.causeOf(e));
+      return ApiService.messageForCause(Usage.causeOf(e));
     }
   }
 }

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../l10n/app_localizations.dart';
 import '../services/generate_service.dart';
 import '../services/mode_service.dart';
 import '../theme.dart';
@@ -30,19 +31,19 @@ class _AssetQueueScreenState extends State<AssetQueueScreen> {
   String? _error;
   Timer? _timer;
 
-  /// #299: is turu -> ikon + ekran adi.
-  static const _kinds = <String, (IconData, String)>{
-    'comfy': (Icons.auto_awesome, 'Uretim'),
-    'character': (Icons.person_outline, 'Karakter'),
-    'tag': (Icons.sell_outlined, 'Etiket'),
-    'cbn': (Icons.format_paint_outlined, 'CBN'),
-    'music': (Icons.music_note, 'Muzik'),
-    'cpu': (Icons.memory, 'CPU'),
-    'gpu': (Icons.developer_board, 'GPU'),
-  };
+  AppLocalizations get l10n => AppLocalizations.of(context)!;
 
-  static (IconData, String) _kindOf(String k) =>
-      _kinds[k] ?? (Icons.play_circle_outline, k.isEmpty ? 'Is' : k);
+  /// #299: is turu -> ikon + ekran adi.
+  (IconData, String) _kindOf(String k) => switch (k) {
+        'comfy' => (Icons.auto_awesome, l10n.queueKindGeneration),
+        'character' => (Icons.person_outline, l10n.kindCharacter),
+        'tag' => (Icons.sell_outlined, l10n.queueKindTag),
+        'cbn' => (Icons.format_paint_outlined, 'CBN'),
+        'music' => (Icons.music_note, l10n.queueKindMusic),
+        'cpu' => (Icons.memory, 'CPU'),
+        'gpu' => (Icons.developer_board, 'GPU'),
+        _ => (Icons.play_circle_outline, k.isEmpty ? l10n.queueKindJob : k),
+      };
 
   @override
   void initState() {
@@ -103,11 +104,11 @@ class _AssetQueueScreenState extends State<AssetQueueScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
-        title: Text(running ? 'Calisan isi iptal et' : 'Sıradan cikar'),
-        content: Text(t.label.isEmpty ? t.kind : t.label),
+        title: Text(running ? l10n.queueCancelRunningTitle : l10n.queueRemoveTitle),
+        content: Text(t.label.isEmpty ? _kindOf(t.kind).$2 : t.label),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Vazgec')),
-          FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Iptal et')),
+          TextButton(onPressed: () => Navigator.pop(c, false), child: Text(l10n.back)),
+          FilledButton(onPressed: () => Navigator.pop(c, true), child: Text(l10n.queueCancelIt)),
         ],
       ),
     );
@@ -118,12 +119,11 @@ class _AssetQueueScreenState extends State<AssetQueueScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
-        title: const Text('Sirayi temizle'),
-        content: const Text('Bekleyen uretim isleri iptal edilsin mi? '
-            'Calisan is devam eder.'),
+        title: Text(l10n.queueClearTitle),
+        content: Text(l10n.queueClearBody),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Vazgec')),
-          FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Iptal et')),
+          TextButton(onPressed: () => Navigator.pop(c, false), child: Text(l10n.back)),
+          FilledButton(onPressed: () => Navigator.pop(c, true), child: Text(l10n.queueCancelIt)),
         ],
       ),
     );
@@ -142,20 +142,20 @@ class _AssetQueueScreenState extends State<AssetQueueScreen> {
         u != null ? u.hasPendingGeneration : (q?.pending.isNotEmpty ?? false);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Sira'),
+        title: Text(l10n.navQueue),
         actions: [
           IconButton(
             icon: const Icon(Icons.code),
-            tooltip: 'Code Mod',
+            tooltip: l10n.assetCodeMode,
             onPressed: () => ModeService.set(false),
           ),
           if (temizlenebilir)
             IconButton(
               icon: const Icon(Icons.playlist_remove),
-              tooltip: 'Bekleyenleri iptal et',
+              tooltip: l10n.queueCancelWaiting,
               onPressed: _clear,
             ),
-          IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
+          IconButton(icon: const Icon(Icons.refresh), tooltip: l10n.refresh, onPressed: _load),
         ],
       ),
       body: _error != null && u == null && q == null
@@ -166,15 +166,16 @@ class _AssetQueueScreenState extends State<AssetQueueScreen> {
                   ? ListView(
                       children: [
                         SizedBox(height: MediaQuery.of(context).size.height * 0.25),
-                        const Center(
+                        Center(
                           child: Column(
                             children: [
-                              Icon(Icons.done_all, size: 48, color: Colors.grey),
-                              SizedBox(height: 12),
-                              Text('Sira bos'),
-                              SizedBox(height: 4),
-                              Text('Uretim sekmesinden is ekleyebilirsin',
-                                  style: TextStyle(fontSize: 12, color: Colors.grey)),
+                              const Icon(Icons.done_all, size: 48, color: Colors.grey),
+                              const SizedBox(height: 12),
+                              Text(l10n.queueEmpty),
+                              const SizedBox(height: 4),
+                              Text(l10n.queueEmptyHint,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(fontSize: 12, color: Colors.grey)),
                             ],
                           ),
                         ),
@@ -196,17 +197,17 @@ class _AssetQueueScreenState extends State<AssetQueueScreen> {
       out.add(_uHeader(u));
       final r = u.running;
       if (r != null) {
-        out.add(_section('Su an'));
+        out.add(_section(l10n.queueNow));
         out.add(_ticketCard(r, running: true));
       }
       if (u.waiting.isNotEmpty) {
-        out.add(_section('Bekleyen (${u.waiting.length})'));
+        out.add(_section(l10n.queueWaitingCount(u.waiting.length)));
         for (var i = 0; i < u.waiting.length; i++) {
           out.add(_ticketCard(u.waiting[i], running: false, sira: i + 1));
         }
       }
       if (u.comfyPending.isNotEmpty) {
-        out.add(_section('Uretim isleri (${u.comfyPending.length})'));
+        out.add(_section(l10n.queueGenerationJobsCount(u.comfyPending.length)));
         for (final j in u.comfyPending) {
           out.add(_card(j, u.comfyPending.length));
         }
@@ -239,10 +240,14 @@ class _AssetQueueScreenState extends State<AssetQueueScreen> {
                 size: 9,
                 color: u.running != null ? AppColors.success : Colors.grey),
             const SizedBox(width: 8),
-            const Text('Tek sira - butun isler',
-                style: TextStyle(fontSize: 12, color: Colors.grey)),
-            const Spacer(),
-            Text('${u.depth} is',
+            Expanded(
+              child: Text(l10n.queueOneQueue,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            ),
+            const SizedBox(width: 8),
+            Text(l10n.queueJobCount(u.depth),
                 style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
           ],
         ),
@@ -317,14 +322,14 @@ class _AssetQueueScreenState extends State<AssetQueueScreen> {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   IconButton(
-                    tooltip: 'Yukari tasi',
+                    tooltip: l10n.queueMoveUp,
                     icon: const Icon(Icons.arrow_upward, size: 18),
                     onPressed: t.canMoveUp
                         ? () => _act(() => GenerateService.move(t.jobId, -1))
                         : null,
                   ),
                   IconButton(
-                    tooltip: 'Asagi tasi',
+                    tooltip: l10n.queueMoveDown,
                     icon: const Icon(Icons.arrow_downward, size: 18),
                     onPressed: t.canMoveDown
                         ? () => _act(() => GenerateService.move(t.jobId, 1))
@@ -341,15 +346,15 @@ class _AssetQueueScreenState extends State<AssetQueueScreen> {
                 if (t.elapsedLabel.isNotEmpty)
                   Text(
                       running
-                          ? 'gecen ${t.elapsedLabel}'
-                          : 'bekliyor ${t.elapsedLabel}',
+                          ? l10n.queueElapsed(t.elapsedLabel)
+                          : l10n.queueWaitingFor(t.elapsedLabel),
                       style: const TextStyle(fontSize: 10, color: Colors.grey)),
                 const SizedBox(width: 6),
                 // #352: her bilet iptal edilebilir (op / comfy isi / serit bileti).
                 TextButton.icon(
                   onPressed: () => _cancelTicket(t, running: running),
                   icon: Icon(Icons.close, size: 16, color: AppColors.error),
-                  label: Text('Iptal',
+                  label: Text(l10n.cancel,
                       style: TextStyle(fontSize: 12, color: AppColors.error)),
                 ),
               ],
@@ -367,10 +372,10 @@ class _AssetQueueScreenState extends State<AssetQueueScreen> {
             Icon(Icons.circle,
                 size: 9, color: q.comfyUp ? AppColors.success : AppColors.error),
             const SizedBox(width: 8),
-            Text(q.comfyUp ? 'ComfyUI hazir' : 'ComfyUI kapali',
+            Text(q.comfyUp ? l10n.queueComfyReady : l10n.queueComfyOff,
                 style: const TextStyle(fontSize: 12, color: Colors.grey)),
             const Spacer(),
-            Text('${q.depth} is',
+            Text(l10n.queueJobCount(q.depth),
                 style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
           ],
         ),
@@ -434,7 +439,7 @@ class _AssetQueueScreenState extends State<AssetQueueScreen> {
                   const SizedBox(width: 6),
                 ],
                 Text(
-                  running ? (j.node.isEmpty ? 'calisiyor' : j.node) : 'bekliyor',
+                  running ? (j.node.isEmpty ? l10n.appStatusWorking : j.node) : l10n.queueWaiting,
                   style: const TextStyle(fontSize: 11, color: Colors.grey),
                 ),
               ],
@@ -456,7 +461,7 @@ class _AssetQueueScreenState extends State<AssetQueueScreen> {
                 ),
               ),
               const SizedBox(height: 4),
-              Text('%${j.progress}',
+              Text(l10n.percentValue(j.progress),
                   style: const TextStyle(fontSize: 10, color: Colors.grey)),
             ],
             const SizedBox(height: 8),
@@ -468,21 +473,21 @@ class _AssetQueueScreenState extends State<AssetQueueScreen> {
                         ? () => _act(() => GenerateService.move(j.id, -1))
                         : null,
                     icon: const Icon(Icons.arrow_upward, size: 16),
-                    label: const Text('Yukari', style: TextStyle(fontSize: 12)),
+                    label: Text(l10n.queueUp, style: const TextStyle(fontSize: 12)),
                   ),
                   TextButton.icon(
                     onPressed: (j.position ?? 0) < pendingCount
                         ? () => _act(() => GenerateService.move(j.id, 1))
                         : null,
                     icon: const Icon(Icons.arrow_downward, size: 16),
-                    label: const Text('Asagi', style: TextStyle(fontSize: 12)),
+                    label: Text(l10n.queueDown, style: const TextStyle(fontSize: 12)),
                   ),
                 ],
                 const Spacer(),
                 TextButton.icon(
                   onPressed: () => _act(() => GenerateService.cancel(j.id)),
                   icon: Icon(Icons.close, size: 16, color: AppColors.error),
-                  label: Text('Iptal',
+                  label: Text(l10n.cancel,
                       style: TextStyle(fontSize: 12, color: AppColors.error)),
                 ),
               ],
@@ -506,7 +511,7 @@ class _AssetQueueScreenState extends State<AssetQueueScreen> {
               FilledButton.icon(
                 onPressed: _load,
                 icon: const Icon(Icons.refresh),
-                label: const Text('Tekrar dene'),
+                label: Text(l10n.retry),
               ),
             ],
           ),

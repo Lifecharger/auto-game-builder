@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 
 import '../config.dart';
 import 'api_service.dart';
+import 'usage_events.dart';
 import 'generate_service.dart';
 import 'jigsaw_flow_service.dart' show FlowCollection, FlowOp;
 
@@ -122,9 +123,11 @@ class CbnFlowService {
         if (AppConfig.apiKey.isNotEmpty) 'X-API-Key': AppConfig.apiKey,
       };
 
-  static Never _fail(http.Response r, String fallback) {
+  static Never _fail(http.Response r) {
     // #352: sunucunun `detail` mesaji artik kaybolmuyor (bkz. jigsaw servisi).
-    String msg = '$fallback (${r.statusCode})';
+    String msg = ApiService.messageForCause(
+        Usage.causeOfStatus(r.statusCode),
+        status: r.statusCode);
     try {
       final d = json.decode(utf8.decode(r.bodyBytes));
       if (d is Map && d['detail'] != null) msg = d['detail'].toString();
@@ -136,7 +139,7 @@ class CbnFlowService {
     final r = await http
         .get(Uri.parse('${ApiService.baseUrl}$path'), headers: _headers)
         .timeout(_timeout);
-    if (r.statusCode != 200) _fail(r, 'Istek basarisiz');
+    if (r.statusCode != 200) _fail(r);
     return json.decode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>;
   }
 
@@ -146,7 +149,7 @@ class CbnFlowService {
         .post(Uri.parse('${ApiService.baseUrl}$path'),
             headers: _headers, body: json.encode(body ?? {}))
         .timeout(_timeout);
-    if (r.statusCode != 200) _fail(r, 'Istek basarisiz');
+    if (r.statusCode != 200) _fail(r);
     return json.decode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>;
   }
 

@@ -5,7 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import 'api_service.dart';
-import 'lifecharger_analytics.dart';
+import 'app_l10n.dart';
+import 'usage_events.dart';
 import '../config.dart';
 
 /// Uretim kipi. Free Mod serbest uretim, Jigsaw Modu Hot Jigsaw is akisi.
@@ -326,20 +327,24 @@ class GenerateService {
 
   static const _timeout = Duration(seconds: 30);
 
-  static Never _fail(http.Response r, String fallback) {
-    String msg = '$fallback (${r.statusCode})';
+  /// Sunucu `detail` vermediyse hata, nedenin uygulama dilindeki tek cumlesiyle
+  /// okunur ([ApiService.messageForCause]).
+  static Never _fail(http.Response r) {
+    String msg = ApiService.messageForCause(
+        Usage.causeOfStatus(r.statusCode),
+        status: r.statusCode);
     try {
       final d = jsonDecode(r.body);
       if (d is Map && d['detail'] != null) msg = d['detail'].toString();
     } catch (_) {}
-    throw Exception(msg);
+    throw ServerCallException(msg, r.statusCode);
   }
 
   static Future<Map<String, dynamic>> _get(String path) async {
     final r = await http
         .get(Uri.parse('${ApiService.baseUrl}$path'), headers: _headers)
         .timeout(_timeout);
-    if (r.statusCode != 200) _fail(r, 'Istek basarisiz');
+    if (r.statusCode != 200) _fail(r);
     return jsonDecode(r.body) as Map<String, dynamic>;
   }
 
@@ -349,7 +354,7 @@ class GenerateService {
         .post(Uri.parse('${ApiService.baseUrl}$path'),
             headers: _headers, body: jsonEncode(body ?? {}))
         .timeout(_timeout);
-    if (r.statusCode != 200) _fail(r, 'Istek reddedildi');
+    if (r.statusCode != 200) _fail(r);
     return jsonDecode(r.body) as Map<String, dynamic>;
   }
 
@@ -410,8 +415,9 @@ class GenerateService {
     }
   }
 
-  /// Reported as one anonymous `generate` ping - never the prompt, the task,
-  /// the category or any path that went with it.
+  /// Reported as one anonymous `generate` ping once the server has queued the
+  /// job (or as a failure by cause when it has not) - never the prompt, the
+  /// task, the category or any path that went with it.
   static Future<GenerateJob> submit({
     required String task,
     required String prompt,
@@ -433,8 +439,8 @@ class GenerateService {
     bool enrich = false,
     bool normalize = false,
   }) async {
-    Analytics.log('feature_use', {'feature': 'generate'});
-    final d = await _post('/api/generate', {
+    final d = await Usage.track('generate', milestone: 'first_generation_queued',
+        () => _post('/api/generate', {
       if (inputs.isNotEmpty)
         'inputs': {for (final e in inputs.entries) e.key: e.value.toJson()},
       'task': task,
@@ -453,7 +459,7 @@ class GenerateService {
       if (imagePath != null) 'image_path': imagePath,
       if (sourceJob != null) 'source_job': sourceJob,
       if (client != null) 'client': client,
-    });
+    }));
     return GenerateJob.fromJson(d);
   }
 
@@ -466,7 +472,7 @@ class GenerateService {
             headers: _headers,
             body: jsonEncode({'name': name, 'data': base64Encode(bytes)}))
         .timeout(const Duration(minutes: 5));
-    if (r.statusCode != 200) _fail(r, 'Dosya yuklenemedi');
+    if (r.statusCode != 200) _fail(r);
     final d = jsonDecode(r.body) as Map<String, dynamic>;
     return GenerateInputRef.file(
         (d['path'] ?? '') as String, (d['name'] ?? name) as String);
@@ -512,7 +518,7 @@ class GenerateService {
     final r = await http
         .delete(Uri.parse('${ApiService.baseUrl}/api/generate/$jobId'), headers: _headers)
         .timeout(_timeout);
-    if (r.statusCode != 200) _fail(r, 'Silinemedi');
+    if (r.statusCode != 200) _fail(r);
   }
 
   // ---------------------------------------------------------------- jigsaw
@@ -611,10 +617,12 @@ class QueueTicket {
   String get elapsedLabel {
     final sn = (runningSeconds > 0 ? runningSeconds : waitedSeconds).round();
     if (sn <= 0) return '';
-    if (sn < 60) return '$sn sn';
+    if (sn < 60) return appL10n.durSeconds(sn);
     final dk = sn ~/ 60;
-    if (dk < 60) return '$dk dk ${(sn % 60).toString().padLeft(2, '0')} sn';
-    return '${dk ~/ 60} sa ${(dk % 60).toString().padLeft(2, '0')} dk';
+    if (dk < 60) {
+      return appL10n.durMinutesSeconds(dk, (sn % 60).toString().padLeft(2, '0'));
+    }
+    return appL10n.durHoursMinutes(dk ~/ 60, (dk % 60).toString().padLeft(2, '0'));
   }
 }
 
@@ -663,7 +671,7 @@ class QueueService {
             headers: GenerateService._headers)
         .timeout(GenerateService._timeout);
     if (r.statusCode == 404) return null;
-    if (r.statusCode != 200) GenerateService._fail(r, 'Sira okunamadi');
+    if (r.statusCode != 200) GenerateService._fail(r);
     return UnifiedQueue.fromJson(
         jsonDecode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>);
   }
@@ -685,7 +693,7 @@ class QueueService {
               'job_id': t.jobId,
             }))
         .timeout(GenerateService._timeout);
-    if (r.statusCode != 200) GenerateService._fail(r, 'Iptal edilemedi');
+    if (r.statusCode != 200) GenerateService._fail(r);
   }
 }
 

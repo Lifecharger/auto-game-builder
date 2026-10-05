@@ -565,6 +565,13 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.0.2"
+  lifecharger_testlab:
+    dependency: "direct main"
+    description:
+      path: "packages/lifecharger_testlab"
+      relative: true
+    source: path
+    version: "1.0.0"
   lints:
     dependency: transitive
     description:

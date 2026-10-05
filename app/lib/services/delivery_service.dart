@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'api_service.dart';
+import 'app_l10n.dart';
+import 'usage_events.dart';
 
 /// #363 Delivery Mod: uygulamalara ne sunulacaginin ac/kapa anahtarlari.
 ///
@@ -276,11 +278,13 @@ class NormalizePool {
 
   /// "3 gecerli, 12 etiketlendi, 1 basarisiz" - son raporun tek satiri.
   String get summary {
-    if (last.isEmpty) return 'hic calismadi';
+    final l10n = appL10n;
+    if (last.isEmpty) return l10n.deliveryPoolNeverRan;
     int n(String k) => (last[k] is num) ? (last[k] as num).toInt() : 0;
-    final d = last['dry_run'] == true ? ' (deneme)' : '';
-    return '${last['status'] ?? '?'}$d · ${n('total')} gorsel, ${n('valid')} gecerli, '
-        '${n('tagged')} etiketlendi, ${n('failed')} basarisiz';
+    final status = '${last['status'] ?? '?'}';
+    return l10n.deliveryPoolSummary(
+        last['dry_run'] == true ? l10n.deliveryPoolDryRun(status) : status,
+        n('total'), n('valid'), n('tagged'), n('failed'));
   }
 }
 
@@ -375,7 +379,7 @@ class DeliveryService {
     final r = await http
         .get(Uri.parse('${ApiService.baseUrl}$path'), headers: _headers)
         .timeout(const Duration(seconds: 150));
-    if (r.statusCode >= 400) throw Exception(_detail(r));
+    if (r.statusCode >= 400) throw ServerCallException(_detail(r), r.statusCode);
     return jsonDecode(r.body) as Map<String, dynamic>;
   }
 
@@ -384,14 +388,19 @@ class DeliveryService {
       final j = jsonDecode(r.body);
       if (j is Map && j['detail'] != null) return '${j['detail']}';
     } catch (_) {}
-    return 'HTTP ${r.statusCode}';
+    return ApiService.messageForCause(Usage.causeOfStatus(r.statusCode),
+        status: r.statusCode);
   }
 
   static Future<DeliveryOverview> overview({String pool = 'jigsaw'}) async =>
       DeliveryOverview.fromJson(await _get('/api/delivery/overview?pool=$pool'));
 
   static Future<int> saveRules(
-      DeliveryRuleSet def, Map<String, DeliveryRuleSet> apps, {String pool = 'jigsaw'}) async {
+          DeliveryRuleSet def, Map<String, DeliveryRuleSet> apps, {String pool = 'jigsaw'}) =>
+      Usage.track('delivery_rules_save', () => _saveRules(def, apps, pool));
+
+  static Future<int> _saveRules(
+      DeliveryRuleSet def, Map<String, DeliveryRuleSet> apps, String pool) async {
     final r = await http
         .put(Uri.parse('${ApiService.baseUrl}/api/delivery/rules?pool=$pool'),
             headers: _headers,
@@ -400,7 +409,7 @@ class DeliveryService {
               'apps': {for (final e in apps.entries) e.key: e.value.toJson()},
             }))
         .timeout(const Duration(seconds: 60));
-    if (r.statusCode >= 400) throw Exception(_detail(r));
+    if (r.statusCode >= 400) throw ServerCallException(_detail(r), r.statusCode);
     final j = jsonDecode(r.body) as Map<String, dynamic>;
     return (j['updated'] is num) ? (j['updated'] as num).toInt() : 0;
   }
@@ -408,13 +417,17 @@ class DeliveryService {
   /// #363b: bucket'ta EXIF'i degisen gorselleri yeniden okut. `names` bos ve
   /// `all` true = butun havuz (50'lik partiler, sunucu gezer).
   static Future<Map<String, dynamic>> reindex(
-      {List<String> names = const [], bool all = false, String collection = 'generic'}) async {
+          {List<String> names = const [], bool all = false, String collection = 'generic'}) =>
+      Usage.track('delivery_reindex', () => _reindex(names, all, collection));
+
+  static Future<Map<String, dynamic>> _reindex(
+      List<String> names, bool all, String collection) async {
     final r = await http
         .post(Uri.parse('${ApiService.baseUrl}/api/delivery/reindex'),
             headers: _headers,
             body: jsonEncode({'collection': collection, 'names': names, 'all': all}))
         .timeout(const Duration(minutes: 10));
-    if (r.statusCode >= 400) throw Exception(_detail(r));
+    if (r.statusCode >= 400) throw ServerCallException(_detail(r), r.statusCode);
     return jsonDecode(r.body) as Map<String, dynamic>;
   }
 
@@ -426,12 +439,15 @@ class DeliveryService {
       DeliveryBlock.fromJson(await _get('/api/delivery/block?pool=$pool'));
 
   /// Engel listesini worker'a yazar; donen deger yeni `updated` damgasi.
-  static Future<int> saveBlock(DeliveryBlock b, {String pool = 'jigsaw'}) async {
+  static Future<int> saveBlock(DeliveryBlock b, {String pool = 'jigsaw'}) =>
+      Usage.track('delivery_block_save', () => _saveBlock(b, pool));
+
+  static Future<int> _saveBlock(DeliveryBlock b, String pool) async {
     final r = await http
         .put(Uri.parse('${ApiService.baseUrl}/api/delivery/block?pool=$pool'),
             headers: _headers, body: jsonEncode(b.toJson()))
         .timeout(const Duration(seconds: 60));
-    if (r.statusCode >= 400) throw Exception(_detail(r));
+    if (r.statusCode >= 400) throw ServerCallException(_detail(r), r.statusCode);
     final j = jsonDecode(r.body) as Map<String, dynamic>;
     return (j['updated'] is num) ? (j['updated'] as num).toInt() : 0;
   }
@@ -456,12 +472,15 @@ class DeliveryService {
   }
 
   /// Havuzu normalize etmeye baslar; donen deger op kimligi.
-  static Future<String> normalizeRun(String pool, {bool dryRun = false}) async {
+  static Future<String> normalizeRun(String pool, {bool dryRun = false}) =>
+      Usage.track('normalize_run', () => _normalizeRun(pool, dryRun));
+
+  static Future<String> _normalizeRun(String pool, bool dryRun) async {
     final r = await http
         .post(Uri.parse('${ApiService.baseUrl}/api/normalize/run'),
             headers: _headers, body: jsonEncode({'pool': pool, 'dry_run': dryRun}))
         .timeout(const Duration(minutes: 5));
-    if (r.statusCode >= 400) throw Exception(_detail(r));
+    if (r.statusCode >= 400) throw ServerCallException(_detail(r), r.statusCode);
     return '${(jsonDecode(r.body) as Map)['op'] ?? ''}';
   }
 
@@ -469,6 +488,6 @@ class DeliveryService {
     final r = await http
         .post(Uri.parse('${ApiService.baseUrl}/api/normalize/cancel?op_id=$opId'), headers: _headers)
         .timeout(const Duration(seconds: 60));
-    if (r.statusCode >= 400) throw Exception(_detail(r));
+    if (r.statusCode >= 400) throw ServerCallException(_detail(r), r.statusCode);
   }
 }

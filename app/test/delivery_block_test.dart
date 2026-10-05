@@ -113,16 +113,16 @@ void main() {
       expect(p.done, 40);
       expect(p.total, 2140);
       expect(p.index, contains('serve_index'));
-      expect(p.summary, contains('43 etiketlendi'));
-      expect(p.summary, contains('1 basarisiz'));
+      expect(p.summary, contains('43 tagged'));
+      expect(p.summary, contains('1 failed'));
     });
 
     test('hic calismamis havuz ve deneme kosusu ayirt edilir', () {
-      expect(NormalizePool.fromJson('cards', {'last': null}).summary, 'hic calismadi');
+      expect(NormalizePool.fromJson('cards', {'last': null}).summary, 'never ran');
       final deneme = NormalizePool.fromJson('cards', {
         'last': {'status': 'completed', 'dry_run': true, 'total': 3, 'valid': 0, 'tagged': 0, 'failed': 0},
       });
-      expect(deneme.summary, contains('(deneme)'));
+      expect(deneme.summary, contains('(dry run)'));
       expect(deneme.running, isFalse);
     });
   });

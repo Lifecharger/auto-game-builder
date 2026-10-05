@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:provider/provider.dart';
 
 import '../models/report_model.dart';
@@ -200,6 +201,25 @@ class _ReportsScreenState extends State<ReportsScreen> {
   }
 }
 
+/// Links a report card opens (public so a test can read them).
+class ReportCardLinks {
+  const ReportCardLinks._();
+
+  /// `mailto:` link that answers [report]: subject + the report quoted.
+  static Uri replyUri(ReportModel report, String subject) {
+    final quoted = report.message
+        .split('\n')
+        .map((line) => '> $line')
+        .join('\n');
+    return Uri(
+      scheme: 'mailto',
+      path: report.contactEmail,
+      query: 'subject=${Uri.encodeComponent(subject)}'
+          '&body=${Uri.encodeComponent('\n\n$quoted\n')}',
+    );
+  }
+}
+
 class _ReportCard extends StatelessWidget {
   final ReportModel report;
   final VoidCallback onClose;
@@ -240,6 +260,41 @@ class _ReportCard extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(color: Colors.grey, fontSize: 11),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// The reporter's reply address with a Reply button (opens the mail app
+  /// with the address, a subject naming the app and the report quoted).
+  /// Nothing when the reporter stayed anonymous.
+  Widget _contact(AppLocalizations l10n) {
+    final email = report.contactEmail;
+    if (email.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        children: [
+          Icon(Icons.mail_outline, size: 14, color: AppColors.info),
+          const SizedBox(width: 4),
+          Expanded(
+            child: SelectableText(
+              email,
+              key: Key('report_email_${report.id}'),
+              maxLines: 1,
+              style: TextStyle(color: AppColors.info, fontSize: 12),
+            ),
+          ),
+          TextButton.icon(
+            key: Key('report_reply_${report.id}'),
+            onPressed: () => launchUrl(
+              ReportCardLinks.replyUri(
+                  report, l10n.reportReplySubject(report.appLabel)),
+              mode: LaunchMode.externalApplication,
+            ),
+            icon: const Icon(Icons.reply, size: 16),
+            label: Text(l10n.reportReply),
           ),
         ],
       ),
@@ -307,6 +362,7 @@ class _ReportCard extends StatelessWidget {
                 ),
               ],
               const SizedBox(height: 8),
+              _contact(l10n),
               _deviceInfo(),
               Row(
                 children: [

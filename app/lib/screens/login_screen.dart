@@ -5,6 +5,7 @@ import '../theme.dart';
 import '../config.dart';
 import '../services/auth_service.dart';
 import '../services/drive_service.dart';
+import '../services/usage_events.dart';
 import 'onboarding_screen.dart';
 import '../main.dart';
 import '../l10n/app_localizations.dart';
@@ -30,6 +31,10 @@ class _LoginScreenState extends State<LoginScreen> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _navigateTo(const OnboardingScreen());
       });
+    } else {
+      // Where sign-in is unsupported this screen is replaced before anyone
+      // sees it, so it only counts as shown on the other platforms.
+      Usage.screen('login');
     }
   }
 
@@ -58,6 +63,7 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       // Try to load saved servers from Google Drive
+      Usage.used('google_sign_in');
       final servers = await DriveService.instance.loadServers();
       if (!mounted) return;
 
@@ -76,6 +82,7 @@ class _LoginScreenState extends State<LoginScreen> {
         _navigateTo(const OnboardingScreen());
       }
     } catch (e) {
+      Usage.fail('google_sign_in', Usage.causeOf(e));
       if (mounted) {
         setState(() {
           _loading = false;

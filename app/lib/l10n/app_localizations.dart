@@ -3833,6 +3833,3982 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'AGENTS.md saved'**
   String get agentsMdSaved;
+
+  /// No description provided for @reportEmailLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'E-mail (optional)'**
+  String get reportEmailLabel;
+
+  /// No description provided for @reportEmailHint.
+  ///
+  /// In en, this message translates to:
+  /// **'your e-mail, if you want a reply'**
+  String get reportEmailHint;
+
+  /// No description provided for @reportEmailNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Only used to answer this report. Leave it empty to stay anonymous.'**
+  String get reportEmailNote;
+
+  /// No description provided for @reportEmailInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'This does not look like an e-mail address.'**
+  String get reportEmailInvalid;
+
+  /// No description provided for @reportReply.
+  ///
+  /// In en, this message translates to:
+  /// **'Reply'**
+  String get reportReply;
+
+  /// No description provided for @reportReplySubject.
+  ///
+  /// In en, this message translates to:
+  /// **'About your {app} report'**
+  String reportReplySubject(String app);
+
+  /// No description provided for @navGenerate.
+  ///
+  /// In en, this message translates to:
+  /// **'Generate'**
+  String get navGenerate;
+
+  /// No description provided for @navGallery.
+  ///
+  /// In en, this message translates to:
+  /// **'Generated'**
+  String get navGallery;
+
+  /// No description provided for @navFlow.
+  ///
+  /// In en, this message translates to:
+  /// **'Pipeline'**
+  String get navFlow;
+
+  /// No description provided for @navQueue.
+  ///
+  /// In en, this message translates to:
+  /// **'Queue'**
+  String get navQueue;
+
+  /// No description provided for @navDelivery.
+  ///
+  /// In en, this message translates to:
+  /// **'Delivery'**
+  String get navDelivery;
+
+  /// No description provided for @navBuckets.
+  ///
+  /// In en, this message translates to:
+  /// **'Buckets'**
+  String get navBuckets;
+
+  /// No description provided for @assetModeTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Asset mode'**
+  String get assetModeTooltip;
+
+  /// No description provided for @deliveryModeTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Delivery mode'**
+  String get deliveryModeTooltip;
+
+  /// No description provided for @videoPlaybackFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The video could not be played'**
+  String get videoPlaybackFailed;
+
+  /// No description provided for @apiKeyRefusedBanner.
+  ///
+  /// In en, this message translates to:
+  /// **'API key refused - tap to fix it in Settings'**
+  String get apiKeyRefusedBanner;
+
+  /// No description provided for @errOffline.
+  ///
+  /// In en, this message translates to:
+  /// **'Cannot reach the server - check your connection'**
+  String get errOffline;
+
+  /// No description provided for @errTimeout.
+  ///
+  /// In en, this message translates to:
+  /// **'The server took too long to answer - try again'**
+  String get errTimeout;
+
+  /// No description provided for @errGatewayTimeout.
+  ///
+  /// In en, this message translates to:
+  /// **'The server did not answer in time (gateway timeout {status})'**
+  String errGatewayTimeout(int status);
+
+  /// No description provided for @errGateway.
+  ///
+  /// In en, this message translates to:
+  /// **'The server is unreachable behind its gateway (gateway error {status}) - check that it is running'**
+  String errGateway(int status);
+
+  /// No description provided for @errServer.
+  ///
+  /// In en, this message translates to:
+  /// **'Server error ({status}) - try again later'**
+  String errServer(int status);
+
+  /// No description provided for @errUnauthorized.
+  ///
+  /// In en, this message translates to:
+  /// **'Not authorized ({status}) - check the API key in Settings'**
+  String errUnauthorized(int status);
+
+  /// No description provided for @errNotFound.
+  ///
+  /// In en, this message translates to:
+  /// **'Not found on the server ({status})'**
+  String errNotFound(int status);
+
+  /// No description provided for @errRateLimited.
+  ///
+  /// In en, this message translates to:
+  /// **'Too many requests ({status}) - wait a moment and try again'**
+  String errRateLimited(int status);
+
+  /// No description provided for @errTooLarge.
+  ///
+  /// In en, this message translates to:
+  /// **'Too large for the server ({status})'**
+  String errTooLarge(int status);
+
+  /// No description provided for @errRejected.
+  ///
+  /// In en, this message translates to:
+  /// **'The server refused the request ({status})'**
+  String errRejected(int status);
+
+  /// No description provided for @errBadResponse.
+  ///
+  /// In en, this message translates to:
+  /// **'The server sent an answer the app could not read'**
+  String get errBadResponse;
+
+  /// No description provided for @errUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'The request failed - try again'**
+  String get errUnknown;
+
+  /// No description provided for @bucketsCounting.
+  ///
+  /// In en, this message translates to:
+  /// **'Counting {bucket}...'**
+  String bucketsCounting(String bucket);
+
+  /// No description provided for @bucketsTakedownTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Takedown (new + legacy)'**
+  String get bucketsTakedownTitle;
+
+  /// No description provided for @bucketsDeleteForeverTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete permanently'**
+  String get bucketsDeleteForeverTitle;
+
+  /// No description provided for @bucketsDeleteWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} objects will be deleted. THIS CANNOT BE UNDONE.'**
+  String bucketsDeleteWarning(int count);
+
+  /// No description provided for @bucketsUnmappedNote.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} keys have no match in the legacy twin - they are deleted from this bucket only.'**
+  String bucketsUnmappedNote(int count);
+
+  /// No description provided for @bucketsTypeNameToConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Type the bucket name to confirm: {bucket}'**
+  String bucketsTypeNameToConfirm(String bucket);
+
+  /// No description provided for @bucketsTakedown.
+  ///
+  /// In en, this message translates to:
+  /// **'Takedown'**
+  String get bucketsTakedown;
+
+  /// No description provided for @bucketsDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} objects deleted'**
+  String bucketsDeleted(int count);
+
+  /// No description provided for @bucketsDeletedWithTwin.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} objects deleted, {twin} from the legacy twin'**
+  String bucketsDeletedWithTwin(int count, int twin);
+
+  /// No description provided for @bucketsCopySource.
+  ///
+  /// In en, this message translates to:
+  /// **'Source: {path}'**
+  String bucketsCopySource(String path);
+
+  /// No description provided for @bucketsCopySourceTree.
+  ///
+  /// In en, this message translates to:
+  /// **'Source tree: {path}'**
+  String bucketsCopySourceTree(String path);
+
+  /// No description provided for @bucketsWholeBucket.
+  ///
+  /// In en, this message translates to:
+  /// **'(whole bucket)'**
+  String get bucketsWholeBucket;
+
+  /// No description provided for @bucketsCopyNote.
+  ///
+  /// In en, this message translates to:
+  /// **'The copy runs inside the storage service - no bytes pass through the phone.'**
+  String get bucketsCopyNote;
+
+  /// No description provided for @bucketsTargetKey.
+  ///
+  /// In en, this message translates to:
+  /// **'Target key'**
+  String get bucketsTargetKey;
+
+  /// No description provided for @bucketsTargetPrefix.
+  ///
+  /// In en, this message translates to:
+  /// **'Target prefix'**
+  String get bucketsTargetPrefix;
+
+  /// No description provided for @bucketsCopyStarted.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy started ({op})'**
+  String bucketsCopyStarted(String op);
+
+  /// No description provided for @bucketsFixHeadersTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Fix headers'**
+  String get bucketsFixHeadersTitle;
+
+  /// No description provided for @bucketsFixHeadersBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The Cache-Control header of the objects under {path} is checked; an object that departs from the standard is rewritten in place (Content-Type is kept). No bytes are downloaded.\n\nPrefixes left mutable on purpose are skipped.'**
+  String bucketsFixHeadersBody(String path);
+
+  /// No description provided for @bucketsFixStarted.
+  ///
+  /// In en, this message translates to:
+  /// **'Header repair started ({op})'**
+  String bucketsFixStarted(String op);
+
+  /// No description provided for @bucketsOperations.
+  ///
+  /// In en, this message translates to:
+  /// **'Operations'**
+  String get bucketsOperations;
+
+  /// No description provided for @bucketsNoOperations.
+  ///
+  /// In en, this message translates to:
+  /// **'No operations yet'**
+  String get bucketsNoOperations;
+
+  /// No description provided for @bucketsOpStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'{status}  ·  ok {ok}  ·  failed {failed}'**
+  String bucketsOpStatus(String status, int ok, int failed);
+
+  /// No description provided for @bucketsTwinDiffRunning.
+  ///
+  /// In en, this message translates to:
+  /// **'Computing the twin diff...'**
+  String get bucketsTwinDiffRunning;
+
+  /// No description provided for @bucketsLocalDiffRunning.
+  ///
+  /// In en, this message translates to:
+  /// **'Computing the local diff...'**
+  String get bucketsLocalDiffRunning;
+
+  /// No description provided for @bucketsTwinDiffTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'{bucket} <-> {twin} (legacy twin)'**
+  String bucketsTwinDiffTitle(String bucket, String twin);
+
+  /// No description provided for @bucketsLocalDiffTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Local pushed folder <-> {bucket}'**
+  String bucketsLocalDiffTitle(String bucket);
+
+  /// No description provided for @bucketsMissingInLegacy.
+  ///
+  /// In en, this message translates to:
+  /// **'Missing in the legacy twin'**
+  String get bucketsMissingInLegacy;
+
+  /// No description provided for @bucketsMissingInBucket.
+  ///
+  /// In en, this message translates to:
+  /// **'Missing in the bucket'**
+  String get bucketsMissingInBucket;
+
+  /// No description provided for @bucketsOnlyInLegacy.
+  ///
+  /// In en, this message translates to:
+  /// **'Only in the legacy twin'**
+  String get bucketsOnlyInLegacy;
+
+  /// No description provided for @bucketsOnlyInBucket.
+  ///
+  /// In en, this message translates to:
+  /// **'Only in the bucket'**
+  String get bucketsOnlyInBucket;
+
+  /// No description provided for @bucketsSizeMismatch.
+  ///
+  /// In en, this message translates to:
+  /// **'Size differs'**
+  String get bucketsSizeMismatch;
+
+  /// No description provided for @bucketsUnmapped.
+  ///
+  /// In en, this message translates to:
+  /// **'Unmatched (no rule)'**
+  String get bucketsUnmapped;
+
+  /// No description provided for @bucketsDerived.
+  ///
+  /// In en, this message translates to:
+  /// **'Generated in the bucket (thumbs)'**
+  String get bucketsDerived;
+
+  /// No description provided for @bucketsDiffCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{title}: {count}'**
+  String bucketsDiffCount(String title, int count);
+
+  /// No description provided for @bucketsFixFolderHeaders.
+  ///
+  /// In en, this message translates to:
+  /// **'Fix this folder\'s headers'**
+  String get bucketsFixFolderHeaders;
+
+  /// No description provided for @bucketsDiffs.
+  ///
+  /// In en, this message translates to:
+  /// **'Differences'**
+  String get bucketsDiffs;
+
+  /// No description provided for @bucketsTwinDiff.
+  ///
+  /// In en, this message translates to:
+  /// **'Legacy twin diff'**
+  String get bucketsTwinDiff;
+
+  /// No description provided for @bucketsLocalDiff.
+  ///
+  /// In en, this message translates to:
+  /// **'Local pushed folder diff'**
+  String get bucketsLocalDiff;
+
+  /// No description provided for @bucketsIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'A bucket is the store named after its content. Counts are computed on request (listing only, no bytes are downloaded).'**
+  String get bucketsIntro;
+
+  /// No description provided for @bucketsBadgeLegacy.
+  ///
+  /// In en, this message translates to:
+  /// **'LEGACY'**
+  String get bucketsBadgeLegacy;
+
+  /// No description provided for @bucketsBadgePrivate.
+  ///
+  /// In en, this message translates to:
+  /// **'private'**
+  String get bucketsBadgePrivate;
+
+  /// No description provided for @bucketsBadgeContent.
+  ///
+  /// In en, this message translates to:
+  /// **'content'**
+  String get bucketsBadgeContent;
+
+  /// No description provided for @bucketsNotCounted.
+  ///
+  /// In en, this message translates to:
+  /// **'not counted'**
+  String get bucketsNotCounted;
+
+  /// No description provided for @bucketsObjectCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} objects'**
+  String bucketsObjectCount(int count);
+
+  /// No description provided for @bucketsTwinLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'twin: {twin}'**
+  String bucketsTwinLabel(String twin);
+
+  /// No description provided for @bucketsCount.
+  ///
+  /// In en, this message translates to:
+  /// **'Count'**
+  String get bucketsCount;
+
+  /// No description provided for @bucketsEmptyFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'This folder is empty'**
+  String get bucketsEmptyFolder;
+
+  /// No description provided for @bucketsTruncated.
+  ///
+  /// In en, this message translates to:
+  /// **'The list was cut short - open a narrower folder'**
+  String get bucketsTruncated;
+
+  /// No description provided for @bucketsSelectedCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} selected'**
+  String bucketsSelectedCount(int count);
+
+  /// No description provided for @bucketsClearSelection.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear selection'**
+  String get bucketsClearSelection;
+
+  /// No description provided for @bucketsTakedownTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Takedown (also delete from the legacy twin)'**
+  String get bucketsTakedownTooltip;
+
+  /// No description provided for @bucketsSize.
+  ///
+  /// In en, this message translates to:
+  /// **'Size'**
+  String get bucketsSize;
+
+  /// No description provided for @bucketsContentType.
+  ///
+  /// In en, this message translates to:
+  /// **'Type'**
+  String get bucketsContentType;
+
+  /// No description provided for @bucketsModified.
+  ///
+  /// In en, this message translates to:
+  /// **'Modified'**
+  String get bucketsModified;
+
+  /// No description provided for @bucketsNone.
+  ///
+  /// In en, this message translates to:
+  /// **'(none)'**
+  String get bucketsNone;
+
+  /// No description provided for @bucketsMutableOnPurpose.
+  ///
+  /// In en, this message translates to:
+  /// **'Mutable on purpose - no standard applies'**
+  String get bucketsMutableOnPurpose;
+
+  /// No description provided for @bucketsHeaderOk.
+  ///
+  /// In en, this message translates to:
+  /// **'Meets the cache standard ({kind})'**
+  String bucketsHeaderOk(String kind);
+
+  /// No description provided for @bucketsHeaderExpected.
+  ///
+  /// In en, this message translates to:
+  /// **'Standard: {expected}'**
+  String bucketsHeaderExpected(String expected);
+
+  /// No description provided for @bucketsLegacyTwin.
+  ///
+  /// In en, this message translates to:
+  /// **'Legacy twin'**
+  String get bucketsLegacyTwin;
+
+  /// No description provided for @bucketsAddressCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'Address copied'**
+  String get bucketsAddressCopied;
+
+  /// No description provided for @bucketsCopyAddress.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy address'**
+  String get bucketsCopyAddress;
+
+  /// No description provided for @bucketsOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'Open'**
+  String get bucketsOpen;
+
+  /// No description provided for @bucketsPrivateNoAddress.
+  ///
+  /// In en, this message translates to:
+  /// **'This bucket is private - it has no public address'**
+  String get bucketsPrivateNoAddress;
+
+  /// No description provided for @kindCard.
+  ///
+  /// In en, this message translates to:
+  /// **'Card'**
+  String get kindCard;
+
+  /// No description provided for @kindCharacter.
+  ///
+  /// In en, this message translates to:
+  /// **'Character'**
+  String get kindCharacter;
+
+  /// No description provided for @assetCodeMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Code mode'**
+  String get assetCodeMode;
+
+  /// No description provided for @assetPickFinishedImage.
+  ///
+  /// In en, this message translates to:
+  /// **'Select a finished image'**
+  String get assetPickFinishedImage;
+
+  /// No description provided for @assetGenerateVideo.
+  ///
+  /// In en, this message translates to:
+  /// **'Generate video'**
+  String get assetGenerateVideo;
+
+  /// No description provided for @assetEnlarge.
+  ///
+  /// In en, this message translates to:
+  /// **'Enlarge'**
+  String get assetEnlarge;
+
+  /// No description provided for @percentValue.
+  ///
+  /// In en, this message translates to:
+  /// **'{value}%'**
+  String percentValue(Object value);
+
+  /// No description provided for @commonCategory.
+  ///
+  /// In en, this message translates to:
+  /// **'Category'**
+  String get commonCategory;
+
+  /// No description provided for @durSeconds.
+  ///
+  /// In en, this message translates to:
+  /// **'{seconds} s'**
+  String durSeconds(Object seconds);
+
+  /// No description provided for @durMinutesSeconds.
+  ///
+  /// In en, this message translates to:
+  /// **'{minutes} min {seconds} s'**
+  String durMinutesSeconds(Object minutes, Object seconds);
+
+  /// No description provided for @durHoursMinutes.
+  ///
+  /// In en, this message translates to:
+  /// **'{hours} h {minutes} min'**
+  String durHoursMinutes(Object hours, Object minutes);
+
+  /// No description provided for @charKindFemale.
+  ///
+  /// In en, this message translates to:
+  /// **'Female'**
+  String get charKindFemale;
+
+  /// No description provided for @charKindMale.
+  ///
+  /// In en, this message translates to:
+  /// **'Male'**
+  String get charKindMale;
+
+  /// No description provided for @charKindAnimal.
+  ///
+  /// In en, this message translates to:
+  /// **'Animal'**
+  String get charKindAnimal;
+
+  /// No description provided for @charKindMachine.
+  ///
+  /// In en, this message translates to:
+  /// **'Machine'**
+  String get charKindMachine;
+
+  /// No description provided for @outfitCatSet.
+  ///
+  /// In en, this message translates to:
+  /// **'Set'**
+  String get outfitCatSet;
+
+  /// No description provided for @outfitCatTop.
+  ///
+  /// In en, this message translates to:
+  /// **'Top'**
+  String get outfitCatTop;
+
+  /// No description provided for @outfitCatBottom.
+  ///
+  /// In en, this message translates to:
+  /// **'Bottom'**
+  String get outfitCatBottom;
+
+  /// No description provided for @outfitCatShoes.
+  ///
+  /// In en, this message translates to:
+  /// **'Shoes'**
+  String get outfitCatShoes;
+
+  /// No description provided for @outfitCatSocks.
+  ///
+  /// In en, this message translates to:
+  /// **'Socks'**
+  String get outfitCatSocks;
+
+  /// No description provided for @outfitCatHat.
+  ///
+  /// In en, this message translates to:
+  /// **'Hat'**
+  String get outfitCatHat;
+
+  /// No description provided for @outfitCatHeadgear.
+  ///
+  /// In en, this message translates to:
+  /// **'Headgear'**
+  String get outfitCatHeadgear;
+
+  /// No description provided for @outfitCatAccessory.
+  ///
+  /// In en, this message translates to:
+  /// **'Accessory'**
+  String get outfitCatAccessory;
+
+  /// No description provided for @outfitCatWeapon.
+  ///
+  /// In en, this message translates to:
+  /// **'Weapon'**
+  String get outfitCatWeapon;
+
+  /// No description provided for @audioLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Audio'**
+  String get audioLabel;
+
+  /// No description provided for @audioDownloading.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading...'**
+  String get audioDownloading;
+
+  /// No description provided for @audioOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'Open audio'**
+  String get audioOpen;
+
+  /// No description provided for @outfitExtractTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Extract outfit'**
+  String get outfitExtractTitle;
+
+  /// No description provided for @outfitExtractBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The person in the selected image is removed and the outfit is saved to the wardrobe as a ghost-mannequin product shot on a plain grey background. After that any character can wear it as a skin.'**
+  String get outfitExtractBody;
+
+  /// No description provided for @outfitExtractName.
+  ///
+  /// In en, this message translates to:
+  /// **'Outfit name'**
+  String get outfitExtractName;
+
+  /// No description provided for @outfitExtractNameHint.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. Red evening dress'**
+  String get outfitExtractNameHint;
+
+  /// No description provided for @outfitExtractNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Note (optional)'**
+  String get outfitExtractNote;
+
+  /// No description provided for @outfitExtractNoteHint.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. only the dress, not the shoes'**
+  String get outfitExtractNoteHint;
+
+  /// No description provided for @outfitExtractHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Set: everything the person wears, in one shot. Weapon / accessory: only that item, without a mannequin.'**
+  String get outfitExtractHelp;
+
+  /// No description provided for @outfitExtractAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Extract'**
+  String get outfitExtractAction;
+
+  /// No description provided for @equipSlotTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'{category} slot'**
+  String equipSlotTitle(Object category);
+
+  /// No description provided for @equipSlotMultiHint.
+  ///
+  /// In en, this message translates to:
+  /// **'multiple choice - tap to put on / take off'**
+  String get equipSlotMultiHint;
+
+  /// No description provided for @equipSlotSingleHint.
+  ///
+  /// In en, this message translates to:
+  /// **'single choice - tap to put on, tap again to take off'**
+  String get equipSlotSingleHint;
+
+  /// No description provided for @equipSlotEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'(empty)'**
+  String get equipSlotEmpty;
+
+  /// No description provided for @equipSlotNoOutfits.
+  ///
+  /// In en, this message translates to:
+  /// **'No ready outfit in this category - use \"+ Generate outfit\" or \"Extract outfit\"'**
+  String get equipSlotNoOutfits;
+
+  /// No description provided for @equipBaseLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Base:'**
+  String get equipBaseLabel;
+
+  /// No description provided for @equipUndress.
+  ///
+  /// In en, this message translates to:
+  /// **'Take all off'**
+  String get equipUndress;
+
+  /// No description provided for @equipPickSourceTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick a source image'**
+  String get equipPickSourceTitle;
+
+  /// No description provided for @equipPickSourceHint.
+  ///
+  /// In en, this message translates to:
+  /// **'The latest finished generations (every mode). For incoming / staging / pushed images of the Jigsaw pipeline use the Pipeline > Jigsaw screen.'**
+  String get equipPickSourceHint;
+
+  /// No description provided for @equipNoFinishedImage.
+  ///
+  /// In en, this message translates to:
+  /// **'No finished image'**
+  String get equipNoFinishedImage;
+
+  /// No description provided for @freeFlowTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Free pipeline'**
+  String get freeFlowTitle;
+
+  /// No description provided for @freeFlowEditTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit - edit engine'**
+  String get freeFlowEditTitle;
+
+  /// No description provided for @freeFlowEditLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'What should change'**
+  String get freeFlowEditLabel;
+
+  /// No description provided for @freeFlowEditHint.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. change the dress to red, keep face and pose'**
+  String get freeFlowEditHint;
+
+  /// No description provided for @freeFlowEditQueued.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit added to the queue'**
+  String get freeFlowEditQueued;
+
+  /// No description provided for @freeFlowNoVideoTask.
+  ///
+  /// In en, this message translates to:
+  /// **'Free mode has no video task'**
+  String get freeFlowNoVideoTask;
+
+  /// No description provided for @freeFlowVideoTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Generate video - {task}'**
+  String freeFlowVideoTitle(Object task);
+
+  /// No description provided for @freeFlowMotionLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Motion'**
+  String get freeFlowMotionLabel;
+
+  /// No description provided for @freeFlowMotionHint.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. she turns her head slowly toward the camera, hair moving in the breeze'**
+  String get freeFlowMotionHint;
+
+  /// No description provided for @freeFlowVideoQueued.
+  ///
+  /// In en, this message translates to:
+  /// **'Video added to the queue - a play mark appears on this card when it is done'**
+  String get freeFlowVideoQueued;
+
+  /// No description provided for @freeFlowDeleteConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete this generation?'**
+  String get freeFlowDeleteConfirm;
+
+  /// No description provided for @freeFlowDeleteWithVideosConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete this generation and its videos?'**
+  String get freeFlowDeleteWithVideosConfirm;
+
+  /// No description provided for @freeFlowEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing generated in Free mode yet - start from the Generate tab'**
+  String get freeFlowEmpty;
+
+  /// No description provided for @queueKindGeneration.
+  ///
+  /// In en, this message translates to:
+  /// **'Generation'**
+  String get queueKindGeneration;
+
+  /// No description provided for @queueKindTag.
+  ///
+  /// In en, this message translates to:
+  /// **'Tagging'**
+  String get queueKindTag;
+
+  /// No description provided for @queueKindMusic.
+  ///
+  /// In en, this message translates to:
+  /// **'Music'**
+  String get queueKindMusic;
+
+  /// No description provided for @queueKindJob.
+  ///
+  /// In en, this message translates to:
+  /// **'Job'**
+  String get queueKindJob;
+
+  /// No description provided for @queueCancelRunningTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel the running job'**
+  String get queueCancelRunningTitle;
+
+  /// No description provided for @queueRemoveTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove from the queue'**
+  String get queueRemoveTitle;
+
+  /// No description provided for @queueCancelIt.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel it'**
+  String get queueCancelIt;
+
+  /// No description provided for @queueClearTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear the queue'**
+  String get queueClearTitle;
+
+  /// No description provided for @queueClearBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel the waiting generation jobs? The running job continues.'**
+  String get queueClearBody;
+
+  /// No description provided for @queueCancelWaiting.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel the waiting jobs'**
+  String get queueCancelWaiting;
+
+  /// No description provided for @queueEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'The queue is empty'**
+  String get queueEmpty;
+
+  /// No description provided for @queueEmptyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'You can add jobs from the Generate tab'**
+  String get queueEmptyHint;
+
+  /// No description provided for @queueNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Now'**
+  String get queueNow;
+
+  /// No description provided for @queueWaitingCount.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting ({count})'**
+  String queueWaitingCount(Object count);
+
+  /// No description provided for @queueGenerationJobsCount.
+  ///
+  /// In en, this message translates to:
+  /// **'Generation jobs ({count})'**
+  String queueGenerationJobsCount(Object count);
+
+  /// No description provided for @queueOneQueue.
+  ///
+  /// In en, this message translates to:
+  /// **'One queue - every job'**
+  String get queueOneQueue;
+
+  /// No description provided for @queueJobCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} job(s)'**
+  String queueJobCount(Object count);
+
+  /// No description provided for @queueMoveUp.
+  ///
+  /// In en, this message translates to:
+  /// **'Move up'**
+  String get queueMoveUp;
+
+  /// No description provided for @queueMoveDown.
+  ///
+  /// In en, this message translates to:
+  /// **'Move down'**
+  String get queueMoveDown;
+
+  /// No description provided for @queueUp.
+  ///
+  /// In en, this message translates to:
+  /// **'Up'**
+  String get queueUp;
+
+  /// No description provided for @queueDown.
+  ///
+  /// In en, this message translates to:
+  /// **'Down'**
+  String get queueDown;
+
+  /// No description provided for @queueElapsed.
+  ///
+  /// In en, this message translates to:
+  /// **'elapsed {time}'**
+  String queueElapsed(Object time);
+
+  /// No description provided for @queueWaitingFor.
+  ///
+  /// In en, this message translates to:
+  /// **'waiting {time}'**
+  String queueWaitingFor(Object time);
+
+  /// No description provided for @queueWaiting.
+  ///
+  /// In en, this message translates to:
+  /// **'waiting'**
+  String get queueWaiting;
+
+  /// No description provided for @queueComfyReady.
+  ///
+  /// In en, this message translates to:
+  /// **'ComfyUI ready'**
+  String get queueComfyReady;
+
+  /// No description provided for @queueComfyOff.
+  ///
+  /// In en, this message translates to:
+  /// **'ComfyUI is off'**
+  String get queueComfyOff;
+
+  /// No description provided for @deliveryPoolNeverRan.
+  ///
+  /// In en, this message translates to:
+  /// **'never ran'**
+  String get deliveryPoolNeverRan;
+
+  /// No description provided for @deliveryPoolDryRun.
+  ///
+  /// In en, this message translates to:
+  /// **'{status} (dry run)'**
+  String deliveryPoolDryRun(Object status);
+
+  /// No description provided for @deliveryPoolSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'{status} · {total} images, {valid} valid, {tagged} tagged, {failed} failed'**
+  String deliveryPoolSummary(
+    Object status,
+    Object total,
+    Object valid,
+    Object tagged,
+    Object failed,
+  );
+
+  /// No description provided for @reportErrEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Please write a message first.'**
+  String get reportErrEmpty;
+
+  /// No description provided for @reportErrTooLarge.
+  ///
+  /// In en, this message translates to:
+  /// **'Attachments are too large. Remove one and try again.'**
+  String get reportErrTooLarge;
+
+  /// No description provided for @flowOpError.
+  ///
+  /// In en, this message translates to:
+  /// **'Operation failed: {message}'**
+  String flowOpError(Object message);
+
+  /// No description provided for @flowOpCancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'Operation cancelled'**
+  String get flowOpCancelled;
+
+  /// No description provided for @flowOpDone.
+  ///
+  /// In en, this message translates to:
+  /// **'{ok} done'**
+  String flowOpDone(Object ok);
+
+  /// No description provided for @flowOpDoneWithFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'{ok} done, {failed} failed'**
+  String flowOpDoneWithFailed(Object ok, Object failed);
+
+  /// No description provided for @flowCollection.
+  ///
+  /// In en, this message translates to:
+  /// **'Collection'**
+  String get flowCollection;
+
+  /// No description provided for @flowAllParen.
+  ///
+  /// In en, this message translates to:
+  /// **'(all)'**
+  String get flowAllParen;
+
+  /// No description provided for @flowAll.
+  ///
+  /// In en, this message translates to:
+  /// **'all'**
+  String get flowAll;
+
+  /// No description provided for @flowSelectAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Select all'**
+  String get flowSelectAll;
+
+  /// No description provided for @flowRetag.
+  ///
+  /// In en, this message translates to:
+  /// **'Retag'**
+  String get flowRetag;
+
+  /// No description provided for @flowRetagShort.
+  ///
+  /// In en, this message translates to:
+  /// **'Retag'**
+  String get flowRetagShort;
+
+  /// No description provided for @flowRetagStarted.
+  ///
+  /// In en, this message translates to:
+  /// **'Tagging started'**
+  String get flowRetagStarted;
+
+  /// No description provided for @flowReadOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Read-only'**
+  String get flowReadOnly;
+
+  /// No description provided for @flowPush.
+  ///
+  /// In en, this message translates to:
+  /// **'Push'**
+  String get flowPush;
+
+  /// No description provided for @flowPreview.
+  ///
+  /// In en, this message translates to:
+  /// **'Preview'**
+  String get flowPreview;
+
+  /// No description provided for @flowYes.
+  ///
+  /// In en, this message translates to:
+  /// **'yes'**
+  String get flowYes;
+
+  /// No description provided for @flowNo.
+  ///
+  /// In en, this message translates to:
+  /// **'no'**
+  String get flowNo;
+
+  /// No description provided for @flowMissingUpper.
+  ///
+  /// In en, this message translates to:
+  /// **'MISSING'**
+  String get flowMissingUpper;
+
+  /// No description provided for @flowBadgeNoTags.
+  ///
+  /// In en, this message translates to:
+  /// **'no tags'**
+  String get flowBadgeNoTags;
+
+  /// No description provided for @flowTabPushed.
+  ///
+  /// In en, this message translates to:
+  /// **'4 Pushed'**
+  String get flowTabPushed;
+
+  /// No description provided for @flowSelectAssetFirst.
+  ///
+  /// In en, this message translates to:
+  /// **'Select an asset first'**
+  String get flowSelectAssetFirst;
+
+  /// No description provided for @flowAccept.
+  ///
+  /// In en, this message translates to:
+  /// **'Accept'**
+  String get flowAccept;
+
+  /// No description provided for @flowReject.
+  ///
+  /// In en, this message translates to:
+  /// **'Reject'**
+  String get flowReject;
+
+  /// No description provided for @flowUpload.
+  ///
+  /// In en, this message translates to:
+  /// **'Upload'**
+  String get flowUpload;
+
+  /// No description provided for @flowNew.
+  ///
+  /// In en, this message translates to:
+  /// **'New'**
+  String get flowNew;
+
+  /// No description provided for @flowReadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The pipeline could not be read'**
+  String get flowReadFailed;
+
+  /// No description provided for @flowFilesDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} files deleted'**
+  String flowFilesDeleted(Object count);
+
+  /// No description provided for @flowNegative.
+  ///
+  /// In en, this message translates to:
+  /// **'Negative'**
+  String get flowNegative;
+
+  /// No description provided for @flowPositive2.
+  ///
+  /// In en, this message translates to:
+  /// **'Positive 2'**
+  String get flowPositive2;
+
+  /// No description provided for @flowDuration.
+  ///
+  /// In en, this message translates to:
+  /// **'Duration'**
+  String get flowDuration;
+
+  /// No description provided for @flowAddToQueue.
+  ///
+  /// In en, this message translates to:
+  /// **'Add to queue'**
+  String get flowAddToQueue;
+
+  /// No description provided for @commonDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Description'**
+  String get commonDescription;
+
+  /// No description provided for @cbnFlowTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'CBN pipeline'**
+  String get cbnFlowTitle;
+
+  /// No description provided for @cbnFlowTabIncoming.
+  ///
+  /// In en, this message translates to:
+  /// **'2 Incoming'**
+  String get cbnFlowTabIncoming;
+
+  /// No description provided for @cbnFlowTabReady.
+  ///
+  /// In en, this message translates to:
+  /// **'3 Ready'**
+  String get cbnFlowTabReady;
+
+  /// No description provided for @cbnFlowBuildTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Build - {count} assets'**
+  String cbnFlowBuildTitle(Object count);
+
+  /// No description provided for @cbnFlowBuildBodyHot.
+  ///
+  /// In en, this message translates to:
+  /// **'Regions + palette + numbered template + reveal video (CPU). The SAM step must already be done; outlines come from the SAM boundaries. (Hot: the build makes the line-art page itself with Qwen; step C is an optional preview.)'**
+  String get cbnFlowBuildBodyHot;
+
+  /// No description provided for @cbnFlowBuildBodyKid.
+  ///
+  /// In en, this message translates to:
+  /// **'Regions + palette + numbered template + SVG (CPU). The SAM step must already be done.'**
+  String get cbnFlowBuildBodyKid;
+
+  /// No description provided for @cbnFlowBuild.
+  ///
+  /// In en, this message translates to:
+  /// **'Build'**
+  String get cbnFlowBuild;
+
+  /// No description provided for @cbnFlowBuildStarted.
+  ///
+  /// In en, this message translates to:
+  /// **'Build started - progress is shown at the top'**
+  String get cbnFlowBuildStarted;
+
+  /// No description provided for @cbnFlowStageStarted.
+  ///
+  /// In en, this message translates to:
+  /// **'{stage} started ({count} assets)'**
+  String cbnFlowStageStarted(Object stage, Object count);
+
+  /// No description provided for @cbnFlowStageObjects.
+  ///
+  /// In en, this message translates to:
+  /// **'Object list'**
+  String get cbnFlowStageObjects;
+
+  /// No description provided for @cbnFlowLineart.
+  ///
+  /// In en, this message translates to:
+  /// **'Line art'**
+  String get cbnFlowLineart;
+
+  /// No description provided for @cbnFlowPushTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Push - {count} assets'**
+  String cbnFlowPushTitle(Object count);
+
+  /// No description provided for @cbnFlowPushBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The asset folders will be uploaded to R2 and moved to \"Pushed\".\n\nThis is a PUBLISHING action and cannot be undone.'**
+  String get cbnFlowPushBody;
+
+  /// No description provided for @cbnFlowDeleteBody.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} assets will be deleted.'**
+  String cbnFlowDeleteBody(Object count);
+
+  /// No description provided for @cbnFlowDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} deleted'**
+  String cbnFlowDeleted(Object count);
+
+  /// No description provided for @cbnFlowEmptyIncoming.
+  ///
+  /// In en, this message translates to:
+  /// **'No assets in this stage.\nSend them here with ACCEPT in CBN mode on the \"Generated\" screen.'**
+  String get cbnFlowEmptyIncoming;
+
+  /// No description provided for @cbnFlowEmptyStaging.
+  ///
+  /// In en, this message translates to:
+  /// **'No built asset yet.\nSelect on the \"Incoming\" tab and tap BUILD.'**
+  String get cbnFlowEmptyStaging;
+
+  /// No description provided for @cbnFlowEmptyPushed.
+  ///
+  /// In en, this message translates to:
+  /// **'No pushed asset.'**
+  String get cbnFlowEmptyPushed;
+
+  /// No description provided for @cbnFlowBadgeTagged.
+  ///
+  /// In en, this message translates to:
+  /// **'T'**
+  String get cbnFlowBadgeTagged;
+
+  /// No description provided for @cbnFlowBadgeObjects.
+  ///
+  /// In en, this message translates to:
+  /// **'O'**
+  String get cbnFlowBadgeObjects;
+
+  /// No description provided for @cbnFlowBadgeBuilt.
+  ///
+  /// In en, this message translates to:
+  /// **'{regions}r {colors}c'**
+  String cbnFlowBadgeBuilt(Object regions, Object colors);
+
+  /// No description provided for @cbnFlowLayerNumbered.
+  ///
+  /// In en, this message translates to:
+  /// **'Numbered'**
+  String get cbnFlowLayerNumbered;
+
+  /// No description provided for @cbnFlowLayerFinished.
+  ///
+  /// In en, this message translates to:
+  /// **'Finished'**
+  String get cbnFlowLayerFinished;
+
+  /// No description provided for @cbnFlowLayerSource.
+  ///
+  /// In en, this message translates to:
+  /// **'Source'**
+  String get cbnFlowLayerSource;
+
+  /// No description provided for @cbnFlowLayerObjects.
+  ///
+  /// In en, this message translates to:
+  /// **'Objects'**
+  String get cbnFlowLayerObjects;
+
+  /// No description provided for @cbnFlowInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'{label}   {regions} regions · {colors} colours · {verdict}'**
+  String cbnFlowInfo(
+    Object label,
+    Object regions,
+    Object colors,
+    Object verdict,
+  );
+
+  /// No description provided for @cbnFlowTagLine.
+  ///
+  /// In en, this message translates to:
+  /// **'{label}   tags: {state}'**
+  String cbnFlowTagLine(Object label, Object state);
+
+  /// No description provided for @cbnFlowFindObjects.
+  ///
+  /// In en, this message translates to:
+  /// **'A) Find objects'**
+  String get cbnFlowFindObjects;
+
+  /// No description provided for @cbnFlowSamMasks.
+  ///
+  /// In en, this message translates to:
+  /// **'B) SAM masks'**
+  String get cbnFlowSamMasks;
+
+  /// No description provided for @cbnFlowLineartPage.
+  ///
+  /// In en, this message translates to:
+  /// **'C) Line-art page (optional, Qwen)'**
+  String get cbnFlowLineartPage;
+
+  /// No description provided for @cbnFlowBuildStep.
+  ///
+  /// In en, this message translates to:
+  /// **'D) Build'**
+  String get cbnFlowBuildStep;
+
+  /// No description provided for @cbnFlowStepMissingA.
+  ///
+  /// In en, this message translates to:
+  /// **'Step A (object list) has not been run'**
+  String get cbnFlowStepMissingA;
+
+  /// No description provided for @cbnFlowStepMissingB.
+  ///
+  /// In en, this message translates to:
+  /// **'Step B (SAM masks) has not been run'**
+  String get cbnFlowStepMissingB;
+
+  /// No description provided for @cbnFlowStepMissingC.
+  ///
+  /// In en, this message translates to:
+  /// **'Step C (line-art page) has not been run'**
+  String get cbnFlowStepMissingC;
+
+  /// No description provided for @cbnFlowImageFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The image could not be loaded'**
+  String get cbnFlowImageFailed;
+
+  /// No description provided for @jigsawFlowTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Jigsaw pipeline'**
+  String get jigsawFlowTitle;
+
+  /// No description provided for @jigsawFlowTabTagged.
+  ///
+  /// In en, this message translates to:
+  /// **'2 Tagged'**
+  String get jigsawFlowTabTagged;
+
+  /// No description provided for @jigsawFlowTabToPush.
+  ///
+  /// In en, this message translates to:
+  /// **'3 To push'**
+  String get jigsawFlowTabToPush;
+
+  /// No description provided for @jigsawFlowQueueAll.
+  ///
+  /// In en, this message translates to:
+  /// **'QUEUE ALL'**
+  String get jigsawFlowQueueAll;
+
+  /// No description provided for @jigsawFlowQueueAllTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'QUEUE ALL - {count} assets'**
+  String jigsawFlowQueueAllTitle(Object count);
+
+  /// No description provided for @jigsawFlowVideoTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Generate video - {count} assets'**
+  String jigsawFlowVideoTitle(Object count);
+
+  /// No description provided for @jigsawFlowPositive1.
+  ///
+  /// In en, this message translates to:
+  /// **'Positive 1 - subject'**
+  String get jigsawFlowPositive1;
+
+  /// No description provided for @jigsawFlowPositive1Help.
+  ///
+  /// In en, this message translates to:
+  /// **'empty = each asset\'s own prompt'**
+  String get jigsawFlowPositive1Help;
+
+  /// No description provided for @jigsawFlowMotionPreset.
+  ///
+  /// In en, this message translates to:
+  /// **'Motion preset'**
+  String get jigsawFlowMotionPreset;
+
+  /// No description provided for @jigsawFlowSpreadInTurn.
+  ///
+  /// In en, this message translates to:
+  /// **'(spread in turn)'**
+  String get jigsawFlowSpreadInTurn;
+
+  /// No description provided for @jigsawFlowPositive2.
+  ///
+  /// In en, this message translates to:
+  /// **'Positive 2 - motion'**
+  String get jigsawFlowPositive2;
+
+  /// No description provided for @jigsawFlowPositive2Help.
+  ///
+  /// In en, this message translates to:
+  /// **'{marker} = where the subject prompt goes. Empty = the presets in turn.'**
+  String jigsawFlowPositive2Help(Object marker);
+
+  /// No description provided for @jigsawFlowPresetsSpread.
+  ///
+  /// In en, this message translates to:
+  /// **'The {count} presets will be spread in turn.'**
+  String jigsawFlowPresetsSpread(Object count);
+
+  /// No description provided for @jigsawFlowNoAssetWithoutVideo.
+  ///
+  /// In en, this message translates to:
+  /// **'No asset without a video'**
+  String get jigsawFlowNoAssetWithoutVideo;
+
+  /// No description provided for @jigsawFlowSelectWithoutVideo.
+  ///
+  /// In en, this message translates to:
+  /// **'Select assets without a video'**
+  String get jigsawFlowSelectWithoutVideo;
+
+  /// No description provided for @jigsawFlowVideosQueued.
+  ///
+  /// In en, this message translates to:
+  /// **'{queued} videos added to the queue - they land here when done'**
+  String jigsawFlowVideosQueued(Object queued);
+
+  /// No description provided for @jigsawFlowVideosQueuedSkipped.
+  ///
+  /// In en, this message translates to:
+  /// **'{queued} videos added to the queue, {skipped} skipped - they land here when done'**
+  String jigsawFlowVideosQueuedSkipped(Object queued, Object skipped);
+
+  /// No description provided for @jigsawFlowNoVideoTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No video'**
+  String get jigsawFlowNoVideoTitle;
+
+  /// No description provided for @jigsawFlowNoVideoBody.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} assets have no video - only the jpg will be written. Continue?'**
+  String jigsawFlowNoVideoBody(Object count);
+
+  /// No description provided for @jigsawFlowMusicNotReady.
+  ///
+  /// In en, this message translates to:
+  /// **'The music model is not ready'**
+  String get jigsawFlowMusicNotReady;
+
+  /// No description provided for @jigsawFlowNoMusicMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'No themed collection is missing music'**
+  String get jigsawFlowNoMusicMissing;
+
+  /// No description provided for @jigsawFlowHasMusic.
+  ///
+  /// In en, this message translates to:
+  /// **'{collection} already has music or is Generic'**
+  String jigsawFlowHasMusic(Object collection);
+
+  /// No description provided for @jigsawFlowMusicBody.
+  ///
+  /// In en, this message translates to:
+  /// **'A 30-second instrumental track will be generated for {count} collections (ACE-Step, local).\n\n{names}\n\nEach one can take a few minutes.'**
+  String jigsawFlowMusicBody(Object count, Object names);
+
+  /// No description provided for @jigsawFlowPushBody.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} assets will be UPLOADED to the R2 bucket.\n\nThis is a publishing action that cannot be undone - the uploaded files become visible in the app.'**
+  String jigsawFlowPushBody(Object count);
+
+  /// No description provided for @jigsawFlowDeleteBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Permanently delete {count} assets (jpg + mp4 + webp + json)?'**
+  String jigsawFlowDeleteBody(Object count);
+
+  /// No description provided for @jigsawFlowWebpStarted.
+  ///
+  /// In en, this message translates to:
+  /// **'Generating the missing webp files'**
+  String get jigsawFlowWebpStarted;
+
+  /// No description provided for @jigsawFlowCollectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'{mode} collection'**
+  String jigsawFlowCollectionTitle(Object mode);
+
+  /// No description provided for @jigsawFlowCollectionHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'pick from the list or type a NEW name'**
+  String get jigsawFlowCollectionHelp;
+
+  /// No description provided for @jigsawFlowCollectionHelpFull.
+  ///
+  /// In en, this message translates to:
+  /// **'pick from the list or type a NEW name  -  {count} full collections are hidden'**
+  String jigsawFlowCollectionHelpFull(Object count);
+
+  /// No description provided for @jigsawFlowCollectionRow.
+  ///
+  /// In en, this message translates to:
+  /// **'{total} assets - next is {next}'**
+  String jigsawFlowCollectionRow(Object total, Object next);
+
+  /// No description provided for @jigsawFlowEmptyIncoming.
+  ///
+  /// In en, this message translates to:
+  /// **'No assets in this stage.\nSend them here with ACCEPT on the \"Generated\" screen.'**
+  String get jigsawFlowEmptyIncoming;
+
+  /// No description provided for @jigsawFlowEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No assets in this stage.'**
+  String get jigsawFlowEmpty;
+
+  /// No description provided for @jigsawFlowBadgeNoWebp.
+  ///
+  /// In en, this message translates to:
+  /// **'no webp'**
+  String get jigsawFlowBadgeNoWebp;
+
+  /// No description provided for @jigsawFlowPreviewInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'{label}\nvideo: {video}   webp: {webp}'**
+  String jigsawFlowPreviewInfo(Object label, Object video, Object webp);
+
+  /// No description provided for @jigsawFlowPreviewTags.
+  ///
+  /// In en, this message translates to:
+  /// **'tags: {state}'**
+  String jigsawFlowPreviewTags(Object state);
+
+  /// No description provided for @jigsawFlowNoVideoInSelection.
+  ///
+  /// In en, this message translates to:
+  /// **'None of the selected assets has a video'**
+  String get jigsawFlowNoVideoInSelection;
+
+  /// No description provided for @jigsawFlowDeleteVideo.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete video'**
+  String get jigsawFlowDeleteVideo;
+
+  /// No description provided for @jigsawFlowDeleteVideoBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The mp4 + webp of {count} assets will be deleted; the image stays and you can generate a new video.'**
+  String jigsawFlowDeleteVideoBody(Object count);
+
+  /// No description provided for @jigsawFlowDeleteVideoTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete video (the image stays)'**
+  String get jigsawFlowDeleteVideoTooltip;
+
+  /// No description provided for @jigsawFlowExtractNeedsOne.
+  ///
+  /// In en, this message translates to:
+  /// **'An outfit is extracted from a single image - select one'**
+  String get jigsawFlowExtractNeedsOne;
+
+  /// No description provided for @outfitExtractStarted.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} is being extracted to the wardrobe - Character > Wardrobe'**
+  String outfitExtractStarted(Object name);
+
+  /// No description provided for @jigsawFlowMetaFile.
+  ///
+  /// In en, this message translates to:
+  /// **'File'**
+  String get jigsawFlowMetaFile;
+
+  /// No description provided for @jigsawFlowMetaTags.
+  ///
+  /// In en, this message translates to:
+  /// **'Tags'**
+  String get jigsawFlowMetaTags;
+
+  /// No description provided for @jigsawFlowMetaSubject.
+  ///
+  /// In en, this message translates to:
+  /// **'Subject'**
+  String get jigsawFlowMetaSubject;
+
+  /// No description provided for @jigsawFlowMetaPolicy.
+  ///
+  /// In en, this message translates to:
+  /// **'Policy'**
+  String get jigsawFlowMetaPolicy;
+
+  /// No description provided for @jigsawFlowMetaVideoValue.
+  ///
+  /// In en, this message translates to:
+  /// **'{video}   webp: {webp}'**
+  String jigsawFlowMetaVideoValue(Object video, Object webp);
+
+  /// No description provided for @jigsawFlowTagsMetadata.
+  ///
+  /// In en, this message translates to:
+  /// **'Tags / metadata'**
+  String get jigsawFlowTagsMetadata;
+
+  /// No description provided for @jigsawFlowMissingWebp.
+  ///
+  /// In en, this message translates to:
+  /// **'Missing webp'**
+  String get jigsawFlowMissingWebp;
+
+  /// No description provided for @deliverySavedLive.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved and LIVE ({time}) - refreshing the counts'**
+  String deliverySavedLive(Object time);
+
+  /// No description provided for @deliveryReindexTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Re-read metadata'**
+  String get deliveryReindexTitle;
+
+  /// No description provided for @deliveryReindexBody.
+  ///
+  /// In en, this message translates to:
+  /// **'For images whose EXIF changed in the bucket. Type the file names separated by commas (e.g. 12.jpg, 340.jpg); leave it empty to re-read ALL of Generic (~1500 files, a few minutes).'**
+  String get deliveryReindexBody;
+
+  /// No description provided for @deliveryReindexNames.
+  ///
+  /// In en, this message translates to:
+  /// **'File names'**
+  String get deliveryReindexNames;
+
+  /// No description provided for @deliveryReindexAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Read'**
+  String get deliveryReindexAction;
+
+  /// No description provided for @deliveryReindexed.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} images re-read - manifests refreshed'**
+  String deliveryReindexed(Object count);
+
+  /// No description provided for @deliveryReindexedMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} images re-read, {missing} not found - manifests refreshed'**
+  String deliveryReindexedMissing(Object count, Object missing);
+
+  /// No description provided for @deliveryDryRunStarted.
+  ///
+  /// In en, this message translates to:
+  /// **'Dry run started - it only produces a report'**
+  String get deliveryDryRunStarted;
+
+  /// No description provided for @deliveryNormalizeStarted.
+  ///
+  /// In en, this message translates to:
+  /// **'Normalisation started'**
+  String get deliveryNormalizeStarted;
+
+  /// No description provided for @deliveryCancelRequested.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel requested'**
+  String get deliveryCancelRequested;
+
+  /// No description provided for @deliveryNeverSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'never saved'**
+  String get deliveryNeverSaved;
+
+  /// No description provided for @deliveryPoolJigsaw.
+  ///
+  /// In en, this message translates to:
+  /// **'Jigsaw pool'**
+  String get deliveryPoolJigsaw;
+
+  /// No description provided for @deliveryPoolCards.
+  ///
+  /// In en, this message translates to:
+  /// **'Cards'**
+  String get deliveryPoolCards;
+
+  /// No description provided for @deliveryPoolEvents.
+  ///
+  /// In en, this message translates to:
+  /// **'Events'**
+  String get deliveryPoolEvents;
+
+  /// No description provided for @deliveryEvent.
+  ///
+  /// In en, this message translates to:
+  /// **'Event'**
+  String get deliveryEvent;
+
+  /// No description provided for @deliverySummaryLine.
+  ///
+  /// In en, this message translates to:
+  /// **'{pool} pool: {total} images, {tagged} tagged, {untagged} untagged'**
+  String deliverySummaryLine(
+    Object pool,
+    Object total,
+    Object tagged,
+    Object untagged,
+  );
+
+  /// No description provided for @deliverySaveBeforeSwitch.
+  ///
+  /// In en, this message translates to:
+  /// **'Save your changes before switching pools.'**
+  String get deliverySaveBeforeSwitch;
+
+  /// No description provided for @deliveryReindexTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Re-read metadata (if the EXIF changed)'**
+  String get deliveryReindexTooltip;
+
+  /// No description provided for @deliveryLastRule.
+  ///
+  /// In en, this message translates to:
+  /// **'Last rule: {time}  ·  served by default: {served} / {total}'**
+  String deliveryLastRule(Object time, Object served, Object total);
+
+  /// No description provided for @deliveryIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch OFF = images with that value leave the manifest. Saving goes live at once and now filters EVERY collection / deck; a single item the rules miss is closed with the Block list.'**
+  String get deliveryIntro;
+
+  /// No description provided for @deliveryNormalizeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Normalise - generate the missing tags'**
+  String get deliveryNormalizeTitle;
+
+  /// No description provided for @deliveryDryRun.
+  ///
+  /// In en, this message translates to:
+  /// **'Dry run'**
+  String get deliveryDryRun;
+
+  /// No description provided for @deliveryNormalizeNoStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Status unavailable - the server did not answer /api/normalize/status'**
+  String get deliveryNormalizeNoStatus;
+
+  /// No description provided for @deliveryIndex.
+  ///
+  /// In en, this message translates to:
+  /// **'Index: {index}'**
+  String deliveryIndex(Object index);
+
+  /// No description provided for @deliveryLastRun.
+  ///
+  /// In en, this message translates to:
+  /// **'Last run: {summary}'**
+  String deliveryLastRun(Object summary);
+
+  /// No description provided for @deliveryBlockScopeGlobal.
+  ///
+  /// In en, this message translates to:
+  /// **'every app (global)'**
+  String get deliveryBlockScopeGlobal;
+
+  /// No description provided for @deliveryBlockTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Block · {scope}'**
+  String deliveryBlockTitle(Object scope);
+
+  /// No description provided for @deliveryOpenList.
+  ///
+  /// In en, this message translates to:
+  /// **'Open the list'**
+  String get deliveryOpenList;
+
+  /// No description provided for @deliveryBlockIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'A global block applies in EVERY app; select an app to block for that app only. Applied AFTER the rules.'**
+  String get deliveryBlockIntro;
+
+  /// No description provided for @deliveryBlockEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing to block in this pool (the bucket is empty).'**
+  String get deliveryBlockEmpty;
+
+  /// No description provided for @deliveryGroupSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} items · {tagged}/{count} tagged'**
+  String deliveryGroupSubtitle(Object count, Object tagged);
+
+  /// No description provided for @deliveryGroupSubtitleBlocked.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} items · {tagged}/{count} tagged · ALL BLOCKED'**
+  String deliveryGroupSubtitleBlocked(Object count, Object tagged);
+
+  /// No description provided for @deliveryAppsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Apps - tap to edit that app\'s rule'**
+  String get deliveryAppsHint;
+
+  /// No description provided for @deliveryDefaultChip.
+  ///
+  /// In en, this message translates to:
+  /// **'Default  {served}/{total}'**
+  String deliveryDefaultChip(Object served, Object total);
+
+  /// No description provided for @deliveryDefaultRuleTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Default rule - old versions that do not send ?app= and apps without a rule of their own'**
+  String get deliveryDefaultRuleTitle;
+
+  /// No description provided for @deliveryCustomRuleTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom rule for {app}'**
+  String deliveryCustomRuleTitle(Object app);
+
+  /// No description provided for @deliveryCustomRuleOn.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch it off to return to the default'**
+  String get deliveryCustomRuleOn;
+
+  /// No description provided for @deliveryCustomRuleOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Off: the default rule applies. Switching it on starts from a copy of the default.'**
+  String get deliveryCustomRuleOff;
+
+  /// No description provided for @deliveryScopeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Only the selected collections'**
+  String get deliveryScopeTitle;
+
+  /// No description provided for @deliveryScopeOn.
+  ///
+  /// In en, this message translates to:
+  /// **'{selected}/{total} collections - newly published ones do NOT reach this app'**
+  String deliveryScopeOn(Object selected, Object total);
+
+  /// No description provided for @deliveryScopeOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Off: every newly published collection also reaches this app'**
+  String get deliveryScopeOff;
+
+  /// No description provided for @deliveryScopeNone.
+  ///
+  /// In en, this message translates to:
+  /// **'None selected - an empty list is not saved, the rule falls back to \"all\".'**
+  String get deliveryScopeNone;
+
+  /// No description provided for @deliveryRulesEnabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Rules enabled'**
+  String get deliveryRulesEnabled;
+
+  /// No description provided for @deliveryRulesEnabledHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Off = this rule set filters nothing'**
+  String get deliveryRulesEnabledHint;
+
+  /// No description provided for @deliveryServeUntagged.
+  ///
+  /// In en, this message translates to:
+  /// **'Serve untagged images'**
+  String get deliveryServeUntagged;
+
+  /// No description provided for @deliveryUntaggedCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} images have no metadata'**
+  String deliveryUntaggedCount(Object count);
+
+  /// No description provided for @deliveryQuick.
+  ///
+  /// In en, this message translates to:
+  /// **'Quick:'**
+  String get deliveryQuick;
+
+  /// No description provided for @deliveryOffCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} off'**
+  String deliveryOffCount(Object count);
+
+  /// No description provided for @deliveryFieldSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'{field} · {count} values'**
+  String deliveryFieldSubtitle(Object field, Object count);
+
+  /// No description provided for @deliveryUnsaved.
+  ///
+  /// In en, this message translates to:
+  /// **'There are unsaved changes'**
+  String get deliveryUnsaved;
+
+  /// No description provided for @deliveryInSync.
+  ///
+  /// In en, this message translates to:
+  /// **'Same as the server'**
+  String get deliveryInSync;
+
+  /// No description provided for @deliverySavePublish.
+  ///
+  /// In en, this message translates to:
+  /// **'Save and publish'**
+  String get deliverySavePublish;
+
+  /// No description provided for @commonApply.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply'**
+  String get commonApply;
+
+  /// No description provided for @commonModel.
+  ///
+  /// In en, this message translates to:
+  /// **'Model'**
+  String get commonModel;
+
+  /// No description provided for @cardTplShuffled.
+  ///
+  /// In en, this message translates to:
+  /// **'Shuffled - locked axes were left alone'**
+  String get cardTplShuffled;
+
+  /// No description provided for @cardTplRankShuffled.
+  ///
+  /// In en, this message translates to:
+  /// **'{rank} shuffled'**
+  String cardTplRankShuffled(Object rank);
+
+  /// No description provided for @cardTplAxisAllTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'{axis} - to all'**
+  String cardTplAxisAllTitle(Object axis);
+
+  /// No description provided for @cardTplAxisAllBack.
+  ///
+  /// In en, this message translates to:
+  /// **'Written to the card back and LOCKED.'**
+  String get cardTplAxisAllBack;
+
+  /// No description provided for @cardTplAxisAllFront.
+  ///
+  /// In en, this message translates to:
+  /// **'Written to all 13 cards + 2 jokers at once and LOCKED - shuffling does not change it.'**
+  String get cardTplAxisAllFront;
+
+  /// No description provided for @cardTplValue.
+  ///
+  /// In en, this message translates to:
+  /// **'Value'**
+  String get cardTplValue;
+
+  /// No description provided for @cardTplAllWritten.
+  ///
+  /// In en, this message translates to:
+  /// **'Written to all and locked'**
+  String get cardTplAllWritten;
+
+  /// No description provided for @cardTplRankTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'{rank} template'**
+  String cardTplRankTitle(Object rank);
+
+  /// No description provided for @cardTplLocked.
+  ///
+  /// In en, this message translates to:
+  /// **'Locked'**
+  String get cardTplLocked;
+
+  /// No description provided for @cardTplLock.
+  ///
+  /// In en, this message translates to:
+  /// **'Lock'**
+  String get cardTplLock;
+
+  /// No description provided for @cardTplManual.
+  ///
+  /// In en, this message translates to:
+  /// **'Manual extra (free text)'**
+  String get cardTplManual;
+
+  /// No description provided for @cardTplManualHint.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. holding a golden card fan'**
+  String get cardTplManualHint;
+
+  /// No description provided for @cardTplManualHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Added to the end of the template - shuffling does not remove it'**
+  String get cardTplManualHelp;
+
+  /// No description provided for @cardTplRankSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'{rank} saved'**
+  String cardTplRankSaved(Object rank);
+
+  /// No description provided for @cardTplSlotQueued.
+  ///
+  /// In en, this message translates to:
+  /// **'{slot} added to the queue'**
+  String cardTplSlotQueued(Object slot);
+
+  /// No description provided for @cardTplTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Collection card - {title}'**
+  String cardTplTitle(Object title);
+
+  /// No description provided for @cardTplShuffle.
+  ///
+  /// In en, this message translates to:
+  /// **'Shuffle'**
+  String get cardTplShuffle;
+
+  /// No description provided for @cardTplNoTheme.
+  ///
+  /// In en, this message translates to:
+  /// **'No theme - tap to write one'**
+  String get cardTplNoTheme;
+
+  /// No description provided for @cardTplThemeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Theme (P1)'**
+  String get cardTplThemeTitle;
+
+  /// No description provided for @cardTplPresetCard.
+  ///
+  /// In en, this message translates to:
+  /// **'Preset card'**
+  String get cardTplPresetCard;
+
+  /// No description provided for @cardTplTheme.
+  ///
+  /// In en, this message translates to:
+  /// **'Theme'**
+  String get cardTplTheme;
+
+  /// No description provided for @cardTplThemeHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'identity + STRICT PALETTE + Signature pieces'**
+  String get cardTplThemeHelp;
+
+  /// No description provided for @cardTplThemeEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'The theme cannot be empty'**
+  String get cardTplThemeEmpty;
+
+  /// No description provided for @cardTplThemeSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Theme saved'**
+  String get cardTplThemeSaved;
+
+  /// No description provided for @cardTplModelSet.
+  ///
+  /// In en, this message translates to:
+  /// **'Model: {name}'**
+  String cardTplModelSet(Object name);
+
+  /// No description provided for @cardTplFaceDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Face retouch'**
+  String get cardTplFaceDetail;
+
+  /// No description provided for @cardTplFaceDetailHint.
+  ///
+  /// In en, this message translates to:
+  /// **'+15 s per card - runs the face through a separate pass'**
+  String get cardTplFaceDetailHint;
+
+  /// No description provided for @cardTplFaceDetailOn.
+  ///
+  /// In en, this message translates to:
+  /// **'Face retouch on'**
+  String get cardTplFaceDetailOn;
+
+  /// No description provided for @cardTplFaceDetailOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Face retouch off'**
+  String get cardTplFaceDetailOff;
+
+  /// No description provided for @cardTplVideoEngine.
+  ///
+  /// In en, this message translates to:
+  /// **'Video engine (first frame = last frame)'**
+  String get cardTplVideoEngine;
+
+  /// No description provided for @cardTplEngineUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'{engine} (not installed)'**
+  String cardTplEngineUnavailable(Object engine);
+
+  /// No description provided for @cardTplVideoEngineSet.
+  ///
+  /// In en, this message translates to:
+  /// **'Video engine: {name}'**
+  String cardTplVideoEngineSet(Object name);
+
+  /// No description provided for @cardTplApplyToAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply to all:'**
+  String get cardTplApplyToAll;
+
+  /// No description provided for @cardTplPickAxis.
+  ///
+  /// In en, this message translates to:
+  /// **'pick an axis'**
+  String get cardTplPickAxis;
+
+  /// No description provided for @cardTplBackAxis.
+  ///
+  /// In en, this message translates to:
+  /// **'{axis}  (back)'**
+  String cardTplBackAxis(Object axis);
+
+  /// No description provided for @cardTplLockedAxes.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} axes locked'**
+  String cardTplLockedAxes(Object count);
+
+  /// No description provided for @cardTplShuffleSlot.
+  ///
+  /// In en, this message translates to:
+  /// **'Shuffle this slot'**
+  String get cardTplShuffleSlot;
+
+  /// No description provided for @cardTplGenerateSlot.
+  ///
+  /// In en, this message translates to:
+  /// **'Generate this slot'**
+  String get cardTplGenerateSlot;
+
+  /// No description provided for @galleryDeleteSelectedConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete {count} generations and their files?'**
+  String galleryDeleteSelectedConfirm(Object count);
+
+  /// No description provided for @galleryDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} generations deleted'**
+  String galleryDeleted(Object count);
+
+  /// No description provided for @galleryDeleteFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} could not be deleted'**
+  String galleryDeleteFailed(Object count);
+
+  /// No description provided for @galleryCharacterNeedsOne.
+  ///
+  /// In en, this message translates to:
+  /// **'A character is created from a single image - select one'**
+  String get galleryCharacterNeedsOne;
+
+  /// No description provided for @galleryMakeCharacter.
+  ///
+  /// In en, this message translates to:
+  /// **'Make character'**
+  String get galleryMakeCharacter;
+
+  /// No description provided for @galleryMakeCharacterBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The selected image becomes the base directly; the portrait, the story and the 7 directions are generated on their own - no confirmation is asked.'**
+  String get galleryMakeCharacterBody;
+
+  /// No description provided for @galleryCharacterQueued.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} added to the queue - follow the pipeline on the Queue tab'**
+  String galleryCharacterQueued(Object name);
+
+  /// No description provided for @galleryCreateCharacterFirst.
+  ///
+  /// In en, this message translates to:
+  /// **'Create a character with \"Make character\" first'**
+  String get galleryCreateCharacterFirst;
+
+  /// No description provided for @galleryAddToCandidatesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Add to candidates - {count} images'**
+  String galleryAddToCandidatesTitle(Object count);
+
+  /// No description provided for @galleryAddedToCandidates.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} images added to the candidates of {name}'**
+  String galleryAddedToCandidates(Object count, Object name);
+
+  /// No description provided for @galleryCollectionNeedsOne.
+  ///
+  /// In en, this message translates to:
+  /// **'A single image is added to a collection - select one'**
+  String get galleryCollectionNeedsOne;
+
+  /// No description provided for @galleryCreateCollectionFirst.
+  ///
+  /// In en, this message translates to:
+  /// **'Create a collection or a dealer in the Card pipeline first'**
+  String get galleryCreateCollectionFirst;
+
+  /// No description provided for @galleryAddToCollection.
+  ///
+  /// In en, this message translates to:
+  /// **'Add to collection'**
+  String get galleryAddToCollection;
+
+  /// No description provided for @galleryDealerNoRank.
+  ///
+  /// In en, this message translates to:
+  /// **'dealer (no rank)'**
+  String get galleryDealerNoRank;
+
+  /// No description provided for @galleryPickRank.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} - pick a rank'**
+  String galleryPickRank(Object name);
+
+  /// No description provided for @galleryQueuedOne.
+  ///
+  /// In en, this message translates to:
+  /// **'Added to the queue (1 job) - follow it on the Queue tab'**
+  String get galleryQueuedOne;
+
+  /// No description provided for @galleryAcceptBodyCbn.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} images will move to the \"Incoming\" stage of the CBN pipeline: jpg + EXIF tags. The build (SAM, line art, regions) is started there.\n\nWhich rating?'**
+  String galleryAcceptBodyCbn(Object count);
+
+  /// No description provided for @galleryAcceptBodyJigsaw.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} images will move to stage 2: jpg + EXIF tags, with the video next to it if there is one.\n\nWhich rating?'**
+  String galleryAcceptBodyJigsaw(Object count);
+
+  /// No description provided for @galleryAcceptStarted.
+  ///
+  /// In en, this message translates to:
+  /// **'Started - follow the progress on the \"Pipeline\" tab'**
+  String get galleryAcceptStarted;
+
+  /// No description provided for @galleryExtractTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Extract outfit - take the outfit in the image into the wardrobe'**
+  String get galleryExtractTooltip;
+
+  /// No description provided for @galleryMakeCharacterTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Make character - create a new character'**
+  String get galleryMakeCharacterTooltip;
+
+  /// No description provided for @galleryAddToCandidatesTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Add to candidates - copy to an existing character'**
+  String get galleryAddToCandidatesTooltip;
+
+  /// No description provided for @galleryAddToCollectionTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Add to collection - pick a rank'**
+  String get galleryAddToCollectionTooltip;
+
+  /// No description provided for @galleryAcceptTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Accept - send to stage 2'**
+  String get galleryAcceptTooltip;
+
+  /// No description provided for @galleryDeleteSelected.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete the selected'**
+  String get galleryDeleteSelected;
+
+  /// No description provided for @galleryFilterImage.
+  ///
+  /// In en, this message translates to:
+  /// **'Image'**
+  String get galleryFilterImage;
+
+  /// No description provided for @galleryFilterVideo.
+  ///
+  /// In en, this message translates to:
+  /// **'Video'**
+  String get galleryFilterVideo;
+
+  /// No description provided for @galleryFilterFavorite.
+  ///
+  /// In en, this message translates to:
+  /// **'Favorite'**
+  String get galleryFilterFavorite;
+
+  /// No description provided for @galleryQueuedAt.
+  ///
+  /// In en, this message translates to:
+  /// **'queued {position}'**
+  String galleryQueuedAt(Object position);
+
+  /// No description provided for @galleryEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing generated yet'**
+  String get galleryEmpty;
+
+  /// No description provided for @galleryEmptyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'You can start from the Generate tab'**
+  String get galleryEmptyHint;
+
+  /// No description provided for @galleryDeleteOneConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete this generation and its file?'**
+  String get galleryDeleteOneConfirm;
+
+  /// No description provided for @galleryAcceptOneCbn.
+  ///
+  /// In en, this message translates to:
+  /// **'It will move to the \"Incoming\" stage of the CBN pipeline (jpg + EXIF tags).\n\nWhich rating?'**
+  String get galleryAcceptOneCbn;
+
+  /// No description provided for @galleryAcceptOneJigsaw.
+  ///
+  /// In en, this message translates to:
+  /// **'It will move to stage 2 (jpg + EXIF tags).\n\nWhich rating?'**
+  String get galleryAcceptOneJigsaw;
+
+  /// No description provided for @galleryAccepted.
+  ///
+  /// In en, this message translates to:
+  /// **'Accepted - being tagged, follow it on the \"Pipeline\" tab'**
+  String get galleryAccepted;
+
+  /// No description provided for @galleryRejected.
+  ///
+  /// In en, this message translates to:
+  /// **'Rejected'**
+  String get galleryRejected;
+
+  /// No description provided for @galleryEditBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This image becomes the source; the edit engine (Qwen Image Edit, keeps the identity) starts a new generation. What should change?'**
+  String get galleryEditBody;
+
+  /// No description provided for @galleryEditPromptLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Extra prompt'**
+  String get galleryEditPromptLabel;
+
+  /// No description provided for @galleryEditPromptHint.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. change the dress to a red pleated miniskirt, keep face and pose'**
+  String get galleryEditPromptHint;
+
+  /// No description provided for @galleryEditQueued.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit added to the queue - the result shows up in Generated'**
+  String get galleryEditQueued;
+
+  /// No description provided for @galleryEditTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit - a new generation with the edit engine'**
+  String get galleryEditTooltip;
+
+  /// No description provided for @galleryPoolInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'pool {name}'**
+  String galleryPoolInfo(Object name);
+
+  /// No description provided for @genPromptUnchanged.
+  ///
+  /// In en, this message translates to:
+  /// **'The prompt did not change (the local LLM did not answer)'**
+  String get genPromptUnchanged;
+
+  /// No description provided for @genPromptWritten.
+  ///
+  /// In en, this message translates to:
+  /// **'Prompt written'**
+  String get genPromptWritten;
+
+  /// No description provided for @commonUndo.
+  ///
+  /// In en, this message translates to:
+  /// **'Undo'**
+  String get commonUndo;
+
+  /// No description provided for @genVariantFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'No variant could be produced (the local LLM did not answer)'**
+  String get genVariantFailed;
+
+  /// No description provided for @genPickVariant.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick a variant'**
+  String get genPickVariant;
+
+  /// No description provided for @genEnrich.
+  ///
+  /// In en, this message translates to:
+  /// **'Enrich'**
+  String get genEnrich;
+
+  /// No description provided for @genFix.
+  ///
+  /// In en, this message translates to:
+  /// **'Fix'**
+  String get genFix;
+
+  /// No description provided for @genVariant.
+  ///
+  /// In en, this message translates to:
+  /// **'Variant'**
+  String get genVariant;
+
+  /// No description provided for @genFileUnreadable.
+  ///
+  /// In en, this message translates to:
+  /// **'The file could not be read'**
+  String get genFileUnreadable;
+
+  /// No description provided for @genPromptEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'The prompt cannot be empty'**
+  String get genPromptEmpty;
+
+  /// No description provided for @genMissingInputs.
+  ///
+  /// In en, this message translates to:
+  /// **'Missing input: {inputs}'**
+  String genMissingInputs(Object inputs);
+
+  /// No description provided for @genNeedsImagePick.
+  ///
+  /// In en, this message translates to:
+  /// **'This task needs an input image - pick one of the generated ones'**
+  String get genNeedsImagePick;
+
+  /// No description provided for @genNeedsImage.
+  ///
+  /// In en, this message translates to:
+  /// **'This task needs an input image'**
+  String get genNeedsImage;
+
+  /// No description provided for @genQueuedCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} jobs added to the queue'**
+  String genQueuedCount(Object count);
+
+  /// No description provided for @genQueued.
+  ///
+  /// In en, this message translates to:
+  /// **'Added to the queue'**
+  String get genQueued;
+
+  /// No description provided for @genQueueBadge.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} queued'**
+  String genQueueBadge(Object count);
+
+  /// No description provided for @genComfyOffBody.
+  ///
+  /// In en, this message translates to:
+  /// **'ComfyUI is off. Jobs enter the queue but do not start - it has to be started on the computer.'**
+  String get genComfyOffBody;
+
+  /// No description provided for @genTask.
+  ///
+  /// In en, this message translates to:
+  /// **'Task'**
+  String get genTask;
+
+  /// No description provided for @genWorkflowInputs.
+  ///
+  /// In en, this message translates to:
+  /// **'Workflow inputs'**
+  String get genWorkflowInputs;
+
+  /// No description provided for @genInputImage.
+  ///
+  /// In en, this message translates to:
+  /// **'Input image'**
+  String get genInputImage;
+
+  /// No description provided for @genPositive1.
+  ///
+  /// In en, this message translates to:
+  /// **'Positive prompt 1 - subject'**
+  String get genPositive1;
+
+  /// No description provided for @genPositive1Hint.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. police officer'**
+  String get genPositive1Hint;
+
+  /// No description provided for @genPositive2.
+  ///
+  /// In en, this message translates to:
+  /// **'Positive prompt 2 - template'**
+  String get genPositive2;
+
+  /// No description provided for @genPositive2Help.
+  ///
+  /// In en, this message translates to:
+  /// **'{marker} is replaced by the first prompt. May be left empty.'**
+  String genPositive2Help(Object marker);
+
+  /// No description provided for @genFinalPrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'Prompt to be sent'**
+  String get genFinalPrompt;
+
+  /// No description provided for @genNegative.
+  ///
+  /// In en, this message translates to:
+  /// **'Negative prompt'**
+  String get genNegative;
+
+  /// No description provided for @genTurboHint.
+  ///
+  /// In en, this message translates to:
+  /// **'fast mode'**
+  String get genTurboHint;
+
+  /// No description provided for @genDurationSeconds.
+  ///
+  /// In en, this message translates to:
+  /// **'Duration: {seconds} seconds'**
+  String genDurationSeconds(Object seconds);
+
+  /// No description provided for @genCount.
+  ///
+  /// In en, this message translates to:
+  /// **'Count: {count}'**
+  String genCount(Object count);
+
+  /// No description provided for @genSizeAspect.
+  ///
+  /// In en, this message translates to:
+  /// **'Size: {width} x {height}  ({aspect})'**
+  String genSizeAspect(Object width, Object height, Object aspect);
+
+  /// No description provided for @genSize.
+  ///
+  /// In en, this message translates to:
+  /// **'Size: {width} x {height}'**
+  String genSize(Object width, Object height);
+
+  /// No description provided for @genAddToQueueUpper.
+  ///
+  /// In en, this message translates to:
+  /// **'ADD TO QUEUE'**
+  String get genAddToQueueUpper;
+
+  /// No description provided for @genFootnote.
+  ///
+  /// In en, this message translates to:
+  /// **'Jobs are generated one after another. You can follow them on the Queue tab.'**
+  String get genFootnote;
+
+  /// No description provided for @genDetailsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Details - may be left empty, locked ones are not shuffled'**
+  String get genDetailsTitle;
+
+  /// No description provided for @genRandomGenerate.
+  ///
+  /// In en, this message translates to:
+  /// **'Generate random  {count}'**
+  String genRandomGenerate(Object count);
+
+  /// No description provided for @genLockedTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'locked - stays fixed when shuffling'**
+  String get genLockedTooltip;
+
+  /// No description provided for @genOptionsEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'The option list is empty'**
+  String get genOptionsEmpty;
+
+  /// No description provided for @genOptional.
+  ///
+  /// In en, this message translates to:
+  /// **'optional'**
+  String get genOptional;
+
+  /// No description provided for @genUploading.
+  ///
+  /// In en, this message translates to:
+  /// **'uploading...'**
+  String get genUploading;
+
+  /// No description provided for @genNotSelected.
+  ///
+  /// In en, this message translates to:
+  /// **'not selected'**
+  String get genNotSelected;
+
+  /// No description provided for @genFromGallery.
+  ///
+  /// In en, this message translates to:
+  /// **'From gallery'**
+  String get genFromGallery;
+
+  /// No description provided for @genFromFile.
+  ///
+  /// In en, this message translates to:
+  /// **'From file'**
+  String get genFromFile;
+
+  /// No description provided for @genNoSource.
+  ///
+  /// In en, this message translates to:
+  /// **'No generation can be used as input. Generate an image first.'**
+  String get genNoSource;
+
+  /// No description provided for @genPickerTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'{slot} - pick from Generated'**
+  String genPickerTitle(Object slot);
+
+  /// No description provided for @genPickerSearch.
+  ///
+  /// In en, this message translates to:
+  /// **'search in prompts'**
+  String get genPickerSearch;
+
+  /// No description provided for @genPickerEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No finished generation of this kind.'**
+  String get genPickerEmpty;
+
+  /// No description provided for @optionsFileMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'Missing in the options file: {items}'**
+  String optionsFileMissing(Object items);
+
+  /// No description provided for @optionsFieldsMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'{label} (no field definitions)'**
+  String optionsFieldsMissing(Object label);
+
+  /// No description provided for @optionsFileUnreadable.
+  ///
+  /// In en, this message translates to:
+  /// **'The options file could not be read: {error}'**
+  String optionsFileUnreadable(Object error);
+
+  /// No description provided for @optionsFileUnreadableNamed.
+  ///
+  /// In en, this message translates to:
+  /// **'The {name} options file could not be read: {error}'**
+  String optionsFileUnreadableNamed(Object name, Object error);
+
+  /// No description provided for @fieldLocation.
+  ///
+  /// In en, this message translates to:
+  /// **'Location'**
+  String get fieldLocation;
+
+  /// No description provided for @fieldEra.
+  ///
+  /// In en, this message translates to:
+  /// **'Era / aesthetic'**
+  String get fieldEra;
+
+  /// No description provided for @fieldWeather.
+  ///
+  /// In en, this message translates to:
+  /// **'Weather'**
+  String get fieldWeather;
+
+  /// No description provided for @fieldWeatherLight.
+  ///
+  /// In en, this message translates to:
+  /// **'Weather / light'**
+  String get fieldWeatherLight;
+
+  /// No description provided for @fieldJob.
+  ///
+  /// In en, this message translates to:
+  /// **'Job'**
+  String get fieldJob;
+
+  /// No description provided for @fieldFantasy.
+  ///
+  /// In en, this message translates to:
+  /// **'Fantasy'**
+  String get fieldFantasy;
+
+  /// No description provided for @fieldOutfitColor.
+  ///
+  /// In en, this message translates to:
+  /// **'Outfit colour'**
+  String get fieldOutfitColor;
+
+  /// No description provided for @fieldOutfit.
+  ///
+  /// In en, this message translates to:
+  /// **'Outfit'**
+  String get fieldOutfit;
+
+  /// No description provided for @fieldHair.
+  ///
+  /// In en, this message translates to:
+  /// **'Hair'**
+  String get fieldHair;
+
+  /// No description provided for @fieldHairColor.
+  ///
+  /// In en, this message translates to:
+  /// **'Hair colour'**
+  String get fieldHairColor;
+
+  /// No description provided for @fieldHairstyle.
+  ///
+  /// In en, this message translates to:
+  /// **'Hairstyle'**
+  String get fieldHairstyle;
+
+  /// No description provided for @fieldEyes.
+  ///
+  /// In en, this message translates to:
+  /// **'Eyes'**
+  String get fieldEyes;
+
+  /// No description provided for @fieldRace.
+  ///
+  /// In en, this message translates to:
+  /// **'Race'**
+  String get fieldRace;
+
+  /// No description provided for @fieldExpression.
+  ///
+  /// In en, this message translates to:
+  /// **'Expression'**
+  String get fieldExpression;
+
+  /// No description provided for @fieldPose.
+  ///
+  /// In en, this message translates to:
+  /// **'Pose'**
+  String get fieldPose;
+
+  /// No description provided for @fieldAngle.
+  ///
+  /// In en, this message translates to:
+  /// **'Angle'**
+  String get fieldAngle;
+
+  /// No description provided for @fieldStyle.
+  ///
+  /// In en, this message translates to:
+  /// **'Style'**
+  String get fieldStyle;
+
+  /// No description provided for @fieldMood.
+  ///
+  /// In en, this message translates to:
+  /// **'Mood'**
+  String get fieldMood;
+
+  /// No description provided for @fieldColor.
+  ///
+  /// In en, this message translates to:
+  /// **'Colour'**
+  String get fieldColor;
+
+  /// No description provided for @fieldCreature.
+  ///
+  /// In en, this message translates to:
+  /// **'Creature'**
+  String get fieldCreature;
+
+  /// No description provided for @fieldClass.
+  ///
+  /// In en, this message translates to:
+  /// **'Class'**
+  String get fieldClass;
+
+  /// No description provided for @fieldAge.
+  ///
+  /// In en, this message translates to:
+  /// **'Age'**
+  String get fieldAge;
+
+  /// No description provided for @fieldOrigin.
+  ///
+  /// In en, this message translates to:
+  /// **'Origin'**
+  String get fieldOrigin;
+
+  /// No description provided for @fieldBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Body'**
+  String get fieldBody;
+
+  /// No description provided for @fieldSkin.
+  ///
+  /// In en, this message translates to:
+  /// **'Skin'**
+  String get fieldSkin;
+
+  /// No description provided for @fieldFace.
+  ///
+  /// In en, this message translates to:
+  /// **'Face'**
+  String get fieldFace;
+
+  /// No description provided for @fieldGesture.
+  ///
+  /// In en, this message translates to:
+  /// **'Gesture'**
+  String get fieldGesture;
+
+  /// No description provided for @cardNotReady.
+  ///
+  /// In en, this message translates to:
+  /// **'The server endpoint is not ready yet'**
+  String get cardNotReady;
+
+  /// No description provided for @cardKindNormal.
+  ///
+  /// In en, this message translates to:
+  /// **'Normal'**
+  String get cardKindNormal;
+
+  /// No description provided for @cardKindDealer.
+  ///
+  /// In en, this message translates to:
+  /// **'Dealer'**
+  String get cardKindDealer;
+
+  /// No description provided for @cardStagePushed.
+  ///
+  /// In en, this message translates to:
+  /// **'pushed'**
+  String get cardStagePushed;
+
+  /// No description provided for @cardStageWebp.
+  ///
+  /// In en, this message translates to:
+  /// **'webp ready'**
+  String get cardStageWebp;
+
+  /// No description provided for @cardStageVideo.
+  ///
+  /// In en, this message translates to:
+  /// **'video ready'**
+  String get cardStageVideo;
+
+  /// No description provided for @cardStageStill.
+  ///
+  /// In en, this message translates to:
+  /// **'still ready'**
+  String get cardStageStill;
+
+  /// No description provided for @cardStageEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'empty'**
+  String get cardStageEmpty;
+
+  /// No description provided for @cardRankTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'{rank} - {stage}'**
+  String cardRankTooltip(Object rank, Object stage);
+
+  /// No description provided for @cardRankTooltipWarn.
+  ///
+  /// In en, this message translates to:
+  /// **'{rank} - {stage} (check)'**
+  String cardRankTooltipWarn(Object rank, Object stage);
+
+  /// No description provided for @cardVideoIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'First frame = last frame (loop). The camera stays locked - framing, scale and background do not change. The output goes to the POOL first; if you pick a tag it is assigned there as well.'**
+  String get cardVideoIntro;
+
+  /// No description provided for @cardVideoTemplate.
+  ///
+  /// In en, this message translates to:
+  /// **'Template (fills the text)'**
+  String get cardVideoTemplate;
+
+  /// No description provided for @cardVideoMotion.
+  ///
+  /// In en, this message translates to:
+  /// **'Motion sentence (the prompt that is sent)'**
+  String get cardVideoMotion;
+
+  /// No description provided for @cardVideoMotionHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Describe a visible motion; it should return to the starting pose at the end'**
+  String get cardVideoMotionHelp;
+
+  /// No description provided for @cardVideoAssignTag.
+  ///
+  /// In en, this message translates to:
+  /// **'Assign to tag'**
+  String get cardVideoAssignTag;
+
+  /// No description provided for @cardVideoPoolOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'(pool only - I will assign it later)'**
+  String get cardVideoPoolOnly;
+
+  /// No description provided for @cardVideoNewTag.
+  ///
+  /// In en, this message translates to:
+  /// **'New tag...'**
+  String get cardVideoNewTag;
+
+  /// No description provided for @cardVideoNewTagName.
+  ///
+  /// In en, this message translates to:
+  /// **'New tag name'**
+  String get cardVideoNewTagName;
+
+  /// No description provided for @cardTagHint.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. victory'**
+  String get cardTagHint;
+
+  /// No description provided for @cardGestureTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Animation - pick a gesture'**
+  String get cardGestureTitle;
+
+  /// No description provided for @cardGestureIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'MiniMax H3: idle 6 s, victory 2 s. The camera stays locked - framing, scale and background do not change.'**
+  String get cardGestureIntro;
+
+  /// No description provided for @cardGestureCustom.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom motion'**
+  String get cardGestureCustom;
+
+  /// No description provided for @cardGestureCustomHint.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. a slight hip sway, feet fixed'**
+  String get cardGestureCustomHint;
+
+  /// No description provided for @cardGestureCustomHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'A short motion sentence - the camera stays locked'**
+  String get cardGestureCustomHelp;
+
+  /// No description provided for @cardCutTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'3 WebP - cut mode'**
+  String get cardCutTitle;
+
+  /// No description provided for @cardCutHybrid.
+  ///
+  /// In en, this message translates to:
+  /// **'Old green Grok masters - chroma + SAM together'**
+  String get cardCutHybrid;
+
+  /// No description provided for @cardCutSam.
+  ///
+  /// In en, this message translates to:
+  /// **'Default - SAM3 only, plain light grey background'**
+  String get cardCutSam;
+
+  /// No description provided for @cardCutAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Cut'**
+  String get cardCutAction;
+
+  /// No description provided for @cardEditTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit - {name}'**
+  String cardEditTitle(Object name);
+
+  /// No description provided for @cardEditSentence.
+  ///
+  /// In en, this message translates to:
+  /// **'Correction sentence'**
+  String get cardEditSentence;
+
+  /// No description provided for @cardEditSentenceHint.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. shorten her hair / remove the gloves'**
+  String get cardEditSentenceHint;
+
+  /// No description provided for @cardEditBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The accepted still is edited with this sentence; identity, pose and background are kept. The new image is accepted automatically.'**
+  String get cardEditBody;
+
+  /// No description provided for @cardEditUnrestricted.
+  ///
+  /// In en, this message translates to:
+  /// **'Unrestricted edit (NSFW LoRA)'**
+  String get cardEditUnrestricted;
+
+  /// No description provided for @cardEditUnrestrictedHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch on if Qwen refuses - MCNL LoRA, 20 steps, a little slower'**
+  String get cardEditUnrestrictedHint;
+
+  /// No description provided for @cardQueuedJobs.
+  ///
+  /// In en, this message translates to:
+  /// **'Added to the queue ({count} jobs) - follow it on the Queue tab'**
+  String cardQueuedJobs(Object count);
+
+  /// No description provided for @cardQueued.
+  ///
+  /// In en, this message translates to:
+  /// **'Added to the queue - follow it on the Queue tab'**
+  String get cardQueued;
+
+  /// No description provided for @cardQueuedOp.
+  ///
+  /// In en, this message translates to:
+  /// **'Added to the queue (op {op}) - follow it on the Queue tab'**
+  String cardQueuedOp(Object op);
+
+  /// No description provided for @cardSoonTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'{what} - coming soon'**
+  String cardSoonTitle(Object what);
+
+  /// No description provided for @cardSoonBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The card endpoints on the server are not open yet. This screen starts working on its own once they are.'**
+  String get cardSoonBody;
+
+  /// No description provided for @cardNewCollection.
+  ///
+  /// In en, this message translates to:
+  /// **'New collection'**
+  String get cardNewCollection;
+
+  /// No description provided for @cardIdLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Identifier (id)'**
+  String get cardIdLabel;
+
+  /// No description provided for @cardIdHintCollection.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. police_royale'**
+  String get cardIdHintCollection;
+
+  /// No description provided for @commonName.
+  ///
+  /// In en, this message translates to:
+  /// **'Name'**
+  String get commonName;
+
+  /// No description provided for @cardNameHintCollection.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. Police Royale'**
+  String get cardNameHintCollection;
+
+  /// No description provided for @cardPickPreset.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick a preset card (optional)'**
+  String get cardPickPreset;
+
+  /// No description provided for @cardThemeHint.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. sexy police costume with badge and duty belt'**
+  String get cardThemeHint;
+
+  /// No description provided for @cardThemeFormula.
+  ///
+  /// In en, this message translates to:
+  /// **'Formula: identity + STRICT PALETTE + Signature pieces'**
+  String get cardThemeFormula;
+
+  /// No description provided for @cardJokers.
+  ///
+  /// In en, this message translates to:
+  /// **'Jokers (2)'**
+  String get cardJokers;
+
+  /// No description provided for @cardJokersHint.
+  ///
+  /// In en, this message translates to:
+  /// **'15 ranks instead of 13'**
+  String get cardJokersHint;
+
+  /// No description provided for @cardNewCollectionNote.
+  ///
+  /// In en, this message translates to:
+  /// **'One still per rank enters the queue (skin / hair / outfit / pose rotation). No confirmation is asked - fine-tune with ✎ / ↻.'**
+  String get cardNewCollectionNote;
+
+  /// No description provided for @cardIdNameRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'The identifier and the name cannot be empty'**
+  String get cardIdNameRequired;
+
+  /// No description provided for @cardNewDealer.
+  ///
+  /// In en, this message translates to:
+  /// **'New dealer'**
+  String get cardNewDealer;
+
+  /// No description provided for @cardIdHintDealer.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. scarlett'**
+  String get cardIdHintDealer;
+
+  /// No description provided for @cardNameHintDealer.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. Scarlett'**
+  String get cardNameHintDealer;
+
+  /// No description provided for @cardDealerTheme.
+  ///
+  /// In en, this message translates to:
+  /// **'Theme / outfit'**
+  String get cardDealerTheme;
+
+  /// No description provided for @cardDealerThemeHint.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. casino vest and bow tie, noir red dress'**
+  String get cardDealerThemeHint;
+
+  /// No description provided for @cardDealerNote.
+  ///
+  /// In en, this message translates to:
+  /// **'The dealer is generated in a waist-up frame (hands on the table, looking at the camera). There is no rank - the single item goes through the four stages.'**
+  String get cardDealerNote;
+
+  /// No description provided for @cardNightPickGesture.
+  ///
+  /// In en, this message translates to:
+  /// **'Night mode - pick a gesture'**
+  String get cardNightPickGesture;
+
+  /// No description provided for @cardNightMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Night mode'**
+  String get cardNightMode;
+
+  /// No description provided for @cardNightBody.
+  ///
+  /// In en, this message translates to:
+  /// **'All cards AND dealers are re-animated: current still -> LTX-2.5 i2v ({gesture}) -> SAM cut -> sheet.\n\nIt takes long and everything enters the queue. NO push is done.'**
+  String cardNightBody(Object gesture);
+
+  /// No description provided for @cardRestillTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn backgrounds grey'**
+  String get cardRestillTitle;
+
+  /// No description provided for @cardRestillBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The still background of all cards AND dealers is turned plain light grey (the woman stays as she is). The original is kept as still_green.png; ones that are already grey are skipped.\n\nNo video is generated.'**
+  String get cardRestillBody;
+
+  /// No description provided for @cardManifestPreview.
+  ///
+  /// In en, this message translates to:
+  /// **'Manifest preview'**
+  String get cardManifestPreview;
+
+  /// No description provided for @cardManifestCounts.
+  ///
+  /// In en, this message translates to:
+  /// **'{collections} collections, {dealers} dealers'**
+  String cardManifestCounts(Object collections, Object dealers);
+
+  /// No description provided for @cardManifestNote.
+  ///
+  /// In en, this message translates to:
+  /// **'The manifest file is written during PUSH (files first, then the manifest). This is only a preview.'**
+  String get cardManifestNote;
+
+  /// No description provided for @cardCollectionCardSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Collection card (settings)'**
+  String get cardCollectionCardSettings;
+
+  /// No description provided for @cardCollectionCardSettingsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'theme, 16 slots, model, face retouch'**
+  String get cardCollectionCardSettingsHint;
+
+  /// No description provided for @cardReanimate.
+  ///
+  /// In en, this message translates to:
+  /// **'Re-animate'**
+  String get cardReanimate;
+
+  /// No description provided for @cardReanimateHint.
+  ///
+  /// In en, this message translates to:
+  /// **'still -> i2v -> cut (this collection)'**
+  String get cardReanimateHint;
+
+  /// No description provided for @cardRealify.
+  ///
+  /// In en, this message translates to:
+  /// **'Anime -> realistic (collection)'**
+  String get cardRealify;
+
+  /// No description provided for @cardRealifyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'every still becomes a realistic photo with edit_qwen'**
+  String get cardRealifyHint;
+
+  /// No description provided for @cardDeleteCollection.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete collection'**
+  String get cardDeleteCollection;
+
+  /// No description provided for @cardDeleteCollectionHint.
+  ///
+  /// In en, this message translates to:
+  /// **'the folder is deleted with all its cards - cannot be undone'**
+  String get cardDeleteCollectionHint;
+
+  /// No description provided for @cardDeleteCollectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete collection - {name}'**
+  String cardDeleteCollectionTitle(Object name);
+
+  /// No description provided for @cardDeleteDealerTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete dealer - {name}'**
+  String cardDeleteDealerTitle(Object name);
+
+  /// No description provided for @cardDeleteCollectionBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The collection folder is deleted with all its files.\n\nCANNOT BE UNDONE. Files already pushed to R2 stay in the bucket.'**
+  String get cardDeleteCollectionBody;
+
+  /// No description provided for @cardDeleteDealerBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The dealer folder is deleted with all its files.\n\nCANNOT BE UNDONE. Files already pushed to R2 stay in the bucket.'**
+  String get cardDeleteDealerBody;
+
+  /// No description provided for @cardDeletedNamed.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} deleted'**
+  String cardDeletedNamed(Object name);
+
+  /// No description provided for @cardDealerCardSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Dealer card (settings)'**
+  String get cardDealerCardSettings;
+
+  /// No description provided for @cardDealerCardSettingsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'theme, template, model, face retouch'**
+  String get cardDealerCardSettingsHint;
+
+  /// No description provided for @cardDeleteDealer.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete dealer'**
+  String get cardDeleteDealer;
+
+  /// No description provided for @cardDeleteDealerHint.
+  ///
+  /// In en, this message translates to:
+  /// **'the folder is deleted with all its files - cannot be undone'**
+  String get cardDeleteDealerHint;
+
+  /// No description provided for @cardFlowTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Card pipeline'**
+  String get cardFlowTitle;
+
+  /// No description provided for @cardBulkActions.
+  ///
+  /// In en, this message translates to:
+  /// **'Bulk actions'**
+  String get cardBulkActions;
+
+  /// No description provided for @cardNightMenu.
+  ///
+  /// In en, this message translates to:
+  /// **'Night mode: re-animate everything'**
+  String get cardNightMenu;
+
+  /// No description provided for @cardRestillMenu.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn backgrounds grey (all)'**
+  String get cardRestillMenu;
+
+  /// No description provided for @cardManifestMenu.
+  ///
+  /// In en, this message translates to:
+  /// **'Preview manifest'**
+  String get cardManifestMenu;
+
+  /// No description provided for @cardDealers.
+  ///
+  /// In en, this message translates to:
+  /// **'Dealers'**
+  String get cardDealers;
+
+  /// No description provided for @cardEmptyCollections.
+  ///
+  /// In en, this message translates to:
+  /// **'No collection yet.\n\nGive an identifier, a name and a theme with \"+ New collection\" - one still per rank enters the queue for 13 (or 15) ranks, then come the 2 Video and 3 WebP stages.'**
+  String get cardEmptyCollections;
+
+  /// No description provided for @cardEmptyDealers.
+  ///
+  /// In en, this message translates to:
+  /// **'No dealer yet.\n\nGive a name, a theme and a gesture with \"+ New dealer\" - a single item is generated in a waist-up frame and goes through the four stages.'**
+  String get cardEmptyDealers;
+
+  /// No description provided for @cardGestureLine.
+  ///
+  /// In en, this message translates to:
+  /// **'gesture: {gesture}'**
+  String cardGestureLine(Object gesture);
+
+  /// No description provided for @cardAnimateTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'2 Video ({count} cards)'**
+  String cardAnimateTitle(Object count);
+
+  /// No description provided for @cardAnimateBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Two animations are generated for each card and assigned to their tags:\n• idle - 6 s, one controlled gesture\n• victory - 2 s, a short cheer inside the frame\n{total} videos in total; the old ones stay in the pool.'**
+  String cardAnimateBody(Object total);
+
+  /// No description provided for @cardEditNeedsOne.
+  ///
+  /// In en, this message translates to:
+  /// **'Editing is for a single rank - select one card'**
+  String get cardEditNeedsOne;
+
+  /// No description provided for @cardPushTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Push - {name}'**
+  String cardPushTitle(Object name);
+
+  /// No description provided for @cardPushBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The sheet and thumb files are uploaded to R2 (cards), then the manifest is written. Right now the webp of {ready}/{total} ranks is ready.\n\nThis is a PUBLISHING action and CANNOT BE UNDONE.'**
+  String cardPushBody(Object ready, Object total);
+
+  /// No description provided for @cardPushQueued.
+  ///
+  /// In en, this message translates to:
+  /// **'Push added to the queue - follow it on the Queue tab'**
+  String get cardPushQueued;
+
+  /// No description provided for @cardCollectionCardTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Collection card - theme, 16 slots, model, face retouch'**
+  String get cardCollectionCardTooltip;
+
+  /// No description provided for @commonMore.
+  ///
+  /// In en, this message translates to:
+  /// **'More'**
+  String get commonMore;
+
+  /// No description provided for @cardNoThemeTap.
+  ///
+  /// In en, this message translates to:
+  /// **'No theme - tap: Collection card'**
+  String get cardNoThemeTap;
+
+  /// No description provided for @cardThemeTap.
+  ///
+  /// In en, this message translates to:
+  /// **'{theme}\nCollection card: tap (theme, 16 slots, model, face retouch)'**
+  String cardThemeTap(Object theme);
+
+  /// No description provided for @cardDeleteCollectionStills.
+  ///
+  /// In en, this message translates to:
+  /// **'The collection folder is deleted with all its cards ({stills} stills).\n\nCANNOT BE UNDONE. Files already pushed to R2 stay in the bucket.'**
+  String cardDeleteCollectionStills(Object stills);
+
+  /// No description provided for @cardDeleteCollectionStillsPushed.
+  ///
+  /// In en, this message translates to:
+  /// **'The collection folder is deleted with all its cards ({stills} stills, {pushed} pushed).\n\nCANNOT BE UNDONE. Files already pushed to R2 stay in the bucket.'**
+  String cardDeleteCollectionStillsPushed(Object stills, Object pushed);
+
+  /// No description provided for @cardClearCards.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear cards'**
+  String get cardClearCards;
+
+  /// No description provided for @cardClearCardsBody.
+  ///
+  /// In en, this message translates to:
+  /// **'{ranks} - still, candidates, video and webp are deleted; the rank stays empty (generate it again with \"1 Still\").'**
+  String cardClearCardsBody(Object ranks);
+
+  /// No description provided for @cardsCleared.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} cards cleared'**
+  String cardsCleared(Object count);
+
+  /// No description provided for @cardsClearFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} cards could not be cleared'**
+  String cardsClearFailed(Object count);
+
+  /// No description provided for @cardGenerateStill.
+  ///
+  /// In en, this message translates to:
+  /// **'Generate 1 Still'**
+  String get cardGenerateStill;
+
+  /// No description provided for @cardGenerateVideo.
+  ///
+  /// In en, this message translates to:
+  /// **'Generate 2 Video'**
+  String get cardGenerateVideo;
+
+  /// No description provided for @cardGenerateWebp.
+  ///
+  /// In en, this message translates to:
+  /// **'Generate 3 WebP'**
+  String get cardGenerateWebp;
+
+  /// No description provided for @cardBackUpper.
+  ///
+  /// In en, this message translates to:
+  /// **'BACK'**
+  String get cardBackUpper;
+
+  /// No description provided for @cardAssetVideo.
+  ///
+  /// In en, this message translates to:
+  /// **'Video ({tag})'**
+  String cardAssetVideo(Object tag);
+
+  /// No description provided for @cardAssetSheet.
+  ///
+  /// In en, this message translates to:
+  /// **'WebP / cut ({tag})'**
+  String cardAssetSheet(Object tag);
+
+  /// No description provided for @cardAssetMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'No {asset}'**
+  String cardAssetMissing(Object asset);
+
+  /// No description provided for @cardAssetDeleteConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete {asset}?'**
+  String cardAssetDeleteConfirm(Object asset);
+
+  /// No description provided for @cardAssetDeleteVideoBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Only the video of this tag is deleted; the copy in the pool, the still and the webp stay.'**
+  String get cardAssetDeleteVideoBody;
+
+  /// No description provided for @cardAssetDeleteSheetBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Only sheet.webp, the thumb and the cut frames are deleted; the video and the still stay.'**
+  String get cardAssetDeleteSheetBody;
+
+  /// No description provided for @cardAssetDeleteStillBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Only the selected still is deleted; the candidates, the video and the webp stay.'**
+  String get cardAssetDeleteStillBody;
+
+  /// No description provided for @cardPoolDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete from the pool'**
+  String get cardPoolDelete;
+
+  /// No description provided for @cardPoolDeleteBody.
+  ///
+  /// In en, this message translates to:
+  /// **'{id} is deleted from the pool. Copies assigned to tags ({tags}) stay.'**
+  String cardPoolDeleteBody(Object id, Object tags);
+
+  /// No description provided for @cardNone.
+  ///
+  /// In en, this message translates to:
+  /// **'none'**
+  String get cardNone;
+
+  /// No description provided for @cardNewAnimTag.
+  ///
+  /// In en, this message translates to:
+  /// **'New animation tag'**
+  String get cardNewAnimTag;
+
+  /// No description provided for @cardNewAnimTagHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'The game reads it by this name (idle, wink, victory ...)'**
+  String get cardNewAnimTagHelp;
+
+  /// No description provided for @cardUnassigned.
+  ///
+  /// In en, this message translates to:
+  /// **'not assigned'**
+  String get cardUnassigned;
+
+  /// No description provided for @cardAssignedTo.
+  ///
+  /// In en, this message translates to:
+  /// **'assigned: {tags}'**
+  String cardAssignedTo(Object tags);
+
+  /// No description provided for @cardAssignTo.
+  ///
+  /// In en, this message translates to:
+  /// **'Assign: {name}'**
+  String cardAssignTo(Object name);
+
+  /// No description provided for @cardAssignNewTag.
+  ///
+  /// In en, this message translates to:
+  /// **'Assign to a new tag...'**
+  String get cardAssignNewTag;
+
+  /// No description provided for @cardAnimReady.
+  ///
+  /// In en, this message translates to:
+  /// **'video + webp ready'**
+  String get cardAnimReady;
+
+  /// No description provided for @cardAnimVideoOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'has video, no webp'**
+  String get cardAnimVideoOnly;
+
+  /// No description provided for @cardPoolEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No video in the pool - run \"2 Video\" first'**
+  String get cardPoolEmpty;
+
+  /// No description provided for @cardDeleteVideoKeepTag.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete the video (the tag stays)'**
+  String get cardDeleteVideoKeepTag;
+
+  /// No description provided for @cardDeleteSheet.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete WebP / cut'**
+  String get cardDeleteSheet;
+
+  /// No description provided for @cardDeleteTag.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete the tag (with its video + webp)'**
+  String get cardDeleteTag;
+
+  /// No description provided for @cardVideosHeader.
+  ///
+  /// In en, this message translates to:
+  /// **'Videos ({count}) - tap = assign / preview / delete'**
+  String cardVideosHeader(Object count);
+
+  /// No description provided for @cardDeleteThisDealerBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The folder of {name} is deleted with all its files. CANNOT BE UNDONE.'**
+  String cardDeleteThisDealerBody(Object name);
+
+  /// No description provided for @cardClearCard.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear card'**
+  String get cardClearCard;
+
+  /// No description provided for @cardClearCardBody.
+  ///
+  /// In en, this message translates to:
+  /// **'{name}: still, candidates, video, webp and animations are deleted; the rank stays empty (generate it again with \"1 Still\").'**
+  String cardClearCardBody(Object name);
+
+  /// No description provided for @cardClearCardTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear card (the rank becomes empty)'**
+  String get cardClearCardTooltip;
+
+  /// No description provided for @cardViewCut.
+  ///
+  /// In en, this message translates to:
+  /// **'Cut'**
+  String get cardViewCut;
+
+  /// No description provided for @cardDeleteThisVideo.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete this video ({tag})'**
+  String cardDeleteThisVideo(Object tag);
+
+  /// No description provided for @cardDeleteSheetTag.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete WebP / cut ({tag})'**
+  String cardDeleteSheetTag(Object tag);
+
+  /// No description provided for @cardDeleteStill.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete the still'**
+  String get cardDeleteStill;
+
+  /// No description provided for @cardNoVideo.
+  ///
+  /// In en, this message translates to:
+  /// **'No video - generate it with \"2 Video\"'**
+  String get cardNoVideo;
+
+  /// No description provided for @cardNoCut.
+  ///
+  /// In en, this message translates to:
+  /// **'No cut - generate it with \"3 WebP\"'**
+  String get cardNoCut;
+
+  /// No description provided for @cardCutFrameFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The cut frame could not be read'**
+  String get cardCutFrameFailed;
+
+  /// No description provided for @cardNoStill.
+  ///
+  /// In en, this message translates to:
+  /// **'No still - generate it with \"1 Still\"'**
+  String get cardNoStill;
+
+  /// No description provided for @cardStillFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The still could not be read'**
+  String get cardStillFailed;
+
+  /// No description provided for @cardPromptTitleAge.
+  ///
+  /// In en, this message translates to:
+  /// **'Prompt  ·  age {age}'**
+  String cardPromptTitleAge(Object age);
+
+  /// No description provided for @cardGuardFail.
+  ///
+  /// In en, this message translates to:
+  /// **'Guard FAIL - frame drift / zoom / broken mask. Generate the video or the cut again.'**
+  String get cardGuardFail;
+
+  /// No description provided for @cardAnimsHeader.
+  ///
+  /// In en, this message translates to:
+  /// **'Animations - tap = select, long press = assign / delete'**
+  String get cardAnimsHeader;
+
+  /// No description provided for @cardAnimOpened.
+  ///
+  /// In en, this message translates to:
+  /// **'\"{tag}\" opened - generate it with 2 Video or assign from the pool'**
+  String cardAnimOpened(Object tag);
+
+  /// No description provided for @cardPickPoolVideo.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick a video from the pool for \"{tag}\"'**
+  String cardPickPoolVideo(Object tag);
+
+  /// No description provided for @cardCandidatesHeader.
+  ///
+  /// In en, this message translates to:
+  /// **'Candidates ({count}) - tap = select'**
+  String cardCandidatesHeader(Object count);
+
+  /// No description provided for @cardCandidatePicked.
+  ///
+  /// In en, this message translates to:
+  /// **'The candidate is now the selected still'**
+  String get cardCandidatePicked;
+
+  /// No description provided for @cardRunFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'{step}: {error}'**
+  String cardRunFailed(Object step, Object error);
 }
 
 class _AppLocalizationsDelegate

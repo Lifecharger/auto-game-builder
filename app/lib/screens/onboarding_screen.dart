@@ -9,6 +9,8 @@ import '../theme.dart';
 import '../config.dart';
 import '../services/auth_service.dart';
 import '../services/drive_service.dart';
+import '../services/lifecharger_analytics.dart';
+import '../services/usage_events.dart';
 import '../main.dart';
 import '../l10n/app_localizations.dart';
 
@@ -45,6 +47,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   void initState() {
     super.initState();
+    // First-run flow: connect -> (setup_help) -> connection_ok -> complete.
+    Usage.screen('onboarding');
+    Analytics.log('tutorial_step', {'dim': 'connect'});
     _tryAutoDetectServer();
   }
 
@@ -102,6 +107,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   _connectionResult = true;
                   _connectedServerName = url;
                 });
+                Analytics.log('tutorial_step', {'dim': 'connection_auto'});
                 // Skip straight to success page
                 _currentPage = _showSetupPage ? 2 : 1;
                 _pageController.jumpToPage(_currentPage);
@@ -147,6 +153,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     if (url.isEmpty) return;
 
     if (!_isValidUrl(url)) {
+      Usage.fail('connect_test', 'invalid_url');
       setState(() {
         _connectionResult = false;
         _connectionError = l10n.enterValidUrl;
@@ -168,6 +175,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           .get(Uri.parse('$normalized/api/health'))
           .timeout(const Duration(seconds: 8));
 
+      if (response.statusCode == 200) {
+        Analytics.log('tutorial_step', {'dim': 'connection_ok'});
+      } else {
+        Usage.fail('connect_test', Usage.causeOfStatus(response.statusCode));
+      }
+
       if (!mounted) return;
 
       if (response.statusCode == 200) {
@@ -184,6 +197,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         });
       }
     } on TimeoutException {
+      Usage.fail('connect_test', 'timeout');
       if (mounted) {
         setState(() {
           _testing = false;
@@ -192,6 +206,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         });
       }
     } on SocketException catch (e) {
+      Usage.fail('connect_test', 'offline');
       if (mounted) {
         setState(() {
           _testing = false;
@@ -200,6 +215,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         });
       }
     } catch (e) {
+      Usage.fail('connect_test', Usage.causeOf(e));
       if (mounted) {
         setState(() {
           _testing = false;
@@ -225,6 +241,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   void _showSetupInstructions() {
+    Analytics.log('tutorial_step', {'dim': 'setup_help'});
     setState(() {
       _showSetupPage = true;
       _connectionResult = null;
@@ -241,6 +258,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     if (url.isEmpty) return;
 
     await AppConfig.setBaseUrl(url);
+    Analytics.log('tutorial_complete');
 
     // Save to Google Drive if signed in
     if (AuthService.instance.isSignedIn) {

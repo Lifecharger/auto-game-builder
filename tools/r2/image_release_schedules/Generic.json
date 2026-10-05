@@ -91,6 +91,26 @@
    "first_release": "2027-04-19",
    "every_days": 7,
    "per_release": 10
+  },
+  {
+   "name": "generic_1876_1880 marginal club women (2026-10-04: fill the 2027-04-26 Monday with 1871-1875 = 10)",
+   "ids": {
+    "from": 1876,
+    "to": 1880
+   },
+   "first_release": "2027-04-26",
+   "every_days": 7,
+   "per_release": 10
+  },
+  {
+   "name": "generic_1881_1886 marginal club women (2026-10-04: continue the Monday cadence; 2027-05-03 has 6 so far)",
+   "ids": {
+    "from": 1881,
+    "to": 1886
+   },
+   "first_release": "2027-05-03",
+   "every_days": 7,
+   "per_release": 10
   }
  ]
 }

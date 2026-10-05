@@ -15,6 +15,7 @@ import 'services/locale_service.dart';
 import 'services/mode_service.dart';
 import 'services/theme_service.dart';
 import 'services/update_checker.dart';
+import 'services/usage_events.dart';
 import 'theme.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/issues_screen.dart';
@@ -99,6 +100,12 @@ Future<void> _startAnalytics() async {
 const _kCodeTabs = ['dashboard', 'tasklist', 'reports', 'control', 'settings'];
 const _kAssetTabs = ['generate', 'gallery', 'flow', 'queue', 'settings'];
 const _kDeliveryTabs = ['delivery', 'buckets', 'settings'];
+
+/// What the red banner at the top of the shell says: the server refusing this
+/// app's API key is named as that, anything else is the server being
+/// unreachable.
+String offlineBannerText(AppLocalizations l10n, {required bool keyRefused}) =>
+    keyRefused ? l10n.apiKeyRefusedBanner : l10n.serverUnreachable;
 
 class AppManagerMobile extends StatelessWidget {
   const AppManagerMobile({super.key});
@@ -195,6 +202,16 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
       ? _kDeliveryTabs
       : (_assetMode ? _kAssetTabs : _kCodeTabs);
 
+  /// Reports the tab that is on screen right now. Every tab of the mode is
+  /// built inside the [IndexedStack] below, so "built" says nothing: this is
+  /// called only for the one index the stack is showing.
+  void _reportVisibleScreen() {
+    final names = _tabNames;
+    if (_currentIndex >= 0 && _currentIndex < names.length) {
+      Usage.screen(names[_currentIndex]);
+    }
+  }
+
   void _onModeChanged() {
     HapticFeedback.mediumImpact();
     Analytics.log('feature_use', {
@@ -206,6 +223,7 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
         _mode = ModeService.mode.value;
         _currentIndex = 0;
       });
+      _reportVisibleScreen();
       context.read<AppState>().setActiveTab(0);
       _fadeController.forward();
     });
@@ -227,6 +245,7 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
       _appStateRef = context.read<AppState>();
       _appStateRef!.addListener(_onAppStateChanged);
       _appStateRef!.startHealthCheck();
+      _reportVisibleScreen();
     });
     _checkForUpdate();
   }
@@ -250,12 +269,9 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
   void _switchTab(int index) {
     if (index == _currentIndex) return;
     HapticFeedback.lightImpact();
-    final names = _tabNames;
-    if (index >= 0 && index < names.length) {
-      Analytics.log('feature_use', {'feature': names[index]});
-    }
     _fadeController.reverse().then((_) {
       setState(() => _currentIndex = index);
+      _reportVisibleScreen();
       context.read<AppState>().setActiveTab(index);
       _fadeController.forward();
     });
@@ -332,6 +348,7 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
     final l10n = AppLocalizations.of(context)!;
 
     final showOffline = appState.showOfflineBanner;
+    final keyRefused = appState.keyRefused;
     // gorev #289: edge-to-edge'de icerik durum cubugunun ARKASINDAN basliyor;
     // banner gorunurken ust guvenli alani banner tuketir, sekmelerden dusulur.
     final topInset = MediaQuery.of(context).padding.top;
@@ -383,17 +400,28 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
             decoration: BoxDecoration(
               color: Colors.red.shade800,
             ),
-            child: Center(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.cloud_off, color: Colors.white, size: 14),
-                  SizedBox(width: 6),
-                  Text(
-                    l10n.serverUnreachable,
-                    style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
-                  ),
-                ],
+            // A refused key is not an outage: the banner names it and a tap
+            // opens Settings (always the last tab), where the key is set.
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: keyRefused ? () => _switchTab(_screens.length - 1) : null,
+              child: Center(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(keyRefused ? Icons.key_off : Icons.cloud_off,
+                        color: Colors.white, size: 14),
+                    SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        offlineBannerText(l10n, keyRefused: keyRefused),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -426,34 +454,34 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
         onTap: _switchTab,
         type: BottomNavigationBarType.fixed,
         items: _deliveryMode
-            ? const [
+            ? [
                 BottomNavigationBarItem(
-                  icon: Icon(Icons.local_shipping_outlined),
-                  label: 'Dagitim',
+                  icon: const Icon(Icons.local_shipping_outlined),
+                  label: l10n.navDelivery,
                 ),
                 BottomNavigationBarItem(
-                  icon: Icon(Icons.inventory_2_outlined),
-                  label: 'Kovalar',
+                  icon: const Icon(Icons.inventory_2_outlined),
+                  label: l10n.navBuckets,
                 ),
                 BottomNavigationBarItem(
-                  icon: Icon(Icons.settings),
-                  label: 'Ayarlar',
+                  icon: const Icon(Icons.settings),
+                  label: l10n.settings,
                 ),
               ]
             : _assetMode
             ? [
                 // #352: sira = Uretim | Uretilenler | Hat | Sira | Ayarlar
-                const BottomNavigationBarItem(
-                  icon: Icon(Icons.auto_awesome),
-                  label: 'Uretim',
+                BottomNavigationBarItem(
+                  icon: const Icon(Icons.auto_awesome),
+                  label: l10n.navGenerate,
                 ),
-                const BottomNavigationBarItem(
-                  icon: Icon(Icons.photo_library),
-                  label: 'Uretilenler',
+                BottomNavigationBarItem(
+                  icon: const Icon(Icons.photo_library),
+                  label: l10n.navGallery,
                 ),
-                const BottomNavigationBarItem(
-                  icon: Icon(Icons.conveyor_belt),
-                  label: 'Hat',
+                BottomNavigationBarItem(
+                  icon: const Icon(Icons.conveyor_belt),
+                  label: l10n.navFlow,
                 ),
                 BottomNavigationBarItem(
                   // #299: butun isler tek sunucu sirasina girer - rozet
@@ -469,11 +497,11 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
                     ),
                     child: const Icon(Icons.playlist_play),
                   ),
-                  label: 'Sira',
+                  label: l10n.navQueue,
                 ),
-                const BottomNavigationBarItem(
-                  icon: Icon(Icons.settings),
-                  label: 'Ayarlar',
+                BottomNavigationBarItem(
+                  icon: const Icon(Icons.settings),
+                  label: l10n.settings,
                 ),
               ]
             : [

@@ -7,6 +7,7 @@ import '../models/app_model.dart';
 import '../models/build_model.dart';
 import '../services/api_service.dart';
 import '../services/cache_service.dart';
+import '../services/usage_events.dart';
 import '../theme.dart';
 import '../widgets/app_build_card.dart';
 import '../widgets/app_detail/mcp_servers_section.dart';
@@ -66,6 +67,9 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
   @override
   void initState() {
     super.initState();
+    // Always a pushed route, so building it means it is on screen.
+    Usage.screen('app_detail');
+    unawaited(Usage.milestone('first_project_opened'));
     _loadData();
   }
 

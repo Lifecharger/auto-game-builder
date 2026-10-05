@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 
 import '../config.dart';
 import 'api_service.dart';
+import 'usage_events.dart';
 import 'generate_service.dart';
 
 /// Jigsaw dort akisli yayin hattinin istemcisi.
@@ -164,10 +165,13 @@ class JigsawFlowService {
         if (AppConfig.apiKey.isNotEmpty) 'X-API-Key': AppConfig.apiKey,
       };
 
-  static Never _fail(http.Response r, String fallback) {
+  static Never _fail(http.Response r) {
     // #352: `throw` try icindeydi ve catch onu yutup sunucunun mesajini
-    // "Istek basarisiz (400)" ile eziyordu - detay artik disarida atilir.
-    String msg = '$fallback (${r.statusCode})';
+    // eziyordu - detay artik disarida atilir. Detay yoksa hata, nedenin
+    // uygulama dilindeki cumlesiyle okunur.
+    String msg = ApiService.messageForCause(
+        Usage.causeOfStatus(r.statusCode),
+        status: r.statusCode);
     try {
       final d = json.decode(utf8.decode(r.bodyBytes));
       if (d is Map && d['detail'] != null) msg = d['detail'].toString();
@@ -179,7 +183,7 @@ class JigsawFlowService {
     final r = await http
         .get(Uri.parse('${ApiService.baseUrl}$path'), headers: _headers)
         .timeout(_timeout);
-    if (r.statusCode != 200) _fail(r, 'Istek basarisiz');
+    if (r.statusCode != 200) _fail(r);
     return json.decode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>;
   }
 
@@ -189,7 +193,7 @@ class JigsawFlowService {
         .post(Uri.parse('${ApiService.baseUrl}$path'),
             headers: _headers, body: json.encode(body ?? {}))
         .timeout(_timeout);
-    if (r.statusCode != 200) _fail(r, 'Istek basarisiz');
+    if (r.statusCode != 200) _fail(r);
     return json.decode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>;
   }
 
@@ -380,7 +384,7 @@ class JigsawFlowService {
                 {'rating': rating, 'values': values, 'locks': locks, 'n': n}))
         .timeout(_timeout);
     if (r.statusCode == 404) return const [];
-    if (r.statusCode != 200) _fail(r, 'Karistirma basarisiz');
+    if (r.statusCode != 200) _fail(r);
     final d = json.decode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>;
     return [
       for (final x in (d['rolls'] as List? ?? const []))

@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 
 import '../config.dart';
 import 'api_service.dart';
+import 'app_l10n.dart';
 import 'generate_service.dart';
 import 'jigsaw_flow_service.dart' show FlowOp;
 
@@ -673,12 +674,14 @@ class CharacterFlowService {
     {'id': 'machine', 'label': 'Makine'},
   ];
 
-  static const _kindLabels = {
-    'female': 'Kadin', 'male': 'Erkek', 'animal': 'Hayvan', 'machine': 'Makine',
-  };
-
-  /// #314: tur id -> gorunen ad (bilinmeyen id oldugu gibi doner).
-  static String kindLabel(String id) => _kindLabels[id] ?? id;
+  /// #314: tur id -> uygulama dilindeki ad (bilinmeyen id oldugu gibi doner).
+  static String kindLabel(String id) => switch (id) {
+        'female' => appL10n.charKindFemale,
+        'male' => appL10n.charKindMale,
+        'animal' => appL10n.charKindAnimal,
+        'machine' => appL10n.charKindMachine,
+        _ => id,
+      };
 
   /// #314: insan turleri - manken/Mixamo, hayalet manken kiyafeti ve Hot
   /// modifier yalniz bunlarda anlamlidir.
@@ -734,14 +737,21 @@ class CharacterFlowService {
     'set', 'top', 'bottom', 'shoes', 'socks', 'hat',
   };
 
-  static const _categoryLabels = {
-    'set': 'Set', 'top': 'Ust', 'bottom': 'Alt', 'shoes': 'Ayakkabi',
-    'socks': 'Corap', 'hat': 'Sapka', 'headgear': 'Kafalik',
-    'accessory': 'Aksesuar', 'weapon': 'Silah', 'other': 'Diger',
-  };
-
-  /// #313: kategori id -> gorunen ad (bilinmeyen id oldugu gibi doner).
-  static String categoryLabel(String id) => _categoryLabels[id] ?? id;
+  /// #313: kategori id -> uygulama dilindeki ad (bilinmeyen id oldugu gibi
+  /// doner).
+  static String categoryLabel(String id) => switch (id) {
+        'set' => appL10n.outfitCatSet,
+        'top' => appL10n.outfitCatTop,
+        'bottom' => appL10n.outfitCatBottom,
+        'shoes' => appL10n.outfitCatShoes,
+        'socks' => appL10n.outfitCatSocks,
+        'hat' => appL10n.outfitCatHat,
+        'headgear' => appL10n.outfitCatHeadgear,
+        'accessory' => appL10n.outfitCatAccessory,
+        'weapon' => appL10n.outfitCatWeapon,
+        'other' => appL10n.categoryOther,
+        _ => id,
+      };
 
   static Map<String, String> get _headers => {
         'Content-Type': 'application/json',

@@ -6,6 +6,7 @@ import 'card_flow_screen.dart';
 import 'cbn_flow_screen.dart';
 import 'character_flow_screen.dart';
 import 'free_flow_screen.dart';
+import '../services/usage_events.dart';
 import '../widgets/flow_kind_switch.dart';
 
 /// "Hat" sekmesi: dort yayin hatti arasinda gecis - Jigsaw (jpg + mp4 + webp),
@@ -35,6 +36,9 @@ class _FlowHubState extends State<FlowHub> {
         selected: _kind,
         onChanged: (v) {
           HapticFeedback.selectionClick();
+          // A tap on the switch, so the line it selects is on screen.
+          // Fixed ids only: free, jigsaw, cbn, card, character.
+          if (v != _kind) Usage.screen('flow_$v');
           setState(() => _kind = v);
         },
       );

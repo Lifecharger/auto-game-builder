@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/usage_events.dart';
 import '../theme.dart';
 import 'reports_screen.dart';
 import 'logs_screen.dart';
@@ -27,7 +28,20 @@ class _ChatLogsScreenState extends State<ChatLogsScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 2, vsync: this)
+      ..addListener(_reportSubTab);
+  }
+
+  int _reportedSubTab = 0;
+
+  /// The sub-tab only changes on a tap or swipe inside this screen, so it is
+  /// on screen whenever this fires. Reported once the switch has settled.
+  void _reportSubTab() {
+    if (_tabController.indexIsChanging) return;
+    final index = _tabController.index;
+    if (index == _reportedSubTab) return;
+    _reportedSubTab = index;
+    Usage.screen(index == 1 ? 'logs' : 'reports');
   }
 
   @override

@@ -2145,4 +2145,2447 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get agentsMdSaved => 'AGENTS.md guardado';
+
+  @override
+  String get reportEmailLabel => 'E-mail (opcional)';
+
+  @override
+  String get reportEmailHint => 'seu e-mail, se quiser resposta';
+
+  @override
+  String get reportEmailNote =>
+      'Usado apenas para responder a este relato. Deixe vazio para continuar anônimo.';
+
+  @override
+  String get reportEmailInvalid => 'Isso não parece um endereço de e-mail.';
+
+  @override
+  String get reportReply => 'Responder';
+
+  @override
+  String reportReplySubject(String app) {
+    return 'Sobre o seu relato do $app';
+  }
+
+  @override
+  String get navGenerate => 'Gerar';
+
+  @override
+  String get navGallery => 'Gerados';
+
+  @override
+  String get navFlow => 'Linha';
+
+  @override
+  String get navQueue => 'Fila';
+
+  @override
+  String get navDelivery => 'Entrega';
+
+  @override
+  String get navBuckets => 'Buckets';
+
+  @override
+  String get assetModeTooltip => 'Modo de recursos';
+
+  @override
+  String get deliveryModeTooltip => 'Modo de entrega';
+
+  @override
+  String get videoPlaybackFailed => 'Não foi possível reproduzir o vídeo';
+
+  @override
+  String get apiKeyRefusedBanner =>
+      'Chave de API recusada - toque para corrigir nas Configurações';
+
+  @override
+  String get errOffline =>
+      'Não foi possível contatar o servidor - verifique sua conexão';
+
+  @override
+  String get errTimeout =>
+      'O servidor demorou demais para responder - tente novamente';
+
+  @override
+  String errGatewayTimeout(int status) {
+    return 'O servidor não respondeu a tempo (tempo limite do gateway $status)';
+  }
+
+  @override
+  String errGateway(int status) {
+    return 'O servidor está inacessível atrás do gateway (erro de gateway $status) - verifique se ele está em execução';
+  }
+
+  @override
+  String errServer(int status) {
+    return 'Erro do servidor ($status) - tente mais tarde';
+  }
+
+  @override
+  String errUnauthorized(int status) {
+    return 'Não autorizado ($status) - verifique a chave de API nas Configurações';
+  }
+
+  @override
+  String errNotFound(int status) {
+    return 'Não encontrado no servidor ($status)';
+  }
+
+  @override
+  String errRateLimited(int status) {
+    return 'Muitas solicitações ($status) - aguarde um momento e tente novamente';
+  }
+
+  @override
+  String errTooLarge(int status) {
+    return 'Grande demais para o servidor ($status)';
+  }
+
+  @override
+  String errRejected(int status) {
+    return 'O servidor recusou a solicitação ($status)';
+  }
+
+  @override
+  String get errBadResponse =>
+      'O servidor enviou uma resposta que o app não conseguiu ler';
+
+  @override
+  String get errUnknown => 'A solicitação falhou - tente novamente';
+
+  @override
+  String bucketsCounting(String bucket) {
+    return 'Contando $bucket...';
+  }
+
+  @override
+  String get bucketsTakedownTitle => 'Remoção (novo + antigo)';
+
+  @override
+  String get bucketsDeleteForeverTitle => 'Excluir definitivamente';
+
+  @override
+  String bucketsDeleteWarning(int count) {
+    return '$count objetos serão excluídos. ISSO NÃO PODE SER DESFEITO.';
+  }
+
+  @override
+  String bucketsUnmappedNote(int count) {
+    return '$count chaves não têm correspondência no gêmeo antigo - são excluídas apenas deste bucket.';
+  }
+
+  @override
+  String bucketsTypeNameToConfirm(String bucket) {
+    return 'Digite o nome do bucket para confirmar: $bucket';
+  }
+
+  @override
+  String get bucketsTakedown => 'Remover';
+
+  @override
+  String bucketsDeleted(int count) {
+    return '$count objetos excluídos';
+  }
+
+  @override
+  String bucketsDeletedWithTwin(int count, int twin) {
+    return '$count objetos excluídos, $twin do gêmeo antigo';
+  }
+
+  @override
+  String bucketsCopySource(String path) {
+    return 'Origem: $path';
+  }
+
+  @override
+  String bucketsCopySourceTree(String path) {
+    return 'Árvore de origem: $path';
+  }
+
+  @override
+  String get bucketsWholeBucket => '(bucket inteiro)';
+
+  @override
+  String get bucketsCopyNote =>
+      'A cópia é feita dentro do serviço de armazenamento - nenhum byte passa pelo telefone.';
+
+  @override
+  String get bucketsTargetKey => 'Chave de destino';
+
+  @override
+  String get bucketsTargetPrefix => 'Prefixo de destino';
+
+  @override
+  String bucketsCopyStarted(String op) {
+    return 'Cópia iniciada ($op)';
+  }
+
+  @override
+  String get bucketsFixHeadersTitle => 'Corrigir cabeçalhos';
+
+  @override
+  String bucketsFixHeadersBody(String path) {
+    return 'O cabeçalho Cache-Control dos objetos em $path é verificado; um objeto fora do padrão é regravado no lugar (Content-Type é mantido). Nenhum byte é baixado.\n\nPrefixos deixados mutáveis de propósito são ignorados.';
+  }
+
+  @override
+  String bucketsFixStarted(String op) {
+    return 'Reparo de cabeçalhos iniciado ($op)';
+  }
+
+  @override
+  String get bucketsOperations => 'Operações';
+
+  @override
+  String get bucketsNoOperations => 'Nenhuma operação ainda';
+
+  @override
+  String bucketsOpStatus(String status, int ok, int failed) {
+    return '$status  ·  ok $ok  ·  falhas $failed';
+  }
+
+  @override
+  String get bucketsTwinDiffRunning => 'Calculando a diferença com o gêmeo...';
+
+  @override
+  String get bucketsLocalDiffRunning => 'Calculando a diferença local...';
+
+  @override
+  String bucketsTwinDiffTitle(String bucket, String twin) {
+    return '$bucket <-> $twin (gêmeo antigo)';
+  }
+
+  @override
+  String bucketsLocalDiffTitle(String bucket) {
+    return 'Pasta local enviada <-> $bucket';
+  }
+
+  @override
+  String get bucketsMissingInLegacy => 'Ausente no gêmeo antigo';
+
+  @override
+  String get bucketsMissingInBucket => 'Ausente no bucket';
+
+  @override
+  String get bucketsOnlyInLegacy => 'Somente no gêmeo antigo';
+
+  @override
+  String get bucketsOnlyInBucket => 'Somente no bucket';
+
+  @override
+  String get bucketsSizeMismatch => 'Tamanho diferente';
+
+  @override
+  String get bucketsUnmapped => 'Sem correspondência (sem regra)';
+
+  @override
+  String get bucketsDerived => 'Gerado no bucket (miniaturas)';
+
+  @override
+  String bucketsDiffCount(String title, int count) {
+    return '$title: $count';
+  }
+
+  @override
+  String get bucketsFixFolderHeaders => 'Corrigir os cabeçalhos desta pasta';
+
+  @override
+  String get bucketsDiffs => 'Diferenças';
+
+  @override
+  String get bucketsTwinDiff => 'Diferença com o gêmeo antigo';
+
+  @override
+  String get bucketsLocalDiff => 'Diferença com a pasta local enviada';
+
+  @override
+  String get bucketsIntro =>
+      'Um bucket é o depósito que leva o nome do seu conteúdo. As contagens são calculadas sob demanda (apenas listagem, nenhum byte é baixado).';
+
+  @override
+  String get bucketsBadgeLegacy => 'ANTIGO';
+
+  @override
+  String get bucketsBadgePrivate => 'privado';
+
+  @override
+  String get bucketsBadgeContent => 'conteúdo';
+
+  @override
+  String get bucketsNotCounted => 'não contado';
+
+  @override
+  String bucketsObjectCount(int count) {
+    return '$count objetos';
+  }
+
+  @override
+  String bucketsTwinLabel(String twin) {
+    return 'gêmeo: $twin';
+  }
+
+  @override
+  String get bucketsCount => 'Contar';
+
+  @override
+  String get bucketsEmptyFolder => 'Esta pasta está vazia';
+
+  @override
+  String get bucketsTruncated =>
+      'A lista foi cortada - abra uma pasta mais específica';
+
+  @override
+  String bucketsSelectedCount(int count) {
+    return '$count selecionados';
+  }
+
+  @override
+  String get bucketsClearSelection => 'Limpar seleção';
+
+  @override
+  String get bucketsTakedownTooltip =>
+      'Remoção (excluir também do gêmeo antigo)';
+
+  @override
+  String get bucketsSize => 'Tamanho';
+
+  @override
+  String get bucketsContentType => 'Tipo';
+
+  @override
+  String get bucketsModified => 'Modificado';
+
+  @override
+  String get bucketsNone => '(nenhum)';
+
+  @override
+  String get bucketsMutableOnPurpose =>
+      'Mutável de propósito - nenhum padrão se aplica';
+
+  @override
+  String bucketsHeaderOk(String kind) {
+    return 'Atende ao padrão de cache ($kind)';
+  }
+
+  @override
+  String bucketsHeaderExpected(String expected) {
+    return 'Padrão: $expected';
+  }
+
+  @override
+  String get bucketsLegacyTwin => 'Gêmeo antigo';
+
+  @override
+  String get bucketsAddressCopied => 'Endereço copiado';
+
+  @override
+  String get bucketsCopyAddress => 'Copiar endereço';
+
+  @override
+  String get bucketsOpen => 'Abrir';
+
+  @override
+  String get bucketsPrivateNoAddress =>
+      'Este bucket é privado - não tem endereço público';
+
+  @override
+  String get kindCard => 'Carta';
+
+  @override
+  String get kindCharacter => 'Personagem';
+
+  @override
+  String get assetCodeMode => 'Modo de código';
+
+  @override
+  String get assetPickFinishedImage => 'Selecione uma imagem concluída';
+
+  @override
+  String get assetGenerateVideo => 'Gerar vídeo';
+
+  @override
+  String get assetEnlarge => 'Ampliar';
+
+  @override
+  String percentValue(Object value) {
+    return '$value%';
+  }
+
+  @override
+  String get commonCategory => 'Categoria';
+
+  @override
+  String durSeconds(Object seconds) {
+    return '$seconds s';
+  }
+
+  @override
+  String durMinutesSeconds(Object minutes, Object seconds) {
+    return '$minutes min $seconds s';
+  }
+
+  @override
+  String durHoursMinutes(Object hours, Object minutes) {
+    return '$hours h $minutes min';
+  }
+
+  @override
+  String get charKindFemale => 'Mulher';
+
+  @override
+  String get charKindMale => 'Homem';
+
+  @override
+  String get charKindAnimal => 'Animal';
+
+  @override
+  String get charKindMachine => 'Máquina';
+
+  @override
+  String get outfitCatSet => 'Conjunto';
+
+  @override
+  String get outfitCatTop => 'Superior';
+
+  @override
+  String get outfitCatBottom => 'Inferior';
+
+  @override
+  String get outfitCatShoes => 'Sapatos';
+
+  @override
+  String get outfitCatSocks => 'Meias';
+
+  @override
+  String get outfitCatHat => 'Chapéu';
+
+  @override
+  String get outfitCatHeadgear => 'Adereço de cabeça';
+
+  @override
+  String get outfitCatAccessory => 'Acessório';
+
+  @override
+  String get outfitCatWeapon => 'Arma';
+
+  @override
+  String get audioLabel => 'Áudio';
+
+  @override
+  String get audioDownloading => 'A transferir...';
+
+  @override
+  String get audioOpen => 'Abrir áudio';
+
+  @override
+  String get outfitExtractTitle => 'Extrair traje';
+
+  @override
+  String get outfitExtractBody =>
+      'A pessoa da imagem selecionada é removida e o traje é guardado no guarda-roupa como foto de produto em manequim invisível, sobre fundo cinzento liso. Depois, qualquer personagem pode usá-lo como skin.';
+
+  @override
+  String get outfitExtractName => 'Nome do traje';
+
+  @override
+  String get outfitExtractNameHint => 'ex.: Vestido de noite vermelho';
+
+  @override
+  String get outfitExtractNote => 'Nota (opcional)';
+
+  @override
+  String get outfitExtractNoteHint => 'ex.: só o vestido, sem os sapatos';
+
+  @override
+  String get outfitExtractHelp =>
+      'Conjunto: tudo o que a pessoa veste, numa só imagem. Arma / acessório: apenas esse objeto, sem manequim.';
+
+  @override
+  String get outfitExtractAction => 'Extrair';
+
+  @override
+  String equipSlotTitle(Object category) {
+    return 'Espaço: $category';
+  }
+
+  @override
+  String get equipSlotMultiHint =>
+      'seleção múltipla - toque para vestir / tirar';
+
+  @override
+  String get equipSlotSingleHint =>
+      'seleção única - toque para vestir, toque de novo para tirar';
+
+  @override
+  String get equipSlotEmpty => '(vazio)';
+
+  @override
+  String get equipSlotNoOutfits =>
+      'Não há trajes prontos nesta categoria - use \"+ Gerar traje\" ou \"Extrair traje\"';
+
+  @override
+  String get equipBaseLabel => 'Base:';
+
+  @override
+  String get equipUndress => 'Tirar tudo';
+
+  @override
+  String get equipPickSourceTitle => 'Escolher imagem de origem';
+
+  @override
+  String get equipPickSourceHint =>
+      'As últimas gerações concluídas (todos os modos). Para as imagens incoming / staging / pushed da linha Jigsaw use o ecrã Linha > Jigsaw.';
+
+  @override
+  String get equipNoFinishedImage => 'Nenhuma imagem concluída';
+
+  @override
+  String get freeFlowTitle => 'Linha Free';
+
+  @override
+  String get freeFlowEditTitle => 'Editar - motor de edição';
+
+  @override
+  String get freeFlowEditLabel => 'O que deve mudar';
+
+  @override
+  String get freeFlowEditHint =>
+      'ex.: change the dress to red, keep face and pose';
+
+  @override
+  String get freeFlowEditQueued => 'Edição adicionada à fila';
+
+  @override
+  String get freeFlowNoVideoTask => 'O modo Free não tem tarefa de vídeo';
+
+  @override
+  String freeFlowVideoTitle(Object task) {
+    return 'Gerar vídeo - $task';
+  }
+
+  @override
+  String get freeFlowMotionLabel => 'Movimento';
+
+  @override
+  String get freeFlowMotionHint =>
+      'ex.: she turns her head slowly toward the camera, hair moving in the breeze';
+
+  @override
+  String get freeFlowVideoQueued =>
+      'Vídeo adicionado à fila - quando terminar, aparece uma marca de reprodução neste cartão';
+
+  @override
+  String get freeFlowDeleteConfirm => 'Eliminar esta geração?';
+
+  @override
+  String get freeFlowDeleteWithVideosConfirm =>
+      'Eliminar esta geração e os seus vídeos?';
+
+  @override
+  String get freeFlowEmpty =>
+      'Ainda nada foi gerado no modo Free - comece no separador Gerar';
+
+  @override
+  String get queueKindGeneration => 'Geração';
+
+  @override
+  String get queueKindTag => 'Etiquetagem';
+
+  @override
+  String get queueKindMusic => 'Música';
+
+  @override
+  String get queueKindJob => 'Trabalho';
+
+  @override
+  String get queueCancelRunningTitle => 'Cancelar o trabalho em curso';
+
+  @override
+  String get queueRemoveTitle => 'Remover da fila';
+
+  @override
+  String get queueCancelIt => 'Cancelar';
+
+  @override
+  String get queueClearTitle => 'Limpar a fila';
+
+  @override
+  String get queueClearBody =>
+      'Cancelar os trabalhos de geração em espera? O trabalho em curso continua.';
+
+  @override
+  String get queueCancelWaiting => 'Cancelar os trabalhos em espera';
+
+  @override
+  String get queueEmpty => 'A fila está vazia';
+
+  @override
+  String get queueEmptyHint => 'Pode adicionar trabalhos no separador Gerar';
+
+  @override
+  String get queueNow => 'Agora';
+
+  @override
+  String queueWaitingCount(Object count) {
+    return 'Em espera ($count)';
+  }
+
+  @override
+  String queueGenerationJobsCount(Object count) {
+    return 'Trabalhos de geração ($count)';
+  }
+
+  @override
+  String get queueOneQueue => 'Uma só fila - todos os trabalhos';
+
+  @override
+  String queueJobCount(Object count) {
+    return '$count trabalhos';
+  }
+
+  @override
+  String get queueMoveUp => 'Mover para cima';
+
+  @override
+  String get queueMoveDown => 'Mover para baixo';
+
+  @override
+  String get queueUp => 'Cima';
+
+  @override
+  String get queueDown => 'Baixo';
+
+  @override
+  String queueElapsed(Object time) {
+    return 'decorrido $time';
+  }
+
+  @override
+  String queueWaitingFor(Object time) {
+    return 'em espera $time';
+  }
+
+  @override
+  String get queueWaiting => 'em espera';
+
+  @override
+  String get queueComfyReady => 'ComfyUI pronto';
+
+  @override
+  String get queueComfyOff => 'ComfyUI está desligado';
+
+  @override
+  String get deliveryPoolNeverRan => 'nunca executado';
+
+  @override
+  String deliveryPoolDryRun(Object status) {
+    return '$status (simulação)';
+  }
+
+  @override
+  String deliveryPoolSummary(
+    Object status,
+    Object total,
+    Object valid,
+    Object tagged,
+    Object failed,
+  ) {
+    return '$status · $total imagens, $valid válidas, $tagged etiquetadas, $failed falhadas';
+  }
+
+  @override
+  String get reportErrEmpty => 'Escreva primeiro uma mensagem.';
+
+  @override
+  String get reportErrTooLarge =>
+      'Os anexos são demasiado grandes. Remova um e tente novamente.';
+
+  @override
+  String flowOpError(Object message) {
+    return 'A operação falhou: $message';
+  }
+
+  @override
+  String get flowOpCancelled => 'Operação cancelada';
+
+  @override
+  String flowOpDone(Object ok) {
+    return '$ok concluídos';
+  }
+
+  @override
+  String flowOpDoneWithFailed(Object ok, Object failed) {
+    return '$ok concluídos, $failed falhados';
+  }
+
+  @override
+  String get flowCollection => 'Coleção';
+
+  @override
+  String get flowAllParen => '(todas)';
+
+  @override
+  String get flowAll => 'todas';
+
+  @override
+  String get flowSelectAll => 'Selecionar tudo';
+
+  @override
+  String get flowRetag => 'Etiquetar de novo';
+
+  @override
+  String get flowRetagShort => 'Etiquetar';
+
+  @override
+  String get flowRetagStarted => 'Etiquetagem iniciada';
+
+  @override
+  String get flowReadOnly => 'Só leitura';
+
+  @override
+  String get flowPush => 'Push';
+
+  @override
+  String get flowPreview => 'Pré-visualização';
+
+  @override
+  String get flowYes => 'sim';
+
+  @override
+  String get flowNo => 'não';
+
+  @override
+  String get flowMissingUpper => 'FALTA';
+
+  @override
+  String get flowBadgeNoTags => 'sem etiquetas';
+
+  @override
+  String get flowTabPushed => '4 Publicados';
+
+  @override
+  String get flowSelectAssetFirst => 'Selecione primeiro um recurso';
+
+  @override
+  String get flowAccept => 'Aceitar';
+
+  @override
+  String get flowReject => 'Rejeitar';
+
+  @override
+  String get flowUpload => 'Enviar';
+
+  @override
+  String get flowNew => 'Nova';
+
+  @override
+  String get flowReadFailed => 'Não foi possível ler a linha';
+
+  @override
+  String flowFilesDeleted(Object count) {
+    return '$count ficheiros eliminados';
+  }
+
+  @override
+  String get flowNegative => 'Negativo';
+
+  @override
+  String get flowPositive2 => 'Positivo 2';
+
+  @override
+  String get flowDuration => 'Duração';
+
+  @override
+  String get flowAddToQueue => 'Adicionar à fila';
+
+  @override
+  String get commonDescription => 'Descrição';
+
+  @override
+  String get cbnFlowTitle => 'Linha CBN';
+
+  @override
+  String get cbnFlowTabIncoming => '2 Recebidos';
+
+  @override
+  String get cbnFlowTabReady => '3 Prontos';
+
+  @override
+  String cbnFlowBuildTitle(Object count) {
+    return 'Construir - $count recursos';
+  }
+
+  @override
+  String get cbnFlowBuildBodyHot =>
+      'Regiões + paleta + modelo numerado + vídeo reveal (CPU). O passo SAM tem de estar feito; os contornos vêm dos limites do SAM. (Hot: a construção gera a página de traços com o Qwen; o passo C é uma pré-visualização opcional.)';
+
+  @override
+  String get cbnFlowBuildBodyKid =>
+      'Regiões + paleta + modelo numerado + SVG (CPU). O passo SAM tem de estar feito.';
+
+  @override
+  String get cbnFlowBuild => 'Construir';
+
+  @override
+  String get cbnFlowBuildStarted =>
+      'Construção iniciada - o progresso aparece em cima';
+
+  @override
+  String cbnFlowStageStarted(Object stage, Object count) {
+    return '$stage iniciado ($count recursos)';
+  }
+
+  @override
+  String get cbnFlowStageObjects => 'Lista de objetos';
+
+  @override
+  String get cbnFlowLineart => 'Traços';
+
+  @override
+  String cbnFlowPushTitle(Object count) {
+    return 'Push - $count recursos';
+  }
+
+  @override
+  String get cbnFlowPushBody =>
+      'As pastas de recursos serão enviadas para o R2 e movidas para \"Publicados\".\n\nÉ uma PUBLICAÇÃO e não pode ser desfeita.';
+
+  @override
+  String cbnFlowDeleteBody(Object count) {
+    return '$count recursos serão eliminados.';
+  }
+
+  @override
+  String cbnFlowDeleted(Object count) {
+    return '$count eliminados';
+  }
+
+  @override
+  String get cbnFlowEmptyIncoming =>
+      'Não há recursos nesta etapa.\nEnvie-os para aqui com ACEITAR no modo CBN, no ecrã \"Gerados\".';
+
+  @override
+  String get cbnFlowEmptyStaging =>
+      'Ainda não há recursos construídos.\nSelecione no separador \"Recebidos\" e toque em CONSTRUIR.';
+
+  @override
+  String get cbnFlowEmptyPushed => 'Não há recursos publicados.';
+
+  @override
+  String get cbnFlowBadgeTagged => 'E';
+
+  @override
+  String get cbnFlowBadgeObjects => 'O';
+
+  @override
+  String cbnFlowBadgeBuilt(Object regions, Object colors) {
+    return '${regions}r ${colors}c';
+  }
+
+  @override
+  String get cbnFlowLayerNumbered => 'Numerada';
+
+  @override
+  String get cbnFlowLayerFinished => 'Terminada';
+
+  @override
+  String get cbnFlowLayerSource => 'Origem';
+
+  @override
+  String get cbnFlowLayerObjects => 'Objetos';
+
+  @override
+  String cbnFlowInfo(
+    Object label,
+    Object regions,
+    Object colors,
+    Object verdict,
+  ) {
+    return '$label   $regions regiões · $colors cores · $verdict';
+  }
+
+  @override
+  String cbnFlowTagLine(Object label, Object state) {
+    return '$label   etiquetas: $state';
+  }
+
+  @override
+  String get cbnFlowFindObjects => 'A) Encontrar objetos';
+
+  @override
+  String get cbnFlowSamMasks => 'B) Máscaras SAM';
+
+  @override
+  String get cbnFlowLineartPage => 'C) Página de traços (opcional, Qwen)';
+
+  @override
+  String get cbnFlowBuildStep => 'D) Construir';
+
+  @override
+  String get cbnFlowStepMissingA =>
+      'O passo A (lista de objetos) não foi executado';
+
+  @override
+  String get cbnFlowStepMissingB =>
+      'O passo B (máscaras SAM) não foi executado';
+
+  @override
+  String get cbnFlowStepMissingC =>
+      'O passo C (página de traços) não foi executado';
+
+  @override
+  String get cbnFlowImageFailed => 'Não foi possível carregar a imagem';
+
+  @override
+  String get jigsawFlowTitle => 'Linha Jigsaw';
+
+  @override
+  String get jigsawFlowTabTagged => '2 Etiquetados';
+
+  @override
+  String get jigsawFlowTabToPush => '3 Por publicar';
+
+  @override
+  String get jigsawFlowQueueAll => 'TUDO NA FILA';
+
+  @override
+  String jigsawFlowQueueAllTitle(Object count) {
+    return 'TUDO NA FILA - $count recursos';
+  }
+
+  @override
+  String jigsawFlowVideoTitle(Object count) {
+    return 'Gerar vídeo - $count recursos';
+  }
+
+  @override
+  String get jigsawFlowPositive1 => 'Positivo 1 - assunto';
+
+  @override
+  String get jigsawFlowPositive1Help =>
+      'vazio = o prompt próprio de cada recurso';
+
+  @override
+  String get jigsawFlowMotionPreset => 'Modelo de movimento';
+
+  @override
+  String get jigsawFlowSpreadInTurn => '(distribuir à vez)';
+
+  @override
+  String get jigsawFlowPositive2 => 'Positivo 2 - movimento';
+
+  @override
+  String jigsawFlowPositive2Help(Object marker) {
+    return '$marker = lugar do prompt do assunto. Vazio = os modelos à vez.';
+  }
+
+  @override
+  String jigsawFlowPresetsSpread(Object count) {
+    return 'Os $count modelos serão distribuídos à vez.';
+  }
+
+  @override
+  String get jigsawFlowNoAssetWithoutVideo => 'Não há recursos sem vídeo';
+
+  @override
+  String get jigsawFlowSelectWithoutVideo => 'Selecione recursos sem vídeo';
+
+  @override
+  String jigsawFlowVideosQueued(Object queued) {
+    return '$queued vídeos adicionados à fila - chegam aqui quando terminarem';
+  }
+
+  @override
+  String jigsawFlowVideosQueuedSkipped(Object queued, Object skipped) {
+    return '$queued vídeos adicionados à fila, $skipped ignorados - chegam aqui quando terminarem';
+  }
+
+  @override
+  String get jigsawFlowNoVideoTitle => 'Sem vídeo';
+
+  @override
+  String jigsawFlowNoVideoBody(Object count) {
+    return '$count recursos não têm vídeo - só o jpg será escrito. Continuar?';
+  }
+
+  @override
+  String get jigsawFlowMusicNotReady => 'O modelo de música não está pronto';
+
+  @override
+  String get jigsawFlowNoMusicMissing =>
+      'Nenhuma coleção temática está sem música';
+
+  @override
+  String jigsawFlowHasMusic(Object collection) {
+    return '$collection já tem música ou é Generic';
+  }
+
+  @override
+  String jigsawFlowMusicBody(Object count, Object names) {
+    return 'Será gerada uma faixa instrumental de 30 segundos para $count coleções (ACE-Step, local).\n\n$names\n\nCada uma pode demorar alguns minutos.';
+  }
+
+  @override
+  String jigsawFlowPushBody(Object count) {
+    return '$count recursos serão ENVIADOS para o bucket R2.\n\nÉ uma publicação que não pode ser desfeita - os ficheiros enviados ficam visíveis na app.';
+  }
+
+  @override
+  String jigsawFlowDeleteBody(Object count) {
+    return 'Eliminar definitivamente $count recursos (jpg + mp4 + webp + json)?';
+  }
+
+  @override
+  String get jigsawFlowWebpStarted => 'A gerar os webp em falta';
+
+  @override
+  String jigsawFlowCollectionTitle(Object mode) {
+    return 'Coleção de $mode';
+  }
+
+  @override
+  String get jigsawFlowCollectionHelp =>
+      'escolha da lista ou escreva um nome NOVO';
+
+  @override
+  String jigsawFlowCollectionHelpFull(Object count) {
+    return 'escolha da lista ou escreva um nome NOVO  -  $count coleções cheias estão ocultas';
+  }
+
+  @override
+  String jigsawFlowCollectionRow(Object total, Object next) {
+    return '$total recursos - seguinte $next';
+  }
+
+  @override
+  String get jigsawFlowEmptyIncoming =>
+      'Não há recursos nesta etapa.\nEnvie-os para aqui com ACEITAR no ecrã \"Gerados\".';
+
+  @override
+  String get jigsawFlowEmpty => 'Não há recursos nesta etapa.';
+
+  @override
+  String get jigsawFlowBadgeNoWebp => 'sem webp';
+
+  @override
+  String jigsawFlowPreviewInfo(Object label, Object video, Object webp) {
+    return '$label\nvídeo: $video   webp: $webp';
+  }
+
+  @override
+  String jigsawFlowPreviewTags(Object state) {
+    return 'etiquetas: $state';
+  }
+
+  @override
+  String get jigsawFlowNoVideoInSelection =>
+      'Nenhum dos recursos selecionados tem vídeo';
+
+  @override
+  String get jigsawFlowDeleteVideo => 'Eliminar vídeo';
+
+  @override
+  String jigsawFlowDeleteVideoBody(Object count) {
+    return 'O mp4 + webp de $count recursos serão eliminados; a imagem fica e pode gerar um novo vídeo.';
+  }
+
+  @override
+  String get jigsawFlowDeleteVideoTooltip => 'Eliminar vídeo (a imagem fica)';
+
+  @override
+  String get jigsawFlowExtractNeedsOne =>
+      'O traje é extraído de uma só imagem - selecione uma';
+
+  @override
+  String outfitExtractStarted(Object name) {
+    return '$name está a ser extraído para o guarda-roupa - Personagem > Guarda-roupa';
+  }
+
+  @override
+  String get jigsawFlowMetaFile => 'Ficheiro';
+
+  @override
+  String get jigsawFlowMetaTags => 'Etiquetas';
+
+  @override
+  String get jigsawFlowMetaSubject => 'Assunto';
+
+  @override
+  String get jigsawFlowMetaPolicy => 'Política';
+
+  @override
+  String jigsawFlowMetaVideoValue(Object video, Object webp) {
+    return '$video   webp: $webp';
+  }
+
+  @override
+  String get jigsawFlowTagsMetadata => 'Etiquetas / metadados';
+
+  @override
+  String get jigsawFlowMissingWebp => 'Webp em falta';
+
+  @override
+  String deliverySavedLive(Object time) {
+    return 'Guardado e ATIVO ($time) - a atualizar as contagens';
+  }
+
+  @override
+  String get deliveryReindexTitle => 'Reler os metadados';
+
+  @override
+  String get deliveryReindexBody =>
+      'Para imagens cujo EXIF mudou no bucket. Escreva os nomes dos ficheiros separados por vírgulas (ex.: 12.jpg, 340.jpg); deixe vazio para reler TODO o Generic (~1500 ficheiros, alguns minutos).';
+
+  @override
+  String get deliveryReindexNames => 'Nomes dos ficheiros';
+
+  @override
+  String get deliveryReindexAction => 'Ler';
+
+  @override
+  String deliveryReindexed(Object count) {
+    return '$count imagens relidas - manifestos atualizados';
+  }
+
+  @override
+  String deliveryReindexedMissing(Object count, Object missing) {
+    return '$count imagens relidas, $missing não encontradas - manifestos atualizados';
+  }
+
+  @override
+  String get deliveryDryRunStarted =>
+      'Simulação iniciada - só produz um relatório';
+
+  @override
+  String get deliveryNormalizeStarted => 'Normalização iniciada';
+
+  @override
+  String get deliveryCancelRequested => 'Cancelamento pedido';
+
+  @override
+  String get deliveryNeverSaved => 'nunca guardado';
+
+  @override
+  String get deliveryPoolJigsaw => 'Grupo Jigsaw';
+
+  @override
+  String get deliveryPoolCards => 'Cartas';
+
+  @override
+  String get deliveryPoolEvents => 'Eventos';
+
+  @override
+  String get deliveryEvent => 'Evento';
+
+  @override
+  String deliverySummaryLine(
+    Object pool,
+    Object total,
+    Object tagged,
+    Object untagged,
+  ) {
+    return 'Grupo $pool: $total imagens, $tagged etiquetadas, $untagged sem etiqueta';
+  }
+
+  @override
+  String get deliverySaveBeforeSwitch =>
+      'Guarde as alterações antes de mudar de grupo.';
+
+  @override
+  String get deliveryReindexTooltip => 'Reler os metadados (se o EXIF mudou)';
+
+  @override
+  String deliveryLastRule(Object time, Object served, Object total) {
+    return 'Última regra: $time  ·  servidas por omissão: $served / $total';
+  }
+
+  @override
+  String get deliveryIntro =>
+      'Interruptor DESLIGADO = as imagens com esse valor saem do manifesto. Guardar fica ativo de imediato e agora filtra TODAS as coleções / baralhos; um item isolado que escape às regras fecha-se com a lista de bloqueio.';
+
+  @override
+  String get deliveryNormalizeTitle =>
+      'Normalizar - gerar as etiquetas em falta';
+
+  @override
+  String get deliveryDryRun => 'Simulação';
+
+  @override
+  String get deliveryNormalizeNoStatus =>
+      'Estado indisponível - o servidor não respondeu a /api/normalize/status';
+
+  @override
+  String deliveryIndex(Object index) {
+    return 'Índice: $index';
+  }
+
+  @override
+  String deliveryLastRun(Object summary) {
+    return 'Última execução: $summary';
+  }
+
+  @override
+  String get deliveryBlockScopeGlobal => 'todas as apps (global)';
+
+  @override
+  String deliveryBlockTitle(Object scope) {
+    return 'Bloquear · $scope';
+  }
+
+  @override
+  String get deliveryOpenList => 'Abrir a lista';
+
+  @override
+  String get deliveryBlockIntro =>
+      'Um bloqueio global vale em TODAS as apps; selecione uma app para bloquear só nessa app. É aplicado DEPOIS das regras.';
+
+  @override
+  String get deliveryBlockEmpty =>
+      'Não há nada para bloquear neste grupo (o bucket está vazio).';
+
+  @override
+  String deliveryGroupSubtitle(Object count, Object tagged) {
+    return '$count itens · $tagged/$count etiquetados';
+  }
+
+  @override
+  String deliveryGroupSubtitleBlocked(Object count, Object tagged) {
+    return '$count itens · $tagged/$count etiquetados · TUDO BLOQUEADO';
+  }
+
+  @override
+  String get deliveryAppsHint => 'Apps - toque para editar a regra dessa app';
+
+  @override
+  String deliveryDefaultChip(Object served, Object total) {
+    return 'Predefinição  $served/$total';
+  }
+
+  @override
+  String get deliveryDefaultRuleTitle =>
+      'Regra predefinida - versões antigas que não enviam ?app= e apps sem regra própria';
+
+  @override
+  String deliveryCustomRuleTitle(Object app) {
+    return 'Regra própria para $app';
+  }
+
+  @override
+  String get deliveryCustomRuleOn => 'Desligue para voltar à predefinição';
+
+  @override
+  String get deliveryCustomRuleOff =>
+      'Desligado: aplica-se a regra predefinida. Ao ligar, começa com uma cópia dela.';
+
+  @override
+  String get deliveryScopeTitle => 'Só as coleções selecionadas';
+
+  @override
+  String deliveryScopeOn(Object selected, Object total) {
+    return '$selected/$total coleções - as recém-publicadas NÃO chegam a esta app';
+  }
+
+  @override
+  String get deliveryScopeOff =>
+      'Desligado: cada coleção recém-publicada também chega a esta app';
+
+  @override
+  String get deliveryScopeNone =>
+      'Nenhuma selecionada - uma lista vazia não é guardada, a regra volta a \"todas\".';
+
+  @override
+  String get deliveryRulesEnabled => 'Regras ativas';
+
+  @override
+  String get deliveryRulesEnabledHint =>
+      'Desligado = este conjunto de regras não filtra nada';
+
+  @override
+  String get deliveryServeUntagged => 'Servir imagens sem etiqueta';
+
+  @override
+  String deliveryUntaggedCount(Object count) {
+    return '$count imagens não têm metadados';
+  }
+
+  @override
+  String get deliveryQuick => 'Rápido:';
+
+  @override
+  String deliveryOffCount(Object count) {
+    return '$count desligados';
+  }
+
+  @override
+  String deliveryFieldSubtitle(Object field, Object count) {
+    return '$field · $count valores';
+  }
+
+  @override
+  String get deliveryUnsaved => 'Há alterações por guardar';
+
+  @override
+  String get deliveryInSync => 'Igual ao servidor';
+
+  @override
+  String get deliverySavePublish => 'Guardar e publicar';
+
+  @override
+  String get commonApply => 'Aplicar';
+
+  @override
+  String get commonModel => 'Modelo';
+
+  @override
+  String get cardTplShuffled =>
+      'Baralhado - os eixos bloqueados não foram alterados';
+
+  @override
+  String cardTplRankShuffled(Object rank) {
+    return '$rank baralhado';
+  }
+
+  @override
+  String cardTplAxisAllTitle(Object axis) {
+    return '$axis - para todos';
+  }
+
+  @override
+  String get cardTplAxisAllBack => 'É escrito no verso da carta e BLOQUEADO.';
+
+  @override
+  String get cardTplAxisAllFront =>
+      'É escrito nas 13 cartas + 2 jokers de uma vez e BLOQUEADO - baralhar não o altera.';
+
+  @override
+  String get cardTplValue => 'Valor';
+
+  @override
+  String get cardTplAllWritten => 'Escrito em todos e bloqueado';
+
+  @override
+  String cardTplRankTitle(Object rank) {
+    return 'Modelo de $rank';
+  }
+
+  @override
+  String get cardTplLocked => 'Bloqueado';
+
+  @override
+  String get cardTplLock => 'Bloquear';
+
+  @override
+  String get cardTplManual => 'Extra manual (texto livre)';
+
+  @override
+  String get cardTplManualHint => 'ex.: holding a golden card fan';
+
+  @override
+  String get cardTplManualHelp =>
+      'É acrescentado ao fim do modelo - baralhar não o apaga';
+
+  @override
+  String cardTplRankSaved(Object rank) {
+    return '$rank guardado';
+  }
+
+  @override
+  String cardTplSlotQueued(Object slot) {
+    return '$slot adicionado à fila';
+  }
+
+  @override
+  String cardTplTitle(Object title) {
+    return 'Carta de coleção - $title';
+  }
+
+  @override
+  String get cardTplShuffle => 'Baralhar';
+
+  @override
+  String get cardTplNoTheme => 'Sem tema - toque para escrever';
+
+  @override
+  String get cardTplThemeTitle => 'Tema (P1)';
+
+  @override
+  String get cardTplPresetCard => 'Carta predefinida';
+
+  @override
+  String get cardTplTheme => 'Tema';
+
+  @override
+  String get cardTplThemeHelp =>
+      'identidade + STRICT PALETTE + Signature pieces';
+
+  @override
+  String get cardTplThemeEmpty => 'O tema não pode ficar vazio';
+
+  @override
+  String get cardTplThemeSaved => 'Tema guardado';
+
+  @override
+  String cardTplModelSet(Object name) {
+    return 'Modelo: $name';
+  }
+
+  @override
+  String get cardTplFaceDetail => 'Retoque do rosto';
+
+  @override
+  String get cardTplFaceDetailHint =>
+      '+15 s por carta - passa o rosto por uma passagem à parte';
+
+  @override
+  String get cardTplFaceDetailOn => 'Retoque do rosto ligado';
+
+  @override
+  String get cardTplFaceDetailOff => 'Retoque do rosto desligado';
+
+  @override
+  String get cardTplVideoEngine =>
+      'Motor de vídeo (primeiro fotograma = último)';
+
+  @override
+  String cardTplEngineUnavailable(Object engine) {
+    return '$engine (não instalado)';
+  }
+
+  @override
+  String cardTplVideoEngineSet(Object name) {
+    return 'Motor de vídeo: $name';
+  }
+
+  @override
+  String get cardTplApplyToAll => 'Aplicar a todos:';
+
+  @override
+  String get cardTplPickAxis => 'escolher um eixo';
+
+  @override
+  String cardTplBackAxis(Object axis) {
+    return '$axis  (verso)';
+  }
+
+  @override
+  String cardTplLockedAxes(Object count) {
+    return '$count eixos bloqueados';
+  }
+
+  @override
+  String get cardTplShuffleSlot => 'Baralhar este espaço';
+
+  @override
+  String get cardTplGenerateSlot => 'Gerar este espaço';
+
+  @override
+  String galleryDeleteSelectedConfirm(Object count) {
+    return 'Eliminar $count gerações e os seus ficheiros?';
+  }
+
+  @override
+  String galleryDeleted(Object count) {
+    return '$count gerações eliminadas';
+  }
+
+  @override
+  String galleryDeleteFailed(Object count) {
+    return '$count não puderam ser eliminadas';
+  }
+
+  @override
+  String get galleryCharacterNeedsOne =>
+      'Uma personagem é criada a partir de uma só imagem - selecione uma';
+
+  @override
+  String get galleryMakeCharacter => 'Criar personagem';
+
+  @override
+  String get galleryMakeCharacterBody =>
+      'A imagem selecionada passa diretamente a ser a base; o retrato, a história e as 7 direções são gerados sozinhos - sem pedir confirmação.';
+
+  @override
+  String galleryCharacterQueued(Object name) {
+    return '$name adicionado à fila - acompanhe o processo no separador Fila';
+  }
+
+  @override
+  String get galleryCreateCharacterFirst =>
+      'Crie primeiro uma personagem com \"Criar personagem\"';
+
+  @override
+  String galleryAddToCandidatesTitle(Object count) {
+    return 'Adicionar aos candidatos - $count imagens';
+  }
+
+  @override
+  String galleryAddedToCandidates(Object count, Object name) {
+    return '$count imagens adicionadas aos candidatos de $name';
+  }
+
+  @override
+  String get galleryCollectionNeedsOne =>
+      'Só se adiciona uma imagem a uma coleção - selecione uma';
+
+  @override
+  String get galleryCreateCollectionFirst =>
+      'Crie primeiro uma coleção ou um croupier na linha de Cartas';
+
+  @override
+  String get galleryAddToCollection => 'Adicionar à coleção';
+
+  @override
+  String get galleryDealerNoRank => 'croupier (sem valor)';
+
+  @override
+  String galleryPickRank(Object name) {
+    return '$name - escolher um valor';
+  }
+
+  @override
+  String get galleryQueuedOne =>
+      'Adicionado à fila (1 trabalho) - acompanhe no separador Fila';
+
+  @override
+  String galleryAcceptBodyCbn(Object count) {
+    return '$count imagens passam para a etapa \"Recebidos\" da linha CBN: jpg + etiquetas EXIF. A construção (SAM, traços, regiões) é iniciada lá.\n\nQue classificação?';
+  }
+
+  @override
+  String galleryAcceptBodyJigsaw(Object count) {
+    return '$count imagens passam para a etapa 2: jpg + etiquetas EXIF, com o vídeo ao lado se existir.\n\nQue classificação?';
+  }
+
+  @override
+  String get galleryAcceptStarted =>
+      'Iniciado - acompanhe o progresso no separador \"Linha\"';
+
+  @override
+  String get galleryExtractTooltip =>
+      'Extrair traje - levar o traje da imagem para o guarda-roupa';
+
+  @override
+  String get galleryMakeCharacterTooltip =>
+      'Criar personagem - cria uma nova personagem';
+
+  @override
+  String get galleryAddToCandidatesTooltip =>
+      'Adicionar aos candidatos - copiar para uma personagem existente';
+
+  @override
+  String get galleryAddToCollectionTooltip =>
+      'Adicionar à coleção - escolher um valor';
+
+  @override
+  String get galleryAcceptTooltip => 'Aceitar - enviar para a etapa 2';
+
+  @override
+  String get galleryDeleteSelected => 'Eliminar os selecionados';
+
+  @override
+  String get galleryFilterImage => 'Imagem';
+
+  @override
+  String get galleryFilterVideo => 'Vídeo';
+
+  @override
+  String get galleryFilterFavorite => 'Favorito';
+
+  @override
+  String galleryQueuedAt(Object position) {
+    return 'em fila $position';
+  }
+
+  @override
+  String get galleryEmpty => 'Ainda nada foi gerado';
+
+  @override
+  String get galleryEmptyHint => 'Pode começar no separador Gerar';
+
+  @override
+  String get galleryDeleteOneConfirm =>
+      'Eliminar esta geração e o seu ficheiro?';
+
+  @override
+  String get galleryAcceptOneCbn =>
+      'Passa para a etapa \"Recebidos\" da linha CBN (jpg + etiquetas EXIF).\n\nQue classificação?';
+
+  @override
+  String get galleryAcceptOneJigsaw =>
+      'Passa para a etapa 2 (jpg + etiquetas EXIF).\n\nQue classificação?';
+
+  @override
+  String get galleryAccepted =>
+      'Aceite - a etiquetar, acompanhe no separador \"Linha\"';
+
+  @override
+  String get galleryRejected => 'Rejeitado';
+
+  @override
+  String get galleryEditBody =>
+      'Esta imagem passa a ser a origem; o motor de edição (Qwen Image Edit, mantém a identidade) inicia uma nova geração. O que deve mudar?';
+
+  @override
+  String get galleryEditPromptLabel => 'Prompt adicional';
+
+  @override
+  String get galleryEditPromptHint =>
+      'ex.: change the dress to a red pleated miniskirt, keep face and pose';
+
+  @override
+  String get galleryEditQueued =>
+      'Edição adicionada à fila - o resultado aparece em Gerados';
+
+  @override
+  String get galleryEditTooltip =>
+      'Editar - nova geração com o motor de edição';
+
+  @override
+  String galleryPoolInfo(Object name) {
+    return 'grupo $name';
+  }
+
+  @override
+  String get genPromptUnchanged =>
+      'O prompt não mudou (o LLM local não respondeu)';
+
+  @override
+  String get genPromptWritten => 'Prompt escrito';
+
+  @override
+  String get commonUndo => 'Anular';
+
+  @override
+  String get genVariantFailed =>
+      'Não foi possível gerar variantes (o LLM local não respondeu)';
+
+  @override
+  String get genPickVariant => 'Escolher uma variante';
+
+  @override
+  String get genEnrich => 'Enriquecer';
+
+  @override
+  String get genFix => 'Corrigir';
+
+  @override
+  String get genVariant => 'Variante';
+
+  @override
+  String get genFileUnreadable => 'Não foi possível ler o ficheiro';
+
+  @override
+  String get genPromptEmpty => 'O prompt não pode ficar vazio';
+
+  @override
+  String genMissingInputs(Object inputs) {
+    return 'Entrada em falta: $inputs';
+  }
+
+  @override
+  String get genNeedsImagePick =>
+      'Esta tarefa precisa de uma imagem de entrada - escolha uma das geradas';
+
+  @override
+  String get genNeedsImage => 'Esta tarefa precisa de uma imagem de entrada';
+
+  @override
+  String genQueuedCount(Object count) {
+    return '$count trabalhos adicionados à fila';
+  }
+
+  @override
+  String get genQueued => 'Adicionado à fila';
+
+  @override
+  String genQueueBadge(Object count) {
+    return '$count em fila';
+  }
+
+  @override
+  String get genComfyOffBody =>
+      'O ComfyUI está desligado. Os trabalhos entram na fila mas não arrancam - é preciso iniciá-lo no computador.';
+
+  @override
+  String get genTask => 'Tarefa';
+
+  @override
+  String get genWorkflowInputs => 'Entradas do fluxo de trabalho';
+
+  @override
+  String get genInputImage => 'Imagem de entrada';
+
+  @override
+  String get genPositive1 => 'Prompt positivo 1 - assunto';
+
+  @override
+  String get genPositive1Hint => 'ex.: police officer';
+
+  @override
+  String get genPositive2 => 'Prompt positivo 2 - modelo';
+
+  @override
+  String genPositive2Help(Object marker) {
+    return '$marker é substituído pelo primeiro prompt. Pode ficar vazio.';
+  }
+
+  @override
+  String get genFinalPrompt => 'Prompt a enviar';
+
+  @override
+  String get genNegative => 'Prompt negativo';
+
+  @override
+  String get genTurboHint => 'modo rápido';
+
+  @override
+  String genDurationSeconds(Object seconds) {
+    return 'Duração: $seconds segundos';
+  }
+
+  @override
+  String genCount(Object count) {
+    return 'Quantidade: $count';
+  }
+
+  @override
+  String genSizeAspect(Object width, Object height, Object aspect) {
+    return 'Tamanho: $width x $height  ($aspect)';
+  }
+
+  @override
+  String genSize(Object width, Object height) {
+    return 'Tamanho: $width x $height';
+  }
+
+  @override
+  String get genAddToQueueUpper => 'ADICIONAR À FILA';
+
+  @override
+  String get genFootnote =>
+      'Os trabalhos são gerados um a seguir ao outro. Pode acompanhá-los no separador Fila.';
+
+  @override
+  String get genDetailsTitle =>
+      'Detalhes - podem ficar vazios, os bloqueados não são baralhados';
+
+  @override
+  String genRandomGenerate(Object count) {
+    return 'Gerar ao acaso  $count';
+  }
+
+  @override
+  String get genLockedTooltip => 'bloqueado - fica fixo ao baralhar';
+
+  @override
+  String get genOptionsEmpty => 'A lista de opções está vazia';
+
+  @override
+  String get genOptional => 'opcional';
+
+  @override
+  String get genUploading => 'a enviar...';
+
+  @override
+  String get genNotSelected => 'não selecionado';
+
+  @override
+  String get genFromGallery => 'Da galeria';
+
+  @override
+  String get genFromFile => 'De ficheiro';
+
+  @override
+  String get genNoSource =>
+      'Não há nenhuma geração que sirva de entrada. Gere primeiro uma imagem.';
+
+  @override
+  String genPickerTitle(Object slot) {
+    return '$slot - escolher em Gerados';
+  }
+
+  @override
+  String get genPickerSearch => 'procurar nos prompts';
+
+  @override
+  String get genPickerEmpty => 'Não há gerações concluídas deste tipo.';
+
+  @override
+  String optionsFileMissing(Object items) {
+    return 'Em falta no ficheiro de opções: $items';
+  }
+
+  @override
+  String optionsFieldsMissing(Object label) {
+    return '$label (sem definições de campo)';
+  }
+
+  @override
+  String optionsFileUnreadable(Object error) {
+    return 'Não foi possível ler o ficheiro de opções: $error';
+  }
+
+  @override
+  String optionsFileUnreadableNamed(Object name, Object error) {
+    return 'Não foi possível ler o ficheiro de opções de $name: $error';
+  }
+
+  @override
+  String get fieldLocation => 'Local';
+
+  @override
+  String get fieldEra => 'Época / estética';
+
+  @override
+  String get fieldWeather => 'Tempo';
+
+  @override
+  String get fieldWeatherLight => 'Tempo / luz';
+
+  @override
+  String get fieldJob => 'Profissão';
+
+  @override
+  String get fieldFantasy => 'Fantasia';
+
+  @override
+  String get fieldOutfitColor => 'Cor do traje';
+
+  @override
+  String get fieldOutfit => 'Traje';
+
+  @override
+  String get fieldHair => 'Cabelo';
+
+  @override
+  String get fieldHairColor => 'Cor do cabelo';
+
+  @override
+  String get fieldHairstyle => 'Penteado';
+
+  @override
+  String get fieldEyes => 'Olhos';
+
+  @override
+  String get fieldRace => 'Raça';
+
+  @override
+  String get fieldExpression => 'Expressão';
+
+  @override
+  String get fieldPose => 'Pose';
+
+  @override
+  String get fieldAngle => 'Ângulo';
+
+  @override
+  String get fieldStyle => 'Estilo';
+
+  @override
+  String get fieldMood => 'Ambiente';
+
+  @override
+  String get fieldColor => 'Cor';
+
+  @override
+  String get fieldCreature => 'Criatura';
+
+  @override
+  String get fieldClass => 'Classe';
+
+  @override
+  String get fieldAge => 'Idade';
+
+  @override
+  String get fieldOrigin => 'Origem';
+
+  @override
+  String get fieldBody => 'Corpo';
+
+  @override
+  String get fieldSkin => 'Pele';
+
+  @override
+  String get fieldFace => 'Rosto';
+
+  @override
+  String get fieldGesture => 'Gesto';
+
+  @override
+  String get cardNotReady => 'O endpoint do servidor ainda não está pronto';
+
+  @override
+  String get cardKindNormal => 'Normal';
+
+  @override
+  String get cardKindDealer => 'Croupier';
+
+  @override
+  String get cardStagePushed => 'publicado';
+
+  @override
+  String get cardStageWebp => 'webp pronto';
+
+  @override
+  String get cardStageVideo => 'vídeo pronto';
+
+  @override
+  String get cardStageStill => 'still pronto';
+
+  @override
+  String get cardStageEmpty => 'vazio';
+
+  @override
+  String cardRankTooltip(Object rank, Object stage) {
+    return '$rank - $stage';
+  }
+
+  @override
+  String cardRankTooltipWarn(Object rank, Object stage) {
+    return '$rank - $stage (verificar)';
+  }
+
+  @override
+  String get cardVideoIntro =>
+      'Primeiro fotograma = último (ciclo). A câmara fica bloqueada - o enquadramento, a escala e o fundo não mudam. O resultado vai primeiro para o GRUPO; se escolher uma etiqueta, também é atribuído a ela.';
+
+  @override
+  String get cardVideoTemplate => 'Modelo (preenche o texto)';
+
+  @override
+  String get cardVideoMotion => 'Frase de movimento (o prompt enviado)';
+
+  @override
+  String get cardVideoMotionHelp =>
+      'Descreva um movimento visível; no fim deve voltar à pose inicial';
+
+  @override
+  String get cardVideoAssignTag => 'Atribuir a etiqueta';
+
+  @override
+  String get cardVideoPoolOnly => '(só para o grupo - atribuo depois)';
+
+  @override
+  String get cardVideoNewTag => 'Nova etiqueta...';
+
+  @override
+  String get cardVideoNewTagName => 'Nome da nova etiqueta';
+
+  @override
+  String get cardTagHint => 'ex.: victory';
+
+  @override
+  String get cardGestureTitle => 'Animação - escolher um gesto';
+
+  @override
+  String get cardGestureIntro =>
+      'MiniMax H3: idle 6 s, victory 2 s. A câmara fica bloqueada - o enquadramento, a escala e o fundo não mudam.';
+
+  @override
+  String get cardGestureCustom => 'Movimento personalizado';
+
+  @override
+  String get cardGestureCustomHint => 'ex.: leve balanço de ancas, pés fixos';
+
+  @override
+  String get cardGestureCustomHelp =>
+      'Uma frase curta de movimento - a câmara continua bloqueada';
+
+  @override
+  String get cardCutTitle => '3 WebP - modo de recorte';
+
+  @override
+  String get cardCutHybrid =>
+      'Masters verdes antigos do Grok - chroma + SAM juntos';
+
+  @override
+  String get cardCutSam => 'Predefinição - só SAM3, fundo cinzento-claro liso';
+
+  @override
+  String get cardCutAction => 'Recortar';
+
+  @override
+  String cardEditTitle(Object name) {
+    return 'Editar - $name';
+  }
+
+  @override
+  String get cardEditSentence => 'Frase de correção';
+
+  @override
+  String get cardEditSentenceHint => 'ex.: encurtar o cabelo / tirar as luvas';
+
+  @override
+  String get cardEditBody =>
+      'O still aceite é editado com esta frase; a identidade, a pose e o fundo são mantidos. A nova imagem é aceite automaticamente.';
+
+  @override
+  String get cardEditUnrestricted => 'Edição sem restrições (NSFW LoRA)';
+
+  @override
+  String get cardEditUnrestrictedHint =>
+      'Ligue se o Qwen recusar - MCNL LoRA, 20 passos, um pouco mais lento';
+
+  @override
+  String cardQueuedJobs(Object count) {
+    return 'Adicionado à fila ($count trabalhos) - acompanhe no separador Fila';
+  }
+
+  @override
+  String get cardQueued => 'Adicionado à fila - acompanhe no separador Fila';
+
+  @override
+  String cardQueuedOp(Object op) {
+    return 'Adicionado à fila (op $op) - acompanhe no separador Fila';
+  }
+
+  @override
+  String cardSoonTitle(Object what) {
+    return '$what - em breve';
+  }
+
+  @override
+  String get cardSoonBody =>
+      'Os endpoints de cartas no servidor ainda não estão abertos. Este ecrã começa a funcionar sozinho quando estiverem.';
+
+  @override
+  String get cardNewCollection => 'Nova coleção';
+
+  @override
+  String get cardIdLabel => 'Identificador (id)';
+
+  @override
+  String get cardIdHintCollection => 'ex.: police_royale';
+
+  @override
+  String get commonName => 'Nome';
+
+  @override
+  String get cardNameHintCollection => 'ex.: Police Royale';
+
+  @override
+  String get cardPickPreset => 'Escolher uma carta predefinida (opcional)';
+
+  @override
+  String get cardThemeHint =>
+      'ex.: sexy police costume with badge and duty belt';
+
+  @override
+  String get cardThemeFormula =>
+      'Fórmula: identidade + STRICT PALETTE + Signature pieces';
+
+  @override
+  String get cardJokers => 'Jokers (2)';
+
+  @override
+  String get cardJokersHint => '15 valores em vez de 13';
+
+  @override
+  String get cardNewCollectionNote =>
+      'Entra na fila 1 still por valor (rotação de pele / cabelo / traje / pose). Não se pede confirmação - afine com ✎ / ↻.';
+
+  @override
+  String get cardIdNameRequired =>
+      'O identificador e o nome não podem ficar vazios';
+
+  @override
+  String get cardNewDealer => 'Novo croupier';
+
+  @override
+  String get cardIdHintDealer => 'ex.: scarlett';
+
+  @override
+  String get cardNameHintDealer => 'ex.: Scarlett';
+
+  @override
+  String get cardDealerTheme => 'Tema / traje';
+
+  @override
+  String get cardDealerThemeHint =>
+      'ex.: colete de casino e laço, vestido vermelho noir';
+
+  @override
+  String get cardDealerNote =>
+      'O croupier é gerado em plano médio (mãos na mesa, a olhar para a câmara). Não há valor - o item único passa pelas quatro etapas.';
+
+  @override
+  String get cardNightPickGesture => 'Modo noturno - escolher um gesto';
+
+  @override
+  String get cardNightMode => 'Modo noturno';
+
+  @override
+  String cardNightBody(Object gesture) {
+    return 'Todas as cartas E os croupiers são reanimados: still atual -> LTX-2.5 i2v ($gesture) -> recorte SAM -> sheet.\n\nDemora muito e tudo entra na fila. NÃO é feito push.';
+  }
+
+  @override
+  String get cardRestillTitle => 'Pôr os fundos a cinzento';
+
+  @override
+  String get cardRestillBody =>
+      'O fundo do still de todas as cartas E croupiers passa a cinzento-claro liso (a mulher fica igual). O original é guardado como still_green.png; os que já são cinzentos são ignorados.\n\nNão é gerado vídeo.';
+
+  @override
+  String get cardManifestPreview => 'Pré-visualização do manifesto';
+
+  @override
+  String cardManifestCounts(Object collections, Object dealers) {
+    return '$collections coleções, $dealers croupiers';
+  }
+
+  @override
+  String get cardManifestNote =>
+      'O ficheiro de manifesto é escrito durante o PUSH (primeiro os ficheiros, depois o manifesto). Isto é só uma pré-visualização.';
+
+  @override
+  String get cardCollectionCardSettings => 'Carta de coleção (definições)';
+
+  @override
+  String get cardCollectionCardSettingsHint =>
+      'tema, 16 espaços, modelo, retoque do rosto';
+
+  @override
+  String get cardReanimate => 'Reanimar';
+
+  @override
+  String get cardReanimateHint => 'still -> i2v -> recorte (esta coleção)';
+
+  @override
+  String get cardRealify => 'Anime -> realista (coleção)';
+
+  @override
+  String get cardRealifyHint =>
+      'cada still passa a foto realista com o edit_qwen';
+
+  @override
+  String get cardDeleteCollection => 'Eliminar coleção';
+
+  @override
+  String get cardDeleteCollectionHint =>
+      'a pasta é eliminada com todas as cartas - não pode ser desfeito';
+
+  @override
+  String cardDeleteCollectionTitle(Object name) {
+    return 'Eliminar coleção - $name';
+  }
+
+  @override
+  String cardDeleteDealerTitle(Object name) {
+    return 'Eliminar croupier - $name';
+  }
+
+  @override
+  String get cardDeleteCollectionBody =>
+      'A pasta da coleção é eliminada com todos os ficheiros.\n\nNÃO PODE SER DESFEITO. Os ficheiros já publicados no R2 ficam no bucket.';
+
+  @override
+  String get cardDeleteDealerBody =>
+      'A pasta do croupier é eliminada com todos os ficheiros.\n\nNÃO PODE SER DESFEITO. Os ficheiros já publicados no R2 ficam no bucket.';
+
+  @override
+  String cardDeletedNamed(Object name) {
+    return '$name eliminado';
+  }
+
+  @override
+  String get cardDealerCardSettings => 'Carta de croupier (definições)';
+
+  @override
+  String get cardDealerCardSettingsHint =>
+      'tema, modelo de prompt, modelo, retoque do rosto';
+
+  @override
+  String get cardDeleteDealer => 'Eliminar croupier';
+
+  @override
+  String get cardDeleteDealerHint =>
+      'a pasta é eliminada com todos os ficheiros - não pode ser desfeito';
+
+  @override
+  String get cardFlowTitle => 'Linha de Cartas';
+
+  @override
+  String get cardBulkActions => 'Ações em lote';
+
+  @override
+  String get cardNightMenu => 'Modo noturno: reanimar tudo';
+
+  @override
+  String get cardRestillMenu => 'Pôr os fundos a cinzento (todos)';
+
+  @override
+  String get cardManifestMenu => 'Ver manifesto';
+
+  @override
+  String get cardDealers => 'Croupiers';
+
+  @override
+  String get cardEmptyCollections =>
+      'Ainda não há coleções.\n\nCom \"+ Nova coleção\" indique identificador, nome e tema - entra na fila 1 still por valor para 13 (ou 15) valores, e depois vêm as etapas 2 Video e 3 WebP.';
+
+  @override
+  String get cardEmptyDealers =>
+      'Ainda não há croupiers.\n\nCom \"+ Novo croupier\" indique nome, tema e gesto - é gerado um único item em plano médio que passa pelas quatro etapas.';
+
+  @override
+  String cardGestureLine(Object gesture) {
+    return 'gesto: $gesture';
+  }
+
+  @override
+  String cardAnimateTitle(Object count) {
+    return '2 Video ($count cartas)';
+  }
+
+  @override
+  String cardAnimateBody(Object total) {
+    return 'Para cada carta são geradas 2 animações, atribuídas às suas etiquetas:\n• idle - 6 s, um gesto controlado\n• victory - 2 s, uma breve celebração dentro do enquadramento\n$total vídeos no total; os antigos ficam no grupo.';
+  }
+
+  @override
+  String get cardEditNeedsOne =>
+      'A edição é para um só valor - selecione uma carta';
+
+  @override
+  String cardPushTitle(Object name) {
+    return 'Push - $name';
+  }
+
+  @override
+  String cardPushBody(Object ready, Object total) {
+    return 'Os ficheiros sheet e thumb são enviados para o R2 (cards) e depois o manifesto é escrito. Neste momento está pronto o webp de $ready/$total valores.\n\nÉ uma PUBLICAÇÃO e NÃO PODE SER DESFEITA.';
+  }
+
+  @override
+  String get cardPushQueued =>
+      'Push adicionado à fila - acompanhe no separador Fila';
+
+  @override
+  String get cardCollectionCardTooltip =>
+      'Carta de coleção - tema, 16 espaços, modelo, retoque do rosto';
+
+  @override
+  String get commonMore => 'Mais';
+
+  @override
+  String get cardNoThemeTap => 'Sem tema - toque: Carta de coleção';
+
+  @override
+  String cardThemeTap(Object theme) {
+    return '$theme\nCarta de coleção: toque (tema, 16 espaços, modelo, retoque do rosto)';
+  }
+
+  @override
+  String cardDeleteCollectionStills(Object stills) {
+    return 'A pasta da coleção é eliminada com todas as cartas ($stills stills).\n\nNÃO PODE SER DESFEITO. Os ficheiros já publicados no R2 ficam no bucket.';
+  }
+
+  @override
+  String cardDeleteCollectionStillsPushed(Object stills, Object pushed) {
+    return 'A pasta da coleção é eliminada com todas as cartas ($stills stills, $pushed publicadas).\n\nNÃO PODE SER DESFEITO. Os ficheiros já publicados no R2 ficam no bucket.';
+  }
+
+  @override
+  String get cardClearCards => 'Limpar cartas';
+
+  @override
+  String cardClearCardsBody(Object ranks) {
+    return '$ranks - still, candidatos, vídeo e webp são eliminados; o valor fica vazio (gera-se de novo com \"1 Still\").';
+  }
+
+  @override
+  String cardsCleared(Object count) {
+    return '$count cartas limpas';
+  }
+
+  @override
+  String cardsClearFailed(Object count) {
+    return '$count cartas não puderam ser limpas';
+  }
+
+  @override
+  String get cardGenerateStill => 'Gerar 1 Still';
+
+  @override
+  String get cardGenerateVideo => 'Gerar 2 Video';
+
+  @override
+  String get cardGenerateWebp => 'Gerar 3 WebP';
+
+  @override
+  String get cardBackUpper => 'VERSO';
+
+  @override
+  String cardAssetVideo(Object tag) {
+    return 'Vídeo ($tag)';
+  }
+
+  @override
+  String cardAssetSheet(Object tag) {
+    return 'WebP / recorte ($tag)';
+  }
+
+  @override
+  String cardAssetMissing(Object asset) {
+    return 'Não há $asset';
+  }
+
+  @override
+  String cardAssetDeleteConfirm(Object asset) {
+    return 'Eliminar $asset?';
+  }
+
+  @override
+  String get cardAssetDeleteVideoBody =>
+      'Só o vídeo desta etiqueta é eliminado; a cópia no grupo, o still e o webp ficam.';
+
+  @override
+  String get cardAssetDeleteSheetBody =>
+      'Só o sheet.webp, o thumb e os fotogramas recortados são eliminados; o vídeo e o still ficam.';
+
+  @override
+  String get cardAssetDeleteStillBody =>
+      'Só o still selecionado é eliminado; os candidatos, o vídeo e o webp ficam.';
+
+  @override
+  String get cardPoolDelete => 'Eliminar do grupo';
+
+  @override
+  String cardPoolDeleteBody(Object id, Object tags) {
+    return '$id é eliminado do grupo. As cópias atribuídas a etiquetas ($tags) ficam.';
+  }
+
+  @override
+  String get cardNone => 'nenhuma';
+
+  @override
+  String get cardNewAnimTag => 'Nova etiqueta de animação';
+
+  @override
+  String get cardNewAnimTagHelp =>
+      'O jogo lê-a por este nome (idle, wink, victory ...)';
+
+  @override
+  String get cardUnassigned => 'não atribuído';
+
+  @override
+  String cardAssignedTo(Object tags) {
+    return 'atribuído: $tags';
+  }
+
+  @override
+  String cardAssignTo(Object name) {
+    return 'Atribuir: $name';
+  }
+
+  @override
+  String get cardAssignNewTag => 'Atribuir a uma etiqueta nova...';
+
+  @override
+  String get cardAnimReady => 'vídeo + webp prontos';
+
+  @override
+  String get cardAnimVideoOnly => 'tem vídeo, falta o webp';
+
+  @override
+  String get cardPoolEmpty => 'Não há vídeos no grupo - primeiro \"2 Video\"';
+
+  @override
+  String get cardDeleteVideoKeepTag => 'Eliminar o vídeo (a etiqueta fica)';
+
+  @override
+  String get cardDeleteSheet => 'Eliminar WebP / recorte';
+
+  @override
+  String get cardDeleteTag => 'Eliminar a etiqueta (com vídeo + webp)';
+
+  @override
+  String cardVideosHeader(Object count) {
+    return 'Vídeos ($count) - toque = atribuir / ver / eliminar';
+  }
+
+  @override
+  String cardDeleteThisDealerBody(Object name) {
+    return 'A pasta de $name é eliminada com todos os ficheiros. NÃO PODE SER DESFEITO.';
+  }
+
+  @override
+  String get cardClearCard => 'Limpar carta';
+
+  @override
+  String cardClearCardBody(Object name) {
+    return '$name: still, candidatos, vídeo, webp e animações são eliminados; o valor fica vazio (gera-se de novo com \"1 Still\").';
+  }
+
+  @override
+  String get cardClearCardTooltip => 'Limpar carta (o valor fica vazio)';
+
+  @override
+  String get cardViewCut => 'Recorte';
+
+  @override
+  String cardDeleteThisVideo(Object tag) {
+    return 'Eliminar este vídeo ($tag)';
+  }
+
+  @override
+  String cardDeleteSheetTag(Object tag) {
+    return 'Eliminar WebP / recorte ($tag)';
+  }
+
+  @override
+  String get cardDeleteStill => 'Eliminar o still';
+
+  @override
+  String get cardNoVideo => 'Não há vídeo - gere-o com \"2 Video\"';
+
+  @override
+  String get cardNoCut => 'Não há recorte - gere-o com \"3 WebP\"';
+
+  @override
+  String get cardCutFrameFailed => 'Não foi possível ler o fotograma recortado';
+
+  @override
+  String get cardNoStill => 'Não há still - gere-o com \"1 Still\"';
+
+  @override
+  String get cardStillFailed => 'Não foi possível ler o still';
+
+  @override
+  String cardPromptTitleAge(Object age) {
+    return 'Prompt  ·  $age anos';
+  }
+
+  @override
+  String get cardGuardFail =>
+      'Guard FAIL - enquadramento desviado / zoom / máscara partida. Gere de novo o vídeo ou o recorte.';
+
+  @override
+  String get cardAnimsHeader =>
+      'Animações - toque = selecionar, toque longo = atribuir / eliminar';
+
+  @override
+  String cardAnimOpened(Object tag) {
+    return '\"$tag\" criada - gere-a com 2 Video ou atribua a partir do grupo';
+  }
+
+  @override
+  String cardPickPoolVideo(Object tag) {
+    return 'Escolha um vídeo do grupo para \"$tag\"';
+  }
+
+  @override
+  String cardCandidatesHeader(Object count) {
+    return 'Candidatos ($count) - toque = selecionar';
+  }
+
+  @override
+  String get cardCandidatePicked =>
+      'O candidato passou a ser o still selecionado';
+
+  @override
+  String cardRunFailed(Object step, Object error) {
+    return '$step: $error';
+  }
 }

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../l10n/app_localizations.dart';
 import '../services/delivery_service.dart';
 import '../services/mode_service.dart';
 import '../theme.dart';
@@ -23,6 +24,8 @@ class DeliveryScreen extends StatefulWidget {
 }
 
 class _DeliveryScreenState extends State<DeliveryScreen> {
+  AppLocalizations get l10n => AppLocalizations.of(context)!;
+
   DeliveryOverview? _o;
   bool _loading = true;
   bool _saving = false;
@@ -91,14 +94,21 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
     }
   }
 
-  static const _havuzAdlari = {'jigsaw': 'Jigsaw', 'cards': 'Kart', 'events': 'Etkinlik'};
-  String get _havuzAdi => _havuzAdlari[_pool] ?? _pool;
+  String get _havuzAdi => switch (_pool) {
+        'jigsaw' => 'Jigsaw',
+        'cards' => l10n.kindCard,
+        'events' => l10n.deliveryEvent,
+        _ => _pool,
+      };
 
   DeliveryRuleSet get _cur => _sel.isEmpty ? _def : (_apps[_sel] ?? _def);
   bool get _custom => _sel.isEmpty || _apps.containsKey(_sel);
 
-  void _snack(String m) => ScaffoldMessenger.of(context)
-      .showSnackBar(SnackBar(content: Text(m), duration: const Duration(seconds: 3)));
+  void _snack(String m) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(m), duration: const Duration(seconds: 3)));
+  }
 
   Future<void> _save() async {
     setState(() => _saving = true);
@@ -108,7 +118,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
       // ikisi ayri kaydedilirse arada bir istek eski engeli gorurdu.
       await DeliveryService.saveBlock(_block, pool: _pool);
       if (!mounted) return;
-      _snack('Kaydedildi ve CANLI (${_zaman(t)}) - sayilar yenileniyor');
+      _snack(l10n.deliverySavedLive(_zaman(t)));
       await _load();
     } catch (e) {
       if (!mounted) return;
@@ -125,39 +135,39 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text("Metadata'yi yeniden oku"),
+        title: Text(l10n.deliveryReindexTitle),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-                "Bucket'ta EXIF'i degisen gorseller icin. Dosya adlarini virgulle "
-                "yaz (orn. 12.jpg, 340.jpg); bos birakirsan Generic'in TAMAMI "
-                'yeniden okunur (~1500 dosya, birkac dakika).',
-                style: TextStyle(fontSize: 12)),
+            Text(l10n.deliveryReindexBody,
+                style: const TextStyle(fontSize: 12)),
             const SizedBox(height: 8),
             TextField(
               controller: c,
-              decoration: const InputDecoration(
-                  isDense: true, border: OutlineInputBorder(), labelText: 'Dosya adlari'),
+              decoration: InputDecoration(
+                  isDense: true,
+                  border: const OutlineInputBorder(),
+                  labelText: l10n.deliveryReindexNames),
             ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Vazgec')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Oku')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(l10n.cancel)),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(l10n.deliveryReindexAction)),
         ],
       ),
     );
-    if (ok != true) return;
+    if (ok != true || !mounted) return;
     final adlar = c.text.split(',').map((x) => x.trim()).where((x) => x.isNotEmpty).toList();
     setState(() => _saving = true);
     try {
       final r = await DeliveryService.reindex(names: adlar, all: adlar.isEmpty);
       if (!mounted) return;
       final eksik = (r['missing'] as List? ?? const []).length;
-      _snack('${r['reindexed']} gorsel yeniden okundu'
-          '${eksik > 0 ? ', $eksik bulunamadi' : ''} - manifestler tazelendi');
+      _snack(eksik > 0
+          ? l10n.deliveryReindexedMissing('${r['reindexed']}', eksik)
+          : l10n.deliveryReindexed('${r['reindexed']}'));
       await _load();
     } catch (e) {
       if (mounted) _snack(e.toString().replaceFirst('Exception: ', ''));
@@ -213,7 +223,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
     const ad = {'jigsaw': 'gallery-hot', 'cards': 'cards', 'events': 'events'};
     try {
       await DeliveryService.normalizeRun(ad[_pool]!, dryRun: dryRun);
-      _snack(dryRun ? 'Deneme kosusu basladi - yalniz rapor uretir' : 'Normalizasyon basladi');
+      _snack(dryRun ? l10n.deliveryDryRunStarted : l10n.deliveryNormalizeStarted);
       await _normYenile();
     } catch (e) {
       _snack(e.toString().replaceFirst('Exception: ', ''));
@@ -223,7 +233,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   Future<void> _normDurdur(String opId) async {
     try {
       await DeliveryService.normalizeCancel(opId);
-      _snack('Iptal istendi');
+      _snack(l10n.deliveryCancelRequested);
       await _normYenile();
     } catch (e) {
       _snack(e.toString().replaceFirst('Exception: ', ''));
@@ -244,8 +254,8 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
     }
   }
 
-  static String _zaman(int ms) {
-    if (ms <= 0) return 'hic kaydedilmedi';
+  String _zaman(int ms) {
+    if (ms <= 0) return l10n.deliveryNeverSaved;
     final d = DateTime.fromMillisecondsSinceEpoch(ms);
     String iki(int x) => x.toString().padLeft(2, '0');
     return '${iki(d.day)}.${iki(d.month)} ${iki(d.hour)}:${iki(d.minute)}';
@@ -257,15 +267,15 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
         appBar: AppBar(
           title: DropdownButton<String>(
             value: _pool,
-            items: const [
-              DropdownMenuItem(value: 'jigsaw', child: Text('Jigsaw havuzu')),
-              DropdownMenuItem(value: 'cards', child: Text('Kartlar')),
-              DropdownMenuItem(value: 'events', child: Text('Etkinlikler')),
+            items: [
+              DropdownMenuItem(value: 'jigsaw', child: Text(l10n.deliveryPoolJigsaw)),
+              DropdownMenuItem(value: 'cards', child: Text(l10n.deliveryPoolCards)),
+              DropdownMenuItem(value: 'events', child: Text(l10n.deliveryPoolEvents)),
             ],
             onChanged: _loading || _saving ? null : (value) async {
               if (value == null || value == _pool) return;
               if (_dirty) {
-                _snack('Havuz degistirmeden once degisiklikleri kaydet.');
+                _snack(l10n.deliverySaveBeforeSwitch);
                 return;
               }
               setState(() { _pool = value; _sel = ''; });
@@ -275,18 +285,18 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
           actions: [
             IconButton(
                 icon: const Icon(Icons.code),
-                tooltip: 'Code Mod',
+                tooltip: l10n.assetCodeMode,
                 onPressed: () => ModeService.setMode(ModeService.code)),
             IconButton(
                 icon: const Icon(Icons.auto_awesome),
-                tooltip: 'Asset Mod',
+                tooltip: l10n.assetModeTooltip,
                 onPressed: () => ModeService.setMode(ModeService.asset)),
             IconButton(
-                icon: const Icon(Icons.refresh), tooltip: 'Yenile', onPressed: _load),
+                icon: const Icon(Icons.refresh), tooltip: l10n.refresh, onPressed: _load),
             // #363b: bucket'ta EXIF degistiyse worker KV'sini yeniden oku
             IconButton(
                 icon: const Icon(Icons.manage_search),
-                tooltip: "Metadata'yi yeniden oku (EXIF degistiyse)",
+                tooltip: l10n.deliveryReindexTooltip,
                 onPressed: _saving || _pool != 'jigsaw' ? null : _reindex),
           ],
         ),
@@ -301,7 +311,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
                         children: [
                           Text(_error!, textAlign: TextAlign.center),
                           const SizedBox(height: 12),
-                          FilledButton(onPressed: _load, child: const Text('Tekrar dene')),
+                          FilledButton(onPressed: _load, child: Text(l10n.retry)),
                         ],
                       ),
                     ),
@@ -346,18 +356,15 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('$_havuzAdi havuzu: ${o.total} gorsel, ${o.tagged} etiketli, ${o.untagged} etiketsiz',
+            Text(l10n.deliverySummaryLine(_havuzAdi, o.total, o.tagged, o.untagged),
                 style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
             const SizedBox(height: 4),
-            Text('Son kural: ${_zaman(o.updated)}  ·  varsayilan sunulan: '
-                '${o.defaultServed ?? '-'} / ${o.defaultTotal ?? '-'}',
+            Text(l10n.deliveryLastRule(_zaman(o.updated),
+                    '${o.defaultServed ?? '-'}', '${o.defaultTotal ?? '-'}'),
                 style: const TextStyle(fontSize: 11, color: Colors.grey)),
             const SizedBox(height: 4),
-            const Text(
-                'Anahtar KAPALI = o degerdeki gorseller manifestten cikar. Kaydet '
-                'anlik canlidir ve artik HER koleksiyon/deste filtrelenir; kuralin '
-                'kacirdigi tek bir ogeyi Engelle listesiyle kapatirsin.',
-                style: TextStyle(fontSize: 11, color: Colors.grey)),
+            Text(l10n.deliveryIntro,
+                style: const TextStyle(fontSize: 11, color: Colors.grey)),
           ],
         ),
       ),
@@ -376,31 +383,31 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
           children: [
             Row(
               children: [
-                const Expanded(
-                  child: Text('Normalize - eksik etiketleri uret',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                Expanded(
+                  child: Text(l10n.deliveryNormalizeTitle,
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
                 ),
                 if (n != null && n.running)
                   TextButton.icon(
                       onPressed: () => _normDurdur(n.opId),
                       icon: const Icon(Icons.stop, size: 16),
-                      label: const Text('Durdur'))
+                      label: Text(l10n.stop))
                 else ...[
                   TextButton(
                       onPressed: _saving ? null : () => _normBaslat(dryRun: true),
-                      child: const Text('Deneme')),
+                      child: Text(l10n.deliveryDryRun)),
                   FilledButton.icon(
                       onPressed: _saving ? null : () => _normBaslat(dryRun: false),
                       icon: const Icon(Icons.auto_fix_high, size: 16),
-                      label: const Text('Calistir')),
+                      label: Text(l10n.run)),
                 ],
               ],
             ),
             if (n == null)
-              const Text('Durum alinamadi - sunucu /api/normalize/status yanit vermedi',
-                  style: TextStyle(fontSize: 11, color: Colors.orange))
+              Text(l10n.deliveryNormalizeNoStatus,
+                  style: const TextStyle(fontSize: 11, color: Colors.orange))
             else ...[
-              Text('Indeks: ${n.index}', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+              Text(l10n.deliveryIndex(n.index), style: const TextStyle(fontSize: 11, color: Colors.grey)),
               if (n.running) ...[
                 const SizedBox(height: 6),
                 LinearProgressIndicator(
@@ -409,7 +416,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
                 Text('${n.done}/${n.total} · ${n.message}',
                     style: const TextStyle(fontSize: 11)),
               ] else
-                Text('Son kosu: ${n.summary}', style: const TextStyle(fontSize: 11)),
+                Text(l10n.deliveryLastRun(n.summary), style: const TextStyle(fontSize: 11)),
             ],
           ],
         ),
@@ -422,7 +429,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   Widget _engelKarti() {
     final grupListe = _grupListe[_pool]!;
     final ogeListe = _ogeListe[_pool]!;
-    final kapsam = _sel.isEmpty ? 'her uygulama (global)' : _sel;
+    final kapsam = _sel.isEmpty ? l10n.deliveryBlockScopeGlobal : _sel;
     final adet = _block.count(_sel);
     return Card(
       child: Padding(
@@ -433,7 +440,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
             Row(
               children: [
                 Expanded(
-                  child: Text('Engelle · $kapsam',
+                  child: Text(l10n.deliveryBlockTitle(kapsam),
                       style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
                 ),
                 if (adet > 0)
@@ -442,22 +449,20 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
                     decoration: BoxDecoration(
                         color: AppColors.error.withValues(alpha: 0.18),
                         borderRadius: BorderRadius.circular(10)),
-                    child: Text('$adet engelli',
+                    child: Text(l10n.blockedCountLabel(adet),
                         style: TextStyle(fontSize: 10, color: AppColors.error)),
                   ),
                 if (!_katalogYuklendi)
-                  TextButton(onPressed: _katalogYukle, child: const Text('Listeyi ac')),
+                  TextButton(onPressed: _katalogYukle, child: Text(l10n.deliveryOpenList)),
               ],
             ),
-            Text(
-                'Global engel HER uygulamada gecerlidir; bir uygulama secince '
-                'yalniz o uygulama icin engellersin. Kurallardan SONRA uygulanir.',
+            Text(l10n.deliveryBlockIntro,
                 style: const TextStyle(fontSize: 11, color: Colors.grey)),
             if (_katalogYuklendi && _katalog.isEmpty)
-              const Padding(
-                padding: EdgeInsets.only(top: 6),
-                child: Text('Bu havuzda engellenecek oge yok (kova bos).',
-                    style: TextStyle(fontSize: 11, color: Colors.grey)),
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(l10n.deliveryBlockEmpty,
+                    style: const TextStyle(fontSize: 11, color: Colors.grey)),
               ),
             for (final g in _katalog) _engelGrubu(g, grupListe, ogeListe),
           ],
@@ -474,8 +479,9 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
       leading: _kapak(g.cover),
       title: Text(g.name, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
       subtitle: Text(
-          '${g.count} oge · ${g.tagged}/${g.count} etiketli'
-          '${grupEngel ? ' · TAMAMI ENGELLI' : ''}',
+          grupEngel
+              ? l10n.deliveryGroupSubtitleBlocked(g.count, g.tagged)
+              : l10n.deliveryGroupSubtitle(g.count, g.tagged),
           style: TextStyle(fontSize: 10, color: grupEngel ? AppColors.error : Colors.grey)),
       trailing: Switch(
         value: !grupEngel,
@@ -565,15 +571,15 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Uygulamalar - dokun = o uygulamanin kuralini duzenle',
-            style: TextStyle(fontSize: 11, color: Colors.grey)),
+        Text(l10n.deliveryAppsHint,
+            style: const TextStyle(fontSize: 11, color: Colors.grey)),
         const SizedBox(height: 4),
         Wrap(
           spacing: 6,
           runSpacing: 4,
           children: [
             ChoiceChip(
-              label: Text('Varsayilan  ${o.defaultServed ?? '-'}/${o.defaultTotal ?? '-'}',
+              label: Text(l10n.deliveryDefaultChip('${o.defaultServed ?? '-'}', '${o.defaultTotal ?? '-'}'),
                   style: const TextStyle(fontSize: 11)),
               selected: _sel.isEmpty,
               onSelected: (_) => setState(() => _sel = ''),
@@ -596,18 +602,18 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
 
   Widget _kuralBasligi() {
     if (_sel.isEmpty) {
-      return const Text('Varsayilan kural - ?app= gondermeyen eski surumler ve ozel kurali olmayan uygulamalar',
-          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold));
+      return Text(l10n.deliveryDefaultRuleTitle,
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold));
     }
     final ad = _o!.apps.where((a) => a.package == _sel).map((a) => a.name).firstOrNull ?? _sel;
     return SwitchListTile(
       dense: true,
       contentPadding: EdgeInsets.zero,
       value: _apps.containsKey(_sel),
-      title: Text('$ad icin ozel kural', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+      title: Text(l10n.deliveryCustomRuleTitle(ad), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
       subtitle: Text(_apps.containsKey(_sel)
-          ? 'Kapatirsan varsayilana doner'
-          : 'Kapali: varsayilan kural uygulanir. Acinca varsayilanin kopyasiyla baslar.',
+          ? l10n.deliveryCustomRuleOn
+          : l10n.deliveryCustomRuleOff,
           style: const TextStyle(fontSize: 11, color: Colors.grey)),
       onChanged: (v) => setState(() {
         if (v) {
@@ -640,11 +646,11 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
               dense: true,
               contentPadding: EdgeInsets.zero,
               value: rs.scopeOnly,
-              title: const Text('Yalniz secili koleksiyonlar', style: TextStyle(fontSize: 13)),
+              title: Text(l10n.deliveryScopeTitle, style: const TextStyle(fontSize: 13)),
               subtitle: Text(
                   rs.scopeOnly
-                      ? '$secili/${o.collections.length} koleksiyon - yeni yayinlananlar bu uygulamaya GITMEZ'
-                      : 'Kapali: yeni yayinlanan her koleksiyon bu uygulamaya da gider',
+                      ? l10n.deliveryScopeOn(secili, o.collections.length)
+                      : l10n.deliveryScopeOff,
                   style: const TextStyle(fontSize: 11, color: Colors.grey)),
               onChanged: (v) => setState(() {
                 rs.scopeOnly = v;
@@ -677,10 +683,10 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
                 ],
               ),
             if (rs.scopeOnly && rs.collections.isEmpty)
-              const Padding(
-                padding: EdgeInsets.only(top: 4),
-                child: Text('Hicbiri secili degil - bos liste kaydedilmez, kural "hepsi"ne doner.',
-                    style: TextStyle(fontSize: 11, color: Colors.orange)),
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(l10n.deliveryScopeNone,
+                    style: const TextStyle(fontSize: 11, color: Colors.orange)),
               ),
           ],
         ),
@@ -700,9 +706,9 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
               dense: true,
               contentPadding: EdgeInsets.zero,
               value: rs.enabled,
-              title: const Text('Kurallar etkin', style: TextStyle(fontSize: 13)),
-              subtitle: const Text('Kapali = bu kural seti hic filtrelemez',
-                  style: TextStyle(fontSize: 11, color: Colors.grey)),
+              title: Text(l10n.deliveryRulesEnabled, style: const TextStyle(fontSize: 13)),
+              subtitle: Text(l10n.deliveryRulesEnabledHint,
+                  style: const TextStyle(fontSize: 11, color: Colors.grey)),
               onChanged: (v) => setState(() {
                 rs.enabled = v;
                 _dirty = true;
@@ -712,8 +718,8 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
               dense: true,
               contentPadding: EdgeInsets.zero,
               value: rs.untagged,
-              title: const Text('Etiketsiz gorselleri sun', style: TextStyle(fontSize: 13)),
-              subtitle: Text('${o.untagged} gorselin metadata\'si yok',
+              title: Text(l10n.deliveryServeUntagged, style: const TextStyle(fontSize: 13)),
+              subtitle: Text(l10n.deliveryUntaggedCount(o.untagged),
                   style: const TextStyle(fontSize: 11, color: Colors.grey)),
               onChanged: (v) => setState(() {
                 rs.untagged = v;
@@ -723,7 +729,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
             const Divider(height: 8),
             Row(
               children: [
-                const Text('Hizli:', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                Text(l10n.deliveryQuick, style: const TextStyle(fontSize: 12, color: Colors.grey)),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Wrap(
@@ -775,12 +781,12 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
                 decoration: BoxDecoration(
                     color: AppColors.error.withValues(alpha: 0.18),
                     borderRadius: BorderRadius.circular(10)),
-                child: Text('$kapali kapali',
+                child: Text(l10n.deliveryOffCount(kapali),
                     style: TextStyle(fontSize: 10, color: AppColors.error)),
               ),
           ],
         ),
-        subtitle: Text('$f · ${degerler.length} deger',
+        subtitle: Text(l10n.deliveryFieldSubtitle(f, degerler.length),
             style: const TextStyle(fontSize: 10, color: Colors.grey)),
         childrenPadding: const EdgeInsets.only(bottom: 6),
         children: [
@@ -811,7 +817,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
             children: [
               Expanded(
                 child: Text(
-                    _dirty ? 'Kaydedilmemis degisiklik var' : 'Sunucuyla ayni',
+                    _dirty ? l10n.deliveryUnsaved : l10n.deliveryInSync,
                     style: TextStyle(
                         fontSize: 11, color: _dirty ? AppColors.error : Colors.grey)),
               ),
@@ -821,7 +827,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
                     ? const SizedBox(
                         width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
                     : const Icon(Icons.publish, size: 16),
-                label: const Text('Kaydet ve yayinla'),
+                label: Text(l10n.deliverySavePublish),
               ),
             ],
           ),

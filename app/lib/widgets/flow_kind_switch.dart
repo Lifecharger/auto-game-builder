@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../services/app_l10n.dart';
+
 /// #327: Kip / hat anahtari - her ekranda AYNI gorunum. Dar telefonda
 /// SegmentedButton etiketleri satira sariyordu ("Jig/saw", "Kar/akt/er");
 /// burada etiketler sarmaz, sigmayan etiket kendi yuvasinda kuculur.
@@ -8,13 +10,14 @@ import 'package:flutter/material.dart';
 /// #355: kip kimligi -> kisa etiket. Uretim, Uretilenler ve Hat hepsi BU
 /// tablodan okur; kimse "Jigsaw Modu"ndan kelime kirparak etiket uretmez
 /// ("Jigsawu" faciasi).
-const Map<String, String> kindLabels = {
-  'free': 'Free',
-  'jigsaw': 'Jigsaw',
-  'cbn': 'CBN',
-  'card': 'Kart',
-  'character': 'Karakter',
-};
+/// Free, Jigsaw ve CBN urun adidir; Kart ve Karakter uygulamanin dilinde okunur.
+Map<String, String> get kindLabels => {
+      'free': 'Free',
+      'jigsaw': 'Jigsaw',
+      'cbn': 'CBN',
+      'card': appL10n.kindCard,
+      'character': appL10n.kindCharacter,
+    };
 
 /// Tabloda olmayan kip icin sunucu etiketinden " Mod"/" Modu" ekini atar.
 String kindLabel(String id, [String? fallback]) =>

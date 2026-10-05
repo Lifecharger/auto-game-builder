@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
+import '../l10n/app_localizations.dart';
+
 /// Baslik gerektiren bir URL'den video oynatir (dongulu, otomatik baslar).
 ///
 /// AGB'nin dosya uclari `X-API-Key` istiyor; `Image.network` gibi
@@ -66,7 +68,8 @@ class _NetworkVideoState extends State<NetworkVideo> {
     if (_error != null) {
       return Padding(
         padding: const EdgeInsets.all(24),
-        child: Text('Video oynatilamadi\n$_error',
+        child: Text(
+            '${AppLocalizations.of(context)!.videoPlaybackFailed}\n$_error',
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 12, color: Colors.grey)),
       );
