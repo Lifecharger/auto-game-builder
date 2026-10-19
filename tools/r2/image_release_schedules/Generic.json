@@ -111,6 +111,26 @@
    "first_release": "2027-05-03",
    "every_days": 7,
    "per_release": 10
+  },
+  {
+   "name": "generic_1887_1890 mixed styles (owner 2026-10-07: fill the 2027-05-03 Monday to 10)",
+   "ids": {
+    "from": 1887,
+    "to": 1890
+   },
+   "first_release": "2027-05-03",
+   "every_days": 7,
+   "per_release": 10
+  },
+  {
+   "name": "generic_1891_2067 mixed styles (owner 2026-10-07: continue the Monday cadence, 10 pictures)",
+   "ids": {
+    "from": 1891,
+    "to": 2067
+   },
+   "first_release": "2027-05-10",
+   "every_days": 7,
+   "per_release": 10
   }
  ]
 }

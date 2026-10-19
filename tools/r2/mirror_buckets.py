@@ -6,7 +6,7 @@ after the legacy retirement are mirrored (registry: server/config/r2_buckets.jso
 role "content"); private and legacy buckets are skipped.
 
 What it does per bucket: list every object, download the ones that are missing
-locally or whose size differs, into the same relative path. Downloads go to a
+locally, whose size differs or that were replaced in R2 after the local copy was made, into the same relative path. Downloads go to a
 temp file first and are renamed when complete, so an interrupted run never
 leaves half a file that later looks "current". Nothing local is ever deleted
 unless `--prune` is given, and then a file that vanished from R2 is MOVED into
@@ -17,8 +17,9 @@ unless `--prune` is given, and then a file that vanished from R2 is MOVED into
     python tools/r2/mirror_buckets.py --prune         # also park files gone from R2
     python tools/r2/mirror_buckets.py --root E:/r2    # another mirror root
 
-Rerun any time: unchanged files are skipped by size, so a refresh costs one
-listing per bucket plus whatever is new.
+Rerun any time: a file is skipped when its size matches and the local copy is not
+older than the object in R2, so a refresh costs one listing per bucket plus whatever
+is new or was replaced.
 """
 from __future__ import annotations
 
@@ -29,6 +30,7 @@ import shutil
 import sys
 import threading
 import time
+from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
@@ -44,6 +46,14 @@ WORKERS = 8
 def live_buckets() -> list[str]:
     reg = json.loads(REGISTRY.read_text(encoding="utf-8"))
     return [b["name"] for b in reg.get("buckets", []) if b.get("role") == "content"]
+
+
+def _remote_time(obj: dict) -> float:
+    """When the object was last written in R2, as a timestamp (0 if the listing has no date)."""
+    try:
+        return datetime.fromisoformat(obj.get("last_modified", "").replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return 0.0
 
 
 def _download(bucket: str, obj: dict, dest: Path) -> int:
@@ -69,8 +79,12 @@ def mirror_bucket(bucket: str, root: Path, prune: bool, log) -> dict:
         if not o["key"] or o["key"].endswith("/"):
             continue
         dest = local / Path(*o["key"].split("/"))
-        if dest.is_file() and dest.stat().st_size == o["size"]:
-            continue
+        # Same size is not enough: a file replaced in R2 after our copy was written (an
+        # edited still can keep its size) has to come down again.
+        if dest.is_file():
+            st = dest.stat()
+            if st.st_size == o["size"] and st.st_mtime >= _remote_time(o):
+                continue
         todo.append((o, dest))
     log(f"   {len(remote)} objects, {total_bytes/1e9:.2f} GB on R2; "
         f"{len(todo)} to fetch ({sum(o['size'] for o, _ in todo)/1e9:.2f} GB)")

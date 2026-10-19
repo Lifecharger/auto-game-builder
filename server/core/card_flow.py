@@ -162,7 +162,8 @@ VIDEO_ENGINES = {
     "minimax": {"task": "video_minimax_flf",
                 "label": "MiniMax H3 (sesli, 576x864, 6.6 sn, ~10 dk/kart, LISANS: AB/UK/ABD/Kore dagitim yasak)"},
 }
-DEFAULT_ENGINE = "minimax"
+# 2026-10-07: H3 modelleri diskten kaldirildi (yer acmak icin); secilirse yeniden indirilmeli.
+DEFAULT_ENGINE = "ltx"
 VIDEOS_DIR = "videos"          # #357: rutbenin video HAVUZU (<vid>.mp4 + <vid>.json)
 
 GUARD_THRESHOLD = 25.0          # guard_firstframe.py ile ayni esik

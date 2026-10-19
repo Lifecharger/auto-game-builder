@@ -63,7 +63,8 @@ RESPONSES_JS = """async (conv) => {
   const items = [];
   let partial = false, uid = null;
   for (const resp of d.responses || []) {
-    if (resp.sender !== 'ASSISTANT' && !/agent/i.test(String(resp.sender || ''))) continue;
+    // The site has answered with 'ASSISTANT' and with 'assistant': read the sender whatever its case.
+    if (!/assistant|agent/i.test(String(resp.sender || ''))) continue;
     if (resp.partial) partial = true;
     for (const s of resp.cardAttachmentsJson || []) {
       let c; try { c = JSON.parse(s); } catch (e) { continue; }
@@ -208,24 +209,98 @@ def _save_items(page, conv: str, uid: str | None, items: list[dict]) -> tuple[in
     return new, len(items)
 
 
-def watch(page, conv: str, minutes: float, quiet_minutes: float = 4.0) -> dict:
+STOP_JS = """() => {
+  // The composer's send button turns into a stop button while the agent works.
+  const pat = /^\\s*(stop|durdur|cancel|iptal|vazge[cç])/i;
+  const hits = [];
+  for (const b of document.querySelectorAll('button, [role=button]')) {
+    const t = ((b.getAttribute('aria-label') || '') + ' ' + (b.getAttribute('title') || '') + ' ' + (b.textContent || '')).trim();
+    if (pat.test(t)) { hits.push(t.slice(0, 40)); b.click(); }
+  }
+  return hits;
+}"""
+
+# Exit code of a run that made more results than its brief has lines (the agent went round again).
+OVERRUN = 7
+
+
+def stop_run(page) -> None:
+    """Tell a running agent to stop: its stop button, then a plain message in the composer."""
+    try:
+        print("  stop button(s) pressed:", page.evaluate(STOP_JS), flush=True)
+    except Exception as e:
+        print("  stop button failed:", e, flush=True)
+    try:
+        page.add_style_tag(content="[role=dialog], [role=alertdialog], [data-radix-popper-content-wrapper] { display: none !important; }")
+        ok = page.evaluate("""() => {
+          const t = [...document.querySelectorAll('[role="textbox"]')].pop();
+          if (!t) return false;
+          t.scrollIntoView({block: 'center'}); t.focus();
+          return document.activeElement === t;
+        }""")
+        if ok:
+            page.keyboard.insert_text("STOP. The job is finished. Make nothing more: no pictures, no videos. Reply only with the word stopped.")
+            page.wait_for_timeout(400)
+            page.keyboard.press("Enter")
+            print("  stop message sent", flush=True)
+        else:
+            print("  no composer to send a stop message", flush=True)
+    except Exception as e:
+        print("  stop message failed:", e, flush=True)
+
+
+def watch(page, conv: str, minutes: float, quiet_minutes: float = 4.0, expect: int = 0) -> dict:
+    """expect: how many results the brief asks for. With it the watch ends as soon as they are all
+    saved, and a run that makes MORE than that is stopped at once (info["overrun"] is set)."""
     deadline = time.time() + minutes * 60
     last_count, last_change = -1, time.time()
     info = {"items": [], "uid": None}
+    full_since = None
+    misses = 0
     while True:
-        info = page.evaluate(RESPONSES_JS, conv)
-        n = len(info.get("items", []))
-        if n != last_count:
-            last_count, last_change = n, time.time()
-        new, total = _save_items(page, conv, info.get("uid"), info.get("items", []))
+        # One dropped request ("Failed to fetch") must not end the watch: an unwatched agent is an
+        # agent nobody stops. A few misses in a row are waited out; only a long outage gives up.
+        try:
+            info = page.evaluate(RESPONSES_JS, conv)
+            n = len(info.get("items", []))
+            if n != last_count:
+                last_count, last_change = n, time.time()
+            new, total = _save_items(page, conv, info.get("uid"), info.get("items", []))
+            misses = 0
+        except Exception as e:
+            misses += 1
+            print(f"  watch miss {misses}: {str(e).splitlines()[0][:120]}", flush=True)
+            if misses >= 12 or time.time() > deadline:
+                raise
+            page.wait_for_timeout(10000)
+            continue
+        saved = sum(1 for i in info.get("items", []) if i.get("file"))
         left = int((deadline - time.time()) / 60)
         extra = f" status={info.get('status')} {info.get('error', '')}" if info.get('status') != 200 else ""
         print(f"  {left:3d} min left  renders={total} new={new} partial={info.get('partial')}{extra}", flush=True)
+        if expect and total > expect:
+            print(f"OVERRUN: the brief asks for {expect} results and the agent has made {total}. Stopping it.", flush=True)
+            stop_run(page)
+            page.wait_for_timeout(60000)
+            after = page.evaluate(RESPONSES_JS, conv)
+            _save_items(page, conv, after.get("uid"), after.get("items", []))
+            grew = len(after.get("items", [])) - total
+            print(f"OVERRUN: {grew} more result(s) appeared in the minute after the stop" + (" - THE STOP DID NOT HOLD" if grew > 1 else ""), flush=True)
+            after["overrun"] = True
+            after["stop_held"] = grew <= 1
+            return after
+        if expect and saved >= expect and not info.get("partial"):
+            # All there. One more look a little later catches an agent that starts over.
+            if full_since is None:
+                full_since = time.time()
+            elif time.time() - full_since > 45:
+                break
         if total and not info.get("partial") and time.time() - last_change > quiet_minutes * 60:
             break
         if time.time() > deadline:
             break
-        page.wait_for_timeout(20000)
+        # With a known count the watch looks often: stills come in a burst, and a second round must be caught early.
+        page.wait_for_timeout(8000 if expect else 20000)
     return info
 
 
@@ -305,7 +380,9 @@ def cmd_start(args) -> int:
             print(f"started: {page.url}")
             print(f"conversation: {conv}")
             if args.watch > 0:
-                watch(page, conv, args.watch)
+                info = watch(page, conv, args.watch, expect=args.expect)
+                if info.get("overrun"):
+                    return OVERRUN if info.get("stop_held") else OVERRUN + 1
             return 0
         finally:
             ctx.close()
@@ -382,6 +459,7 @@ def main() -> None:
     y.add_argument("--watch", type=float, default=0); y.add_argument("--headed", action="store_true")
     s.add_argument("--watch", type=float, default=0, help="minutes to watch + download after starting")
     s.add_argument("--headed", action="store_true")
+    s.add_argument("--expect", type=int, default=0, help="results the brief asks for: stop the agent if it makes more")
     w = sub.add_parser("watch"); w.add_argument("--conversation", required=True); w.add_argument("--minutes", type=float, default=30)
     w.add_argument("--headed", action="store_true")
     f = sub.add_parser("fetch"); f.add_argument("--conversation", required=True); f.add_argument("--headed", action="store_true")

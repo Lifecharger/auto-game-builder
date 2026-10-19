@@ -81,6 +81,20 @@
       "enabled": true
     },
     {
+      "id": "edit_qwen_angle",
+      "label": "Kamerayi dondur (ayni poz, baska aci)",
+      "workflow": "I2I Qwen Edit 2511 Angles.json",
+      "needs_image": true,
+      "is_video": false,
+      "width": 0,
+      "height": 0,
+      "modes": [
+        "free"
+      ],
+      "_not": "Multiple Angles LoRA (fal, Apache-2.0) + Lightning 4 adim. Prompt bicimi: '<sks> [front view | front-right quarter view | right side view | back-right quarter view | back view | back-left quarter view | left side view | front-left quarter view] [low-angle shot | eye-level shot | elevated shot | high-angle shot] [close-up | medium shot | wide shot]'.",
+      "enabled": true
+    },
+    {
       "id": "video_ltx",
       "label": "Gorselden video (sesli)",
       "workflow": "LTX2.5 I2V.json",

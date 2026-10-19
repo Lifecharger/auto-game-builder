@@ -212,3 +212,6 @@ server/config/jigsaw_options.json
 # local python envs (matting etc.)
 .venv/
 tools/playstore/out/
+
+# Body mesh builder (own human body mesh, character presets): private
+tools/body_mesh/

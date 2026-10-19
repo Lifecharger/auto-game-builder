@@ -385,7 +385,16 @@ def fetch_vitals(s: AuthorizedSession, pkg: str, w: Win) -> dict:
            "reports": {"cur": {"CRASH": 0, "APPLICATION_NOT_RESPONDING": 0}, "prev": {"CRASH": 0, "APPLICATION_NOT_RESPONDING": 0}},
            "issues_cur": {}, "prior_issue_ids": set()}
     for ms, metric in (("crashRateMetricSet", "crash"), ("anrRateMetricSet", "anr")):
-        body = {"timelineSpec": {"aggregationPeriod": "DAILY", "startTime": _pdate(w.pstart), "endTime": _pdate(w.end)},
+        # Play only accepts an end up to the metric set's freshness (it lags a few days)
+        end = w.end
+        meta = _pcall(s, "GET", PLAY_API % pkg + "/" + ms)
+        for f in meta.get("freshnessInfo", {}).get("freshnesses", []):
+            le = f.get("latestEndTime") or {}
+            if f.get("aggregationPeriod") == "DAILY" and le.get("year"):
+                end = min(end, dt.date(le["year"], le["month"], le["day"]))
+        if end <= w.pstart:
+            continue
+        body = {"timelineSpec": {"aggregationPeriod": "DAILY", "startTime": _pdate(w.pstart), "endTime": _pdate(end)},
                 "metrics": [metric + "Rate", "distinctUsers"], "pageSize": 200}
         r = _pcall(s, "POST", PLAY_API % pkg + "/%s:query" % ms, json=body)
         acc = {"cur": [0.0, 0.0], "prev": [0.0, 0.0]}
