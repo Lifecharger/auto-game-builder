@@ -874,6 +874,50 @@ class ApiService {
     }
   }
 
+  // ── Notices (notes for the owner from automations) ───────
+
+  static Future<ApiResult<List<dynamic>>> getNotices({bool unreadOnly = false}) async {
+    try {
+      final uri = Uri.parse('$_base/api/notices')
+          .replace(queryParameters: unreadOnly ? {'unread': 'true'} : null);
+      final response = await _getWithRetry(uri);
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        return ApiResult.success(decoded is List ? decoded : const []);
+      }
+      return ApiResult.failure(_httpError(response.statusCode));
+    } catch (e) {
+      return ApiResult.failure(_friendlyError(e));
+    }
+  }
+
+  static Future<ApiResult<bool>> setNoticeRead(int noticeId, bool read) async {
+    try {
+      final response = await http
+          .patch(Uri.parse('$_base/api/notices/$noticeId'),
+              headers: _headers, body: jsonEncode({'read': read}))
+          .timeout(const Duration(seconds: 10));
+      if (response.statusCode == 200) return _done('notice_read', const ApiResult.success(true));
+      return ApiResult.failure(_httpError(response.statusCode, action: 'notice_read'));
+    } catch (e) {
+      return ApiResult.failure(_friendlyError(e, action: 'notice_read'));
+    }
+  }
+
+  static Future<ApiResult<bool>> deleteNotice(int noticeId) async {
+    try {
+      final response = await http
+          .delete(Uri.parse('$_base/api/notices/$noticeId'), headers: _headers)
+          .timeout(const Duration(seconds: 10));
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        return _done('notice_delete', const ApiResult.success(true));
+      }
+      return ApiResult.failure(_httpError(response.statusCode, action: 'notice_delete'));
+    } catch (e) {
+      return ApiResult.failure(_friendlyError(e, action: 'notice_delete'));
+    }
+  }
+
   /// Absolute URL for a report screenshot served by the API (needs authHeaders).
   static String reportShotUrl(String reportId, int index) =>
       '$_base/api/reports/$reportId/shot/$index';

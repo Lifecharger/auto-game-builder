@@ -4609,4 +4609,25 @@ class AppLocalizationsFr extends AppLocalizations {
   String cardRunFailed(Object step, Object error) {
     return '$step : $error';
   }
+
+  @override
+  String get notesTab => 'Notes';
+
+  @override
+  String get filterUnread => 'Non lus';
+
+  @override
+  String get noNotices => 'Aucune note pour l\'instant';
+
+  @override
+  String get noUnreadNotices => 'Aucune note non lue';
+
+  @override
+  String get markUnread => 'Marquer non lu';
+
+  @override
+  String get deleteNoticeTitle => 'Supprimer la note ?';
+
+  @override
+  String get deleteNoticeBody => 'Cette note sera supprimée définitivement.';
 }

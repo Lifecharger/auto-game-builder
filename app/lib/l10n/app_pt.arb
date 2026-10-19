@@ -1280,5 +1280,12 @@
   "cardPickPoolVideo": "Escolha um vídeo do grupo para \"{tag}\"",
   "cardCandidatesHeader": "Candidatos ({count}) - toque = selecionar",
   "cardCandidatePicked": "O candidato passou a ser o still selecionado",
-  "cardRunFailed": "{step}: {error}"
+  "cardRunFailed": "{step}: {error}",
+  "notesTab": "Notas",
+  "filterUnread": "Não lidas",
+  "noNotices": "Nenhuma nota ainda",
+  "noUnreadNotices": "Nenhuma nota não lida",
+  "markUnread": "Marcar como não lida",
+  "deleteNoticeTitle": "Excluir nota?",
+  "deleteNoticeBody": "Esta nota será removida definitivamente."
 }

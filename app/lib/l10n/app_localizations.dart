@@ -7809,6 +7809,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{step}: {error}'**
   String cardRunFailed(Object step, Object error);
+
+  /// Reports & Logs sub-tab with notes from automations (weekly report, Play review replies).
+  ///
+  /// In en, this message translates to:
+  /// **'Notes'**
+  String get notesTab;
+
+  /// No description provided for @filterUnread.
+  ///
+  /// In en, this message translates to:
+  /// **'Unread'**
+  String get filterUnread;
+
+  /// No description provided for @noNotices.
+  ///
+  /// In en, this message translates to:
+  /// **'No notes yet'**
+  String get noNotices;
+
+  /// No description provided for @noUnreadNotices.
+  ///
+  /// In en, this message translates to:
+  /// **'No unread notes'**
+  String get noUnreadNotices;
+
+  /// No description provided for @markUnread.
+  ///
+  /// In en, this message translates to:
+  /// **'Mark unread'**
+  String get markUnread;
+
+  /// No description provided for @deleteNoticeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete note?'**
+  String get deleteNoticeTitle;
+
+  /// No description provided for @deleteNoticeBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This note will be removed for good.'**
+  String get deleteNoticeBody;
 }
 
 class _AppLocalizationsDelegate

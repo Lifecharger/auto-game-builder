@@ -10,8 +10,11 @@
     {"package": "com.lifecharger.arcadesnake", "name": "Arcade Snake", "group": "monetized", "track": "production"},
     {"package": "com.lifecharger.deathpin", "name": "Deathpin", "group": "monetized", "track": "production"},
     {"package": "com.lifecharger.beestriker", "name": "Bee Striker", "group": "monetized", "track": "production"},
-    {"package": "com.lifecharger.animestreamer", "name": "ADSC", "group": "monetized", "track": "alpha"},
-    {"package": "com.lifecharger.hotcardgames", "name": "Hot Card Games", "group": "monetized", "track": "internal"},
+    {"package": "com.lifecharger.animestreamer", "name": "ADSC", "group": "monetized", "track": "production"},
+    {"package": "com.lifecharger.hotcardgames", "name": "Hot Card Games", "group": "monetized", "track": "production"},
+    {"package": "com.lifecharger.pixeladventurer", "name": "Pixel Adventurer", "group": "monetized", "track": "production"},
+    {"package": "com.lifecharger.antempire", "name": "Ant Empire", "group": "monetized", "track": "production"},
+    {"package": "com.lifecharger.animashift", "name": "Animashift", "group": "monetized", "track": "production"},
     {"package": "com.lifecharger.locationalarm", "name": "Location Alarm", "group": "utility", "track": "production"},
     {"package": "com.lifecharger.acepong", "name": "Ace Pong", "group": "utility", "track": "production"},
     {"package": "com.lifecharger.appmanager", "name": "Auto Game Builder", "group": "utility", "track": "production"}

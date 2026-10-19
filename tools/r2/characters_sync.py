@@ -70,7 +70,7 @@ RIVALS_LIB = r"C:\Reusable Assets\Anime Girls\Rivals"
 
 def rival_groups(idol: str):
     """ADSC's five dance-battle rivals (task 114, 2026-09-19): ten outfit
-    loops + stills and a room per rival, keyed by the game's
+    loops + stills and a room per rival (plus Lumina Live's FEVER dance), keyed by the game's
     tools/process_rivals.py into Rivals/<idol>/game/. Supersedes the old
     Lumina Live files (idle loop, public dance, sprites, 5 outfits)."""
     game = os.path.join(RIVALS_LIB, idol, "game")
@@ -79,6 +79,8 @@ def rival_groups(idol: str):
         group("private", "outfits", os.path.join(game, "outfits", "*.webp")),
         group("private", "rooms", os.path.join(game, "rooms", "room.webp"),
               id_of=lambda p: "room"),
+        # Lumina Live Rhythm Stage FEVER dance (its tools/process_fever.py).
+        group("private", "fever", os.path.join(game, "fever", "*.webp")),
         # masters (big, optional)
         group("private", "masters/stills", os.path.join(lib, "stills", "*.jpg"), masters=True),
         group("private", "masters/videos", os.path.join(lib, "videos", "*.mp4"), masters=True),

@@ -4546,4 +4546,25 @@ class AppLocalizationsTr extends AppLocalizations {
   String cardRunFailed(Object step, Object error) {
     return '$step: $error';
   }
+
+  @override
+  String get notesTab => 'Notlar';
+
+  @override
+  String get filterUnread => 'Okunmamış';
+
+  @override
+  String get noNotices => 'Henüz not yok';
+
+  @override
+  String get noUnreadNotices => 'Okunmamış not yok';
+
+  @override
+  String get markUnread => 'Okunmadı yap';
+
+  @override
+  String get deleteNoticeTitle => 'Not silinsin mi?';
+
+  @override
+  String get deleteNoticeBody => 'Bu not kalıcı olarak silinecek.';
 }

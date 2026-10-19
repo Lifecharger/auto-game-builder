@@ -10,8 +10,8 @@ Play crash / ANR rate, abnormal ends / freezes and new crash signatures on the n
 Rules in weekly_report_config.json turn the numbers into plain-language flags.
 
 Output: <output_dir>/<end date>.html (self-contained, phone friendly) + <end date>.md, and a
-short summary delivered to the owner's phone as an AGB task ("Weekly report <date>", created in
-the Auto Game Builder app and closed at once so no automation session picks it up).
+short summary delivered to the owner's phone as a note in the AGB app's Notes tab
+("Weekly report <date>"; a rerun for the same week replaces it).
 
 The repo is PUBLIC: nothing machine-specific or secret lives in this file. Everything is read
 from an environment variable first, then the dotted key in server/config/settings.json
@@ -996,39 +996,20 @@ def render_md(c, w, rows, exp, summary) -> str:
     return "\n".join(L)
 
 
-# ---------------------------------------------------------------- delivery (AGB task on the phone)
+# ---------------------------------------------------------------- delivery (Notes tab on the phone)
 
-def deliver(title: str, text: str) -> str:
-    key = setting("security.api_key", "AGB_API_KEY")
+def deliver(title: str, text: str, key: str) -> str:
+    """Leave the summary in the AGB app's Notes tab (POST /api/notices). A rerun for the
+    same week passes the same key, so it replaces its note instead of adding another."""
+    api_key = setting("security.api_key", "AGB_API_KEY")
     port = setting("server.port", "", "8000")
     base = setting("weekly_report.agb_url", "AGB_URL", "http://localhost:%s" % port).rstrip("/")
-    if not key:
+    if not api_key:
         raise RuntimeError("AGB api key not set (security.api_key / AGB_API_KEY)")
-    h = {"X-API-Key": key}
-    apps = requests.get(base + "/api/apps", headers=h, timeout=30)
-    apps.raise_for_status()
-    agb = next((a for a in apps.json() if (a.get("package_name") or a.get("package")) == "com.lifecharger.appmanager"), None)
-    if not agb:
-        raise RuntimeError("Auto Game Builder app not found in /api/apps")
-    aid = agb["id"]
-    existing = requests.get(base + "/api/apps/%s/tasks" % aid, headers=h, timeout=30)
-    existing.raise_for_status()
-    same = next((t for t in existing.json() if t.get("title") == title), None)
-    if same:
-        tid = same["id"]
-        r = requests.patch(base + "/api/apps/%s/tasks/%s" % (aid, tid), headers=h, timeout=30,
-                           json={"description": text, "response": text, "status": "completed"})
-        r.raise_for_status()
-        return "updated AGB task #%s" % tid
-    r = requests.post(base + "/api/apps/%s/tasks" % aid, headers=h, timeout=30,
-                      json={"title": title, "description": text, "task_type": "issue", "priority": "normal"})
+    r = requests.post(base + "/api/notices", headers={"X-API-Key": api_key}, timeout=30,
+                      json={"source": "weekly_report", "title": title, "body": text, "key": key})
     r.raise_for_status()
-    tid = r.json()["id"]
-    # closed at once: it is a read-only report, no automation session should pick it up
-    r = requests.patch(base + "/api/apps/%s/tasks/%s" % (aid, tid), headers=h, timeout=30,
-                       json={"status": "completed", "response": text, "completed_by": "weekly_report"})
-    r.raise_for_status()
-    return "created AGB task #%s" % tid
+    return "AGB note #%s" % r.json()["id"]
 
 
 # ---------------------------------------------------------------- main
@@ -1114,7 +1095,7 @@ def main() -> int:
         print(summary)
         if not a.no_notify:
             try:
-                res = deliver("Weekly report %s" % w.end, summary)
+                res = deliver("Weekly report %s" % w.end, summary, "weekly_report:%s" % w.end)
                 logline("phone: " + res)
                 print("\nphone:", res)
             except Exception as e:

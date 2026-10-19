@@ -1280,5 +1280,12 @@
   "cardPickPoolVideo": "\"{tag}\" için havuzdan video seç",
   "cardCandidatesHeader": "Adaylar ({count}) - dokun = seç",
   "cardCandidatePicked": "Aday seçili still oldu",
-  "cardRunFailed": "{step}: {error}"
+  "cardRunFailed": "{step}: {error}",
+  "notesTab": "Notlar",
+  "filterUnread": "Okunmamış",
+  "noNotices": "Henüz not yok",
+  "noUnreadNotices": "Okunmamış not yok",
+  "markUnread": "Okunmadı yap",
+  "deleteNoticeTitle": "Not silinsin mi?",
+  "deleteNoticeBody": "Bu not kalıcı olarak silinecek."
 }

@@ -426,6 +426,56 @@ class DBManager:
             row = conn.execute("SELECT COUNT(*) FROM reports").fetchone()
         return row[0]
 
+    # ── Notices (notes for the owner from automations) ───────
+
+    def upsert_notice(self, source: str, title: str, body: str, note_key: Optional[str] = None) -> int:
+        """Add a notice. With a `note_key` a rerun replaces its earlier notice
+        (and marks it unread again) instead of adding a second one."""
+        conn = self._get_conn()
+        if note_key:
+            row = conn.execute("SELECT id FROM notices WHERE note_key=?", (note_key,)).fetchone()
+            if row:
+                conn.execute(
+                    "UPDATE notices SET source=?, title=?, body=?, is_read=0, updated_at=datetime('now') WHERE id=?",
+                    (source, title, body, row["id"]),
+                )
+                conn.commit()
+                return row["id"]
+        cur = conn.execute(
+            "INSERT INTO notices (source, title, body, note_key) VALUES (?,?,?,?)",
+            (source, title, body, note_key or None),
+        )
+        conn.commit()
+        return cur.lastrowid
+
+    def get_notices(self, unread_only: bool = False, limit: int = 200) -> list[dict]:
+        conn = self._get_conn()
+        query = "SELECT * FROM notices"
+        if unread_only:
+            query += " WHERE is_read=0"
+        query += " ORDER BY updated_at DESC, id DESC LIMIT ?"
+        return [dict(row) for row in conn.execute(query, (limit,)).fetchall()]
+
+    def get_notice(self, notice_id: int) -> Optional[dict]:
+        conn = self._get_conn()
+        row = conn.execute("SELECT * FROM notices WHERE id=?", (notice_id,)).fetchone()
+        return dict(row) if row else None
+
+    def set_notice_read(self, notice_id: int, read: bool):
+        conn = self._get_conn()
+        conn.execute("UPDATE notices SET is_read=? WHERE id=?", (1 if read else 0, notice_id))
+        conn.commit()
+
+    def delete_notice(self, notice_id: int):
+        conn = self._get_conn()
+        conn.execute("DELETE FROM notices WHERE id=?", (notice_id,))
+        conn.commit()
+
+    def count_notices(self, unread_only: bool = False) -> int:
+        conn = self._get_conn()
+        q = "SELECT COUNT(*) FROM notices" + (" WHERE is_read=0" if unread_only else "")
+        return conn.execute(q).fetchone()[0]
+
     # ── Autofix Sessions ─────────────────────────────────────
 
     def create_session(self, **kwargs) -> int:

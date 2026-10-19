@@ -295,6 +295,23 @@ MIGRATIONS = [
     """
     ALTER TABLE reports ADD COLUMN meta TEXT NOT NULL DEFAULT '{}';
     """,
+    # Version 13: notes for the owner written by automations (weekly report,
+    # Play review replies, ...). Kept apart from tasks (app work) and reports
+    # (player bug reports). `note_key` lets a rerun replace its own note.
+    """
+    CREATE TABLE IF NOT EXISTS notices (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        source TEXT NOT NULL DEFAULT '',
+        title TEXT NOT NULL DEFAULT '',
+        body TEXT NOT NULL DEFAULT '',
+        note_key TEXT UNIQUE,
+        is_read INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_notices_created ON notices(created_at);
+    """,
 ]
 
 

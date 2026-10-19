@@ -1280,5 +1280,12 @@
   "cardPickPoolVideo": "Wähle für „{tag}“ ein Video aus dem Pool",
   "cardCandidatesHeader": "Kandidaten ({count}) - tippen = wählen",
   "cardCandidatePicked": "Der Kandidat ist jetzt das gewählte Still",
-  "cardRunFailed": "{step}: {error}"
+  "cardRunFailed": "{step}: {error}",
+  "notesTab": "Notizen",
+  "filterUnread": "Ungelesen",
+  "noNotices": "Noch keine Notizen",
+  "noUnreadNotices": "Keine ungelesenen Notizen",
+  "markUnread": "Als ungelesen markieren",
+  "deleteNoticeTitle": "Notiz löschen?",
+  "deleteNoticeBody": "Diese Notiz wird endgültig entfernt."
 }

@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import '../services/usage_events.dart';
 import '../theme.dart';
 import 'reports_screen.dart';
+import 'notices_screen.dart';
 import 'logs_screen.dart';
 import '../l10n/app_localizations.dart';
 
-/// Bottom-nav destination hosting two tabs: in-game **Reports** (bug reports /
-/// suggestions pulled from the game-reports worker) and build **Logs**.
+/// Bottom-nav destination hosting three tabs: in-game **Reports** (bug reports /
+/// suggestions pulled from the game-reports worker), **Notes** from automations
+/// (weekly report, Play review replies) and build **Logs**.
 ///
 /// The built-in [TabBarView] swipe is disabled: its gesture arena made sloppy
 /// vertical scrolls (e.g. reaching the bottom of a list) flip to the other
@@ -28,7 +30,7 @@ class _ChatLogsScreenState extends State<ChatLogsScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this)
+    _tabController = TabController(length: 3, vsync: this)
       ..addListener(_reportSubTab);
   }
 
@@ -41,7 +43,7 @@ class _ChatLogsScreenState extends State<ChatLogsScreen>
     final index = _tabController.index;
     if (index == _reportedSubTab) return;
     _reportedSubTab = index;
-    Usage.screen(index == 1 ? 'logs' : 'reports');
+    Usage.screen(const ['reports', 'notices', 'logs'][index]);
   }
 
   @override
@@ -72,6 +74,7 @@ class _ChatLogsScreenState extends State<ChatLogsScreen>
               unselectedLabelColor: Colors.grey,
               tabs: [
                 Tab(icon: Icon(Icons.feedback_outlined, size: 20), text: l10n.chatLogs),
+                Tab(icon: Icon(Icons.notifications_none, size: 20), text: l10n.notesTab),
                 Tab(icon: Icon(Icons.article_outlined, size: 20), text: l10n.logs),
               ],
             ),
@@ -85,6 +88,7 @@ class _ChatLogsScreenState extends State<ChatLogsScreen>
                 physics: const NeverScrollableScrollPhysics(),
                 children: const [
                   ReportsScreen(),
+                  NoticesScreen(),
                   LogsScreen(),
                 ],
               ),

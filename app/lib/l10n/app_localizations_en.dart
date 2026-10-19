@@ -4541,4 +4541,25 @@ class AppLocalizationsEn extends AppLocalizations {
   String cardRunFailed(Object step, Object error) {
     return '$step: $error';
   }
+
+  @override
+  String get notesTab => 'Notes';
+
+  @override
+  String get filterUnread => 'Unread';
+
+  @override
+  String get noNotices => 'No notes yet';
+
+  @override
+  String get noUnreadNotices => 'No unread notes';
+
+  @override
+  String get markUnread => 'Mark unread';
+
+  @override
+  String get deleteNoticeTitle => 'Delete note?';
+
+  @override
+  String get deleteNoticeBody => 'This note will be removed for good.';
 }

@@ -4443,4 +4443,25 @@ class AppLocalizationsJa extends AppLocalizations {
   String cardRunFailed(Object step, Object error) {
     return '$step: $error';
   }
+
+  @override
+  String get notesTab => 'メモ';
+
+  @override
+  String get filterUnread => '未読';
+
+  @override
+  String get noNotices => 'まだメモはありません';
+
+  @override
+  String get noUnreadNotices => '未読のメモはありません';
+
+  @override
+  String get markUnread => '未読にする';
+
+  @override
+  String get deleteNoticeTitle => 'メモを削除しますか?';
+
+  @override
+  String get deleteNoticeBody => 'このメモは完全に削除されます。';
 }

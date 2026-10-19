@@ -7,5 +7,6 @@
   "reusable_assets_dir": "~/Reusable Assets",
   "pipeline_root": "~/Asset Generation Pipeline",
   "backup_dir": "~/Backup",
-  "owner_email": "you@example.com"
+  "owner_email": "you@example.com",
+  "reviews_dir": "~/Reports/reviews"
 }

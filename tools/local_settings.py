@@ -18,6 +18,7 @@ Keys:
     pipeline_root                  asset generation pipeline root (_Incoming, Hot CBN, ...)
     backup_dir                     folder with local backups
     owner_email                    Cloudflare account e-mail (Global API Key auth)
+    reviews_dir                    history of Play reviews seen + replies sent (playstore/reviews.py)
 """
 from __future__ import annotations
 

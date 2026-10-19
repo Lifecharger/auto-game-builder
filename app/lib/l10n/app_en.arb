@@ -2551,5 +2551,15 @@
       "step": {},
       "error": {}
     }
-  }
+  },
+  "notesTab": "Notes",
+  "@notesTab": {
+    "description": "Reports & Logs sub-tab with notes from automations (weekly report, Play review replies)."
+  },
+  "filterUnread": "Unread",
+  "noNotices": "No notes yet",
+  "noUnreadNotices": "No unread notes",
+  "markUnread": "Mark unread",
+  "deleteNoticeTitle": "Delete note?",
+  "deleteNoticeBody": "This note will be removed for good."
 }

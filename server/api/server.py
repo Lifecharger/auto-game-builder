@@ -302,6 +302,15 @@ class IssueUpdate(BaseModel):
 class ReportUpdate(BaseModel):
     status: Optional[str] = None  # open | closed
 
+class NoticeCreate(BaseModel):
+    source: str = ""         # e.g. weekly_report, play_reviews
+    title: str
+    body: str = ""
+    key: Optional[str] = None  # same key = replace that notice (reruns)
+
+class NoticeUpdate(BaseModel):
+    read: Optional[bool] = None
+
 class AppUpdate(BaseModel):
     notes: Optional[str] = None
     status: Optional[str] = None
@@ -1921,6 +1930,54 @@ def delete_report(report_id: str):
     if os.path.isdir(shots_dir):
         shutil.rmtree(shots_dir, ignore_errors=True)
     db().delete_report(report_id)
+    return {"ok": True}
+
+
+# ── Notices (notes for the owner from automations) ───────────
+#
+# Weekly report, Play review replies and other scheduled jobs leave a note
+# here. They are not app work (tasks) and not player reports, so they get
+# their own list, shown in the Notes tab next to Reports.
+
+def _notice_dict(n: dict) -> dict:
+    return {
+        "id": n["id"], "source": n.get("source") or "", "title": n.get("title") or "",
+        "body": n.get("body") or "", "key": n.get("note_key") or "",
+        "read": bool(n.get("is_read")), "created_at": n.get("created_at") or "",
+        "updated_at": n.get("updated_at") or "",
+    }
+
+
+@app.get("/api/notices")
+def list_notices(unread: bool = False, limit: int = 200):
+    return [_notice_dict(n) for n in db().get_notices(unread_only=unread, limit=max(1, min(limit, 500)))]
+
+
+@app.get("/api/notices/count")
+def notices_count():
+    return {"unread": db().count_notices(unread_only=True), "total": db().count_notices()}
+
+
+@app.post("/api/notices")
+def create_notice(body: NoticeCreate):
+    if not body.title.strip():
+        raise HTTPException(400, "title is required")
+    nid = db().upsert_notice(body.source.strip(), body.title.strip(), body.body, (body.key or "").strip() or None)
+    return _notice_dict(db().get_notice(nid))
+
+
+@app.patch("/api/notices/{notice_id}")
+def update_notice(notice_id: int, body: NoticeUpdate):
+    if not db().get_notice(notice_id):
+        raise HTTPException(404, "Notice not found")
+    if body.read is not None:
+        db().set_notice_read(notice_id, body.read)
+    return {"ok": True}
+
+
+@app.delete("/api/notices/{notice_id}")
+def delete_notice(notice_id: int):
+    db().delete_notice(notice_id)
     return {"ok": True}
 
 

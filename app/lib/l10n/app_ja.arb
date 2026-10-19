@@ -1280,5 +1280,12 @@
   "cardPickPoolVideo": "「{tag}」用の動画をプールから選択",
   "cardCandidatesHeader": "候補 ({count}) - タップ = 選択",
   "cardCandidatePicked": "候補を選択中のスチルにしました",
-  "cardRunFailed": "{step}: {error}"
+  "cardRunFailed": "{step}: {error}",
+  "notesTab": "メモ",
+  "filterUnread": "未読",
+  "noNotices": "まだメモはありません",
+  "noUnreadNotices": "未読のメモはありません",
+  "markUnread": "未読にする",
+  "deleteNoticeTitle": "メモを削除しますか?",
+  "deleteNoticeBody": "このメモは完全に削除されます。"
 }
