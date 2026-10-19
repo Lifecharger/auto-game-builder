@@ -23,7 +23,7 @@ from PIL import Image
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-sys.path.insert(0, "C:/Projects/Auto Game Builder/tools/r2")
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "r2"))
 import r2_s3  # noqa: E402
 from build_v2_pack import ART_SCALE, BUCKET, CACHE_IMG, CACHE_JSON, MIRROR, ROOT  # noqa: E402
 from pack_lock import pack_lock  # noqa: E402

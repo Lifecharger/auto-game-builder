@@ -134,7 +134,7 @@ This is the main config file. Create it from `settings.example.json` or edit the
 
 | Field | How to find | Example |
 |-------|-------------|---------|
-| `claude_path` | Run: `which claude` or `where claude` | `/usr/local/bin/claude` or `C:\Users\user\.claude\local\claude.exe` |
+| `claude_path` | Run: `which claude` or `where claude` | `/usr/local/bin/claude` or `%USERPROFILE%\.claude\local\claude.exe` |
 | `gemini_path` | Run: `which gemini` or `where gemini` | `/usr/local/bin/gemini` |
 | `codex_path` | Run: `which codex` or `where codex` | `/usr/local/bin/codex` |
 | `aider_path` | Run: `which aider` or `where aider` | `/home/user/.local/bin/aider` |
@@ -144,8 +144,8 @@ This is the main config file. Create it from `settings.example.json` or edit the
 | `cloudflared_path` | Run: `which cloudflared` or `where cloudflared` | `/usr/local/bin/cloudflared` |
 | `npx_path` | Run: `which npx` or `where npx` | `/usr/local/bin/npx` |
 | `wrangler_path` | Run: `which wrangler` or `where wrangler` | `/usr/local/bin/wrangler` |
-| `projects_root` | Ask the user where they keep game projects | `~/Projects` or `C:\Projects` |
-| `keys_dir` | Ask the user where signing keystores are stored | `D:\keys` or `~/keys` |
+| `projects_root` | Ask the user where they keep game projects | `~/Projects` or `%USERPROFILE%\Projects` |
+| `keys_dir` | Ask the user where signing keystores are stored | `~/keys` or `%USERPROFILE%\keys` |
 | `tools_dir` | Override path to asset generation scripts. Leave unset to use the repo's own `tools/` folder (recommended). | `~/Projects/auto-game-builder/tools` |
 | `service_account_key` | Path to Google Play API service account JSON (optional) | `~/keys/play-api.json` |
 | `ollama_url` | Default: `http://localhost:11434`. Only change if Ollama runs on a different host/port | `http://localhost:11434` |

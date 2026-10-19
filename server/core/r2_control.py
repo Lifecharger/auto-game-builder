@@ -15,7 +15,7 @@ oldugunu AGB'den goremiyorduk. Bu modul kovalarin icine bakar:
 
 Uzun isler arka planda calisir ve `op_status` ile izlenir (akis modulleriyle ayni
 govde). Kimlik bilgisi depoya girmez: `r2.credentials_file` ayari (yoksa
-D:/keys/cloudflare_r2_s3_credentials.json).
+<paths.keys_dir>/cloudflare_r2_s3_credentials.json).
 """
 from __future__ import annotations
 
@@ -45,7 +45,7 @@ _STATS_FILE = os.path.join(_DATA_DIR, "r2_bucket_stats.json")
 _AUDIT_FILE = os.path.join(_DATA_DIR, "r2_audit.log")
 _THUMB_DIR = os.path.join(_DATA_DIR, "r2_thumbs")
 
-DEFAULT_CREDENTIALS = "D:/keys/cloudflare_r2_s3_credentials.json"
+CREDENTIALS_NAME = "cloudflare_r2_s3_credentials.json"   # <paths.keys_dir> altinda
 
 # Telefon sayacli hatta: onizleme bir gorseli BIR KEZ indirebilir, videoyu /
 # hareketli webp'i / 2 MB ustunu ASLA. Istemci ikon + boyut gosterir.
@@ -65,7 +65,7 @@ def _setting(key: str, default: str = "") -> str:
         for part in key.split("."):
             d = (d or {}).get(part)
         if isinstance(d, str) and d.strip():
-            return d.strip()
+            return os.path.expanduser(d.strip())
     except Exception:
         pass
     return default
@@ -73,7 +73,9 @@ def _setting(key: str, default: str = "") -> str:
 
 def credentials_file() -> str:
     return os.environ.get("R2_CREDENTIALS_FILE", "").strip() or \
-        _setting("r2.credentials_file") or DEFAULT_CREDENTIALS
+        _setting("r2.credentials_file") or \
+        os.path.join(_setting("paths.keys_dir") or os.path.join(os.path.expanduser("~"), "keys"),
+                     CREDENTIALS_NAME)
 
 
 _s3_cache = None

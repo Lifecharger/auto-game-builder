@@ -6,7 +6,7 @@ fastlane/metadata/android/<locale>/, then pushes every locale (including en-US
 which already lives in fastlane) to the Google Play listing via the
 androidpublisher v3 API.
 
-Run: python "C:/Projects/Auto Game Builder/tools/playstore/push_listings.py"
+Run: python tools/playstore/push_listings.py
 """
 import sys
 from pathlib import Path
@@ -20,13 +20,16 @@ import translations_hot_slider as t_slider
 import translations_hot_jigsaw as t_jigsaw
 import translations_hot_charm  as t_charm
 
-SA_KEY = "D:/keys/arcade-snake-488801-35f27b42dfb3.json"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import local_settings  # noqa: E402
+
+SA_KEY = local_settings.get("play_console_service_account")
 SCOPES = ["https://www.googleapis.com/auth/androidpublisher"]
 
 APPS = [
-    ("Hot Slider", "com.lifecharger.hotslider", "C:/Projects/Hot Slider", t_slider.TRANSLATIONS),
-    ("Hot Jigsaw", "com.lifecharger.hotjigsaw", "C:/Projects/Hot Jigsaw", t_jigsaw.TRANSLATIONS),
-    ("Hot Charm",  "com.lifecharger.hotcharm",  "C:/Projects/Hot Charm",  t_charm.TRANSLATIONS),
+    ("Hot Slider", "com.lifecharger.hotslider", str(local_settings.path("projects_dir", "Hot Slider")), t_slider.TRANSLATIONS),
+    ("Hot Jigsaw", "com.lifecharger.hotjigsaw", str(local_settings.path("projects_dir", "Hot Jigsaw")), t_jigsaw.TRANSLATIONS),
+    ("Hot Charm",  "com.lifecharger.hotcharm",  str(local_settings.path("projects_dir", "Hot Charm")),  t_charm.TRANSLATIONS),
 ]
 
 ALL_LOCALES = ["en-US", "es-ES", "de-DE", "ja-JP", "hi-IN", "bn-BD", "fr-FR", "pt-BR", "tr-TR"]

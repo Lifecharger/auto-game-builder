@@ -15,8 +15,12 @@ import time
 from meshy_client import post, get, download_model
 
 ENDPOINT = "/openapi/v2/text-to-3d"
-WARDROBE = r"C:\Projects\Mixamo Downloader\wardrobe"
-GEN_MANIFEST = r"C:\Projects\Mixamo Downloader\tools\gen_manifest.py"
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import local_settings  # noqa: E402
+
+WARDROBE = str(local_settings.path("projects_dir", "Mixamo Downloader", "wardrobe"))
+GEN_MANIFEST = str(local_settings.path("projects_dir", "Mixamo Downloader", "tools", "gen_manifest.py"))
 
 SHELL = (
     "women's clothing, hollow garment shell only, shaped as if worn by an "

@@ -70,13 +70,25 @@
   "jigsaw": {
     "_comment": "Jigsaw dropdown secenek dosyasi. JIGSAW_OPTIONS_FILE ortam degiskeni oncelikli; bos birakilirsa depodaki ornek kullanilir.",
     "options_file": "C:/ComfyUI/scripts/jigsaw_secenekler.json",
-    "pool_root": "D:/Asset Generation Pipeline/Hot Jigsaw",
-    "pushed_root": "D:/Asset Generation Pipeline/Hot Jigsaw - Pushed"
+    "pool_root": "~/Asset Generation Pipeline/Hot Jigsaw",
+    "pushed_root": "~/Asset Generation Pipeline/Hot Jigsaw - Pushed"
+  },
+  "character": {
+    "_comment": "Karakter kipi kutuphanesi. CHARACTER_ROOT ortam degiskeni onceliklidir.",
+    "root": "~/Reusable Assets/Realistic Women"
+  },
+  "card": {
+    "_comment": "Kart kipi. CARD_ROOT / CARD_GROK_ROOT / CARD_ROSTER / CARD_MANIFEST_SRC ortam degiskenleri onceliklidir; bos alanlar projects_root ve jigsaw.pool_root'tan turetilir.",
+    "root": "~/Asset Generation Pipeline/Hot Card Games",
+    "grok_root": "~/Projects/Hot Card Games/design/characters",
+    "roster": "~/Projects/Hot Card Games/tools/cardpipe/roster.json",
+    "manifest_src": "~/Projects/Hot Card Games/tools/cardpipe/out/manifest.json",
+    "bucket": "cards"
   },
   "r2": {
     "_comment": "Kovalar kipi (#381): R2'nin S3 uyumlu erisim bilgileri. Dosya DEPO DISINDA durur; R2_CREDENTIALS_FILE ortam degiskeni onceliklidir. Icerigi: endpoint, access_key_id, secret_access_key, account_id.",
-    "credentials_file": "D:/keys/cloudflare_r2_s3_credentials.json",
-    "mirror_root": ""
+    "credentials_file": "<keys_dir>/cloudflare_r2_s3_credentials.json",
+    "mirror_root": "~/r2buckets"
   },
   "comfyui": {
     "_comment": "ComfyUI kurulum koku ve adresi. COMFYUI_ROOT / COMFYUI_URL ortam degiskenleri onceliklidir.",
@@ -84,7 +96,7 @@
     "url": "http://127.0.0.1:8188"
   },
   "cbn": {
-    "root": "D:\\Asset Generation Pipeline",
+    "root": "~/Asset Generation Pipeline",
     "bucket": "cbn",
     "options_file": "",
     "_not": "root: Hot CBN / Kid CBN / _Incoming CBN klasorlerinin ust dizini (bos = jigsaw.pool_root'un ustu). options_file bos = server/config/cbn_options.json"

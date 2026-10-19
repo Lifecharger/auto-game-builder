@@ -3,7 +3,11 @@ import json, sys
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-SA="D:/keys/arcade-snake-488801-5ac9863bb0ab.json"
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import local_settings  # noqa: E402
+
+SA = local_settings.get("play_publish_service_account")
 SRC="com.lifecharger.hotidle"; DST="com.lifecharger.animestreamer"
 REGIONS_VERSION="2025/03"
 creds=service_account.Credentials.from_service_account_file(SA,scopes=["https://www.googleapis.com/auth/androidpublisher"])

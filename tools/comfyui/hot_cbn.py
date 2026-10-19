@@ -25,7 +25,7 @@ palette is large (up to 80 entries) like the reference app.
   Ratios: 9:16 720x1280 · 2:3 832x1248 · 1:1 1024x1024 · 3:2 1248x832 · 16:9 1280x720
   (generation size; exact ratios so the Qwen page is never stretched).
 
-    python hot_cbn.py --source "D:/.../Generic/615.jpg"
+    python hot_cbn.py --source "<pipeline_root>/.../Generic/615.jpg"
     python hot_cbn.py --subject "woman in a red dress on a balcony" --aspect 9:16
     python hot_cbn.py --matrix
 """

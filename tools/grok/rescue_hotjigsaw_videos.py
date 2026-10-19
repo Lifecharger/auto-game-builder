@@ -31,7 +31,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from grok_animate import GrokLimitReached, animate  # noqa: E402
 
-PIPELINE_ROOT = Path(r"D:\Asset Generation Pipeline")
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import local_settings  # noqa: E402
+
+PIPELINE_ROOT = local_settings.path("pipeline_root")
 INCOMING = PIPELINE_ROOT / "_Incoming"
 RESCUE_LEDGER = PIPELINE_ROOT / "rescue_ledger.json"
 STATUS_FILE = INCOMING / "RESCUE_STATUS.md"
@@ -159,7 +162,7 @@ def write_status(total_missing: int, rescued: list[int], refused: list[int],
 Updated {datetime.now().strftime('%Y-%m-%d %H:%M')}.
 
 Videos being generated for `{COLLECTION_ID}` images that have none in R2.
-Source list: `C:\\Projects\\Hot Jigsaw\\docs\\missing_videos.md`
+Source list: `<projects_dir>/Hot Jigsaw/docs/missing_videos.md`
 Driver: `Auto Game Builder\\tools\\grok\\rescue_hotjigsaw_videos.py`
 
 | | count |

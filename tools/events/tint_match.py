@@ -15,7 +15,8 @@ import sys
 import numpy as np
 from PIL import Image
 
-sys.path.insert(0, "C:/Projects/Auto Game Builder/tools/r2")
+from pathlib import Path  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "r2"))
 import r2_s3  # noqa: E402
 from build_v2_pack import BUCKET, CACHE_IMG, CACHE_JSON, ROOT  # noqa: E402
 from pack_lock import pack_lock  # noqa: E402

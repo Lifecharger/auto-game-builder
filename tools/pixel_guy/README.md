@@ -2,7 +2,7 @@
 
 Flutter desktop UI + Python pipeline for curating and processing character sprite animations (extract frames from MP4 via Grok, remove backgrounds with BiRefNet/u2net, assign directional bins for 8-way animation rigs).
 
-Originally lived at `C:/Projects/Pixel Guy` as a standalone repo; merged into Auto Game Builder's `tools/pixel_guy/` on 2026-04-13.
+Originally lived as a standalone repo (`Pixel Guy`); merged into Auto Game Builder's `tools/pixel_guy/` on 2026-04-13.
 
 ## Layout
 

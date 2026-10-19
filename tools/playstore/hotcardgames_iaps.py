@@ -6,13 +6,18 @@ then each purchase option is ACTIVATED so license testers can buy them on the
 alpha track. buyOption.legacyCompatible=true is mandatory for the Flutter
 in_app_purchase plugin to see the SKU.
 
-Run: python "C:/Projects/Auto Game Builder/tools/playstore/hotcardgames_iaps.py"
+Run: python tools/playstore/hotcardgames_iaps.py
 """
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
-SA_KEY = "D:/keys/arcade-snake-488801-5ac9863bb0ab.json"
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import local_settings  # noqa: E402
+
+SA_KEY = local_settings.get("play_publish_service_account")
 SCOPES = ["https://www.googleapis.com/auth/androidpublisher"]
 PACKAGE = "com.lifecharger.hotcardgames"
 

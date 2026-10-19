@@ -28,7 +28,7 @@
 - Build AAB: `export PATH="/c/flutter/bin:$PATH" && cd "/c/Projects/Auto Game Builder/tools/pixel_guy" && flutter build appbundle --release`
 - Always run `flutter analyze` after changes
 - Use test ads during development, production ads only in release
-- All signing keys in `D:/keys/`
+- All signing keys in `<keys_dir>/` (see tools/local_settings.json)
 
 ### Testing
 - When a test task is assigned, build debug APK, install on emulator via mobile MCP, and test all screens and core gameplay.

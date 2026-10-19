@@ -311,7 +311,7 @@ def write_status(total_missing: int, rescued, failed, remaining) -> None:
 Updated {datetime.now().strftime('%Y-%m-%d %H:%M')}.
 
 Videos being generated for `{COLLECTION_ID}` images that have none in R2.
-Source list: `C:\\Projects\\Hot Jigsaw\\docs\\missing_videos.md`
+Source list: `<projects_dir>/Hot Jigsaw/docs/missing_videos.md`
 Driver: `Auto Game Builder\\tools\\comfyui\\rescue_hotjigsaw_videos_ltx.py` (LTX-2.5, local)
 
 | | count |

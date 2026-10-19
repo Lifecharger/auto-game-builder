@@ -21,7 +21,7 @@ sorusunun cevabidir. Ikisi Delivery Mod'un iki sekmesidir; ucuncu istemci Uretim
 
 ## 1. Erisim
 
-`r2.credentials_file` ayari (varsayilan `D:/keys/cloudflare_r2_s3_credentials.json`, ortam
+`r2.credentials_file` ayari (varsayilan `<paths.keys_dir>/cloudflare_r2_s3_credentials.json`, ortam
 degiskeni `R2_CREDENTIALS_FILE` oncelikli). Dosya DEPONUN DISINDADIR ve icerigi hicbir istemciye
 inmez; telefon ve studyo yalniz AGB sunucusuyla konusur. `tools/r2/r2_s3.py` SigV4'u kendisi
 imzalar (stdlib): `list_objects_v2`, `list_all`, `head_object`, `get_object` (Range destekli),
@@ -98,7 +98,7 @@ belli olur.
 
 `twin-diff` ESKI kovanin yalniz ilgili oneklerini listeler (promo icin `promo/`, hepsini degil) ve
 `missing_in_legacy` / `only_in_legacy` / `size_mismatch` / `unmapped` doner. Emeklilik listesinin
-2. ve 6. adimlari (`C:/Cloudflare Workers/R2_MAP.md` §6) bu gorunumle denetlenir.
+2. ve 6. adimlari (Cloudflare Workers deposundaki `R2_MAP.md` §6) bu gorunumle denetlenir.
 
 ## 6. Farklar
 

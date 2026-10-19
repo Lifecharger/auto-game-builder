@@ -31,7 +31,10 @@ DEFAULT_SOURCE = Path.home() / "Desktop" / "etkinlik ve deste paketi" / "takvim.
 BUCKET = "events"
 KEY = "calendar.json"
 CACHE_JSON = "public, max-age=21600, stale-while-revalidate=86400"
-MIRROR = Path(r"D:/Reusable Assets/r2buckets") / BUCKET / KEY
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import local_settings  # noqa: E402
+
+MIRROR = local_settings.path("reusable_assets_dir", "r2buckets") / BUCKET / KEY
 PUBLIC_URL = f"https://events.lifechargergames.com/{KEY}"
 
 

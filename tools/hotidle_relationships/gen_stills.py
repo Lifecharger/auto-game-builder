@@ -33,7 +33,11 @@ import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 API = "http://localhost:8000"
-KEY_FILE = r"D:/keys/agb_api_key.txt"
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import local_settings  # noqa: E402
+
+KEY_FILE = str(local_settings.key_file("agb_api_key.txt"))
 REFS = r"C:/Reusable Assets/Images/Hot Idle/cashiers_side/refs"
 DEST = r"C:/Reusable Assets/Images/Hot Idle/relationships"
 TASK = "edit_qwen"

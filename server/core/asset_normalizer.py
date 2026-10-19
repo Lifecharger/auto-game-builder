@@ -254,7 +254,7 @@ def _r2():
 
 
 def mirror_root() -> str:
-    return _ayar("r2.mirror_root") or "D:/Reusable Assets/r2buckets"
+    return _ayar("r2.mirror_root") or os.path.join(os.path.expanduser("~"), "r2buckets")
 
 
 def _ayar(anahtar: str, default=None):
@@ -299,7 +299,7 @@ def _yerel(bucket: str, key: str) -> str:
 
 
 def fetch(bucket: str, key: str, boyut: int) -> str:
-    """Nesnenin YEREL yolu. Ayna (D:/Reusable Assets/r2buckets) ayni boyutta
+    """Nesnenin YEREL yolu. Ayna (`r2.mirror_root`) ayni boyutta
     tutuyorsa indirme yapilmaz; yoksa indirilir ve AYNAYA yazilir - ayna
     kovayla bayt bayt ayni kalir."""
     yol = _yerel(bucket, key)

@@ -106,7 +106,7 @@ The worker is always the **reader** of the index; the server is the **writer**.
 `/api/queue`, cancel through `/api/queue/cancel` or `/api/normalize/cancel`). Per image:
 
 1. enumerate from the **bucket listing** (the mirror can be stale, the bucket cannot);
-2. take the bytes from the local mirror `D:/Reusable Assets/r2buckets/<bucket>/<key>` when the size
+2. take the bytes from the local mirror `<r2.mirror_root>/<bucket>/<key>` when the size
    matches, otherwise download and write them into the mirror (it stays byte-identical);
 3. read the existing metadata and validate it — conforming means **skip** (resumable, and `force`
    re-tags anyway);
@@ -140,7 +140,7 @@ rules with an old block.
 * `server/tests/test_asset_normalizer.py` — schema validation, the EXIF round trip
   (tag → EXIF → conforming index entry), the pipe parser matching the worker byte for byte, block
   list cleaning, pool/list declarations.
-* `C:/Projects/Hot Card Games/assets-worker/test/serve_rules.test.js` — blocked deck / card leave
+* `<projects_root>/Hot Card Games/assets-worker/test/serve_rules.test.js` — blocked deck / card leave
   every manifest, admin auth, de-duplication, preview counters, the block browser's list.
 * `app/test/delivery_block_test.dart` — the block model's parse / toggle / round trip, the overview's
   block, the normalize status and the catalogue rows.

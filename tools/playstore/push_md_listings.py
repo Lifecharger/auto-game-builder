@@ -31,14 +31,14 @@ Usage
 Dry run (parses and prints lengths, contacts no API at all)::
 
     python tools/playstore/push_md_listings.py \
-        --project "C:/Projects/Auto Game Builder/app" \
+        --project "<projects_dir>/Auto Game Builder/app" \
         --package com.lifecharger.appmanager \
         --dry-run
 
 Real upload::
 
     python tools/playstore/push_md_listings.py \
-        --project "C:/Projects/Auto Game Builder/app" \
+        --project "<projects_dir>/Auto Game Builder/app" \
         --package com.lifecharger.appmanager
 
 Options
@@ -49,7 +49,7 @@ Options
 --locales     Space-separated subset of locales to push (default: every .md
               file in the listing directory).
 --service-account
-              Service-account JSON key (default D:/keys/arcade-snake-488801-35f27b42dfb3.json).
+              Service-account JSON key (default: play_console_service_account in tools/local_settings.json).
 --dry-run     Parse and validate only; never touches the Play API.
 
 Requires `google-api-python-client` and `google-auth` (already used by the other
@@ -63,7 +63,10 @@ import re
 import sys
 from pathlib import Path
 
-DEFAULT_SERVICE_ACCOUNT = "D:/keys/arcade-snake-488801-35f27b42dfb3.json"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import local_settings  # noqa: E402
+
+DEFAULT_SERVICE_ACCOUNT = local_settings.get("play_console_service_account")
 
 # Google Play listing limits.
 MAX_TITLE = 30

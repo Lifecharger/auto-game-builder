@@ -4,7 +4,7 @@ import sys
 import os
 
 GROK_DIR = os.path.dirname(os.path.abspath(__file__))
-DOWNLOADS = r"C:\Users\caca_\Downloads\grok-generated"
+DOWNLOADS = os.path.join(os.path.expanduser("~"), "Downloads", "grok-generated")
 
 STATIC_CAM = "Static fixed camera locked in place, no camera movement, no zoom, no pan, no parallax, no dolly, locked frame."
 

@@ -44,7 +44,7 @@ BUCKET_BY_RATING = {
 WRANGLER_BIN = (
     shutil.which("wrangler.cmd")
     or shutil.which("wrangler")
-    or r"C:\Users\YOU\AppData\Roaming\npm\wrangler.cmd"
+    or os.path.expandvars(r"%APPDATA%\npm\wrangler.cmd")
 )
 
 # ElevenLabs API key for music generation.

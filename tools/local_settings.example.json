@@ -1,0 +1,11 @@
+{
+  "_comment": "Copy to tools/local_settings.json (git-ignored) and fill in your own values. Read by tools/local_settings.py.",
+  "keys_dir": "~/keys",
+  "play_console_service_account": "~/keys/<play-console-service-account>.json",
+  "play_publish_service_account": "~/keys/<play-publish-service-account>.json",
+  "projects_dir": "~/Projects",
+  "reusable_assets_dir": "~/Reusable Assets",
+  "pipeline_root": "~/Asset Generation Pipeline",
+  "backup_dir": "~/Backup",
+  "owner_email": "you@example.com"
+}

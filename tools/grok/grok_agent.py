@@ -14,9 +14,9 @@ What the site gives us (mapped 2026-09-22):
   `fileAttachments` lists the same uuids in order
 - the file itself is https://assets.grok.com/users/<uid>/generated/<uuid>/image.jpg
 
-Downloads go where the browser extension puts them - `D:/Reusable Assets/Grok/images/<uuid>.jpg`
+Downloads go where the browser extension puts them - `<reusable_assets_dir>/Grok/images/<uuid>.jpg`
 (never overwritten) - and the uuid -> prompt map is written to
-`D:/Reusable Assets/Grok/_agent_runs/<conv>.json`, so gather/parse tools that key on the uuid
+`<reusable_assets_dir>/Grok/_agent_runs/<conv>.json`, so gather/parse tools that key on the uuid
 keep working and the extension's own copy is never duplicated.
 
     python grok_agent.py start --brief brief.txt [--ref img.png ...] [--watch 30]
@@ -42,7 +42,11 @@ from playwright.sync_api import sync_playwright  # noqa: E402
 
 POST_RE = re.compile(r"/imagine/post/([0-9a-f-]{36})")
 CONV_RE = re.compile(r"[?&]conversation=([0-9a-f-]{36})")
-GROK_DIR = Path(os.environ.get("GROK_LOCAL_DIR") or r"D:/Reusable Assets/Grok")
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import local_settings  # noqa: E402
+
+GROK_DIR = Path(os.environ.get("GROK_LOCAL_DIR")
+                or local_settings.path("reusable_assets_dir", "Grok"))
 IMAGES_DIR = GROK_DIR / "images"
 VIDEOS_DIR = GROK_DIR / "videos"
 RUNS_DIR = GROK_DIR / "_agent_runs"

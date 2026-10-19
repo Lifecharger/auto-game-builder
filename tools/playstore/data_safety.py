@@ -27,7 +27,11 @@ import io
 import os
 import sys
 
-DEFAULT_KEY = "D:/keys/arcade-snake-488801-5ac9863bb0ab.json"
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import local_settings  # noqa: E402
+
+DEFAULT_KEY = local_settings.get("play_publish_service_account")
 SCOPE = "https://www.googleapis.com/auth/androidpublisher"
 USAGE = "PSL_DATA_USAGE_RESPONSES:%s:%s"
 

@@ -10,7 +10,7 @@ baslatildiginda galeri kaybolmaz.
 Iki uretim kipi vardir:
   * free    - serbest uretim, promptu kullanici tamamen yazar
   * jigsaw  - Hot Jigsaw is akisi: 9:16 dikey, ikinci pozitif prompt sablonu,
-              cikti D:\\Asset Generation Pipeline altina jpg+mp4+webp ucllusu
+              cikti <pipeline_root> (jigsaw.pool_root'un ustu) altina jpg+mp4+webp ucllusu
               olarak numaralandirilir
 """
 from __future__ import annotations

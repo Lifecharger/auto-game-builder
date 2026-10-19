@@ -16,7 +16,7 @@ Kullanicinin tanimladigi DORT ASAMA (design/kart_modu.md §0):
 Iki tur vardir (avatar YOK): `card` (Normal, tam boy, koleksiyon = 13 rutbe + 2 joker)
 ve `dealer` (Krupiye, bel ustu, `_Dealers/<ad>/` tek oge, rutbe yok).
 
-Kutuphane duzeni (`card.root`, vars. D:\\Asset Generation Pipeline\\Hot Card Games):
+Kutuphane duzeni (`card.root` ayari, ornek <pipeline_root>/Hot Card Games):
 
   _Incoming Kart/<is>.png              Uretilenler'den rutbesiz sahnelenen still
   <koleksiyon>/collection.json         {id, name, theme, style, kind, ranks, jokers, created}
@@ -68,10 +68,10 @@ _TOOLS = os.path.join(_ROOT, "tools")
 _SETTINGS = os.path.join(_ROOT, "server", "config", "settings.json")
 THUMB_DIR = os.path.join(G.OUT_DIR, "_card_thumbs")
 
-DEFAULT_ROOT = r"D:\Asset Generation Pipeline\Hot Card Games"
-DEFAULT_GROK = r"C:\Projects\Hot Card Games\design\characters"
-DEFAULT_ROSTER = r"C:\Projects\Hot Card Games\tools\cardpipe\roster.json"
-DEFAULT_MANIFEST_SRC = r"C:\Projects\Hot Card Games\tools\cardpipe\out\manifest.json"
+# Makineye ozel yollar settings.json'daki `card.*` anahtarlarindadir (depo herkese
+# acik). Ayar yoksa varsayilanlar `paths.projects_root` / `jigsaw.pool_root`
+# altindan turetilir.
+_HCG = "Hot Card Games"
 DEFAULT_BUCKET = "cards"
 
 INCOMING = "_Incoming Kart"
@@ -179,22 +179,35 @@ def _setting(key: str, default: str = "") -> str:
         for part in key.split("."):
             d = (d or {}).get(part)
         if isinstance(d, str) and d.strip():
-            return d.strip()
+            return os.path.expanduser(d.strip())
     except Exception:
         pass
     return default
 
 
+def _projects_root() -> str:
+    return _setting("paths.projects_root") or os.path.join(os.path.expanduser("~"), "Projects")
+
+
+def _default_root() -> str:
+    pool = _setting("jigsaw.pool_root")
+    base = os.path.dirname(pool.rstrip("/\\")) if pool else os.path.join(
+        os.path.expanduser("~"), "Asset Generation Pipeline")
+    return os.path.join(base, _HCG)
+
+
 def root() -> str:
-    return os.environ.get("CARD_ROOT", "").strip() or _setting("card.root") or DEFAULT_ROOT
+    return os.environ.get("CARD_ROOT", "").strip() or _setting("card.root") or _default_root()
 
 
 def grok_root() -> str:
-    return os.environ.get("CARD_GROK_ROOT", "").strip() or _setting("card.grok_root") or DEFAULT_GROK
+    return os.environ.get("CARD_GROK_ROOT", "").strip() or _setting("card.grok_root") \
+        or os.path.join(_projects_root(), _HCG, "design", "characters")
 
 
 def roster_path() -> str:
-    return os.environ.get("CARD_ROSTER", "").strip() or _setting("card.roster") or DEFAULT_ROSTER
+    return os.environ.get("CARD_ROSTER", "").strip() or _setting("card.roster") \
+        or os.path.join(_projects_root(), _HCG, "tools", "cardpipe", "roster.json")
 
 
 def manifest_src() -> str:
@@ -203,7 +216,7 @@ def manifest_src() -> str:
     if os.path.isfile(yerel):
         return yerel
     return os.environ.get("CARD_MANIFEST_SRC", "").strip() or _setting("card.manifest_src") \
-        or DEFAULT_MANIFEST_SRC
+        or os.path.join(_projects_root(), _HCG, "tools", "cardpipe", "out", "manifest.json")
 
 
 def bucket() -> str:

@@ -10,7 +10,11 @@ import sys
 import time
 import urllib.request
 
-KEY_FILE = r"D:/keys/agb_api_key.txt"
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import local_settings  # noqa: E402
+
+KEY_FILE = str(local_settings.key_file("agb_api_key.txt"))
 
 
 def key() -> str:

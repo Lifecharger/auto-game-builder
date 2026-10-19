@@ -25,9 +25,12 @@ HISTORY_FILE = os.path.join(_SCRIPT_DIR, "grok_download_history.json")
 # Generated images land in the r2manager Incoming folder so the review UI picks
 # them up directly. Kept out of ~/Downloads on purpose — that folder is used for
 # other things and must stay free of pipeline clutter.
-DOWNLOADS_DIR = os.environ.get("GROK_OUTPUT_DIR") or os.path.join(
-    "D:\\", "Asset Generation Pipeline", "_Incoming"
-)
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import local_settings  # noqa: E402
+
+DOWNLOADS_DIR = os.environ.get("GROK_OUTPUT_DIR") or str(
+    local_settings.path("pipeline_root", "_Incoming"))
 
 
 def get_cookies() -> dict:

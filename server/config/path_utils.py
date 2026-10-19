@@ -8,7 +8,7 @@ import re
 def to_unix_path(path: str) -> str:
     """Convert a path to Git-Bash-compatible POSIX format.
 
-    On Windows: C:\\Users\\foo -> /c/Users/foo
+    On Windows: C:\\Work\\foo -> /c/Work/foo
     On Linux/macOS: returns path unchanged.
     """
     if not path:
@@ -24,7 +24,7 @@ def to_unix_path(path: str) -> str:
 def to_native_path(path: str) -> str:
     """Convert a POSIX path back to the native OS format.
 
-    On Windows: /c/Users/foo -> C:\\Users\\foo
+    On Windows: /c/Work/foo -> C:\\Work\\foo
     On Linux/macOS: returns path unchanged.
     """
     if not path:

@@ -7,8 +7,14 @@ import requests
 
 from tripo_studio_api import TripoStudio
 
-GEN = "C:/Projects/Hot Collector/raw_assets/tripo_women/gen_results.json"
-OUT = "C:/Projects/Hot Collector/raw_assets/tripo_women/"
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import local_settings  # noqa: E402
+
+_WOMEN = local_settings.path("projects_dir", "Hot Collector", "raw_assets", "tripo_women")
+GEN = str(_WOMEN / "gen_results.json")
+OUT = str(_WOMEN) + "/"
 
 
 def main():

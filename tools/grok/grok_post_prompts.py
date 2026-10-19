@@ -8,8 +8,8 @@ GROK_PROFILE_DIR) and writes prompts.tsv: uuid <tab> prompt. Files whose
 prompts start with a `TAG <token>` can then be filed by token.
 
     python grok_post_prompts.py <uuid> [<uuid> ...]
-    python grok_post_prompts.py --dir "D:/Reusable Assets/Grok/images" --since "2026-09-22 00:21" --out prompts.tsv
-    python grok_post_prompts.py --items "D:/.../items.json" --out prompts.tsv   # stills + videos of a review set
+    python grok_post_prompts.py --dir "<reusable_assets_dir>/Grok/images" --since "2026-09-22 00:21" --out prompts.tsv
+    python grok_post_prompts.py --items "<path>/items.json" --out prompts.tsv   # stills + videos of a review set
 """
 from __future__ import annotations
 

@@ -43,7 +43,7 @@ from urllib.error import URLError
 PROFILES_ROOT = Path.home() / ".chrome-cdp-profiles"
 
 CHROME_CANDIDATE_PATHS = [
-    r"C:\Users\{user}\AppData\Local\Google\Chrome\Application\chrome.exe",
+    r"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe",
     r"C:\Program Files\Google\Chrome\Application\chrome.exe",
     r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
 ]
@@ -58,7 +58,7 @@ def find_chrome() -> str:
         raise RuntimeError("Chrome not found in PATH on non-Windows system")
     user = os.environ.get("USERNAME") or os.environ.get("USER") or ""
     for template in CHROME_CANDIDATE_PATHS:
-        path = template.format(user=user)
+        path = os.path.expandvars(template.format(user=user))
         if os.path.isfile(path):
             return path
     # Last-ditch: try registry lookup

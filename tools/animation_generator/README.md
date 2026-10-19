@@ -65,4 +65,4 @@ See `../GROK_ASSET_PIPELINE.md` for the detailed hand-written playbook on what p
 
 ## Where it lived before
 
-Originally a standalone repo at `C:/Projects/Animation Generator` with its own `tools/` folder duplicating grok + pad scripts. Merged into Auto Game Builder's `tools/animation_generator/` on 2026-04-13, with the duplicated scripts deleted in favor of importing from the shared vendor subfolders.
+Originally a standalone repo (`Animation Generator`) with its own `tools/` folder duplicating grok + pad scripts. Merged into Auto Game Builder's `tools/animation_generator/` on 2026-04-13, with the duplicated scripts deleted in favor of importing from the shared vendor subfolders.

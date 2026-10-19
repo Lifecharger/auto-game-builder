@@ -1,5 +1,5 @@
 // Lifecharger first-party analytics client (canonical copy:
-// C:/Cloudflare Workers/analytics/clients/flutter/lifecharger_analytics.dart).
+// <cloudflare-workers repo>/analytics/clients/flutter/lifecharger_analytics.dart).
 //
 // Anonymous by construction: a random install id generated on this device, the app version and
 // the events below. No advertising id, no account, no device identifiers. Events are queued on

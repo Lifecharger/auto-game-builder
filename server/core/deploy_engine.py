@@ -983,7 +983,7 @@ class DeployEngine:
                 flutter_cwd = self._resolve_flutter_root(app.project_path) if app.app_type == "flutter" else app.project_path
                 # Hard guard: refuse to build if the cwd is missing the project marker.
                 # Without this, a stale/wrong project_path silently produces builds in
-                # the wrong place (e.g. C:\Hot Idle\build instead of C:\Projects\Hot Idle\build).
+                # the wrong place (e.g. <drive>\Hot Idle\build instead of <projects_root>\Hot Idle\build).
                 marker = {
                     "flutter": "pubspec.yaml",
                     "phaser": "package.json",

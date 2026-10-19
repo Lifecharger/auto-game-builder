@@ -4,9 +4,10 @@ app interactions, diagnostics and device ids, for advertising, analytics and fra
 CSVs that were already pushed (analytics types included). Purely additive, except that user control for the
 ad-collected types becomes REQUIRED (single choice; a player cannot switch the ad SDK's collection off)."""
 import csv, io, sys
+from pathlib import Path
 
 APPS = ["hotjigsaw", "hotcharm", "hotslider", "hotidle", "projigsaw", "sentience", "arcadesnake", "beestriker", "deathpin"]
-FOLDER = "C:/Users/caca_/Downloads/datasafety/merged/%s.csv"
+FOLDER = str(Path.home() / "Downloads" / "datasafety" / "merged" / "%s.csv")
 U = "PSL_DATA_USAGE_RESPONSES:%s:%s"
 PURPOSES = ["PSL_ADVERTISING", "PSL_ANALYTICS", "PSL_FRAUD_PREVENTION_SECURITY"]
 TYPES = [("PSL_DATA_TYPES_LOCATION", "PSL_APPROX_LOCATION"), ("PSL_DATA_TYPES_APP_ACTIVITY", "PSL_USER_INTERACTION"),

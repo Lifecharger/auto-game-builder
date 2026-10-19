@@ -10,7 +10,7 @@ Symbols come from the AGB build engine: every Flutter build runs with
 server/data/symbols/<package>/<versionCode>/ (task #332). `symbolize` runs
 `flutter symbolize -d <that dir> -i <stack.txt>`.
 
-Service-account key: --key, else env PLAY_SA_KEY, else the arcade-snake key in D:/keys
+Service-account key: --key, else env PLAY_SA_KEY, else play_console_service_account from tools/local_settings.json
 (same convention as the other playstore tools). Scope: playdeveloperreporting.
 Gotchas (verified 2026-09-09): timeZone must be "America/Los_Angeles" ("UTC" is
 rejected); errorReports filter field is `errorIssueId` (not `issue`); the API
@@ -30,7 +30,11 @@ import time
 from google.auth.transport.requests import AuthorizedSession
 from google.oauth2 import service_account
 
-DEFAULT_KEY = "D:/keys/arcade-snake-488801-35f27b42dfb3.json"
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import local_settings  # noqa: E402
+
+
 SCOPE = "https://www.googleapis.com/auth/playdeveloperreporting"
 API = "https://playdeveloperreporting.googleapis.com/v1beta1/apps/%s"
 TZ = {"id": "America/Los_Angeles"}
@@ -39,7 +43,7 @@ SYMBOLS_ROOT = os.path.normpath(os.path.join(_HERE, "..", "..", "server", "data"
 
 
 def session(key: str | None) -> AuthorizedSession:
-    key = key or os.environ.get("PLAY_SA_KEY") or DEFAULT_KEY
+    key = key or os.environ.get("PLAY_SA_KEY") or local_settings.get("play_console_service_account")
     creds = service_account.Credentials.from_service_account_file(key, scopes=[SCOPE])
     return AuthorizedSession(creds)
 

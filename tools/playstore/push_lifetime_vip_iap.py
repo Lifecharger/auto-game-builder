@@ -12,7 +12,7 @@ The API requires a price in at least one regional config. We set a
 placeholder $0.99 USD — clearly not a real price; user replaces it before
 activating.
 
-Run: python "C:/Projects/Auto Game Builder/tools/playstore/push_lifetime_vip_iap.py"
+Run: python tools/playstore/push_lifetime_vip_iap.py
 """
 from __future__ import annotations
 
@@ -21,7 +21,11 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
-SA_KEY = "D:/keys/arcade-snake-488801-35f27b42dfb3.json"
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import local_settings  # noqa: E402
+
+SA_KEY = local_settings.get("play_console_service_account")
 SCOPES = ["https://www.googleapis.com/auth/androidpublisher"]
 
 APPS = [

@@ -2,7 +2,7 @@
 
 CustomTkinter desktop app that extracts comic pages (.cbr/.cbz), sends each page to the Gemini CLI for bubble detection + English→Turkish translation, and re-renders the translated text back into each speech bubble's shape.
 
-Originally lived at `C:/Projects/Comic Translator` as a standalone repo; merged into Auto Game Builder's `tools/comic_translator/` on 2026-04-13.
+Originally lived as a standalone repo (`Comic Translator`); merged into Auto Game Builder's `tools/comic_translator/` on 2026-04-13.
 
 ## Setup
 

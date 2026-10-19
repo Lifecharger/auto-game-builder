@@ -5,7 +5,7 @@ One-off counterpart of push_listings.py (which handles three apps). Same
 materialize logic and 30/80/4000 validation; only com.lifecharger.hotslider is
 touched. After the commit the listing is read back and the locale set is printed.
 
-Run: python "C:/Projects/Auto Game Builder/tools/playstore/push_hot_slider_listing.py"
+Run: python tools/playstore/push_hot_slider_listing.py
 """
 import sys
 from pathlib import Path
@@ -17,11 +17,14 @@ sys.path.insert(0, str(HERE))
 
 import translations_hot_slider as t_slider
 
-SA_KEY = "D:/keys/arcade-snake-488801-35f27b42dfb3.json"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import local_settings  # noqa: E402
+
+SA_KEY = local_settings.get("play_console_service_account")
 SCOPES = ["https://www.googleapis.com/auth/androidpublisher"]
 
 PACKAGE = "com.lifecharger.hotslider"
-PROJECT_DIR = "C:/Projects/Hot Slider"
+PROJECT_DIR = str(local_settings.path("projects_dir", "Hot Slider"))
 LOCALES = ["es-ES", "de-DE", "ja-JP", "hi-IN", "bn-BD", "fr-FR", "pt-BR", "tr-TR"]
 
 

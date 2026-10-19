@@ -9,7 +9,7 @@ icon, the feature graphic and the phone screenshots, then commit. Rerunnable
 Graphics are uploaded to en-US only; Play falls back to the default
 language's graphics for every listing that has none of its own.
 
-Run: python "C:/Projects/Auto Game Builder/tools/playstore/animestreamer_listing.py"
+Run: python tools/playstore/animestreamer_listing.py
 
 Flags:
   --dry-run    parse and validate every listing file, then stop (no Play edit)
@@ -26,10 +26,13 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaFileUpload
 
-SA_KEY = "D:/keys/arcade-snake-488801-5ac9863bb0ab.json"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import local_settings  # noqa: E402
+
+SA_KEY = local_settings.get("play_publish_service_account")
 SCOPES = ["https://www.googleapis.com/auth/androidpublisher"]
 PACKAGE = "com.lifecharger.animestreamer"
-STORE = Path(r"C:\Projects\Anime Dance Streamer Clicker\store")
+STORE = local_settings.path("projects_dir", "Anime Dance Streamer Clicker", "store")
 
 # Play Console hard limits.
 TITLE_MAX = 30

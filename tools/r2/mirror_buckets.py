@@ -1,6 +1,6 @@
 """Keep a local, byte-for-byte mirror of every live R2 bucket.
 
-Why: the user wants to browse the buckets on disk (`D:/Reusable Assets/r2buckets/
+Why: the user wants to browse the buckets on disk (`<reusable_assets_dir>/r2buckets/
 <bucket>/<key>`), laid out exactly as they are in R2. Only the buckets that stay
 after the legacy retirement are mirrored (registry: server/config/r2_buckets.json,
 role "content"); private and legacy buckets are skipped.
@@ -39,7 +39,10 @@ sys.path.insert(0, str(HERE))
 import r2_s3  # noqa: E402
 
 REGISTRY = HERE.parent.parent / "server" / "config" / "r2_buckets.json"
-DEFAULT_ROOT = Path(r"D:/Reusable Assets/r2buckets")
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import local_settings  # noqa: E402
+
+DEFAULT_ROOT = local_settings.path("reusable_assets_dir", "r2buckets")
 WORKERS = 8
 
 

@@ -679,7 +679,7 @@ class _CharacterGalleryState extends State<CharacterGallery> {
 
   Future<void> _addProject() async {
     String name = '', path = '';
-    final r = await showDialog<bool>(context: context, builder: (c) => AlertDialog(title: const Text('Add Project'), content: Column(mainAxisSize: MainAxisSize.min, children: [TextField(decoration: const InputDecoration(labelText: 'Name'), onChanged: (v) => name = v), const SizedBox(height: 8), TextField(decoration: const InputDecoration(labelText: 'Path', hintText: 'C:/Projects/Game/assets'), onChanged: (v) => path = v)]), actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')), TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('Add'))]));
+    final r = await showDialog<bool>(context: context, builder: (c) => AlertDialog(title: const Text('Add Project'), content: Column(mainAxisSize: MainAxisSize.min, children: [TextField(decoration: const InputDecoration(labelText: 'Name'), onChanged: (v) => name = v), const SizedBox(height: 8), TextField(decoration: const InputDecoration(labelText: 'Path', hintText: '/path/to/Game/assets'), onChanged: (v) => path = v)]), actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')), TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('Add'))]));
     if (r == true && name.isNotEmpty && path.isNotEmpty) { _projects.add(ProjectInfo(name: name, path: path.replaceAll('\\', '/'))); await saveProjects(_projects); await Directory(path).create(recursive: true); setState(() => _selectedProject = _projects.length - 1); await _scanCurrentProject(); _saveState(); }
   }
 

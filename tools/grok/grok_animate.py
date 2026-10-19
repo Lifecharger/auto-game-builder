@@ -53,9 +53,11 @@ PROFILE_DIR = os.environ.get("GROK_PROFILE_DIR") or DEFAULT_PROFILE_DIR
 IMAGINE_URL = "https://grok.com/imagine"
 
 # Rendered videos land in the r2manager Incoming folder, same as generated images.
-OUTPUT_DIR = os.environ.get("GROK_OUTPUT_DIR") or os.path.join(
-    "D:\\", "Asset Generation Pipeline", "_Incoming"
-)
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import local_settings  # noqa: E402
+
+OUTPUT_DIR = os.environ.get("GROK_OUTPUT_DIR") or str(
+    local_settings.path("pipeline_root", "_Incoming"))
 
 
 def _load_sso_cookies():

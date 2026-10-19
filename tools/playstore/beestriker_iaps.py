@@ -5,13 +5,18 @@ Each product is created with a placeholder USD price — required by the API
 (min $0.05) — and left in DRAFT state (we never call batchUpdateStates), so
 nothing is visible to users. Edit real prices in Play Console.
 
-Run: python "C:/Projects/Auto Game Builder/tools/playstore/beestriker_iaps.py"
+Run: python tools/playstore/beestriker_iaps.py
 """
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
-SA_KEY = "D:/keys/arcade-snake-488801-35f27b42dfb3.json"
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import local_settings  # noqa: E402
+
+SA_KEY = local_settings.get("play_console_service_account")
 SCOPES = ["https://www.googleapis.com/auth/androidpublisher"]
 PACKAGE = "com.lifecharger.beestriker"
 REGIONS_VERSION = "2022/02"

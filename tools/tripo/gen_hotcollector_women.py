@@ -17,6 +17,11 @@ import requests
 
 from tripo_studio_api import TripoStudio
 
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import local_settings  # noqa: E402
+
+
 WOMEN = {
     "elf": (
         "beautiful adult elven woman, long silver white hair, pointed elf ears, "
@@ -46,7 +51,8 @@ WOMEN = {
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--out", default="C:/Projects/Hot Collector/raw_assets/tripo_women")
+    ap.add_argument("--out", default=str(local_settings.path(
+        "projects_dir", "Hot Collector", "raw_assets", "tripo_women")))
     args = ap.parse_args()
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)

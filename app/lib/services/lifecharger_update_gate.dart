@@ -1,6 +1,6 @@
 // Forced update gate (2026-09-26, user: "update can't skip").
 //
-// Copied UNCHANGED into every Life Charger Flutter app (sync: C:/Cloudflare Workers/_build/
+// Copied UNCHANGED into every Life Charger Flutter app (sync: <cloudflare-workers repo>/_build/
 // sync_update_gate.py). Wrap the root widget:  runApp(ForcedUpdateGate(child: MyApp()));
 //
 // On launch (after the first frame) and every return to the foreground it asks Google Play

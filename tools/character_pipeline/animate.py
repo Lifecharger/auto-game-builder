@@ -26,7 +26,9 @@ if _TOOLS_DIR not in sys.path:
 
 from grok.grok_animate import animate
 
-INPUT_DIR = r"C:\Projects\Hot Card Games\design\characters"
+import local_settings  # noqa: E402
+
+INPUT_DIR = str(local_settings.path("projects_dir", "Hot Card Games", "design", "characters"))
 DEFAULT_PROMPT = (
     "subtle idle breathing motion, slight hair sway, minimal body movement, "
     "static camera, gentle pose shifts, no camera movement"

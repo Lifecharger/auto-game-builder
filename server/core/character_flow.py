@@ -75,7 +75,8 @@ _TOOLS = os.path.join(_ROOT, "tools")
 _SETTINGS = os.path.join(_ROOT, "server", "config", "settings.json")
 THUMB_DIR = os.path.join(G.OUT_DIR, "_char_thumbs")
 
-DEFAULT_ROOT = r"C:\Reusable Assets\Realistic Women"
+# Gercek yol settings.json `character.root` ayarindadir (depo herkese acik).
+DEFAULT_ROOT = os.path.join(os.path.expanduser("~"), "Reusable Assets", "Realistic Women")
 
 # 8 YON - TEK TANIM YERI (rev2). Saat yonunde, karakterin SAGINA dogru.
 # Azimut = manken kamerasinin karakterin kendi ileri yonune gore acisi.
@@ -406,7 +407,7 @@ def _setting(key: str, default: str = "") -> str:
         for part in key.split("."):
             d = (d or {}).get(part)
         if isinstance(d, str) and d.strip():
-            return d.strip()
+            return os.path.expanduser(d.strip())
     except Exception:
         pass
     return default

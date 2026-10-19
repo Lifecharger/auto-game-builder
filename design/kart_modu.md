@@ -72,7 +72,7 @@ gömülü scarlett'in yolunu değiştiren bir uygulama sürümü gerekir (ayrı 
 - **Önbellek kuralı:** istemciler dosya baytlarını sonsuza dek saklar; üstüne yazma yok, yol değişir (`_sheet_v3`), önce dosyalar sonra manifest.
 - Bilinen sorunlar: chroma key ten yansıması/saç halesi, "yeşil kıyafet yasak", i2v kamera kayması (guard_firstframe + check_keying).
 
-## 2. Kütüphane düzeni (`D:\Asset Generation Pipeline\Hot Card Games\`, settings `card.root`)
+## 2. Kütüphane düzeni (`<pipeline_root>\Hot Card Games\`, settings `card.root`)
 ```
 _Incoming Kart\<stem>.jpg (+.json)          1 → 2: Üretilenler'den sahnelenen 2:3 still (chroma yeşil)
 <Koleksiyon>\collection.json                {id, name, theme, style: "realistic", ranks: {A:{...},...}, jokers, created}
@@ -83,7 +83,7 @@ _Incoming Kart\<stem>.jpg (+.json)          1 → 2: Üretilenler'den sahnelenen
 <Koleksiyon>\_pushed.json                   R2'ye giden dosya adları + sürüm eki
 _Dealers\<ad>\...  _Avatars\<ad>\...        aynı yapı (krupiye: bel üstü, avatar: kare)
 ```
-Mevcut Grok masterları `C:\Projects\Hot Card Games\design\characters\<koleksiyon>\videos\<id>.mp4` → ilk kullanımda `card.root` altına
+Mevcut Grok masterları `<projects_root>\Hot Card Games\design\characters\<koleksiyon>\videos\<id>.mp4` → ilk kullanımda `card.root` altına
 **kopyalanır** (kaynak silinmez), `collection.json` roster.json'dan türetilir (`_migrate_grok`).
 
 ## 3. Kesim: SAM3 (`tools/cardpipe_local/cut.py`, sunucu `card_flow.cut`) — YEŞİL EKRAN ARTIK GEREKMİYOR

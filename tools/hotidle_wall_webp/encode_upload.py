@@ -1,8 +1,9 @@
 """Encode Hot Idle / Hot Jigsaw wall videos to animated WebP and upload to R2.
 
-Source: original (pre-recompress) MP4 backups at D:/Backup/hotjigsaw_r2/
+Source: original (pre-recompress) MP4 backups at <backup_dir>/hotjigsaw_r2/
         (flat names: collections__<id>__videos__N.mp4)
-Output: D:/Backup/hotjigsaw_r2_webp/ (same flat names, .webp)
+Output: <backup_dir>/hotjigsaw_r2_webp/ (same flat names, .webp)
+        (backup_dir, keys_dir and owner_email come from tools/local_settings.json)
 R2 key: collections/<id>/videos_webp/N.webp  (gallery-hot bucket)
 
 The r2-scanner worker ignores .webp files outside images//thumbs/, so these
@@ -11,7 +12,7 @@ URL (/videos/N.mp4 -> /videos_webp/N.webp).
 
 Settings match the in-app frame extractor's display size (256px wide) at its
 24fps target. `encode_file()` is the shared entry point — r2manager imports it
-so accepted assets encode identically. Reads the Cloudflare Global API Key from D:/keys at
+so accepted assets encode identically. Reads the Cloudflare Global API Key from keys_dir at
 runtime (NEVER embed it). Resume-safe in both phases: encode skips existing
 non-empty outputs, upload skips keys whose remote size already matches.
 
@@ -19,7 +20,7 @@ Usage:
     python encode_upload.py              # encode then upload
     python encode_upload.py --encode-only
     python encode_upload.py --upload-only
-    python encode_upload.py --fps 24 --out D:/Backup/hotjigsaw_r2_webp24
+    python encode_upload.py --fps 24 --out <backup_dir>/hotjigsaw_r2_webp24
 """
 import argparse
 import concurrent.futures
@@ -33,12 +34,17 @@ from pathlib import Path
 
 import imageio_ffmpeg
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import local_settings  # noqa: E402
+
 FFMPEG = imageio_ffmpeg.get_ffmpeg_exe()
 
-SRC_DIR = Path(r"D:/Backup/hotjigsaw_r2")
+# Resolved in main() from local_settings (backup_dir); r2manager imports this module
+# for encode_file() only, so nothing machine-specific is read at import time.
+SRC_DIR: Path | None = None
 # Mutable so --out / --fps can retarget a run (e.g. the 24fps re-encode)
 # without disturbing the previous output set, which doubles as rollback.
-OUT_DIR = Path(r"D:/Backup/hotjigsaw_r2_webp")
+OUT_DIR: Path | None = None
 
 # 24fps matches what is actually in the bucket today (sampled objects decode to
 # 241 frames over 10s). The original 12fps pass was superseded by the 24fps
@@ -59,8 +65,7 @@ PARALLEL = max(2, (os.cpu_count() or 4) // 2)
 
 ACC = "25d974e94beddd70f6923d50e7222e68"
 BUCKET = "gallery-hot"
-KEY_FILE = r"D:/keys/cloudflare_global_api_key.txt"
-EMAIL = "koplayer17@gmail.com"
+KEY_FILE_NAME = "cloudflare_global_api_key.txt"   # inside keys_dir
 
 
 def r2_key_for(flat_name: str) -> str:
@@ -123,8 +128,8 @@ def encode_all() -> bool:
 
 
 def headers() -> dict:
-    key = open(KEY_FILE).read().strip()
-    return {"X-Auth-Email": EMAIL, "X-Auth-Key": key}
+    key = local_settings.key_file(KEY_FILE_NAME).read_text().strip()
+    return {"X-Auth-Email": local_settings.get("owner_email"), "X-Auth-Key": key}
 
 
 def base_url() -> str:
@@ -180,15 +185,17 @@ def upload_all() -> bool:
 
 
 def main() -> None:
-    global FPS, OUT_DIR
+    global FPS, OUT_DIR, SRC_DIR
     ap = argparse.ArgumentParser()
     ap.add_argument("--encode-only", action="store_true")
     ap.add_argument("--upload-only", action="store_true")
     ap.add_argument("--fps", type=int, default=FPS)
-    ap.add_argument("--out", type=Path, default=OUT_DIR)
+    ap.add_argument("--out", type=Path, default=None,
+                    help="output folder (default <backup_dir>/hotjigsaw_r2_webp)")
     args = ap.parse_args()
     FPS = args.fps
-    OUT_DIR = args.out
+    SRC_DIR = local_settings.path("backup_dir", "hotjigsaw_r2")
+    OUT_DIR = args.out or local_settings.path("backup_dir", "hotjigsaw_r2_webp")
     print(f"fps={FPS} out={OUT_DIR}", flush=True)
 
     ok = True

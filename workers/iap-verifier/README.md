@@ -34,7 +34,7 @@ secrets fail closed (HTTP 500 `server_misconfigured`), never leaking contents.
 
 ## Owner steps to go live
 
-Run these from this folder (`C:\Projects\iap-verifier`). You need
+Run these from this folder (`workers/iap-verifier`). You need
 [wrangler](https://developers.cloudflare.com/workers/wrangler/) logged in to
 your Cloudflare account (`wrangler login`).
 
@@ -54,7 +54,7 @@ Paste the **entire** Google Play Publish API service-account JSON key when
 prompted. Your key file is at:
 
 ```
-D:/keys/arcade-snake-488801-5ac9863bb0ab.json
+<keys_dir>/<play-publish-service-account>.json   (play_publish_service_account in tools/local_settings.json)
 ```
 
 (Open it, copy the whole JSON, paste at the prompt. It is stored as an

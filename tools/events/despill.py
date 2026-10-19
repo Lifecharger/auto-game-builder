@@ -3,7 +3,8 @@ is not green but that came back with green blobs). python despill.py <event> <ke
 import io, json, re, sys
 import numpy as np
 from PIL import Image
-sys.path.insert(0, "C:/Projects/Auto Game Builder/tools/r2")
+from pathlib import Path  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "r2"))
 import r2_s3
 from build_v2_pack import BUCKET, CACHE_IMG, CACHE_JSON, MIRROR, ROOT
 from pack_lock import pack_lock

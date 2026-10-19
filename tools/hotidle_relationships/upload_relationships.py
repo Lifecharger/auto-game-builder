@@ -41,15 +41,14 @@ from PIL import Image
 HERE = os.path.dirname(os.path.abspath(__file__))
 SRC = r"C:/Reusable Assets/Images/Hot Idle/relationships"
 OUT = os.path.join(SRC, "_delivery")
-# 2026-09-17 (R2 reorganization, see C:/Cloudflare Workers/R2_MAP.md): relationship art lives in
+# 2026-09-17 (R2 reorganization, see R2_MAP.md in the Cloudflare Workers repo): relationship art lives in
 # the `characters` bucket as <girl>/relationships/<file>, served from
 # https://characters.lifechargergames.com. The legacy `hotcardgames` twin was retired on
 # 2026-09-27; nothing is copied anywhere else any more. The state file keeps its old name so the
 # upload history (sha per key) stays valid.
 BUCKET = "characters"
 STATE = os.path.join(SRC, "_delivery", "upload_state_hotcardgames.json")
-WRANGLER = (shutil.which("wrangler.cmd") or shutil.which("wrangler")
-            or r"C:\Users\caca_\AppData\Roaming\npm\wrangler.cmd")
+WRANGLER = shutil.which("wrangler.cmd") or shutil.which("wrangler") or "wrangler"
 FFMPEG = shutil.which("ffmpeg") or "ffmpeg"
 
 CACHE_MUTABLE = "public, max-age=21600, stale-while-revalidate=86400"
@@ -63,7 +62,11 @@ KINDS = {
     "sceneloops": {"key": "L{n}_scene_loop.webp", "levels": range(1, 11)},
 }
 REFS = r"C:/Reusable Assets/Images/Hot Idle/cashiers_side/refs"
-FRONT = r"C:/Projects/Hot Idle/assets/images/cashiers_front"
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import local_settings  # noqa: E402
+
+FRONT = str(local_settings.path("projects_dir", "Hot Idle", "assets", "images", "cashiers_front"))
 
 
 def order() -> dict:

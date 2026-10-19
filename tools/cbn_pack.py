@@ -2,9 +2,9 @@
 """Bundle staged color-by-number assets into a Flutter app's assets/packs folder.
 
 Usage:
-    python cbn_pack.py --rating hot --dest "C:/Projects/CBN Hot/assets/packs"
-    python cbn_pack.py --rating kid --dest "C:/Projects/CBN Pro/assets/packs"
-    python cbn_pack.py --rating hot --dest ... --source-root "D:/some/other/Hot CBN"
+    python cbn_pack.py --rating hot --dest "<projects_dir>/CBN Hot/assets/packs"
+    python cbn_pack.py --rating kid --dest "<projects_dir>/CBN Pro/assets/packs"
+    python cbn_pack.py --rating hot --dest ... --source-root "<some/other>/Hot CBN"
 
 Reads the staging tree produced by AGB tools/comfyui/{hot_cbn,kid_cbn}.py:
 
@@ -41,9 +41,13 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[0]))
+import local_settings  # noqa: E402
+
+
 DEFAULT_ROOTS = {
-    "hot": Path(r"D:/Asset Generation Pipeline/Hot CBN"),
-    "kid": Path(r"D:/Asset Generation Pipeline/Kid CBN"),
+    "hot": ("pipeline_root", "Hot CBN"),
+    "kid": ("pipeline_root", "Kid CBN"),
 }
 
 # _proto folders that are packed for the hot rating (spec section 6).
@@ -440,7 +444,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = ap.parse_args(argv)
 
-    root = Path(args.source_root) if args.source_root else DEFAULT_ROOTS[args.rating]
+    root = Path(args.source_root) if args.source_root else local_settings.path(*DEFAULT_ROOTS[args.rating])
     dest = Path(args.dest).resolve()
 
     log(f"rating      : {args.rating}")

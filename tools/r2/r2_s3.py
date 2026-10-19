@@ -18,7 +18,10 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 
-CREDENTIALS_FILE = "D:/keys/cloudflare_r2_s3_credentials.json"
+# Resolved lazily (see credentials()): set_credentials_file wins, else
+# <keys_dir>/cloudflare_r2_s3_credentials.json from tools/local_settings.json.
+CREDENTIALS_FILE = ""
+CREDENTIALS_NAME = "cloudflare_r2_s3_credentials.json"
 _EMPTY_SHA = hashlib.sha256(b"").hexdigest()
 _NS = "{http://s3.amazonaws.com/doc/2006-03-01/}"
 
@@ -34,8 +37,21 @@ def set_credentials_file(path: str) -> None:
         CREDENTIALS_FILE = path.strip()
 
 
+def _credentials_path() -> str:
+    global CREDENTIALS_FILE
+    if not CREDENTIALS_FILE:
+        import os
+        import sys
+        tools_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if tools_dir not in sys.path:
+            sys.path.insert(0, tools_dir)
+        import local_settings
+        CREDENTIALS_FILE = str(local_settings.key_file(CREDENTIALS_NAME))
+    return CREDENTIALS_FILE
+
+
 def credentials() -> dict:
-    with open(CREDENTIALS_FILE, encoding="utf-8") as f:
+    with open(_credentials_path(), encoding="utf-8") as f:
         cred = json.load(f)
     for alan in ("endpoint", "access_key_id", "secret_access_key"):
         if not cred.get(alan):

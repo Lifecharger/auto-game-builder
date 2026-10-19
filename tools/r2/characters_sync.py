@@ -42,13 +42,16 @@ BUCKET = "idols"
 PUBLIC_BASE = "https://idols.lifechargergames.com"
 CACHE_IMMUTABLE = "public, max-age=7776000, immutable"
 CACHE_MANIFEST = "public, max-age=21600, stale-while-revalidate=86400"
-WRANGLER = (shutil.which("wrangler.cmd") or shutil.which("wrangler")
-            or r"C:\Users\caca_\AppData\Roaming\npm\wrangler.cmd")
+WRANGLER = shutil.which("wrangler.cmd") or shutil.which("wrangler") or "wrangler"
 HERE = os.path.dirname(os.path.abspath(__file__))
 STATE_PATH = os.path.join(HERE, "state", "characters_sync_state.json")
 
 BELLA = r"C:\Reusable Assets\Anime Girls\Bella"
-ADSC = r"C:\Projects\Anime Dance Streamer Clicker"
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import local_settings  # noqa: E402
+
+ADSC = str(local_settings.path("projects_dir", "Anime Dance Streamer Clicker"))
 
 MIME = {".webp": "image/webp", ".png": "image/png", ".jpg": "image/jpeg",
         ".jpeg": "image/jpeg", ".mp4": "video/mp4", ".json": "application/json",

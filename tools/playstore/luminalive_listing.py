@@ -9,7 +9,7 @@ the listing).
 Graphics are uploaded to en-US only; Play falls back to the default language's
 graphics for every listing that has none of its own.
 
-Run: python "C:/Projects/Auto Game Builder/tools/playstore/luminalive_listing.py"
+Run: python tools/playstore/luminalive_listing.py
 """
 import os
 import re
@@ -20,10 +20,14 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaFileUpload
 
-SA_KEY = "D:/keys/arcade-snake-488801-5ac9863bb0ab.json"
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import local_settings  # noqa: E402
+
+SA_KEY = local_settings.get("play_publish_service_account")
 SCOPES = ["https://www.googleapis.com/auth/androidpublisher"]
 PACKAGE = "com.lifecharger.luminalive"
-STORE = Path(r"C:\Projects\Lumina Live\store")
+STORE = local_settings.path("projects_dir", "Lumina Live", "store")
 LISTING_DIR = STORE / "listing"
 
 # Support address shown on the Play store page.

@@ -1,16 +1,22 @@
 """Upload the Lumina Live AAB and stage a draft release on the
 closed testing track. Testers/countries/rollout finish in the Console UI.
 
-Run: python "C:/Projects/Auto Game Builder/tools/playstore/luminalive_upload.py"
+Run: python tools/playstore/luminalive_upload.py
 """
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
-SA_KEY = "D:/keys/arcade-snake-488801-5ac9863bb0ab.json"
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import local_settings  # noqa: E402
+
+SA_KEY = local_settings.get("play_publish_service_account")
 SCOPES = ["https://www.googleapis.com/auth/androidpublisher"]
 PACKAGE = "com.lifecharger.luminalive"
-AAB = r"C:\Projects\Lumina Live\build\app\outputs\bundle\release\app-release.aab"
+AAB = str(local_settings.path("projects_dir", "Lumina Live", "build", "app", "outputs",
+                              "bundle", "release", "app-release.aab"))
 
 
 def main() -> int:

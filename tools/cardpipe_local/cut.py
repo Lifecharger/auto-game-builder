@@ -35,10 +35,10 @@ icinde durur, zoom yapan as %15.9 -> %37.4 kosmustu"), maske kapsama surekliligi
 yari-alfa orani (over-key), artik yesil (under-key).
 
 Kullanim
-    python cut.py --video master.mp4 --out D:/.../ace --mode sam
-    python cut.py --video master.mp4 --out D:/.../ace --mode hybrid --still still.png
-    python cut.py --compare --video master.mp4 --out D:/.../_cut_test/ace
-    python cut.py --restill --still still.png --out D:/.../restill/A.png --compare
+    python cut.py --video master.mp4 --out <card_root>/.../ace --mode sam
+    python cut.py --video master.mp4 --out <card_root>/.../ace --mode hybrid --still still.png
+    python cut.py --compare --video master.mp4 --out <card_root>/.../_cut_test/ace
+    python cut.py --restill --still still.png --out <card_root>/.../restill/A.png --compare
 
 Kutuphane olarak
     from tools.cardpipe_local.cut import cut_video, build_sheet, sam_masks
