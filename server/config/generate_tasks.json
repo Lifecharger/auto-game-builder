@@ -128,39 +128,6 @@
       "enabled": true
     },
     {
-      "id": "video_minimax_flf",
-      "label": "Gorselden dongulu video (MiniMax H3, sesli, 576x864)",
-      "workflow": "FLF2V MiniMax H3 Kart.json",
-      "needs_image": true,
-      "is_video": true,
-      "width": 576,
-      "height": 864,
-      "duration": 6,
-      "enabled": true
-    },
-    {
-      "id": "video_minimax",
-      "label": "Gorselden video (MiniMax H3, sesli, ilk kare)",
-      "workflow": "I2V MiniMax H3 Kart.json",
-      "needs_image": true,
-      "is_video": true,
-      "width": 576,
-      "height": 864,
-      "duration": 6,
-      "enabled": true
-    },
-    {
-      "id": "video_wan",
-      "label": "Gorselden video (Wan)",
-      "workflow": "Wan2.2 I2V.json",
-      "needs_image": true,
-      "is_video": true,
-      "width": 704,
-      "height": 1280,
-      "duration": 5,
-      "enabled": true
-    },
-    {
       "id": "video_upscale_anime",
       "label": "Video 2x upscale (ESRGAN anime, kare kare)",
       "workflow": "UPS Video 2x ESRGAN Anime.json",

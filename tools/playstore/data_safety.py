@@ -11,8 +11,11 @@ client collects and never unsets an existing answer (ads, sign-in, purchases sta
   App info and performance / Diagnostics collected, Analytics, optional
   App info and performance / Crash logs  collected, Analytics, optional  (not for Godot apps: their
                                          client reports start time and freezes, not errors)
+  Financial info / Purchase history      collected, Analytics, optional  (--purchases: games that sell
+                                         in-app; purchase events carry product, price and currency)
 
-  python data_safety.py merge <exported.csv> <out.csv> [--no-crash-logs]   write the merged CSV, print the diff
+  python data_safety.py merge <exported.csv> <out.csv> [--no-crash-logs] [--purchases]
+                                                  write the merged CSV, print the diff
   python data_safety.py push <package> <merged.csv>                        send it (204 = saved)
   python data_safety.py run <folder> [--push]     every <slug>.csv in the folder (hotjigsaw.csv, deathpin.csv ...):
                                                   merge into <folder>/merged/, and with --push send them
@@ -35,17 +38,23 @@ DEFAULT_KEY = local_settings.get("play_publish_service_account")
 SCOPE = "https://www.googleapis.com/auth/androidpublisher"
 USAGE = "PSL_DATA_USAGE_RESPONSES:%s:%s"
 
-# slug (file name) -> (package, reports uncaught errors)
+# slug (file name) -> (package, reports uncaught errors, sells something in-app)
 APPS = {
-    "acepong": ("com.lifecharger.acepong", True), "arcadesnake": ("com.lifecharger.arcadesnake", True),
-    "appmanager": ("com.lifecharger.appmanager", True), "beestriker": ("com.lifecharger.beestriker", False),
-    "deathpin": ("com.lifecharger.deathpin", False), "hotcharm": ("com.lifecharger.hotcharm", True),
-    "hotidle": ("com.lifecharger.hotidle", True), "hotjigsaw": ("com.lifecharger.hotjigsaw", True),
-    "hotslider": ("com.lifecharger.hotslider", True), "locationalarm": ("com.lifecharger.locationalarm", True),
-    "projigsaw": ("com.lifecharger.projigsaw", True), "sentience": ("com.lifecharger.sentience", True),
-    "hotcardgames": ("com.lifecharger.hotcardgames", True), "animestreamer": ("com.lifecharger.animestreamer", True),
-    "animashift": ("com.lifecharger.animashift", True), "antempire": ("com.lifecharger.antempire", True),
-    "newcitynewrise": ("com.lifecharger.newcitynewrise", True),
+    "acepong": ("com.lifecharger.acepong", True, True), "arcadesnake": ("com.lifecharger.arcadesnake", True, False),
+    "appmanager": ("com.lifecharger.appmanager", True, True), "beestriker": ("com.lifecharger.beestriker", False, True),
+    "deathpin": ("com.lifecharger.deathpin", True, True),  # Flutter remake (2.x) reports app_error
+    "hotcharm": ("com.lifecharger.hotcharm", True, True),
+    "hotidle": ("com.lifecharger.hotidle", True, True), "hotjigsaw": ("com.lifecharger.hotjigsaw", True, True),
+    "hotslider": ("com.lifecharger.hotslider", True, True), "locationalarm": ("com.lifecharger.locationalarm", True, True),
+    "projigsaw": ("com.lifecharger.projigsaw", True, True), "sentience": ("com.lifecharger.sentience", True, True),
+    "hotcardgames": ("com.lifecharger.hotcardgames", True, True),
+    "animestreamer": ("com.lifecharger.animestreamer", True, True),
+    "animashift": ("com.lifecharger.animashift", True, True), "antempire": ("com.lifecharger.antempire", True, True),
+    "newcitynewrise": ("com.lifecharger.newcitynewrise", False, False),  # Settler Sums, Godot
+    "hotsand": ("com.lifecharger.hotclash", True, True), "hotclash": ("com.lifecharger.hotclash", True, True),
+    "cosmicgrow": ("com.lifecharger.hotcollector", False, True),  # Godot
+    "luminalive": ("com.lifecharger.luminalive", True, True),
+    "pixeladventurer": ("com.lifecharger.pixeladventurer", True, True),
 }
 
 
@@ -60,7 +69,7 @@ def write_rows(path: str, rows: list[list[str]]) -> None:
         csv.writer(f, lineterminator="\n").writerows(rows)
 
 
-def merge(rows: list[list[str]], crash_logs: bool) -> tuple[list[list[str]], list[str]]:
+def merge(rows: list[list[str]], crash_logs: bool, purchases: bool = False) -> tuple[list[list[str]], list[str]]:
     """Returns (rows, human-readable changes). Only ever turns answers ON or fills empty ones."""
     index = {(r[0], r[1]): r for r in rows[1:] if len(r) >= 3}
     changes: list[str] = []
@@ -88,6 +97,8 @@ def merge(rows: list[list[str]], crash_logs: bool) -> tuple[list[list[str]], lis
              ("PSL_DATA_TYPES_APP_PERFORMANCE", "PSL_PERFORMANCE_DIAGNOSTICS")]
     if crash_logs:
         types.append(("PSL_DATA_TYPES_APP_PERFORMANCE", "PSL_CRASH_LOGS"))
+    if purchases:  # purchase events carry product, price and currency
+        types.append(("PSL_DATA_TYPES_FINANCIAL", "PSL_PURCHASE_HISTORY"))
     for group, data_type in types:
         put(group, data_type, "true")
         put(USAGE % (data_type, "PSL_DATA_USAGE_COLLECTION_AND_SHARING"), "PSL_DATA_USAGE_ONLY_COLLECTED", "true")
@@ -122,6 +133,7 @@ def main() -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
     m = sub.add_parser("merge")
     m.add_argument("src"), m.add_argument("dst"), m.add_argument("--no-crash-logs", action="store_true")
+    m.add_argument("--purchases", action="store_true")
     p = sub.add_parser("push")
     p.add_argument("package"), p.add_argument("csv"), p.add_argument("--key")
     r = sub.add_parser("run")
@@ -129,7 +141,7 @@ def main() -> int:
     a = ap.parse_args()
 
     if a.cmd == "merge":
-        rows, changes = merge(read_rows(a.src), not a.no_crash_logs)
+        rows, changes = merge(read_rows(a.src), not a.no_crash_logs, a.purchases)
         write_rows(a.dst, rows)
         print("\n".join(changes) or "nothing to change")
         return 0
@@ -144,8 +156,8 @@ def main() -> int:
         if slug not in APPS:
             print("SKIP %s: file name is not one of %s" % (name, ", ".join(sorted(APPS))))
             continue
-        package, crash_logs = APPS[slug]
-        rows, changes = merge(read_rows(os.path.join(a.folder, name)), crash_logs)
+        package, crash_logs, purchases = APPS[slug]
+        rows, changes = merge(read_rows(os.path.join(a.folder, name)), crash_logs, purchases)
         out = os.path.join(a.folder, "merged", slug + ".csv")
         write_rows(out, rows)
         print("== %s (%s): %d answers changed" % (slug, package, len(changes)))

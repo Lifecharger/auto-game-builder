@@ -50,6 +50,13 @@ const json = (status, body) =>
     headers: { "content-type": "application/json" },
   });
 
+const CORS = {
+  "access-control-allow-origin": "*",
+  "access-control-allow-methods": "POST, OPTIONS",
+  "access-control-allow-headers": "content-type",
+  "access-control-max-age": "86400",
+};
+
 const clamp = (v, n) => (typeof v === "string" ? v.slice(0, n) : "");
 
 export default {
@@ -61,13 +68,22 @@ export default {
       return new Response("ok", { status: 200 });
     }
 
+    // /report is public and write-only, so browser builds of the games (web test
+    // builds) may POST to it from any origin; /reports* stays server-to-server.
+    if (request.method === "OPTIONS" && pathname === "/report") {
+      return new Response(null, { status: 204, headers: CORS });
+    }
+
     if (request.method === "POST" && pathname === "/report") {
+      let res;
       try {
-        return await handleSubmit(request, env);
+        res = await handleSubmit(request, env);
       } catch (err) {
         console.error("submit failed", err);
-        return json(500, { error: "internal" });
+        res = json(500, { error: "internal" });
       }
+      for (const [k, v] of Object.entries(CORS)) res.headers.set(k, v);
+      return res;
     }
 
     // --- Authenticated read/delete (AGB only) -------------------------------

@@ -398,9 +398,19 @@ class _IntroOverlayState extends State<_IntroOverlay>
   }
 
   Future<void> _loadSounds() async {
-    final charge = AudioPlayer(playerId: 'lc_intro_charge');
-    final strike = AudioPlayer(playerId: 'lc_intro_strike');
+    // Low latency (SoundPool), not MediaPlayer: preparing two MediaPlayers on
+    // the main thread right after the first frame was a Play ANR
+    // (MediaPlayerWrapper.<init> / UrlSource.setForMediaPlayer, 2026-10-26).
+    // No position polling either: nothing here reads positions.
+    final charge = AudioPlayer(playerId: 'lc_intro_charge')
+      ..positionUpdater = null;
+    final strike = AudioPlayer(playerId: 'lc_intro_strike')
+      ..positionUpdater = null;
     try {
+      await Future.wait([
+        charge.setPlayerMode(PlayerMode.lowLatency),
+        strike.setPlayerMode(PlayerMode.lowLatency),
+      ]);
       // Mixed with other audio: the intro never pauses the player's music.
       final ctx =
           AudioContextConfig(focus: AudioContextConfigFocus.mixWithOthers)

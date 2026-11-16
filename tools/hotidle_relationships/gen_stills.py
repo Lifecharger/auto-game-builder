@@ -101,9 +101,9 @@ def scene_size(level: int) -> tuple[int, int]:
 
 
 def scene_loop_size(level: int) -> tuple[int, int]:
-    """MiniMax H3 size for the level's living portrait: multiples of 32, long
-    side 864 (the H3 Kart preset is 576x864), at the frame's aspect."""
-    return _fit(frame_aspect(level), 864, 32)
+    """LTX-2.5 size for the level's living portrait: multiples of 32, long
+    side 1280 (the LTX2.5 I2V preset is 704x1280), at the frame's aspect."""
+    return _fit(frame_aspect(level), 1280, 32)
 
 
 def scene_canvas(src: str, level: int, dst: str) -> str:
@@ -227,7 +227,7 @@ SCENE_SPICE = {
     "9": "Seductive: a slow sensual sway, a smouldering gaze. ",
     "10": "Very seductive: a slow, sexy dance for the camera, smouldering eye contact. ",
 }
-SCENE_TASK = "video_minimax"   # MiniMax H3 image-to-video (user 2026-09-16: "go for minimax route for all"), first frame only, no loop
+SCENE_TASK = "video_ltx"   # LTX-2.5 image-to-video, first frame only, no loop (MiniMax H3 removed 2026-11-09)
 
 SCENE_GESTURE = {
     "1": "she glances at the viewer and gives a small polite smile.",

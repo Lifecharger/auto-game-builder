@@ -1,5 +1,5 @@
 {
- "_aciklama": "Sinif presetleri (gorev #286): create sirasinda <Isim>/anims.json'a kopyalanir. 'fbx' Mixamo arsivindeki TAM dosya adidir (tools/mixamo_downloader/animations). 'groups' ayni tuvali paylasan klipler - manken kamerasi grubun tum kliplerini kapsayacak sekilde kurulur (bbox_fbx). prop bos string = o klipte silah yok.",
+ "_aciklama": "Sinif presetleri (gorev #286): create sirasinda <Isim>/anims.json'a kopyalanir. 'fbx' Mixamo arsivindeki TAM dosya adidir (D:/Reusable Assets/Animations/Mixamo; eski tools/mixamo_downloader/animations). 'groups' ayni tuvali paylasan klipler - manken kamerasi grubun tum kliplerini kapsayacak sekilde kurulur (bbox_fbx). prop bos string = o klipte silah yok.",
  "warrior": {
   "canvas": 640,
   "fps_out": 15,

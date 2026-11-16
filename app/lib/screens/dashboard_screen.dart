@@ -1187,6 +1187,9 @@ class _AppIconWidget extends StatelessWidget {
           ? Opacity(
               opacity: dimmed ? 0.5 : 1.0,
               child: CachedAppIcon(
+                // One state per app: a reordered list must not hand this
+                // app's slot the picture another app was showing.
+                key: ValueKey('app-icon-${app.id}'),
                 appId: app.id,
                 iconPath: app.iconPath,
                 size: 48,

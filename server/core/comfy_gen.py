@@ -79,7 +79,6 @@ _FALLBACK = {
     "image_sdxl": ("Image SDXL Simple.json", False, False, (832, 1216)),
     "edit_qwen": ("Image Qwen Image.json", True, False, (0, 0)),
     "video_ltx": ("LTX2.5 I2V.json", True, True, (704, 1280)),
-    "video_wan": ("Wan2.2 I2V.json", True, True, (704, 1280)),
 }
 
 _manifest_cache: tuple[float, list[dict]] | None = None
@@ -386,7 +385,7 @@ def task_needs_image(spec: dict, slots: list[dict] | None = None) -> bool:
 
     Manifest gorevlerinde manifest'in dedigi gecerlidir; otomatik listelenen is
     akislarinda dosya adi on ekinden tahmin yerine gercek yuvalara bakilir
-    (ornek: FLF2V MiniMax H3 hicbir LoadImage tasimaz, gorsel istemez).
+    (ornek: LoadImage tasimayan bir is akisi gorsel istemez).
     """
     if not spec.get("auto"):
         return bool(spec.get("needs_image"))

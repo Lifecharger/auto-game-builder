@@ -78,7 +78,9 @@ RESPONSES_JS = """async (conv) => {
       const id = ch.imageUuid || ch.videoUuid;
       if (!id) continue;
       items.push({uuid: id, kind: ch.videoUuid ? 'video' : 'image', mime: ch.mimeType || '',
-                  prompt: (ch.imagePrompt && ch.imagePrompt.prompt) || (ch.prompt) || c.prompt || '',
+                  // A video card keeps its prompt (and so its TAG) under videoPrompt, an image card under imagePrompt.
+                  prompt: (ch.imagePrompt && ch.imagePrompt.prompt) || (ch.videoPrompt && ch.videoPrompt.prompt)
+                          || (ch.prompt) || c.prompt || '',
                   width: (ch.resolution || {}).width, height: (ch.resolution || {}).height, progress: ch.progress});
     }
   }
@@ -101,8 +103,9 @@ DOWNLOAD_JS = """async (url) => {
 MAX_REFS = 4
 
 def _tag_of(prompt: str) -> str:
-    m = re.match(r"\s*TAG\s+([A-Za-z0-9_]+)", prompt or "")
-    return m.group(1) if m else ""
+    # The agent writes the brief's tag either as "TAG xyz ..." or as "xyz: ..." at the start of its prompt.
+    m = re.match(r"\s*(?:TAG\s+([A-Za-z0-9_]+)|([A-Za-z0-9]+_[A-Za-z0-9_]+):)", prompt or "")
+    return (m.group(1) or m.group(2)) if m else ""
 
 
 DISMISS_JS = """() => {
@@ -134,16 +137,24 @@ def _dismiss_dialogs(page, rounds: int = 4) -> None:
     page.add_style_tag(content="[role=dialog], [role=alertdialog] { display: none !important; }")
 
 
+# 2026-11-16: Grok swapped the mode radios for toggle buttons (aria-pressed); both shapes are read.
+AGENT_PROBE = ("() => { const r = [...document.querySelectorAll('[role=radio], button[aria-pressed]')].find(x => "
+               "/^(ajan|agent)$/i.test((x.getAttribute('aria-label') || x.textContent || '').trim())); "
+               "return r ? (r.getAttribute('aria-checked') || r.getAttribute('aria-pressed')) : 'none'; }")
+
+
 def _pick_agent_mode(page, tries: int = 40) -> bool:
     """Click the Ajan/Agent radio, waiting up to ~20 s for the composer to render."""
+    # 2026-11-16: Grok swapped the mode radios for toggle buttons (aria-pressed); both shapes are read.
+    sel = "[role=radio], button[aria-pressed]"
     js = """() => {
-      const r = [...document.querySelectorAll('[role=radio]')]
+      const r = [...document.querySelectorAll('%s')]
         .find(x => /^(ajan|agent)$/i.test((x.getAttribute('aria-label') || x.textContent || '').trim()));
       if (!r) return 'none';
       r.click();
-      return r.getAttribute('aria-checked');
-    }"""
-    probe = "() => { const r = [...document.querySelectorAll('[role=radio]')].find(x => /^(ajan|agent)$/i.test((x.getAttribute('aria-label') || x.textContent || '').trim())); return r ? r.getAttribute('aria-checked') : 'none'; }"
+      return r.getAttribute('aria-checked') || r.getAttribute('aria-pressed');
+    }""" % sel
+    probe = "() => { const r = [...document.querySelectorAll('%s')].find(x => /^(ajan|agent)$/i.test((x.getAttribute('aria-label') || x.textContent || '').trim())); return r ? (r.getAttribute('aria-checked') || r.getAttribute('aria-pressed')) : 'none'; }" % sel
     for attempt in range(tries):
         state = page.evaluate(probe)
         if state == 'true':
@@ -152,7 +163,7 @@ def _pick_agent_mode(page, tries: int = 40) -> bool:
             # a REAL pointer click: React ignores a synthetic DOM click here
             loc = page.locator('[role="radio"]').filter(has_text=re.compile(r"^(Ajan|Agent)$")).first
             if not loc.count():
-                loc = page.locator('[role="radio"][aria-label="Ajan"], [role="radio"][aria-label="Agent"]').first
+                loc = page.locator('[aria-label="Ajan"], [aria-label="Agent"]').first
             try:
                 loc.click(force=True, timeout=3000)
             except Exception:
@@ -187,6 +198,15 @@ def _save_items(page, conv: str, uid: str | None, items: list[dict]) -> tuple[in
     VIDEOS_DIR.mkdir(parents=True, exist_ok=True)
     RUNS_DIR.mkdir(parents=True, exist_ok=True)
     new = 0
+    if items and not uid:
+        # A run whose only result is one video can come back without the user id; it is the same account as
+        # every other run, so the latest saved run's id serves.
+        for f in sorted(RUNS_DIR.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True):
+            uid = json.loads(f.read_text(encoding="utf-8")).get("uid")
+            if uid:
+                break
+        if not uid:
+            print("  no user id in the responses - nothing downloaded this pass, retry with fetch", flush=True)
     for it in items:
         ext = "mp4" if it["kind"] == "video" else ("png" if "png" in (it.get("mime") or "") else "jpg")
         folder = VIDEOS_DIR if it["kind"] == "video" else IMAGES_DIR
@@ -359,7 +379,7 @@ def cmd_start(args) -> int:
             if not focused:
                 print("composer textbox could not be focused")
                 return 3
-            if page.evaluate("() => { const r = [...document.querySelectorAll('[role=radio]')].find(x => /^(ajan|agent)$/i.test((x.getAttribute('aria-label') || x.textContent || '').trim())); return r ? r.getAttribute('aria-checked') : 'none'; }") != 'true':
+            if page.evaluate(AGENT_PROBE) != 'true':
                 print("agent mode is not selected; refusing to submit (would run as image/video)")
                 return 4
             before = page.url

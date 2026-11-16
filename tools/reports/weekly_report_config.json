@@ -22,13 +22,13 @@
   "play_fee_pct": 15,
   "experiment": {
     "title": "Ads budget experiment",
-    "started": "2026-09-29",
-    "judge_on": "2026-10-13",
-    "note": "Owner changed budgets on 2026-09-29 after the performance report. Judge each campaign after 2 weeks on the four targets.",
+    "started": "2026-10-25",
+    "judge_on": "2026-11-08",
+    "note": "2026-10-25: Hot Charm campaign paused (0.31x in October), its budget moved to Hot Idle. Judge each campaign after 2 weeks on the four targets.",
     "campaigns": [
-      {"package": "com.lifecharger.hotidle", "budget_per_day": 150},
+      {"package": "com.lifecharger.hotidle", "budget_per_day": 225},
       {"package": "com.lifecharger.hotjigsaw", "budget_per_day": 50},
-      {"package": "com.lifecharger.hotcharm", "budget_per_day": 100}
+      {"package": "com.lifecharger.animestreamer", "budget_per_day": 50}
     ],
     "targets": {
       "cpi_max": 5,

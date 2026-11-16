@@ -338,6 +338,24 @@ class Regressions(unittest.TestCase):
         callbacks[0]()
         self.assertIn("fixture network error", messages[0][0])
 
+    def test_git_push_event_carries_failure_tail(self):
+        import re
+        env = {"re": re, "GIT_PUSH_ERROR_TAIL_LINES": 15,
+               "_URL_CREDENTIALS": re.compile(r"(https?://)[^/\s@]+@")}
+        extract(CORE / "deploy_engine.py", {"git_push_event"}, env)
+        make = env["git_push_event"]
+        ok = make(6, "1.0.1+2", "internal", 0, "pushed abc123")
+        self.assertEqual(ok, {"app_id": 6, "ok": True, "version": "1.0.1+2", "track": "internal"})
+        out = "\n".join(f"line {i}" for i in range(30)) + "\nfatal: https://user:tok@github.com/x.git denied\n"
+        failed = make(6, "1.0.1+2", "internal", 1, out)
+        self.assertFalse(failed["ok"])
+        lines = failed["error"].splitlines()
+        self.assertEqual(len(lines), 15)
+        self.assertEqual(lines[0], "line 16")
+        self.assertNotIn("tok", failed["error"])
+        self.assertIn("https://***@github.com", failed["error"])
+        self.assertIn("code 1", make(6, "v", "internal", 1, "")["error"])
+
 
 if __name__ == "__main__":
     unittest.main()

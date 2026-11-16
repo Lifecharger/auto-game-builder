@@ -464,8 +464,7 @@ class _CardTemplatesScreenState extends State<CardTemplatesScreen> {
       );
 
   /// #357: video motoru - koleksiyonun butun kartlari bu motorla animasyon
-  /// alir (ilk kare = son kare). Liste sunucudan: ltx / wan / minimax (#358,
-  /// MiniMax etiketi lisans uyarisi tasir).
+  /// alir (ilk kare = son kare). Liste sunucudan: ltx / wan.
   Widget _motorSeridi() {
     if (widget.kind == 'dealer' && _d.videoEngines.isEmpty) {
       return const SizedBox.shrink();

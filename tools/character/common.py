@@ -56,7 +56,7 @@ WORKFLOWS = COMFY_ROOT / "user" / "default" / "workflows"
 
 CHAR_ROOT = Path(setting("character.root", "CHARACTER_ROOT", "C:/Reusable Assets/Realistic Women"))
 MIXAMO_DIR = Path(setting("character.mixamo_dir", "CHARACTER_MIXAMO_DIR",
-                          str(AGB_ROOT / "tools" / "mixamo_downloader" / "animations")))
+                          "D:/Reusable Assets/Animations/Mixamo"))
 BLENDER = setting("character.blender", "BLENDER_BIN",
                   r"C:\Program Files\Blender Foundation\Blender 5.2\blender.exe")
 ISNET = setting("character.isnet", "ISNET_MODEL",

@@ -101,7 +101,7 @@ ALL_DIRS = DIR_IDS + PSEUDO_DIRS
 
 PADDINGS = (0.0, 0.1, 0.2, 0.3)     # rev5: referans kenar dolgusu
 BIG_CANVAS = 832                    # padding >= 0.2 -> daha genis tuval
-VIDEO_TASK = "video_wan"            # i2v varsayilan motoru (comfy_gen gorevi)
+VIDEO_TASK = "video_ltx"            # i2v varsayilan motoru (comfy_gen gorevi)
 
 # #305: kutuphane duzeni v2 sabitleri
 LAYOUT = 2

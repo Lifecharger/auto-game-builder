@@ -36,7 +36,7 @@ class CardAnimationTests(unittest.TestCase):
             env = self.env()
             env.update(os=os, random=random, rank_dir=lambda *a: folder,
                        gesture_text=lambda *a: "one compact fist pump",
-                       engine_of=lambda *a: "minimax", VIDEO_ENGINES={"minimax": {"task": "h3"}},
+                       engine_of=lambda *a: "ltx", VIDEO_ENGINES={"ltx": {"task": "h3"}},
                        G=types.SimpleNamespace(submit=submit, _task=lambda task: True),
                        still_size=lambda kind: (832, 1248), _motion2=lambda kind: "{}, locked camera",
                        _negative=lambda kind: "bad anatomy")

@@ -51,13 +51,27 @@ def _kill_orphaned_processes():
         "cloudflared.exe",
     ]
 
+    # Never touch the processes this server was started from. Killing an
+    # ancestor's tree kills this server too (it died silently, exit 15, when
+    # started from an agent session).
+    try:
+        protected = {p.pid for p in psutil.Process(my_pid).parents()}
+    except Exception:
+        protected = set()
+
     try:
         for proc in psutil.process_iter(["pid", "name", "cmdline"]):
             try:
-                if proc.pid == my_pid:
+                if proc.pid == my_pid or proc.pid in protected:
                     continue
                 name = (proc.info.get("name") or "").lower()
                 cmdline = " ".join(proc.info.get("cmdline") or [])
+                # The script patterns below are about shell scripts this server
+                # generated. A bare "_task_" also sits inside ordinary tool
+                # names (e.g. "mcp__scheduled-tasks__list_task_runs" on the
+                # command line of every interactive agent session), so without
+                # this guard each server start killed every open session.
+                is_script = ".sh" in cmdline
 
                 # Check name patterns
                 for pattern in orphan_name_patterns:
@@ -69,7 +83,7 @@ def _kill_orphaned_processes():
                 else:
                     # Check cmdline patterns
                     for pattern in orphan_cmdline_patterns:
-                        if pattern in cmdline:
+                        if pattern in cmdline and is_script:
                             print(f"[AutoGameBuilder] Killing orphaned process (pid={proc.pid}): ...{pattern}...")
                             _kill_process_tree_by_pid(proc.pid)
                             killed.append(proc.pid)
@@ -153,6 +167,77 @@ def start_background_services():
             print("[AutoGameBuilder] cloudflared not found, tunnel skipped")
             return
 
+        def _kv_put(key, value):
+            """Write one KV key; True only when wrangler reports success."""
+            kv_ns = settings.get("kv_namespace_id", "")
+            if not kv_ns:
+                return False
+            wrangler = settings.get("wrangler_path", "") or shutil.which("wrangler") or "wrangler"
+            try:
+                done = subprocess.run(
+                    [wrangler, "kv", "key", "put", "--namespace-id", kv_ns, key, value, "--remote"],
+                    timeout=60, capture_output=True, text=True, encoding="utf-8", errors="replace",
+                    creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+                )
+            except Exception as e:
+                print(f"[AutoGameBuilder] KV write of {key} failed: {e}")
+                return False
+            if done.returncode != 0:
+                tail = (done.stderr or done.stdout or "").strip().splitlines()[-1:] or [""]
+                print(f"[AutoGameBuilder] KV write of {key} failed (exit {done.returncode}): {tail[0][:200]}")
+                return False
+            return True
+
+        def _register_tunnel(url):
+            if not settings.get("kv_namespace_id", ""):
+                print("[AutoGameBuilder] KV namespace ID not configured, skipping KV write")
+                return True  # nothing to retry
+            if not _kv_put("tunnel_url", url):
+                return False
+            hmac_secret = settings.get("hmac_secret", "")
+            if hmac_secret:
+                sig = hmac.new(hmac_secret.encode(), url.encode(), hashlib.sha256).hexdigest()
+                if not _kv_put("tunnel_sig", sig):
+                    return False
+            print("[AutoGameBuilder] Tunnel URL + signature registered to KV")
+            return True
+
+        def _http_ok(url, timeout=10):
+            import urllib.request
+            try:
+                with urllib.request.urlopen(url, timeout=timeout) as r:
+                    return 200 <= r.status < 400
+            except Exception:
+                return False
+
+        def _watch_tunnel(proc, url, kv_ok):
+            """A quick tunnel can die while cloudflared keeps running (for
+            example after the internet connection drops): the process-exit
+            watchdog never notices and the phone keeps a dead address. Check
+            the public address; when it stays unreachable while the local
+            server and the internet are both fine, stop this cloudflared so
+            the loop below starts a fresh tunnel and registers its address."""
+            local = f"http://127.0.0.1:{settings.get('port', 8000)}/api/health"
+            misses = 0
+            time.sleep(45)  # let the new tunnel settle
+            while proc.poll() is None:
+                if not kv_ok:
+                    kv_ok = _register_tunnel(url)
+                if _http_ok(url + "/api/health"):
+                    misses = 0
+                elif not _http_ok(local, timeout=5):
+                    misses = 0  # the API server itself is restarting: not a tunnel fault
+                elif not _http_ok("https://www.cloudflare.com/cdn-cgi/trace"):
+                    misses = 0  # no internet: a new tunnel would not help, wait for it
+                else:
+                    misses += 1
+                    print(f"[AutoGameBuilder] Tunnel address not answering ({misses}/3)")
+                    if misses >= 3:
+                        print("[AutoGameBuilder] Tunnel is dead while cloudflared runs. Restarting it...")
+                        _kill_process_tree_by_pid(proc.pid)
+                        return
+                time.sleep(60)
+
         restart_delay = 5  # seconds between restart attempts
         max_delay = 60     # max backoff delay
         consecutive_failures = 0
@@ -182,43 +267,13 @@ def start_background_services():
             if tunnel_url:
                 print(f"[AutoGameBuilder] Tunnel URL: {tunnel_url}")
                 consecutive_failures = 0  # reset on success
-                # Push to Cloudflare KV so the phone app can find us
-                try:
-                    kv_ns = settings.get("kv_namespace_id", "")
-                    if not kv_ns:
-                        print("[AutoGameBuilder] KV namespace ID not configured, skipping KV write")
-                    else:
-                        wrangler = settings.get("wrangler_path", "") or shutil.which("wrangler") or "wrangler"
-                        # Write tunnel URL
-                        kv_cmd = [
-                            wrangler, "kv", "key", "put",
-                            "--namespace-id", kv_ns,
-                            "tunnel_url", tunnel_url, "--remote",
-                        ]
-                        subprocess.run(
-                            kv_cmd, timeout=30,
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
-                        )
-                        # Write HMAC signature of tunnel URL for anti-poisoning
-                        hmac_secret = settings.get("hmac_secret", "")
-                        if hmac_secret:
-                            sig = hmac.new(
-                                hmac_secret.encode(), tunnel_url.encode(), hashlib.sha256
-                            ).hexdigest()
-                            sig_cmd = [
-                                wrangler, "kv", "key", "put",
-                                "--namespace-id", kv_ns,
-                                "tunnel_sig", sig, "--remote",
-                            ]
-                            subprocess.run(
-                                sig_cmd, timeout=30,
-                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
-                            )
-                        print("[AutoGameBuilder] Tunnel URL + signature registered to KV")
-                except Exception as e:
-                    print(f"[AutoGameBuilder] KV write failed: {e}")
+                # Push to Cloudflare KV so the phone app can find us. The write
+                # is checked and repeated by the monitor below until it sticks:
+                # a silent failure here leaves the phone on a dead address.
+                kv_ok = _register_tunnel(tunnel_url)
+                threading.Thread(
+                    target=_watch_tunnel, args=(tunnel_proc, tunnel_url, kv_ok), daemon=True
+                ).start()
             else:
                 print("[AutoGameBuilder] Could not detect tunnel URL")
                 consecutive_failures += 1

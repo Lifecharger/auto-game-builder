@@ -2,7 +2,7 @@
 
 ## Current animation and delivery contract (2026-09-12, #363, #368-#370)
 
-- MiniMax H3 is the default engine. Explicit collection engine choices remain supported;
+- LTX-2.5 is the default engine (MiniMax H3 removed 2026-11-09). Explicit collection engine choices (ltx / wan) remain supported;
   unavailable engines fail visibly instead of silently using another model.
 - Idle uses one moderate gesture over 6 seconds. Victory uses one compact celebration
   over 2 seconds. Hands remain below shoulders, elbows near the torso, and all visible
@@ -12,7 +12,7 @@
   results receive targeted retries and visual approval before WebP processing.
   Pose-specific prompts preserve scepters/card fans, existing lean and raised-leg stances;
   arm-height limits apply to the gesture while the bookend poses match the reference.
-- MiniMax's native 17k+5 frame grid is mapped from the requested duration at 24 fps;
+- The requested duration is mapped to the engine's frame grid at 24 fps;
   final tag videos are timed to exactly 6/2 seconds. WebP victory sheets contain 24 frames
   at 12 fps in a 12x2 grid. Idle uses 72 frames in a 12x6 grid.
 - Pool metadata stores the exact submitted combined prompt and engine. Temporary Windows

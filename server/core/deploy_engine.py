@@ -32,6 +32,23 @@ VALID_TRACKS = ["internal", "alpha", "beta", "production"]
 GODOT_MAX_BUILD_SECONDS = 900     # 15 min
 UNITY_MAX_BUILD_SECONDS = 2700    # 45 min — IL2CPP Android builds are slow
 
+# Lines of the git-push agent's output kept as the event's `error` on failure.
+GIT_PUSH_ERROR_TAIL_LINES = 15
+_URL_CREDENTIALS = re.compile(r"(https?://)[^/\s@]+@")
+
+
+def git_push_event(app_id, version, track, returncode, stdout):
+    """Payload for the app.git_push event; a failed run carries the end of
+    the agent's output as `error` (URL credentials masked) so clients can
+    show why it failed."""
+    payload = {"app_id": app_id, "ok": returncode == 0, "version": version, "track": track}
+    if returncode != 0:
+        lines = [ln for ln in (stdout or "").splitlines() if ln.strip()]
+        tail = "\n".join(lines[-GIT_PUSH_ERROR_TAIL_LINES:])
+        tail = _URL_CREDENTIALS.sub(r"\1***@", tail)
+        payload["error"] = tail or f"git push agent exited with code {returncode} and no output"
+    return payload
+
 # Build targets per app type
 BUILD_TARGETS = {
     "flutter": {
@@ -540,6 +557,8 @@ class DeployEngine:
                     self._update_status(
                         app.id, phase="done",
                         message=f"Deployed to {track}: v{new_version or app.current_version}"
+                                + (" (draft release: send it for review in Play Console)"
+                                   if upload_result.get("release_status") == "draft" and track != "internal" else "")
                     )
                     publish_map = {
                         "internal": "internal_test",
@@ -1590,18 +1609,68 @@ INSTRUCTIONS (Lead Programmer + Engine Specialist Knowledge):
                         },
                     ).execute()
 
+                # A never-published ("draft") app accepts only DRAFT releases, on
+                # every track. Play reports that either on tracks.update or only
+                # at commit ("Only releases with status draft may be created on
+                # draft app"), so both places fall back to a draft release. A
+                # draft release is then sent for review from the Play Console.
+                def _taslak_uygulama_hatasi(hata: Exception) -> bool:
+                    return "status draft" in str(hata).lower() and "draft app" in str(hata).lower()
+
+                # A transient Play outage (HTTP 429/5xx, a dropped connection, a
+                # timeout) says nothing about the release: it must be retried as
+                # it is, never turned into a draft. Only a real refusal may fall
+                # back to a draft release.
+                def _gecici_hata(hata: Exception) -> bool:
+                    kod = getattr(getattr(hata, "resp", None), "status", None)
+                    try:
+                        kod = int(kod) if kod is not None else None
+                    except (TypeError, ValueError):
+                        kod = None
+                    if kod in (408, 429, 500, 502, 503, 504):
+                        return True
+                    return isinstance(hata, (TimeoutError, ConnectionError, OSError)) and kod is None
+
+                def _gecici_tekrarla(adim, ad: str):
+                    beklemeler = (5, 15, 30, 60)
+                    for deneme, bekle in enumerate(beklemeler + (None,), start=1):
+                        try:
+                            return adim()
+                        except Exception as hata:
+                            if bekle is None or not _gecici_hata(hata):
+                                raise
+                            print("[deploy] %s %s: gecici hata, %ss sonra tekrar (%d/%d): %s"
+                                  % (track, ad, bekle, deneme, len(beklemeler), str(hata)[:160]))
+                            time.sleep(bekle)
+
+                durum = "completed"
                 try:
-                    _track_yaz("completed")
+                    _gecici_tekrarla(lambda: _track_yaz("completed"), "tracks.update")
                 except Exception as track_hata:
-                    if track != "internal":
+                    if _gecici_hata(track_hata):
                         raise
-                    print("[deploy] internal 'completed' reddedildi, draft'a dusuluyor: %s"
-                          % str(track_hata)[:200])
-                    _track_yaz("draft")
+                    if track != "internal" and not _taslak_uygulama_hatasi(track_hata):
+                        raise
+                    print("[deploy] %s 'completed' reddedildi, draft'a dusuluyor: %s"
+                          % (track, str(track_hata)[:200]))
+                    durum = "draft"
+                    _gecici_tekrarla(lambda: _track_yaz("draft"), "tracks.update(draft)")
 
-                service.edits().commit(packageName=package, editId=edit_id).execute()
+                def _commit() -> None:
+                    service.edits().commit(packageName=package, editId=edit_id).execute()
 
-                result = {"ok": True, "version_code": version_code}
+                try:
+                    _gecici_tekrarla(_commit, "commit")
+                except Exception as commit_hata:
+                    if durum == "draft" or not _taslak_uygulama_hatasi(commit_hata):
+                        raise
+                    print("[deploy] %s commit: taslak uygulama, surum draft olarak yaziliyor"
+                          % track)
+                    durum = "draft"
+                    _gecici_tekrarla(lambda: _track_yaz("draft"), "tracks.update(draft)")
+                    _gecici_tekrarla(_commit, "commit")
+
+                result = {"ok": True, "version_code": version_code, "release_status": durum}
 
             except Exception as e:
                 upload_error = str(e)
@@ -1727,7 +1796,6 @@ At the end, print a one-paragraph summary of what you committed (commit SHA) and
                 )
                 return
 
-            ok = process.returncode == 0
             tail = "\n".join((stdout or "").splitlines()[-20:])
             logger.info(
                 "git push agent for app %s finished rc=%s\n%s",
@@ -1735,7 +1803,7 @@ At the end, print a one-paragraph summary of what you committed (commit SHA) and
             )
             event_log.append(
                 "app.git_push",
-                {"app_id": app.id, "ok": ok, "version": version, "track": track},
+                git_push_event(app.id, version, track, process.returncode, stdout),
             )
         except Exception as e:
             logger.exception("git push agent crashed for app %s: %s", app.id, e)

@@ -53,38 +53,75 @@ class _CachedAppIconState extends State<CachedAppIcon> {
   }
 
   Future<void> _load() async {
-    final cached =
-        CacheService.instance.getAppIcon(widget.appId, widget.iconPath);
+    // This state object can be handed a different app while a download is
+    // still running (the dashboard list reorders and regroups on every
+    // sync). Everything below therefore works on the app this call was
+    // started for, never on `widget`, which may have moved on: reading
+    // `widget.appId` after an await is what used to save one app's picture
+    // under another app's id.
+    final appId = widget.appId;
+    final iconPath = widget.iconPath;
+    bool current() =>
+        mounted && widget.appId == appId && widget.iconPath == iconPath;
+
+    final cached = CacheService.instance.getAppIcon(appId, iconPath);
     if (cached != null) {
       // Empty Uint8List is the "no icon" sentinel — the server returned
       // 404 last time, so render the fallback without refetching.
-      if (cached.isEmpty) {
-        if (mounted) setState(() => _failed = true);
-      } else {
-        if (mounted) setState(() => _bytes = cached);
-      }
+      if (!current()) return;
+      setState(() {
+        _failed = cached.isEmpty;
+        _bytes = cached.isEmpty ? null : cached;
+      });
       return;
     }
     try {
-      final resp = await http.get(
-        Uri.parse('${ApiService.baseUrl}/api/apps/${widget.appId}/icon'),
-        headers: ApiService.authHeaders,
-      );
-      if (resp.statusCode != 200 || resp.bodyBytes.isEmpty) {
-        // Persist the negative result so we don't re-hammer /icon on
-        // every dashboard paint for apps that have no icon.
-        await CacheService.instance
-            .setAppIcon(widget.appId, widget.iconPath, Uint8List(0));
-        if (mounted) setState(() => _failed = true);
-        return;
-      }
-      await CacheService.instance
-          .setAppIcon(widget.appId, widget.iconPath, resp.bodyBytes);
-      if (mounted) setState(() => _bytes = resp.bodyBytes);
+      final bytes = await _fetch(appId, iconPath);
+      if (!current()) return;
+      setState(() {
+        _failed = bytes.isEmpty;
+        _bytes = bytes.isEmpty ? null : bytes;
+      });
     } catch (e) {
-      debugPrint('CachedAppIcon: fetch failed for app ${widget.appId}: $e');
-      if (mounted) setState(() => _failed = true);
+      debugPrint('CachedAppIcon: fetch failed for app $appId: $e');
+      if (current()) setState(() => _failed = true);
     }
+  }
+
+  /// Downloads in flight, one per app + icon version, shared by every widget
+  /// that asks for the same picture.
+  static final Map<String, Future<Uint8List>> _inFlight = {};
+
+  /// Downloads the icon of [appId] and stores it under that same id. Returns
+  /// an empty list when the server has no icon for the app.
+  static Future<Uint8List> _fetch(int appId, String iconPath) {
+    final key = '$appId|$iconPath';
+    return _inFlight[key] ??= () async {
+      try {
+        // The version the server put on the path rides along, so nothing
+        // between the phone and the server can answer with an older picture.
+        final v = RegExp(r'\?v=(\d+)$').firstMatch(iconPath)?.group(1) ?? '';
+        final resp = await http.get(
+          Uri.parse('${ApiService.baseUrl}/api/apps/$appId/icon'
+              '${v.isEmpty ? '' : '?v=$v'}'),
+          headers: ApiService.authHeaders,
+        );
+        if (resp.statusCode == 404) {
+          // Persist the negative result so we don't re-hammer /icon on
+          // every dashboard paint for apps that have no icon.
+          await CacheService.instance.setAppIcon(appId, iconPath, Uint8List(0));
+          return Uint8List(0);
+        }
+        if (resp.statusCode != 200 || resp.bodyBytes.isEmpty) {
+          // A server hiccup is not "this app has no icon": do not store it.
+          throw Exception('HTTP ${resp.statusCode}');
+        }
+        await CacheService.instance.setAppIcon(appId, iconPath, resp.bodyBytes);
+        return resp.bodyBytes;
+      } finally {
+        _inFlight.remove(key);
+      }
+    }();
   }
 
   @override

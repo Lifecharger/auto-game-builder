@@ -312,6 +312,7 @@ class NoticeUpdate(BaseModel):
     read: Optional[bool] = None
 
 class AppUpdate(BaseModel):
+    name: Optional[str] = None
     notes: Optional[str] = None
     status: Optional[str] = None
     app_type: Optional[str] = None
@@ -1397,7 +1398,7 @@ def _app_dict(a, issue_counts: dict | None = None, include_task_status: bool = T
     real_version = _read_project_version(a)
     version = real_version if real_version else a.current_version
     open_issues = issue_counts.get(a.id, 0) if issue_counts is not None else db().count_issues(a.id, status="open")
-    icon_path = a.icon_path or (_resolve_app_icon(a) or "")
+    icon_path = _icon_path_for_client(a)
     result = {
         "id": a.id, "name": a.name, "slug": a.slug,
         "project_path": a.project_path, "app_type": a.app_type,
@@ -1584,6 +1585,38 @@ def _unity_icon_from_settings(project_path: str) -> str | None:
     return None
 
 
+def _icon_path_for_client(a) -> str:
+    """The icon path the mobile client sees. The client caches icon bytes keyed by this string, so it
+    carries the file's modification time: a new picture saved over the same file (a repurposed game, a
+    redrawn icon) changes the key and the phone downloads it again instead of showing the old one."""
+    icon = _resolve_app_icon(a)
+    if not icon:
+        return ""
+    try:
+        return f"{icon}?v={int(os.path.getmtime(icon))}"
+    except OSError:
+        return icon
+
+
+def _godot_icon_from_presets(project_path: str) -> str | None:
+    """The launcher icon a Godot project actually exports (export_presets.cfg), so a stale icon.png
+    left at the project root is not shown instead of the real one."""
+    cfg = os.path.join(project_path, "export_presets.cfg")
+    if not os.path.isfile(cfg):
+        return None
+    try:
+        text = open(cfg, encoding="utf-8", errors="replace").read()
+    except OSError:
+        return None
+    for key in ("launcher_icons/main_192x192", "launcher_icons/adaptive_foreground_432x432"):
+        m = re.search(rf'^{re.escape(key)}="res://([^"]+)"', text, re.M)
+        if m:
+            p = os.path.join(project_path, m.group(1))
+            if os.path.isfile(p) and p.lower().endswith(_RENDERABLE_EXTS):
+                return p
+    return None
+
+
 def _resolve_app_icon(a) -> str | None:
     """Return absolute path to the app's icon file, or None if none exists.
 
@@ -1598,6 +1631,10 @@ def _resolve_app_icon(a) -> str | None:
         if os.path.isfile(p) and p.lower().endswith(_RENDERABLE_EXTS):
             return p
         return None
+    if a.app_type == "godot":
+        found = _godot_icon_from_presets(a.project_path)
+        if found:
+            return found
     # Unity: ask the project what its icon IS, rather than guessing names.
     if a.app_type == "unity":
         found = _unity_icon_from_settings(a.project_path)
@@ -3458,7 +3495,7 @@ def dashboard():
             "app_type": a.app_type, "status": a.status,
             "publish_status": a.publish_status, "current_version": version,
             "open_issues": open_count, "fix_strategy": a.fix_strategy,
-            "icon_path": a.icon_path or (_resolve_app_icon(a) or ""),
+            "icon_path": _icon_path_for_client(a),
         })
     return {
         "total_apps": len(apps),
@@ -6105,6 +6142,33 @@ def jigsaw_flow_music(body: FlowMusicRequest):
         raise HTTPException(400, "koleksiyon secilmedi")
     return {"op": _flow_call(_flow().make_music, body.rating, body.collections,
                              body.tags, body.seconds, body.overwrite)}
+
+
+class MusicRequest(BaseModel):
+    """Game music (ACE-Step, local): one queued job per track."""
+    out_dir: str
+    tracks: list[dict] = []     # [{"name": ..., "tags": ..., "seconds"?: ...}]
+    seconds: float = 60.0
+
+
+@app.post("/api/music/generate")
+def music_generate(body: MusicRequest):
+    if not body.tracks:
+        raise HTTPException(400, "no tracks")
+    from core import music_gen
+    try:
+        return {"op": music_gen.start(body.tracks, body.out_dir, body.seconds)}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/music/op/{op_id}")
+def music_op(op_id: str):
+    from core import music_gen
+    o = music_gen.status(op_id)
+    if not o:
+        raise HTTPException(404, "no such op")
+    return o
 
 
 @app.get("/api/jigsaw/flow/ops")

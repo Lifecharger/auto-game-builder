@@ -28,6 +28,7 @@ needed here; nothing secret is written to disk.
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import glob
 import hashlib
 import json
@@ -104,6 +105,9 @@ ADSC_STREAMED_MUSIC = ("music_kawaii", "music_citypop", "music_idol",
 CHARACTERS = {
     "bella": {
         "game": "Anime Dance Streamer Clicker",
+        # Content made but not approved yet (owner review): manifest ids matching these patterns are neither
+        # uploaded nor listed, so the game cannot reach them. One fnmatch pattern per line in the JSON list.
+        "hold": os.path.join(BELLA, "sync_hold.json"),
         "groups": [
             group("public", "base", os.path.join(BELLA, "base", "bella_base_cutout.png"),
                   id_of=lambda p: "base_cutout"),
@@ -123,7 +127,13 @@ CHARACTERS = {
             # One clip + one tile poster per level, per story; the poster id is
             # the clip id plus "_poster" so a client asks for it in the same
             # category. Adding a story = one more name in this list.
-            *[g for story in ("beach", "shopping", "winter", "catninja", "gothic")
+            # 2026-10-21: plus the bedroom Memories (mem_<outfit>) and the
+            # paid-outfit specials (vip_<outfit>), picked up by folder name.
+            *[g for story in ("beach", "shopping", "winter", "catninja", "gothic",
+                              "yacht", "office", "halloween",
+                              *sorted(os.path.basename(d) for d in
+                                      glob.glob(os.path.join(BELLA, "private_gallery", "mem_*"))
+                                      + glob.glob(os.path.join(BELLA, "private_gallery", "vip_*"))))
               for g in (
                   group("private", "gallery",
                         os.path.join(BELLA, "private_gallery", story, "*.mp4"),
@@ -132,6 +142,15 @@ CHARACTERS = {
                         os.path.join(BELLA, "private_gallery", story, "*_poster.webp"),
                         id_of=(lambda p, s=story: s + "_" + os.path.splitext(os.path.basename(p))[0])),
               )],
+            # Bella's bedroom (owner 2026-10-21): per outfit tier, stage1..3.mp4
+            # idle loops, stage1..3_still.webp pictures and one gift.mp4, as
+            # `<outfit>_stage<N>[_still]` / `<outfit>_gift` (BedroomConfig.stageId).
+            group("private", "bedroom", os.path.join(BELLA, "bedroom", "*", "*.mp4"),
+                  id_of=lambda p: os.path.basename(os.path.dirname(p)) + "_"
+                  + os.path.splitext(os.path.basename(p))[0]),
+            group("private", "bedroom", os.path.join(BELLA, "bedroom", "*", "*_still.webp"),
+                  id_of=lambda p: os.path.basename(os.path.dirname(p)) + "_"
+                  + os.path.splitext(os.path.basename(p))[0]),
             # Campaign story plates (task 128): 73 WebP illustrations, one per
             # page. Only the opening chapter's three ship in the APK; the rest
             # stream from here, and the ids are the plate names story.json
@@ -203,6 +222,11 @@ def sync_character(name: str, spec: dict, state: dict, dry: bool, force: bool, m
                 "generated": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                 "public": {}, "private": {}}
     total = 0
+    hold = []
+    if spec.get("hold") and os.path.exists(spec["hold"]):
+        with open(spec["hold"], encoding="utf-8") as f:
+            hold = json.load(f)
+    held = 0
     for g in spec["groups"]:
         if g["masters"] and not masters:
             continue
@@ -214,6 +238,9 @@ def sync_character(name: str, spec: dict, state: dict, dry: bool, force: bool, m
             digest = sha1(path)
             ext = os.path.splitext(path)[1].lower()
             logical = g["id_of"](path)
+            if any(fnmatch.fnmatch(logical, pat) for pat in hold):
+                held += 1
+                continue
             key = f"{name}/{g['scope']}/{g['category']}/{logical}.{digest[:8]}{ext}"
             entry = {"key": key, "url": f"{PUBLIC_BASE}/{key}",
                      "bytes": os.path.getsize(path), "sha1": digest}
@@ -229,6 +256,8 @@ def sync_character(name: str, spec: dict, state: dict, dry: bool, force: bool, m
                 print(f"  {key}  {entry['bytes']/1e6:.1f} MB")
             elif not ok:
                 print(f"  FAILED {key}")
+    if held:
+        print(f"  held back (not approved yet): {held} files")
     # manifest (mutable key, short cache)
     with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as tf:
         json.dump(manifest, tf, indent=1)

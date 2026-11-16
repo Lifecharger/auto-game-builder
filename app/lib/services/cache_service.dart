@@ -59,6 +59,7 @@ class CacheService {
   Future<void> _openAllBoxes() async {
     await Future.wait(_boxNames.map((n) => Hive.openBox<String>(n)));
     await Hive.openBox<Uint8List>(CacheBoxes.appIcons);
+    await _dropLegacyIcons();
   }
 
   Future<void> _migrateIfNeeded() async {
@@ -364,11 +365,25 @@ class CacheService {
   Future<void> setAppIcon(
       int appId, String iconPath, Uint8List bytes) async {
     final box = Hive.box<Uint8List>(CacheBoxes.appIcons);
-    await box.put(_iconBytesKey(appId), bytes);
-    await box.put(
-        _iconPathKey(appId), Uint8List.fromList(utf8.encode(iconPath)));
+    // One write for both halves, so a reader never pairs the new path with
+    // the old bytes.
+    await box.putAll({
+      _iconBytesKey(appId): bytes,
+      _iconPathKey(appId): Uint8List.fromList(utf8.encode(iconPath)),
+    });
   }
 
-  String _iconBytesKey(int appId) => 'app_$appId';
-  String _iconPathKey(int appId) => 'app_${appId}_path';
+  /// Drops icons saved by builds that could store one app's picture under
+  /// another app's id (their keys began with `app_`). Those entries look
+  /// valid, so nothing else would ever replace them.
+  Future<void> _dropLegacyIcons() async {
+    final box = Hive.box<Uint8List>(CacheBoxes.appIcons);
+    final old = box.keys
+        .where((k) => k is String && k.startsWith('app_'))
+        .toList();
+    if (old.isNotEmpty) await box.deleteAll(old);
+  }
+
+  String _iconBytesKey(int appId) => 'icon2_$appId';
+  String _iconPathKey(int appId) => 'icon2_${appId}_path';
 }
