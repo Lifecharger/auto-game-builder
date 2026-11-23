@@ -14,12 +14,14 @@ import '../services/installed_apps_service.dart';
 import '../theme.dart';
 import '../widgets/sync_status_chip.dart';
 import '../widgets/cached_app_icon.dart';
+import '../widgets/store_status_view.dart';
 import '../widgets/dashboard/brainstorm_sheet.dart';
 import '../widgets/dashboard/create_app_sheet.dart';
 import 'app_detail_screen.dart';
 import '../l10n/app_localizations.dart';
 import '../utils/l10n_labels.dart';
 import '../services/mode_service.dart';
+import '../services/user_session.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -39,6 +41,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   static const _postponedAppsKey = 'postponed_app_ids';
   static const _completedExpandedKey = 'dashboard_completed_expanded';
   static const _postponedExpandedKey = 'dashboard_postponed_expanded';
+  /// App ids whose card shows the store details (remembered on this phone).
+  Set<int> _storeExpandedIds = {};
   DateTime? _lastSyncedAt;
   bool _syncFailed = false;
 
@@ -53,6 +57,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     WidgetsBinding.instance.addObserver(this);
     _loadCompletedApps();
     _loadPostponedApps();
+    _loadStoreExpanded();
     // main.dart already kicks off loadApps() via the provider factory.
     // That means cached apps have typically already painted by the time we get here.
     // We only need to: (1) trigger the device-local installed-version scan, and
@@ -114,6 +119,27 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     });
     await _saveCompletedApps();
     await _savePostponedApps();
+  }
+
+  Future<void> _loadStoreExpanded() async {
+    final ids = await StoreCardMemory.load();
+    if (mounted) setState(() => _storeExpandedIds = ids);
+  }
+
+  Future<void> _toggleStoreExpanded(int appId) async {
+    HapticFeedback.selectionClick();
+    setState(() {
+      if (!_storeExpandedIds.remove(appId)) _storeExpandedIds.add(appId);
+    });
+    await StoreCardMemory.save(_storeExpandedIds);
+  }
+
+  /// Pull-to-refresh also asks the server to re-read Google Play / App Store
+  /// (it skips apps it checked minutes ago); the answers arrive with the
+  /// next syncs.
+  Future<void> _pullRefresh() async {
+    await ApiService.refreshAllStoreStatus();
+    await _refresh();
   }
 
   Future<void> _loadPostponedApps() async {
@@ -261,21 +287,29 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           ],
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.auto_awesome),
-            tooltip: l10n.assetModeTooltip,
-            onPressed: () => ModeService.set(true),
+          // Asset / Delivery modes and the project scan are server-wide
+          // tools: hidden for member keys (the server refuses them too).
+          AdminOnly(
+            child: IconButton(
+              icon: const Icon(Icons.auto_awesome),
+              tooltip: l10n.assetModeTooltip,
+              onPressed: () => ModeService.set(true),
+            ),
           ),
           // #363: Delivery Mod - sunum kurallari (strike kill switch)
-          IconButton(
-            icon: const Icon(Icons.local_shipping_outlined),
-            tooltip: l10n.deliveryModeTooltip,
-            onPressed: () => ModeService.setMode(ModeService.delivery),
+          AdminOnly(
+            child: IconButton(
+              icon: const Icon(Icons.local_shipping_outlined),
+              tooltip: l10n.deliveryModeTooltip,
+              onPressed: () => ModeService.setMode(ModeService.delivery),
+            ),
           ),
-          IconButton(
-            icon: const Icon(Icons.radar),
-            tooltip: l10n.scanForProjects,
-            onPressed: _scanProjects,
+          AdminOnly(
+            child: IconButton(
+              icon: const Icon(Icons.radar),
+              tooltip: l10n.scanForProjects,
+              onPressed: _scanProjects,
+            ),
           ),
           IconButton(
             icon: const Icon(Icons.cloud_sync),
@@ -295,14 +329,23 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       floatingActionButton: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _AnimatedFab(
-            heroTag: 'brainstorm',
-            small: true,
-            backgroundColor: Colors.amber.shade700,
-            onPressed: _showBrainstormSheet,
-            child: const Icon(Icons.lightbulb, size: 20),
+          // Brainstorm makes a project under the server's own projects root:
+          // an admin tool (a member creates apps with the + button).
+          AdminOnly(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _AnimatedFab(
+                  heroTag: 'brainstorm',
+                  small: true,
+                  backgroundColor: Colors.amber.shade700,
+                  onPressed: _showBrainstormSheet,
+                  child: const Icon(Icons.lightbulb, size: 20),
+                ),
+                const SizedBox(height: 16),
+              ],
+            ),
           ),
-          const SizedBox(height: 16),
           _AnimatedFab(
             heroTag: 'create',
             onPressed: _showCreateAppSheet,
@@ -361,7 +404,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
 
           return RefreshIndicator(
             color: AppColors.accent,
-            onRefresh: _refresh,
+            onRefresh: _pullRefresh,
             child: showCreateEmpty
                 ? ListView(
                     children: [
@@ -420,14 +463,17 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                             ),
                           ),
                         ),
-                      ...activeApps.map((app) => _AppCard(
+                      ...activeApps.map((app) => AppCard(
                         app: app,
                         taskStatus: app.taskStatus,
                         installedVersion: app.packageName.isNotEmpty
                             ? _installedVersions[app.packageName]
                             : null,
                         hasPackageName: app.packageName.isNotEmpty,
-                        appStatus: _AppStatus.active,
+                        appStatus: AppCardStatus.active,
+                        storeExpanded: _storeExpandedIds.contains(app.id),
+                        onToggleStore: () => _toggleStoreExpanded(app.id),
+                        onStoreChanged: _refresh,
                         onToggleCompleted: () => _toggleAppCompleted(app.id),
                         onTogglePostponed: () => _toggleAppPostponed(app.id),
                         onIconTap: () => context.read<AppState>().requestIssuesForApp(app.id),
@@ -466,14 +512,17 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                             ),
                             tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                             childrenPadding: const EdgeInsets.only(left: 8, right: 8, bottom: 8),
-                            children: postponedApps.map((app) => _AppCard(
+                            children: postponedApps.map((app) => AppCard(
                               app: app,
                               taskStatus: app.taskStatus,
                               installedVersion: app.packageName.isNotEmpty
                                   ? _installedVersions[app.packageName]
                                   : null,
                               hasPackageName: app.packageName.isNotEmpty,
-                              appStatus: _AppStatus.postponed,
+                              appStatus: AppCardStatus.postponed,
+                        storeExpanded: _storeExpandedIds.contains(app.id),
+                        onToggleStore: () => _toggleStoreExpanded(app.id),
+                        onStoreChanged: _refresh,
                               onToggleCompleted: () => _toggleAppCompleted(app.id),
                               onTogglePostponed: () => _toggleAppPostponed(app.id),
                               onIconTap: () => context.read<AppState>().requestIssuesForApp(app.id),
@@ -514,14 +563,17 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                             ),
                             tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                             childrenPadding: const EdgeInsets.only(left: 8, right: 8, bottom: 8),
-                            children: completedApps.map((app) => _AppCard(
+                            children: completedApps.map((app) => AppCard(
                               app: app,
                               taskStatus: app.taskStatus,
                               installedVersion: app.packageName.isNotEmpty
                                   ? _installedVersions[app.packageName]
                                   : null,
                               hasPackageName: app.packageName.isNotEmpty,
-                              appStatus: _AppStatus.completed,
+                              appStatus: AppCardStatus.completed,
+                        storeExpanded: _storeExpandedIds.contains(app.id),
+                        onToggleStore: () => _toggleStoreExpanded(app.id),
+                        onStoreChanged: _refresh,
                               onToggleCompleted: () => _toggleAppCompleted(app.id),
                               onTogglePostponed: () => _toggleAppPostponed(app.id),
                               onIconTap: () => context.read<AppState>().requestIssuesForApp(app.id),
@@ -595,22 +647,27 @@ class _AnimatedFabState extends State<_AnimatedFab> {
   }
 }
 
-enum _AppStatus { active, completed, postponed }
+enum AppCardStatus { active, completed, postponed }
 
-class _AppCard extends StatelessWidget {
+class AppCard extends StatelessWidget {
   final AppModel app;
   final Map<String, int> taskStatus;
   final String? installedVersion;
   final bool hasPackageName;
-  final _AppStatus appStatus;
+  final AppCardStatus appStatus;
   final VoidCallback onToggleCompleted;
   final VoidCallback onTogglePostponed;
   final VoidCallback? onIconTap;
   /// Fired when the red needs-attention chip is tapped (opens Issues
   /// filtered to failed tasks for this app).
   final VoidCallback? onAttentionTap;
+  /// Store details (all tracks + promote / attach / submit) are shown.
+  final bool storeExpanded;
+  final VoidCallback? onToggleStore;
+  final VoidCallback? onStoreChanged;
 
-  const _AppCard({
+  const AppCard({
+    super.key,
     required this.app,
     required this.taskStatus,
     this.installedVersion,
@@ -620,10 +677,13 @@ class _AppCard extends StatelessWidget {
     required this.onTogglePostponed,
     this.onIconTap,
     this.onAttentionTap,
+    this.storeExpanded = false,
+    this.onToggleStore,
+    this.onStoreChanged,
   });
 
-  bool get isCompleted => appStatus == _AppStatus.completed;
-  bool get isPostponed => appStatus == _AppStatus.postponed;
+  bool get isCompleted => appStatus == AppCardStatus.completed;
+  bool get isPostponed => appStatus == AppCardStatus.postponed;
 
   void _openExternalUrl(String url) async {
     final uri = Uri.tryParse(url);
@@ -694,7 +754,7 @@ class _AppCard extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (appStatus != _AppStatus.active)
+                  if (appStatus != AppCardStatus.active)
                     ListTile(
                       leading: Icon(Icons.replay, color: AppColors.info),
                       title: Text(l10n.moveBackToActive),
@@ -826,6 +886,13 @@ class _AppCard extends StatelessWidget {
                       spacing: 4,
                       runSpacing: 4,
                       children: [
+                        if (app.storeStatus.play != null)
+                          StoreStatusChip(
+                            store: 'play',
+                            info: app.storeStatus.play!,
+                            onTap: onToggleStore,
+                          )
+                        else
                         _UploadTrackChip(
                           platform: 'play',
                           track: app.lastUploadTrack,
@@ -837,7 +904,13 @@ class _AppCard extends StatelessWidget {
                                   )
                               : null,
                         ),
-                        if (app.appType == 'flutter' || app.appleAppId.isNotEmpty)
+                        if (app.storeStatus.apple != null)
+                          StoreStatusChip(
+                            store: 'apple',
+                            info: app.storeStatus.apple!,
+                            onTap: onToggleStore,
+                          )
+                        else if (app.appType == 'flutter' || app.appleAppId.isNotEmpty)
                           _UploadTrackChip(
                             platform: 'ios',
                             track: app.lastIosUploadTrack,
@@ -930,12 +1003,29 @@ class _AppCard extends StatelessWidget {
                       ),
                     ),
                   ],
+                  if (onToggleStore != null)
+                    IconButton(
+                      tooltip: storeExpanded ? l10n.storeHideDetails : l10n.storeShowDetails,
+                      onPressed: onToggleStore,
+                      icon: Icon(storeExpanded ? Icons.expand_less : Icons.expand_more),
+                    ),
                 ],
               ),
               ),
             ],
           ),
         ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 200),
+            alignment: Alignment.topCenter,
+            child: storeExpanded
+                ? StoreStatusPanel(
+                    appId: app.id,
+                    status: app.storeStatus,
+                    onChanged: onStoreChanged,
+                  )
+                : const SizedBox(width: double.infinity),
+          ),
           if (serverStatus == 'building' || serverStatus == 'uploading' || displayStatus == 'working')
             ClipRRect(
               borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),

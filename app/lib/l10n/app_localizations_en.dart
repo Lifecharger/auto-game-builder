@@ -4562,4 +4562,255 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get deleteNoticeBody => 'This note will be removed for good.';
+
+  @override
+  String get usersTitle => 'Users';
+
+  @override
+  String get usersManage => 'Manage users';
+
+  @override
+  String get usersManageSubtitle =>
+      'Add a member, give a new key, turn a key off';
+
+  @override
+  String get agbAccountTitle => 'Server account';
+
+  @override
+  String signedInAs(Object name) {
+    return 'Signed in as $name';
+  }
+
+  @override
+  String get roleAdmin => 'Admin';
+
+  @override
+  String get roleMember => 'Member';
+
+  @override
+  String get usersAddMember => 'Add member';
+
+  @override
+  String get usersName => 'Name';
+
+  @override
+  String get usersProjectsRoot => 'Projects folder on the server';
+
+  @override
+  String get usersProjectsRootHint =>
+      'This member\'s new apps are created inside this folder';
+
+  @override
+  String get usersCreate => 'Create';
+
+  @override
+  String get usersNameRequired => 'Enter a name';
+
+  @override
+  String usersKeyTitle(Object name) {
+    return 'Key for $name';
+  }
+
+  @override
+  String get usersKeyOnce =>
+      'This key is shown only once. Copy it now and send it privately.';
+
+  @override
+  String get usersCopyKey => 'Copy key';
+
+  @override
+  String get usersKeyCopied => 'Copied';
+
+  @override
+  String get usersScanToPair =>
+      'On the member\'s phone: Settings > Scan QR to pair.';
+
+  @override
+  String usersAppCount(int count) {
+    return 'Apps: $count';
+  }
+
+  @override
+  String get usersInactive => 'Inactive';
+
+  @override
+  String get usersDeactivate => 'Deactivate';
+
+  @override
+  String usersDeactivateTitle(Object name) {
+    return 'Deactivate $name?';
+  }
+
+  @override
+  String get usersDeactivateBody =>
+      'Their key stops working at once. Their apps stay on the server.';
+
+  @override
+  String get usersRotateKey => 'New key';
+
+  @override
+  String usersRotateTitle(Object name) {
+    return 'Give $name a new key?';
+  }
+
+  @override
+  String get usersRotateBody => 'The current key stops working at once.';
+
+  @override
+  String get usersEmpty => 'No users yet';
+
+  @override
+  String buildStartedBy(Object name) {
+    return 'Started by $name';
+  }
+
+  @override
+  String get storePlay => 'Play';
+
+  @override
+  String get storeAppStore => 'App Store';
+
+  @override
+  String storeLineVersion(Object version, Object track) {
+    return '$version ($track)';
+  }
+
+  @override
+  String storeLiveVersion(Object version) {
+    return 'Live $version';
+  }
+
+  @override
+  String get storeNotOnStore => 'not on the store yet';
+
+  @override
+  String get storeNotChecked => 'not checked yet';
+
+  @override
+  String get trackProduction => 'Production';
+
+  @override
+  String get trackLive => 'Live';
+
+  @override
+  String get trackReview => 'In review';
+
+  @override
+  String get trackTestflight => 'TestFlight';
+
+  @override
+  String get trackPrepare => 'Being prepared';
+
+  @override
+  String get storePlayTracksTitle => 'Google Play tracks';
+
+  @override
+  String get storeAppleTitle => 'App Store and TestFlight';
+
+  @override
+  String get storeRefreshStatus => 'Refresh store status';
+
+  @override
+  String storeLastChecked(Object time) {
+    return 'Last checked $time';
+  }
+
+  @override
+  String storeCheckFailed(Object error) {
+    return 'Last check failed: $error';
+  }
+
+  @override
+  String get storeShowDetails => 'Show store details';
+
+  @override
+  String get storeHideDetails => 'Hide store details';
+
+  @override
+  String storeAppStoreVersion(Object version, Object state) {
+    return 'App Store version $version: $state';
+  }
+
+  @override
+  String get storeNoBuildAttached => 'no build attached';
+
+  @override
+  String storeActionFailed(Object error) {
+    return 'Failed: $error';
+  }
+
+  @override
+  String get promoteToProduction => 'Promote to production';
+
+  @override
+  String get promoteChooseSource => 'Which track goes to production?';
+
+  @override
+  String promoteBody(Object version, Object track) {
+    return 'Version $version from $track goes to production for all users. Nothing is rebuilt.';
+  }
+
+  @override
+  String get promoteNoSource => 'No track has a live release to promote.';
+
+  @override
+  String get promoteConfirm => 'Promote';
+
+  @override
+  String promoteDone(Object version, Object track) {
+    return 'Version $version is now on $track.';
+  }
+
+  @override
+  String get attachToAppStore => 'Attach to App Store version';
+
+  @override
+  String get attachChooseBuild => 'Which TestFlight build?';
+
+  @override
+  String get attachBody =>
+      'The build becomes the build of the App Store version. It is NOT submitted for review.';
+
+  @override
+  String get attachConfirm => 'Attach';
+
+  @override
+  String attachDone(Object build, Object version) {
+    return 'Build $build is attached to App Store version $version.';
+  }
+
+  @override
+  String get attachNoBuild => 'No processed TestFlight build yet.';
+
+  @override
+  String get submitForReview => 'Submit for review';
+
+  @override
+  String get submitReviewTitle => 'Submit to App Review?';
+
+  @override
+  String submitReviewBody(Object version) {
+    return 'Version $version is sent to Apple for review. Once approved it can go live for every App Store user. This cannot be taken back from this app.';
+  }
+
+  @override
+  String get submitReviewConfirm => 'Yes, submit';
+
+  @override
+  String submitReviewDone(Object version) {
+    return 'Version $version was submitted for review.';
+  }
+
+  @override
+  String get tryDemo => 'Try demo';
+
+  @override
+  String get tryDemoSubtitle =>
+      'Explore every screen with sample data. No server needed.';
+
+  @override
+  String get demoBanner => 'Demo: sample data, actions are simulated';
+
+  @override
+  String get exitDemo => 'Exit demo';
 }

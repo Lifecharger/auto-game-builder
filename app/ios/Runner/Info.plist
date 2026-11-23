@@ -40,8 +40,6 @@
 	<string>This app may save an image you choose to share to your photo library.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>This app does not read your photo library.</string>
-	<key>NSUserTrackingUsageDescription</key>
-	<string>Your data is used to show you more relevant ads.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

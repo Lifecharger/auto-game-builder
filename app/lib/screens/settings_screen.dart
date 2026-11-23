@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -17,6 +18,8 @@ import 'report_screen.dart';
 import '../theme/palette.dart';
 import '../services/lifecharger_analytics.dart';
 import '../services/usage_events.dart';
+import '../services/user_session.dart';
+import 'users_screen.dart';
 import '../widgets/settings/server_config_section.dart';
 import '../l10n/app_localizations.dart';
 
@@ -388,18 +391,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 16),
 
-            // Server Control (desktop only)
-            if (_isDesktop) _buildServerControlCard(),
+            // Server account: who this key is; admins manage users here.
+            _buildAccountCard(),
+            const SizedBox(height: 16),
 
-            // Server Configuration (all paths, desktop only)
-            if (_isDesktop) ...[
-              ServerConfigSection(
-                serverSettings: _serverSettings,
-                settingsPath: _serverSettingsPath,
-                onReload: _loadServerSettings,
+            // Server Control (desktop only, admin)
+            if (_isDesktop) AdminOnly(child: _buildServerControlCard()),
+
+            // Server Configuration (all paths, desktop only, admin)
+            if (_isDesktop)
+              AdminOnly(
+                child: Column(
+                  children: [
+                    ServerConfigSection(
+                      serverSettings: _serverSettings,
+                      settingsPath: _serverSettingsPath,
+                      onReload: _loadServerSettings,
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                ),
               ),
-              const SizedBox(height: 16),
-            ],
 
             // Server Connection (Worker URL) card
             _buildServerConnectionCard(),
@@ -690,6 +702,57 @@ class _SettingsScreenState extends State<SettingsScreen> {
         );
       }
     }
+  }
+
+  /// Who this app is signed in to the server as; admins get "Manage users".
+  Widget _buildAccountCard() {
+    return ValueListenableBuilder<CurrentUser?>(
+      valueListenable: UserSession.instance.user,
+      builder: (context, user, _) {
+        final isAdmin = user?.isAdmin ?? true;
+        final role = isAdmin ? l10n.roleAdmin : l10n.roleMember;
+        final name = (user?.name.isNotEmpty ?? false) ? user!.name : role;
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(isAdmin ? Icons.admin_panel_settings : Icons.person,
+                        color: AppColors.accent),
+                    const SizedBox(width: 8),
+                    Text(
+                      l10n.agbAccountTitle,
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(l10n.signedInAs(name)),
+                const SizedBox(height: 2),
+                Text(role, style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
+                if (isAdmin) ...[
+                  const SizedBox(height: 8),
+                  ListTile(
+                    key: const ValueKey('settings-manage-users'),
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.group),
+                    title: Text(l10n.usersManage),
+                    subtitle: Text(l10n.usersManageSubtitle),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const UsersScreen()),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Widget _buildServerControlCard() {
@@ -1135,6 +1198,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (!mounted) return;
     if (ok) {
       Usage.used('pair_qr');
+      // A new key may belong to another user: forget the old role and ask.
+      await UserSession.instance.clear();
+      unawaited(UserSession.instance.refresh());
+      if (!mounted) return;
       _workerUrlController.text = AppConfig.workerUrl;
       _urlController.text = AppConfig.baseUrl;
       setState(() => _editingWorkerUrl = false);

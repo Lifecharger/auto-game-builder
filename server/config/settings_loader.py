@@ -182,6 +182,8 @@ def save_settings(settings_dict: dict) -> None:
             "keys_dir": settings_dict.get("keys_dir", ""),
             "tools_dir": settings_dict.get("tools_dir", ""),
             "service_account_key": settings_dict.get("service_account_key", ""),
+            # Named Play service accounts for apps.play_account: {"name": "/path/key.json"}
+            "play_accounts": settings_dict.get("play_accounts", {}) or {},
         },
         "ai_agents": {
             "claude_path": settings_dict.get("claude_path", ""),

@@ -370,11 +370,16 @@ class AppleManager:
         "NSMicrophoneUsageDescription": "This app does not record audio.",
         "NSLocationWhenInUseUsageDescription": "This app does not use your location.",
         "NSBluetoothAlwaysUsageDescription": "This app does not use Bluetooth.",
-        "NSUserTrackingUsageDescription": "Your data is used to show you more relevant ads.",
     }
+    # We never ask for App Tracking Transparency. If this key is in the binary, App Store Connect
+    # requires "tracking" privacy declarations, so it is removed (2026-11-24).
+    REMOVE_KEYS = ("NSUserTrackingUsageDescription",)
     # Google's published sample iOS AdMob app id: shows test ads only. Real per-app iOS AdMob
     # ids must replace it before an App Store release.
     ADMOB_SAMPLE_IOS_APP_ID = "ca-app-pub-3940256099942544~1458002511"
+    # Google's SKAdNetwork id; extend with Google's published third-party buyer list when mediation
+    # or more buyers are used.
+    ADMOB_SKADNETWORK_IDS = ["cstr6suwn9.skadnetwork"]
 
     GODOT_PRIVACY = {
         "privacy/camera_usage_description": "This game does not use the camera.",
@@ -552,6 +557,10 @@ storyboard/use_launch_screen_storyboard=true
             if not str(data.get(key, "")).strip():
                 data[key] = text
                 changed = True
+        for key in self.REMOVE_KEYS:
+            if key in data:
+                del data[key]
+                changed = True
         if "ITSAppUsesNonExemptEncryption" not in data:
             data["ITSAppUsesNonExemptEncryption"] = False
             changed = True
@@ -560,6 +569,15 @@ storyboard/use_launch_screen_storyboard=true
         if uses_admob and not str(data.get("GADApplicationIdentifier", "")).strip():
             data["GADApplicationIdentifier"] = self.ADMOB_SAMPLE_IOS_APP_ID
             changed = True
+        if uses_admob:
+            # SKAdNetwork: Google's own network id (required for AdMob attribution on iOS)
+            items = data.get("SKAdNetworkItems") or []
+            have = {str(i.get("SKAdNetworkIdentifier", "")).lower() for i in items if isinstance(i, dict)}
+            for sk in self.ADMOB_SKADNETWORK_IDS:
+                if sk not in have:
+                    items.append({"SKAdNetworkIdentifier": sk})
+                    changed = True
+            data["SKAdNetworkItems"] = items
         if changed:
             with open(info, "wb") as f:
                 plistlib.dump(data, f)

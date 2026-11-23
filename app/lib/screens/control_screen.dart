@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/automation_model.dart';
 import '../services/api_service.dart';
 import '../services/app_state.dart';
+import '../services/user_session.dart';
 import '../theme.dart';
 import '../widgets/sync_status_chip.dart';
 import '../l10n/app_localizations.dart';
@@ -748,12 +749,14 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
           ],
         ),
         actions: [
-          IconButton(
-            icon: _resetting
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.restart_alt),
-            tooltip: l10n.resetServer,
-            onPressed: _resetting ? null : _resetServer,
+          AdminOnly(
+            child: IconButton(
+              icon: _resetting
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.restart_alt),
+              tooltip: l10n.resetServer,
+              onPressed: _resetting ? null : _resetServer,
+            ),
           ),
           IconButton(icon: const Icon(Icons.refresh), onPressed: _loadAutomations),
         ],

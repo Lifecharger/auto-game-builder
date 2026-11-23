@@ -1,0 +1,497 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../l10n/app_localizations.dart';
+import '../models/store_status.dart';
+import '../services/api_service.dart';
+import '../theme.dart';
+
+/// Localized name of a store track ("production", "TestFlight", "in review").
+String storeTrackLabel(AppLocalizations l10n, String store, String track) {
+  switch (track) {
+    case 'production':
+      return l10n.trackProduction;
+    case 'beta':
+      return l10n.trackBeta;
+    case 'alpha':
+      return l10n.trackAlpha;
+    case 'internal':
+      return l10n.trackInternal;
+    case 'live':
+      return l10n.trackLive;
+    case 'review':
+      return l10n.trackReview;
+    case 'testflight':
+      return l10n.trackTestflight;
+    case 'prepare':
+      return l10n.trackPrepare;
+  }
+  return track;
+}
+
+/// Green = in players' hands, amber = testers / review, blue = internal.
+Color storeTrackColor(String track) {
+  switch (track) {
+    case 'production':
+    case 'live':
+      return AppColors.success;
+    case 'beta':
+    case 'alpha':
+    case 'review':
+      return AppColors.warning;
+    case 'testflight':
+    case 'internal':
+      return AppColors.info;
+  }
+  return Colors.grey.shade500;
+}
+
+/// Apple / Play status codes made readable ("READY_FOR_SALE" -> "ready for sale").
+String humanStatus(String code) {
+  return code
+      .replaceAllMapped(RegExp(r'(?<=[a-z])(?=[A-Z])'), (_) => ' ')
+      .replaceAll('_', ' ')
+      .toLowerCase();
+}
+
+/// One collapsed-card line per store: "Play: 1.0.171 (production)".
+class StoreStatusChip extends StatelessWidget {
+  final String store; // play | apple
+  final StoreInfo info;
+  final VoidCallback? onTap;
+
+  const StoreStatusChip({super.key, required this.store, required this.info, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final name = store == 'play' ? l10n.storePlay : l10n.storeAppStore;
+    final d = info.display;
+    final color = d == null ? Colors.grey.shade500 : storeTrackColor(d.track);
+    final text = d == null
+        ? '$name: ${info.refreshedAt == null && info.error.isEmpty ? l10n.storeNotChecked : l10n.storeNotOnStore}'
+        : '$name: ${l10n.storeLineVersion(d.version, storeTrackLabel(l10n, store, d.track))}';
+    final live = info.live;
+    final showLive = store == 'apple' && live != null && d != null && d.track != 'live';
+    final chips = <Widget>[
+      _chip(text, color, warn: info.error.isNotEmpty),
+      if (showLive) _chip(l10n.storeLiveVersion(live.version), AppColors.success),
+    ];
+    final row = Wrap(spacing: 4, runSpacing: 4, children: chips);
+    if (onTap == null) return row;
+    return InkWell(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        onTap!();
+      },
+      borderRadius: BorderRadius.circular(6),
+      child: row,
+    );
+  }
+
+  Widget _chip(String text, Color color, {bool warn = false}) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(warn ? Icons.sync_problem : Icons.storefront_outlined, size: 12, color: color),
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(
+                text,
+                style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w500),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+/// Expanded card body: every track of both stores plus the store actions
+/// (promote on Play, attach + submit on Apple).
+class StoreStatusPanel extends StatefulWidget {
+  final int appId;
+  final StoreStatus status;
+
+  /// Called after an action changed something on the server, so the owner
+  /// list can re-sync.
+  final VoidCallback? onChanged;
+
+  const StoreStatusPanel({super.key, required this.appId, required this.status, this.onChanged});
+
+  @override
+  State<StoreStatusPanel> createState() => _StoreStatusPanelState();
+}
+
+class _StoreStatusPanelState extends State<StoreStatusPanel> {
+  AppLocalizations get l10n => AppLocalizations.of(context)!;
+
+  /// The status an action or refresh just returned, until the app list
+  /// catches up with it.
+  StoreStatus? _fresh;
+  bool _busy = false;
+
+  StoreStatus get _status => _fresh ?? widget.status;
+
+  @override
+  void didUpdateWidget(StoreStatusPanel old) {
+    super.didUpdateWidget(old);
+    if (old.status != widget.status) _fresh = null;
+  }
+
+  Future<void> _run(Future<ApiResult<Map<String, dynamic>>> Function() call,
+      String Function(Map<String, dynamic> result) doneText) async {
+    setState(() => _busy = true);
+    final res = await call();
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      final raw = res.data?['store_status'] ?? res.data;
+      if (res.ok && raw is Map) _fresh = StoreStatus.fromJson(raw);
+    });
+    if (res.ok) widget.onChanged?.call();
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: Icon(res.ok ? Icons.check_circle : Icons.error_outline,
+            color: res.ok ? AppColors.success : AppColors.error),
+        content: Text(res.ok ? doneText(res.data!) : l10n.storeActionFailed(res.error ?? '')),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: Text(l10n.close))],
+      ),
+    );
+  }
+
+  Future<void> _refresh() async {
+    setState(() => _busy = true);
+    final res = await ApiService.refreshStoreStatus(widget.appId);
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      if (res.ok) _fresh = StoreStatus.fromJson(res.data);
+    });
+    if (res.ok) {
+      widget.onChanged?.call();
+    } else {
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          icon: Icon(Icons.error_outline, color: AppColors.error),
+          content: Text(l10n.storeActionFailed(res.error ?? '')),
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: Text(l10n.close))],
+        ),
+      );
+    }
+  }
+
+  // ── Play ───────────────────────────────────────────────────
+
+  Future<void> _promote(StoreInfo play) async {
+    final sources = play.liveTracks.where((t) => t != 'production').toList();
+    if (sources.isEmpty) {
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          content: Text(l10n.promoteNoSource),
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: Text(l10n.close))],
+        ),
+      );
+      return;
+    }
+    String source = sources.first;
+    StoreEntry entryOf(String t) => play.entries
+        .where((e) => e.track == t && playLiveStatuses.contains(e.status))
+        .reduce((a, b) => compareVersions(a, b) >= 0 ? a : b);
+    final chosen = await showDialog<String>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) => AlertDialog(
+          title: Text(l10n.promoteToProduction),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(l10n.promoteChooseSource),
+                RadioGroup<String>(
+                  groupValue: source,
+                  onChanged: (v) => setD(() => source = v ?? source),
+                  child: Column(
+                    children: [
+                      for (final t in sources)
+                        RadioListTile<String>(
+                          value: t,
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(storeTrackLabel(l10n, 'play', t)),
+                          subtitle: Text(entryOf(t).version),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  l10n.promoteBody(entryOf(source).version, storeTrackLabel(l10n, 'play', source)),
+                  style: TextStyle(color: AppColors.warning, fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: Text(l10n.cancel)),
+            FilledButton(onPressed: () => Navigator.pop(ctx, source), child: Text(l10n.promoteConfirm)),
+          ],
+        ),
+      ),
+    );
+    if (chosen == null || !mounted) return;
+    await _run(
+      () => ApiService.promote(widget.appId, store: 'play', fromTrack: chosen, toTrack: 'production'),
+      (r) => l10n.promoteDone('${(r['result'] as Map?)?['version'] ?? ''}', l10n.trackProduction),
+    );
+  }
+
+  // ── Apple ──────────────────────────────────────────────────
+
+  Future<void> _attach(StoreInfo apple) async {
+    final builds = apple.attachableBuilds;
+    if (builds.isEmpty) {
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          content: Text(l10n.attachNoBuild),
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: Text(l10n.close))],
+        ),
+      );
+      return;
+    }
+    String buildId = builds.first.buildId;
+    final chosen = await showDialog<String>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) => AlertDialog(
+          title: Text(l10n.attachToAppStore),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(l10n.attachChooseBuild),
+                RadioGroup<String>(
+                  groupValue: buildId,
+                  onChanged: (v) => setD(() => buildId = v ?? buildId),
+                  child: Column(
+                    children: [
+                      for (final b in builds)
+                        RadioListTile<String>(
+                          value: b.buildId,
+                          contentPadding: EdgeInsets.zero,
+                          title: Text('${b.version} (${b.build})'),
+                          subtitle: Text(humanStatus(b.externalState.isNotEmpty ? b.externalState : b.internalState)),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(l10n.attachBody, style: TextStyle(color: AppColors.info, fontSize: 13)),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: Text(l10n.cancel)),
+            FilledButton(onPressed: () => Navigator.pop(ctx, buildId), child: Text(l10n.attachConfirm)),
+          ],
+        ),
+      ),
+    );
+    if (chosen == null || !mounted) return;
+    await _run(
+      () => ApiService.promote(widget.appId, store: 'apple', buildId: chosen),
+      (r) {
+        final res = (r['result'] as Map?) ?? const {};
+        return l10n.attachDone('${res['build'] ?? ''}', '${res['version'] ?? ''}');
+      },
+    );
+  }
+
+  Future<void> _submit(Map<String, dynamic> editable) async {
+    final version = '${editable['version'] ?? ''}';
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: Icon(Icons.warning_amber_rounded, color: AppColors.warning, size: 36),
+        title: Text(l10n.submitReviewTitle),
+        content: Text(l10n.submitReviewBody(version)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(l10n.cancel)),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(l10n.submitReviewConfirm),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    await _run(
+      () => ApiService.submitForReview(widget.appId),
+      (r) => l10n.submitReviewDone('${(r['result'] as Map?)?['version'] ?? version}'),
+    );
+  }
+
+  // ── UI ─────────────────────────────────────────────────────
+
+  String _checked(StoreInfo info) {
+    final t = DateTime.tryParse(info.refreshedAt ?? '');
+    if (t == null) return l10n.storeNotChecked;
+    final locale = Localizations.localeOf(context).toLanguageTag();
+    return l10n.storeLastChecked(DateFormat('d MMM HH:mm', locale).format(t.toLocal()));
+  }
+
+  Widget _entryRow(String store, StoreEntry e) {
+    final color = storeTrackColor(e.track);
+    final extra = [
+      humanStatus(e.status),
+      if (e.fraction != null) '${(e.fraction! * 100).round()}%',
+    ].where((s) => s.isNotEmpty).join(' · ');
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        children: [
+          Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 96,
+            child: Text(storeTrackLabel(l10n, store, e.track),
+                style: TextStyle(fontSize: 13, color: color, fontWeight: FontWeight.w600),
+                overflow: TextOverflow.ellipsis),
+          ),
+          Expanded(
+            child: Text(e.label, style: const TextStyle(fontSize: 13), overflow: TextOverflow.ellipsis),
+          ),
+          if (extra.isNotEmpty)
+            Flexible(
+              child: Text(extra,
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.end),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _section(String title, StoreInfo? info, List<Widget> actions) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 4),
+        if (info == null || info.entries.isEmpty)
+          Text(info == null ? l10n.storeNotChecked : l10n.storeNotOnStore,
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade500))
+        else
+          ...info.entries.map((e) => _entryRow(info.store, e)),
+        if (info != null) ...[
+          const SizedBox(height: 2),
+          Text(_checked(info), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          if (info.error.isNotEmpty)
+            Text(l10n.storeCheckFailed(info.error),
+                style: TextStyle(fontSize: 11, color: AppColors.error), maxLines: 3,
+                overflow: TextOverflow.ellipsis),
+        ],
+        if (actions.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Wrap(spacing: 8, runSpacing: 4, children: actions),
+        ],
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final play = _status.play;
+    final apple = _status.apple;
+    final editable = apple?.editableVersion;
+    final canSubmit = editable != null && (editable['build_id'] ?? '').toString().isNotEmpty;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Divider(height: 1),
+          if (_busy) const LinearProgressIndicator(minHeight: 2) else const SizedBox(height: 2),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: _busy ? null : _refresh,
+              icon: const Icon(Icons.sync, size: 18),
+              label: Text(l10n.storeRefreshStatus),
+            ),
+          ),
+          _section(l10n.storePlayTracksTitle, play, [
+            if (play != null && play.entries.isNotEmpty)
+              OutlinedButton.icon(
+                onPressed: _busy ? null : () => _promote(play),
+                icon: const Icon(Icons.rocket_launch_outlined, size: 18),
+                label: Text(l10n.promoteToProduction),
+              ),
+          ]),
+          const SizedBox(height: 14),
+          _section(l10n.storeAppleTitle, apple, [
+            if (apple != null && apple.builds.isNotEmpty)
+              OutlinedButton.icon(
+                onPressed: _busy ? null : () => _attach(apple),
+                icon: const Icon(Icons.link, size: 18),
+                label: Text(l10n.attachToAppStore),
+              ),
+            if (canSubmit)
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(foregroundColor: AppColors.warning),
+                onPressed: _busy ? null : () => _submit(editable),
+                icon: const Icon(Icons.send_outlined, size: 18),
+                label: Text(l10n.submitForReview),
+              ),
+          ]),
+          if (editable != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                l10n.storeAppStoreVersion(
+                  '${editable['version'] ?? ''}',
+                  (editable['build'] ?? '').toString().isNotEmpty
+                      ? '${humanStatus('${editable['state'] ?? ''}')} · ${editable['build']}'
+                      : '${humanStatus('${editable['state'] ?? ''}')} · ${l10n.storeNoBuildAttached}',
+                ),
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Which app cards show their store details, remembered on this phone.
+class StoreCardMemory {
+  StoreCardMemory._();
+  static const key = 'dashboard_store_expanded_ids';
+
+  static Future<Set<int>> load() async {
+    final prefs = await SharedPreferences.getInstance();
+    return (prefs.getStringList(key) ?? const [])
+        .map((e) => int.tryParse(e) ?? 0)
+        .where((e) => e > 0)
+        .toSet();
+  }
+
+  static Future<void> save(Set<int> ids) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(key, ids.map((e) => e.toString()).toList());
+  }
+}

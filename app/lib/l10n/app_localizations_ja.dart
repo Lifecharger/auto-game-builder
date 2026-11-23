@@ -4464,4 +4464,248 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get deleteNoticeBody => 'このメモは完全に削除されます。';
+
+  @override
+  String get usersTitle => 'ユーザー';
+
+  @override
+  String get usersManage => 'ユーザー管理';
+
+  @override
+  String get usersManageSubtitle => 'メンバーの追加、新しいキーの発行、キーの無効化';
+
+  @override
+  String get agbAccountTitle => 'サーバーアカウント';
+
+  @override
+  String signedInAs(Object name) {
+    return '$name としてログイン中';
+  }
+
+  @override
+  String get roleAdmin => '管理者';
+
+  @override
+  String get roleMember => 'メンバー';
+
+  @override
+  String get usersAddMember => 'メンバーを追加';
+
+  @override
+  String get usersName => '名前';
+
+  @override
+  String get usersProjectsRoot => 'サーバー上のプロジェクトフォルダー';
+
+  @override
+  String get usersProjectsRootHint => 'このメンバーの新しいアプリはこのフォルダー内に作成されます';
+
+  @override
+  String get usersCreate => '作成';
+
+  @override
+  String get usersNameRequired => '名前を入力してください';
+
+  @override
+  String usersKeyTitle(Object name) {
+    return '$name のキー';
+  }
+
+  @override
+  String get usersKeyOnce => 'このキーは一度だけ表示されます。今すぐコピーして、個別に送ってください。';
+
+  @override
+  String get usersCopyKey => 'キーをコピー';
+
+  @override
+  String get usersKeyCopied => 'コピーしました';
+
+  @override
+  String get usersScanToPair => 'メンバーのスマホで: 設定 > QRをスキャンしてペアリング';
+
+  @override
+  String usersAppCount(int count) {
+    return 'アプリ: $count';
+  }
+
+  @override
+  String get usersInactive => '無効';
+
+  @override
+  String get usersDeactivate => '無効にする';
+
+  @override
+  String usersDeactivateTitle(Object name) {
+    return '$name を無効にしますか？';
+  }
+
+  @override
+  String get usersDeactivateBody => 'キーはすぐに使えなくなります。アプリはサーバーに残ります。';
+
+  @override
+  String get usersRotateKey => '新しいキー';
+
+  @override
+  String usersRotateTitle(Object name) {
+    return '$name に新しいキーを発行しますか？';
+  }
+
+  @override
+  String get usersRotateBody => '現在のキーはすぐに使えなくなります。';
+
+  @override
+  String get usersEmpty => 'ユーザーはまだいません';
+
+  @override
+  String buildStartedBy(Object name) {
+    return '開始: $name';
+  }
+
+  @override
+  String get storePlay => 'Play';
+
+  @override
+  String get storeAppStore => 'App Store';
+
+  @override
+  String storeLineVersion(Object version, Object track) {
+    return '$version（$track）';
+  }
+
+  @override
+  String storeLiveVersion(Object version) {
+    return '公開中 $version';
+  }
+
+  @override
+  String get storeNotOnStore => 'まだストアにありません';
+
+  @override
+  String get storeNotChecked => '未確認';
+
+  @override
+  String get trackProduction => '製品版';
+
+  @override
+  String get trackLive => '公開中';
+
+  @override
+  String get trackReview => '審査中';
+
+  @override
+  String get trackTestflight => 'TestFlight';
+
+  @override
+  String get trackPrepare => '準備中';
+
+  @override
+  String get storePlayTracksTitle => 'Google Play トラック';
+
+  @override
+  String get storeAppleTitle => 'App Store と TestFlight';
+
+  @override
+  String get storeRefreshStatus => 'ストアの状態を更新';
+
+  @override
+  String storeLastChecked(Object time) {
+    return '最終確認 $time';
+  }
+
+  @override
+  String storeCheckFailed(Object error) {
+    return '前回の確認に失敗しました: $error';
+  }
+
+  @override
+  String get storeShowDetails => 'ストアの詳細を表示';
+
+  @override
+  String get storeHideDetails => 'ストアの詳細を隠す';
+
+  @override
+  String storeAppStoreVersion(Object version, Object state) {
+    return 'App Store バージョン $version: $state';
+  }
+
+  @override
+  String get storeNoBuildAttached => 'ビルド未設定';
+
+  @override
+  String storeActionFailed(Object error) {
+    return '失敗しました: $error';
+  }
+
+  @override
+  String get promoteToProduction => '製品版へ昇格';
+
+  @override
+  String get promoteChooseSource => 'どのトラックを製品版にしますか？';
+
+  @override
+  String promoteBody(Object version, Object track) {
+    return '$track のバージョン $version を全ユーザー向けの製品版にします。再ビルドはしません。';
+  }
+
+  @override
+  String get promoteNoSource => '昇格できる公開済みリリースがありません。';
+
+  @override
+  String get promoteConfirm => '昇格する';
+
+  @override
+  String promoteDone(Object version, Object track) {
+    return 'バージョン $version は $track になりました。';
+  }
+
+  @override
+  String get attachToAppStore => 'App Store バージョンに設定';
+
+  @override
+  String get attachChooseBuild => 'どの TestFlight ビルドにしますか？';
+
+  @override
+  String get attachBody => 'このビルドを App Store バージョンに設定します。審査には提出されません。';
+
+  @override
+  String get attachConfirm => '設定する';
+
+  @override
+  String attachDone(Object build, Object version) {
+    return 'ビルド $build を App Store バージョン $version に設定しました。';
+  }
+
+  @override
+  String get attachNoBuild => '処理済みの TestFlight ビルドはまだありません。';
+
+  @override
+  String get submitForReview => '審査に提出';
+
+  @override
+  String get submitReviewTitle => 'App Review に提出しますか？';
+
+  @override
+  String submitReviewBody(Object version) {
+    return 'バージョン $version を Apple の審査に送ります。承認されるとすべての App Store ユーザーに公開できます。このアプリからは取り消せません。';
+  }
+
+  @override
+  String get submitReviewConfirm => '提出する';
+
+  @override
+  String submitReviewDone(Object version) {
+    return 'バージョン $version を審査に提出しました。';
+  }
+
+  @override
+  String get tryDemo => 'デモを試す';
+
+  @override
+  String get tryDemoSubtitle => 'サンプルデータですべての画面を試せます。サーバーは不要です。';
+
+  @override
+  String get demoBanner => 'デモ: サンプルデータ、操作はシミュレーションです';
+
+  @override
+  String get exitDemo => 'デモを終了';
 }

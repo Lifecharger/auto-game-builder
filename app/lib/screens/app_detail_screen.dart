@@ -1827,7 +1827,9 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                   ),
                   title: Text(l10n.buildListTitle(build.version, build.buildType)),
                   subtitle: Text(
-                    build.startedAt,
+                    build.startedBy.isEmpty
+                        ? build.startedAt
+                        : '${build.startedAt}\n${l10n.buildStartedBy(build.startedBy)}',
                     style: TextStyle(
                       color: Colors.grey.shade500,
                       fontSize: 12,

@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../models/report_model.dart';
 import '../services/api_service.dart';
 import '../services/app_state.dart';
+import '../services/user_session.dart';
 import '../theme.dart';
 import '../l10n/app_localizations.dart';
 
@@ -149,10 +150,12 @@ class _ReportsScreenState extends State<ReportsScreen> {
               },
             ),
           ),
-          IconButton(
-            tooltip: l10n.pullNow,
-            icon: const Icon(Icons.cloud_download_outlined),
-            onPressed: _pullNow,
+          AdminOnly(
+            child: IconButton(
+              tooltip: l10n.pullNow,
+              icon: const Icon(Icons.cloud_download_outlined),
+              onPressed: _pullNow,
+            ),
           ),
         ],
       ),

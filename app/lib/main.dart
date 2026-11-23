@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'config.dart';
@@ -16,6 +17,7 @@ import 'services/mode_service.dart';
 import 'services/theme_service.dart';
 import 'services/update_checker.dart';
 import 'services/usage_events.dart';
+import 'services/user_session.dart';
 import 'theme.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/issues_screen.dart';
@@ -31,8 +33,13 @@ import 'services/lifecharger_update_gate.dart';
 import 'screens/delivery_screen.dart';   // #363
 import 'screens/buckets_screen.dart';    // #381
 import 'services/lifecharger_intro.dart';
+import 'services/demo/demo_mode.dart';
 
-void main() async {
+/// Every `http` call of the app goes through [DemoMode.clientFactory]: the
+/// normal network client, or the in-memory demo server while demo mode runs.
+void main() => http.runWithClient(_main, DemoMode.clientFactory);
+
+Future<void> _main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // Enable edge-to-edge so Flutter properly handles system bar insets
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
@@ -59,6 +66,7 @@ void main() async {
 
   await ThemeService.instance.load();
   await LocaleService.instance.load();
+  await UserSession.instance.load();
   intro.progress = .4;
 
   // Try silent sign-in (non-blocking if it fails)
@@ -112,6 +120,19 @@ class AppManagerMobile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Entering or leaving demo mode starts the app state over (a fresh
+    // AppState, event stream and navigator), so no data crosses between the
+    // demo and a real server.
+    return ValueListenableBuilder<bool>(
+      valueListenable: DemoMode.active,
+      builder: (context, demo, _) => KeyedSubtree(
+        key: ValueKey('demo-$demo'),
+        child: _app(demo),
+      ),
+    );
+  }
+
+  Widget _app(bool demo) {
     return ChangeNotifierProvider(
       create: (_) {
         final state = AppState();
@@ -135,7 +156,7 @@ class AppManagerMobile extends StatelessWidget {
             locale: LocaleService.instance.currentLocale,
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
-            home: AppConfig.baseUrl.isEmpty
+            home: !demo && AppConfig.baseUrl.isEmpty
                 ? const LoginScreen()
                 : const MainShell(),
           );
@@ -241,6 +262,7 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
     );
     _fadeController.value = 1.0;
     ModeService.mode.addListener(_onModeChanged);
+    UserSession.instance.user.addListener(_onUserChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _appStateRef = context.read<AppState>();
       _appStateRef!.addListener(_onAppStateChanged);
@@ -250,8 +272,16 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
     _checkForUpdate();
   }
 
+  /// A member key has no Asset / Delivery tools: drop back to Code mode.
+  void _onUserChanged() {
+    if (UserSession.instance.isMember && !ModeService.isCode) {
+      ModeService.setMode(ModeService.code);
+    }
+  }
+
   @override
   void dispose() {
+    UserSession.instance.user.removeListener(_onUserChanged);
     ModeService.mode.removeListener(_onModeChanged);
     _appStateRef?.removeListener(_onAppStateChanged);
     _fadeController.dispose();
@@ -347,7 +377,8 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
     final pendingCount = appState.pendingTaskCount;
     final l10n = AppLocalizations.of(context)!;
 
-    final showOffline = appState.showOfflineBanner;
+    final demo = DemoMode.isActive;
+    final showOffline = appState.showOfflineBanner && !demo;
     final keyRefused = appState.keyRefused;
     // gorev #289: edge-to-edge'de icerik durum cubugunun ARKASINDAN basliyor;
     // banner gorunurken ust guvenli alani banner tuketir, sekmelerden dusulur.
@@ -391,6 +422,7 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
       child: Scaffold(
       body: Column(
         children: [
+          if (demo) DemoBanner(topInset: topInset),
           AnimatedContainer(
             duration: const Duration(milliseconds: 300),
             height: showOffline ? 32 + topInset : 0,
@@ -433,7 +465,7 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
               builder: (bodyContext) {
                 final bodyMq = MediaQuery.of(bodyContext);
                 return MediaQuery(
-                  data: showOffline
+                  data: showOffline || demo
                       ? bodyMq.removePadding(removeTop: true)
                       : bodyMq,
                   child: FadeTransition(
@@ -550,6 +582,46 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
               ],
       ),
     ),
+    );
+  }
+}
+
+/// Top strip while demo mode runs: says the data is sample data and offers
+/// the way back to pairing. Takes the status-bar inset itself, like the
+/// offline banner, so nothing is drawn under the status bar.
+class DemoBanner extends StatelessWidget {
+  final double topInset;
+  const DemoBanner({super.key, required this.topInset});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return Container(
+      key: const ValueKey('demo-banner'),
+      color: AppColors.accent,
+      padding: EdgeInsets.only(top: topInset, left: 12, right: 4),
+      child: Row(
+        children: [
+          const Icon(Icons.science_outlined, color: Colors.white, size: 16),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              l10n.demoBanner,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+            ),
+          ),
+          TextButton(
+            onPressed: DemoMode.exit,
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.white,
+              minimumSize: const Size(48, 44),
+            ),
+            child: Text(l10n.exitDemo),
+          ),
+        ],
+      ),
     );
   }
 }

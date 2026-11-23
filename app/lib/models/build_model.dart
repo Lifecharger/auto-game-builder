@@ -8,6 +8,9 @@ class BuildModel {
   final String? completedAt;
   final String? appName;
 
+  /// Name of the user who queued the build ('' for builds before users).
+  final String startedBy;
+
   BuildModel({
     required this.id,
     required this.appId,
@@ -17,6 +20,7 @@ class BuildModel {
     required this.startedAt,
     this.completedAt,
     this.appName,
+    this.startedBy = '',
   });
 
   factory BuildModel.fromJson(Map<String, dynamic> json) {
@@ -29,6 +33,7 @@ class BuildModel {
       startedAt: json['started_at'] ?? '',
       completedAt: json['completed_at'],
       appName: json['app_name'],
+      startedBy: json['started_by'] as String? ?? '',
     );
   }
 
@@ -41,5 +46,6 @@ class BuildModel {
         'started_at': startedAt,
         'completed_at': completedAt,
         'app_name': appName,
+        'started_by': startedBy,
       };
 }

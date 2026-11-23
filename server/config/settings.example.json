@@ -8,6 +8,7 @@
     "keys_dir": "",
     "tools_dir": "",
     "service_account_key": "",
+    "play_accounts": {},
     "apple_key_file": ""
   },
   "apple": {

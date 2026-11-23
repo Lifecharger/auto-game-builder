@@ -9,6 +9,7 @@ import 'cache_service.dart';
 import 'event_service.dart';
 import 'sync_service.dart';
 import 'usage_events.dart';
+import 'user_session.dart';
 
 class AppState extends ChangeNotifier {
   List<AppModel> _apps = [];
@@ -100,6 +101,9 @@ class AppState extends ChangeNotifier {
     if (ok) {
       _consecutiveFailures = 0;
       unawaited(Usage.milestone('server_connected'));
+      // Role (admin / member) decides which tools are shown; ask once per
+      // app session, and again after a re-pairing cleared it.
+      if (!UserSession.instance.fetched) unawaited(UserSession.instance.refresh());
       // While the key is refused nothing else may be asking the server:
       // ask again here, so the banner clears soon after the key is fixed.
       if (keyRefused) unawaited(loadApps());
@@ -121,6 +125,9 @@ class AppState extends ChangeNotifier {
   void dispose() {
     ApiService.keyRefused.removeListener(notifyListeners);
     _healthTimer?.cancel();
+    // A new AppState replaces this one when demo mode starts or ends; its
+    // event stream must not keep reconnecting to the old server.
+    _eventService?.stop();
     super.dispose();
   }
 

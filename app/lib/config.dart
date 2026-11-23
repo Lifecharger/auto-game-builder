@@ -65,7 +65,12 @@ class AppConfig {
   static String _apiKey = '';
   static bool _showAppIcons = false;
 
-  static String get baseUrl => _baseUrl;
+  /// Demo mode's in-memory server address (see services/demo/demo_mode.dart).
+  /// Never saved: the real server address stays untouched underneath.
+  static String? _demoBaseUrl;
+  static void setDemoOverride(String? url) => _demoBaseUrl = url;
+
+  static String get baseUrl => _demoBaseUrl ?? _baseUrl;
   static String get workerUrl => _workerUrl;
   static String get apiKey => _apiKey;
   static bool get isPaired => _apiKey.isNotEmpty;

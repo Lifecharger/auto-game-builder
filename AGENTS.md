@@ -76,8 +76,26 @@ No circular dependencies. The app never holds authoritative state — always re-
 | GET | `/api/apps` | `?include_archived=bool` |
 | GET | `/api/apps/{app_id}` | — (app dicts include `last_build_status`, `last_upload_track` (`internal`·`alpha`·`beta`·`production`, `''` = never uploaded), `last_upload_at` and `task_status{total,pending,in_progress,completed,built,divided,failed,urgent,blocked}`) |
 | POST | `/api/apps` | `{name, app_type, fix_strategy}` |
-| PATCH | `/api/apps/{app_id}` | `{notes, status, publish_status, fix_strategy, package_name, project_path, app_type, github_url, play_store_url, website_url, console_url}` |
+| PATCH | `/api/apps/{app_id}` | `{notes, status, publish_status, fix_strategy, package_name, project_path, app_type, github_url, play_store_url, website_url, console_url, apple_app_id, app_store_url}` |
 | POST | `/api/apps/{app_id}/detect-engine` | — → `{app_type, previous, changed}` (re-reads the engine from disk) |
+
+### Users & access (multi-user)
+Every `/api` key resolves to a user. The `settings.json` key is the admin (user 1); other keys live in the `users` table as SHA-256 hashes and are shown once at creation. Members see and act only on apps they own (`apps.owner_user_id`); another user's app answers **404**. Every route not listed for members in `server/core/access.py` is admin-only (**403**), so new server-wide routes stay admin-only by default.
+
+| Method | Path | Body / Params |
+|--------|------|---------------|
+| GET | `/api/me` | — → `{id, name, role, is_admin}` |
+| GET | `/api/users` | admin — list (never keys) with `app_count` |
+| POST | `/api/users` | admin — `{name, role='member', projects_root}` → `{user, api_key}` (key shown once) |
+| PATCH | `/api/users/{user_id}` | admin — `{name, projects_root, active}` |
+| POST | `/api/users/{user_id}/deactivate` | admin |
+| POST | `/api/users/{user_id}/rotate-key` | admin → `{user, api_key}` (old key dies) |
+| GET | `/api/play-accounts` | admin — names from settings `paths.play_accounts` |
+
+- Admin-only app fields on `PATCH /api/apps/{id}`: `owner_user_id`, `play_account` (`""` = default `service_account_key`), `git_ssh_key_path` (deploy key for the release push).
+- A member's new app goes under its `users.projects_root`; a member's `project_path` must stay inside it.
+- Builds record `started_by_user_id` (`started_by` name in build dicts). The build queue stays global.
+- CLI on the server: `python server/tools/users.py add --name "..." --role member --projects-root <dir>` (prints the key + pairing code once), `list`, `rotate --id N`, `deactivate --id N`, `set-root --id N --path <dir>`, `assign-app --app-id A --user-id N`.
 
 ### Issues
 | Method | Path | Body / Params |
@@ -110,6 +128,28 @@ No circular dependencies. The app never holds authoritative state — always re-
 | POST | `/api/apps/{app_id}/deploy/cancel` | — |
 | POST | `/api/apps/{app_id}/deploy/retry-upload` | — (retry AAB upload, no rebuild) |
 | GET | `/api/apps/{app_id}/deploy/status` | — |
+
+**Multi-Platform & Dual Deploy (Android & iOS)**:
+- `build_target` options for Flutter: `apk`, `aab`, `exe`, `web`, `ios`, and `dual` (Dual AAB + iOS).
+- In `dual` mode, AGB builds Android AAB (+ Google Play upload if enabled) and then iOS IPA (+ App Store Connect upload if enabled) sequentially to prevent Gradle/Xcode lock collisions.
+- Unified tracks map across both platforms: `internal` (Play Internal & TestFlight Internal), `alpha`/`beta` (Play Closed/Open & TestFlight External), and `production` (Google Play Production & Apple App Store).
+- Apple App Store Connect API integration is encapsulated in `server/core/apple_manager.py` (JWT auth with `AuthKey_*.p8`, automated bundle ID registration, fastlane sigh profile generation, and xcrun altool uploads). All credentials remain gitignored in `settings.json["apple"]` and the local keys folder.
+
+### Store status & promote without rebuild
+What Google Play and App Store Connect hold per app is read and remembered in the `store_status` table (`server/core/store_status.py`): Play tracks (production, beta, alpha, internal) with versionCode / versionName / release status, TestFlight builds (version, build, processing and beta state) and App Store versions (state, attached build). Refreshed after every finished upload (Play after 30 s, Apple after 20 min), by a background sweep of stores older than 6 h (checked every 15 min, 2 s between apps), and on demand. A failed refresh keeps the last data next to its `error`. App dicts carry it as `store_status: {play, apple}`; each store has `display` = the highest version found, labelled with its track (same version on several tracks: production > beta > alpha > internal on Play, live > review > testflight on Apple), plus the full `entries` list. Every promote / attach / submit is recorded in `store_promotions` (who, when, from, to, version) and logged.
+
+| Method | Path | Body / Params |
+|--------|------|---------------|
+| GET | `/api/apps/{app_id}/store-status` | — → `{app_id, play, apple}` (remembered data, no store call) |
+| POST | `/api/apps/{app_id}/store-status/refresh` | — refresh now (forced) → `{app_id, play, apple}` |
+| POST | `/api/store-status/refresh` | — pull-to-refresh: the caller's apps in the background; apps read in the last 5 min are skipped → `{queued}` |
+| POST | `/api/apps/{app_id}/promote` | `{store:"play", from, to, rollout?}` copies the live release of `from` to `to` through an edit (no rebuild; `rollout` 0..1 = staged). `{store:"apple", build_id?}` attaches the highest valid TestFlight build (or `build_id`) to the editable App Store version, creating it when missing; never submits → `{ok, result, store_status}` |
+| POST | `/api/apps/{app_id}/submit-for-review` | `{confirm: true}` (required) — Apple only, the owner's explicit action → `{ok, result, store_status}` |
+| GET | `/api/apps/{app_id}/promotions` | `?limit=50` — promote history |
+
+Errors: 400 = the request cannot work (no live release on the source track, no processed build, ...); 502 = Google / Apple refused, with their message. Members may use these on their own apps.
+
+The phone app also has a demo mode ("Try demo" before pairing): `app/lib/services/demo/` answers every request in memory with sample data (no network); actions are simulated.
 
 ### Unity editor reviews
 

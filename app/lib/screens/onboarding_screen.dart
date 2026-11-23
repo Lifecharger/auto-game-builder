@@ -13,6 +13,7 @@ import '../services/lifecharger_analytics.dart';
 import '../services/usage_events.dart';
 import '../main.dart';
 import '../l10n/app_localizations.dart';
+import '../widgets/demo_entry_button.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -467,6 +468,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               error: _connectionError,
               onContinue: () => _onConnectSuccess(_urlController.text.trim()),
             ),
+          const SizedBox(height: 24),
+          const DemoEntryButton(),
         ],
       ),
     );
@@ -625,6 +628,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 }
               },
             ),
+          const SizedBox(height: 24),
+          const DemoEntryButton(),
         ],
       ),
     );

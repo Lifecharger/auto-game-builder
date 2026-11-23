@@ -323,6 +323,64 @@ MIGRATIONS = [
     """
     ALTER TABLE apps ADD COLUMN app_store_url TEXT DEFAULT '';
     """,
+    # Version 16: multi-user. Additive only: a new users table, new nullable /
+    # defaulted columns, no rewrite or drop of existing data. User 1 is the
+    # implicit admin that the settings.json key maps to, so every existing app
+    # (owner default 1), build and notice stays the admin's.
+    """
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('admin', 'member')),
+        api_key_hash TEXT NOT NULL DEFAULT '',
+        projects_root TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        active INTEGER NOT NULL DEFAULT 1
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_users_key_hash ON users(api_key_hash) WHERE api_key_hash != '';
+    INSERT OR IGNORE INTO users (id, name, role, api_key_hash) VALUES (1, 'admin', 'admin', '');
+
+    ALTER TABLE apps ADD COLUMN owner_user_id INTEGER NOT NULL DEFAULT 1;
+    ALTER TABLE apps ADD COLUMN play_account TEXT;
+    ALTER TABLE apps ADD COLUMN git_ssh_key_path TEXT NOT NULL DEFAULT '';
+    CREATE INDEX IF NOT EXISTS idx_apps_owner ON apps(owner_user_id);
+
+    ALTER TABLE builds ADD COLUMN started_by_user_id INTEGER;
+    ALTER TABLE notices ADD COLUMN user_id INTEGER;
+    """,
+    # Version 17: store status memory + promote history. Additive only.
+    # store_status keeps the last answer of Google Play / App Store Connect
+    # per app and store (JSON), so the phone shows it instantly and a failed
+    # refresh keeps the last known good data next to its error.
+    # store_promotions records every promote / attach / submit-for-review.
+    """
+    CREATE TABLE IF NOT EXISTS store_status (
+        app_id INTEGER NOT NULL,
+        store TEXT NOT NULL CHECK (store IN ('play', 'apple')),
+        data TEXT NOT NULL DEFAULT '{}',
+        refreshed_at TEXT,
+        error TEXT NOT NULL DEFAULT '',
+        error_at TEXT,
+        PRIMARY KEY (app_id, store)
+    );
+
+    CREATE TABLE IF NOT EXISTS store_promotions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        app_id INTEGER NOT NULL,
+        store TEXT NOT NULL,
+        action TEXT NOT NULL,
+        from_track TEXT NOT NULL DEFAULT '',
+        to_track TEXT NOT NULL DEFAULT '',
+        version TEXT NOT NULL DEFAULT '',
+        build_ref TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'ok',
+        error TEXT NOT NULL DEFAULT '',
+        user_id INTEGER,
+        user_name TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_store_promotions_app ON store_promotions(app_id, created_at);
+    """,
 ]
 
 

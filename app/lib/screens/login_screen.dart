@@ -7,6 +7,7 @@ import '../services/auth_service.dart';
 import '../services/drive_service.dart';
 import '../services/usage_events.dart';
 import 'onboarding_screen.dart';
+import '../widgets/demo_entry_button.dart';
 import '../main.dart';
 import '../l10n/app_localizations.dart';
 
@@ -216,7 +217,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
+                const DemoEntryButton(),
+                const SizedBox(height: 16),
 
                 // Skip button
                 TextButton(

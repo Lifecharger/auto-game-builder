@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import 'user_session.dart';
+
 /// Uygulama modu.
 ///
 /// `Code Mod`  : proje yonetimi (dashboard, issues, raporlar, kontrol)
@@ -27,6 +29,9 @@ class ModeService {
 
   static void setMode(String m) {
     if (m != code && m != asset && m != delivery) m = code;
+    // Asset and Delivery modes drive server-wide tools (GPU queue, R2,
+    // delivery rules): a member's key may not use them.
+    if (UserSession.instance.isMember) m = code;
     if (mode.value == m) return;
     mode.value = m;
     assetMode.value = m == asset;

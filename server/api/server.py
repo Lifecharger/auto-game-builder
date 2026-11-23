@@ -25,7 +25,7 @@ from contextlib import asynccontextmanager
 
 from email.utils import formatdate, parsedate_to_datetime
 
-from fastapi import FastAPI, HTTPException, Query, Request, Response
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
@@ -39,6 +39,9 @@ from database.db_manager import DBManager
 from config.constants import TECH_STACKS
 from config.settings_loader import get_settings
 from config.path_utils import to_unix_path
+from core import access as access_policy
+from core import users as users_core
+from core import store_status as store_status_core
 
 logger = logging.getLogger(__name__)
 
@@ -153,6 +156,17 @@ async def lifespan(app: FastAPI):
     app.state.autofix.load_queued_issues()
     app.state.deploy = DeployEngine(app.state.db, settings)
 
+    # Store status memory (Play tracks, TestFlight / App Store): refreshed
+    # after every finished upload, every 6 h in the background, and on demand.
+    def _store_status_changed(changed_app_id: int):
+        app.state.db.touch_app(changed_app_id)
+        _publish_app_changed(changed_app_id)
+
+    app.state.store_status = store_status_core.StoreStatusService(
+        app.state.db, settings, on_changed=_store_status_changed)
+    app.state.deploy.on("deploy_status", app.state.store_status.on_deploy_status)
+    app.state.store_status.start_periodic(lambda: app.state.db.get_all_apps())
+
     # ComfyUI ve LAN sitesi AGB ile birlikte kalksin. Ayri thread'de: ComfyUI'nin
     # acilmasi dakikalar surebilir, sunucu bunu beklemesin. Ayakta olanlara
     # dokunulmaz, kapanista da oldurulmezler (settings.json -> side_services).
@@ -213,6 +227,7 @@ async def lifespan(app: FastAPI):
 
     yield
     _event_prune_stop.set()
+    app.state.store_status.stop()
     app.state.deploy.shutdown()
     app.state.internet.stop()
     app.state.autofix.stop_processing()
@@ -228,6 +243,12 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 class ApiKeyMiddleware(BaseHTTPMiddleware):
     """Validate X-API-Key header on all /api/* routes (except health & pair).
+
+    Multi-user: the key resolves to a user (settings.json key = admin user 1,
+    other keys = rows of the `users` table, matched by SHA-256). The user is
+    put on `request.state.user` and core/access.py decides what it may call:
+    admins everything, members only their own apps (others answer 404) and no
+    server-wide tools (403).
 
     Docs (/docs, /openapi.json, /redoc) are ALSO gated behind the key — they
     are reachable over the public Cloudflare tunnel and would otherwise leak
@@ -258,14 +279,24 @@ class ApiKeyMiddleware(BaseHTTPMiddleware):
         expected_key = settings.get("api_key", "")
         if not expected_key:
             # No key configured yet — allow all (first-run grace)
+            request.state.user = users_core.implicit_admin()
             return await call_next(request)
 
         provided_key = request.headers.get("X-API-Key", "")
-        if provided_key != expected_key:
+        app_db = getattr(request.app.state, "db", None)
+        user = users_core.resolve_user(app_db, provided_key, expected_key)
+        if user is None:
             return JSONResponse(
                 status_code=401,
                 content={"error": "Unauthorized", "message": "Invalid or missing API key"},
             )
+        request.state.user = user
+        if not user.is_admin:
+            denial = access_policy.check(app_db, user, request.method, path)
+            if denial is not None:
+                body = ({"detail": "Not found"} if denial.status == 404
+                        else {"error": "Forbidden", "message": denial.message})
+                return JSONResponse(status_code=denial.status, content=body)
         return await call_next(request)
 
 
@@ -274,6 +305,44 @@ app.add_middleware(ApiKeyMiddleware)
 
 def db() -> DBManager:
     return app.state.db
+
+
+# ── Users / access helpers ───────────────────────────────────
+
+def _current_user(request: Optional[Request]) -> "users_core.User":
+    """The caller. Internal calls (no request) and requests that bypassed the
+    key middleware (open routes) count as the admin."""
+    if request is None:
+        return users_core.implicit_admin()
+    return getattr(request.state, "user", None) or users_core.implicit_admin()
+
+
+def admin_required(request: Request) -> "users_core.User":
+    """Route dependency: refuse members. The middleware already default-denies
+    members on every route core/access.py does not list; this keeps admin-only
+    routes safe even if someone widens that list by mistake."""
+    user = _current_user(request)
+    if not user.is_admin:
+        raise HTTPException(403, "Admin only")
+    return user
+
+
+def _owned_app_ids(request: Optional[Request]) -> Optional[set[int]]:
+    """None for admins (no filter); the ids of the member's own apps otherwise."""
+    user = _current_user(request)
+    if user.is_admin:
+        return None
+    return db().get_app_ids_for_owner(user.id)
+
+
+def _require_own_app(request: Optional[Request], app_id: int):
+    """Load an app the caller may act on, else 404 (never 403: a member must
+    not learn that another user's app exists)."""
+    a = db().get_app(app_id)
+    owned = _owned_app_ids(request)
+    if not a or (owned is not None and a.id not in owned):
+        raise HTTPException(404, "App not found")
+    return a
 
 def autofix() -> AutoFixEngine:
     return app.state.autofix
@@ -326,6 +395,10 @@ class AppUpdate(BaseModel):
     console_url: Optional[str] = None
     apple_app_id: Optional[str] = None
     app_store_url: Optional[str] = None
+    # Admin only (see _ADMIN_ONLY_APP_FIELDS)
+    owner_user_id: Optional[int] = None
+    play_account: Optional[str] = None  # "" = default account
+    git_ssh_key_path: Optional[str] = None
 
 class DirectiveCreate(BaseModel):
     message: str
@@ -508,8 +581,25 @@ def _reconcile_tasklist_mtimes():
         logger.debug("reconcile tasklist mtimes failed: %s", e)
 
 
+def _filter_sync_for_member(owned: set[int], result: dict) -> dict:
+    """A member's sync: own apps and their issues/builds/sessions only.
+
+    Deletions are kept for own apps and for apps that no longer exist (the
+    owner of a deleted app can't be looked up any more, and a bare id tells
+    nothing); deletions under another user's live app are dropped."""
+    result["apps"] = [a for a in result["apps"] if a.get("id") in owned]
+    for key in ("issues", "builds", "sessions"):
+        result[key] = [r for r in result[key] if r.get("app_id") in owned]
+    result["deleted"] = [
+        d for d in result["deleted"]
+        if d.get("app_id") in owned
+        or (d.get("app_id") is not None and db().get_app(d["app_id"]) is None)
+    ]
+    return result
+
+
 @app.get("/api/sync")
-def sync_delta(since: str = ""):
+def sync_delta(since: str = "", request: Request = None):
     """Return all records changed since the given ISO timestamp.
     If since is empty, returns everything (full sync)."""
     _reconcile_tasklist_mtimes()
@@ -530,7 +620,7 @@ def sync_delta(since: str = ""):
         builds = [_build_dict(b) for b in db().get_all_builds()]
         sessions = [_session_dict(s) for s in db().get_all_sessions()]
         deleted = []
-    return {
+    result = {
         "apps": apps,
         "issues": issues,
         "builds": builds,
@@ -539,6 +629,33 @@ def sync_delta(since: str = ""):
         "server_time": snapshot_time,
         "event_seq": snapshot_seq,
     }
+    if request is not None:
+        owned = _owned_app_ids(request)
+        if owned is not None:
+            result = _filter_sync_for_member(owned, result)
+    return result
+
+
+def _event_app_id(event: dict) -> Optional[int]:
+    app_id = event.get("app_id")
+    if app_id is None and isinstance(event.get("app"), dict):
+        app_id = event["app"].get("id")
+    try:
+        return int(app_id) if app_id is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _event_visible(user, event: dict) -> bool:
+    """Admins get every op; members only ops about apps they own (an op with
+    no app is server-wide and stays hidden)."""
+    if user.is_admin:
+        return True
+    app_id = _event_app_id(event)
+    if app_id is None:
+        return False
+    a = db().get_app(app_id)
+    return a is not None and a.owner_user_id == user.id
 
 
 def _sse_frame(event: dict) -> bytes:
@@ -595,6 +712,7 @@ async def events_stream(
         logger.debug("events connect reconcile failed: %s", e)
 
     queue = await event_bus.subscribe()
+    user = _current_user(request)
 
     async def iterator():
         # Track the highest seq we've sent on this connection so the live
@@ -608,8 +726,9 @@ async def events_stream(
             # Replay the persistent log from wherever this client left off.
             try:
                 for entry in event_log.replay_since(last_seq):
-                    yield _sse_frame(entry)
                     seq = entry.get("seq")
+                    if _event_visible(user, entry):
+                        yield _sse_frame(entry)
                     if isinstance(seq, int) and seq > high_water:
                         high_water = seq
             except Exception as e:
@@ -633,6 +752,8 @@ async def events_stream(
                     baseline_seq = event_log.current_seq
                     counts = db().count_issues_by_app(status="open")
                     for a in db().get_all_apps(include_archived=True):
+                        if not user.is_admin and a.owner_user_id != user.id:
+                            continue
                         snapshot_frame = {
                             "seq": baseline_seq,
                             "type": "app.updated",
@@ -659,7 +780,8 @@ async def events_stream(
                 # in our queue before we've finished yielding from disk.
                 if isinstance(seq, int) and seq <= high_water:
                     continue
-                yield _sse_frame(event)
+                if _event_visible(user, event):
+                    yield _sse_frame(event)
                 if isinstance(seq, int) and seq > high_water:
                     high_water = seq
         finally:
@@ -758,11 +880,102 @@ def pair(request: Request, code: str = Query("")):
     return {"pair_data": base64.b64encode(payload.encode()).decode(), "worker_url": worker_url}
 
 
+# ── Users (multi-user) ────────────────────────────────────────
+
+class UserCreate(BaseModel):
+    name: str
+    role: str = users_core.ROLE_MEMBER
+    projects_root: str = ""
+
+
+class UserUpdate(BaseModel):
+    name: Optional[str] = None
+    projects_root: Optional[str] = None
+    active: Optional[bool] = None
+
+
+@app.get("/api/me")
+def who_am_i(request: Request):
+    """The caller's own user: lets the client hide admin-only screens."""
+    u = _current_user(request)
+    return {"id": u.id, "name": u.name, "role": u.role, "is_admin": u.is_admin}
+
+
+@app.get("/api/users")
+def list_users(_: "users_core.User" = Depends(admin_required)):
+    counts: dict[int, int] = {}
+    for a in db().get_all_apps(include_archived=True):
+        counts[a.owner_user_id] = counts.get(a.owner_user_id, 0) + 1
+    return [{**u.public_dict(), "app_count": counts.get(u.id, 0)} for u in db().list_users()]
+
+
+@app.post("/api/users")
+def create_user(body: UserCreate, _: "users_core.User" = Depends(admin_required)):
+    """Create a user. The response carries its API key ONCE; only the hash is kept."""
+    try:
+        user, key = users_core.create_user(db(), body.name, body.role, body.projects_root)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"user": user.public_dict(), "api_key": key}
+
+
+@app.patch("/api/users/{user_id}")
+def update_user(user_id: int, body: UserUpdate, _: "users_core.User" = Depends(admin_required)):
+    if db().get_user(user_id) is None:
+        raise HTTPException(404, "User not found")
+    updates: dict = {}
+    if body.name is not None:
+        if not body.name.strip():
+            raise HTTPException(400, "name is required")
+        updates["name"] = body.name.strip()
+    if body.projects_root is not None:
+        updates["projects_root"] = (users_core.normalize_root(body.projects_root)
+                                    if body.projects_root.strip() else "")
+    if body.active is not None:
+        if user_id == users_core.IMPLICIT_ADMIN_ID and not body.active:
+            raise HTTPException(400, "the main admin cannot be deactivated")
+        updates["active"] = 1 if body.active else 0
+    db().update_user(user_id, **updates)
+    return db().get_user(user_id).public_dict()
+
+
+@app.post("/api/users/{user_id}/deactivate")
+def deactivate_user(user_id: int, _: "users_core.User" = Depends(admin_required)):
+    try:
+        users_core.deactivate(db(), user_id)
+    except LookupError:
+        raise HTTPException(404, "User not found")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"ok": True}
+
+
+@app.post("/api/users/{user_id}/rotate-key")
+def rotate_user_key(user_id: int, _: "users_core.User" = Depends(admin_required)):
+    """New key for a user, returned ONCE. The old key stops working at once."""
+    try:
+        key = users_core.rotate_key(db(), user_id)
+    except LookupError:
+        raise HTTPException(404, "User not found")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"user": db().get_user(user_id).public_dict(), "api_key": key}
+
+
+@app.get("/api/play-accounts")
+def list_play_accounts(_: "users_core.User" = Depends(admin_required)):
+    """Names an app's play_account may take (paths are never sent)."""
+    return {"accounts": users_core.play_account_names(get_settings())}
+
+
 # ── Apps ──────────────────────────────────────────────────────
 
 @app.get("/api/apps")
-def list_apps(include_archived: bool = False):
+def list_apps(request: Request, include_archived: bool = False):
     apps = db().get_all_apps(include_archived=include_archived)
+    owned = _owned_app_ids(request)
+    if owned is not None:
+        apps = [a for a in apps if a.id in owned]
     counts = db().count_issues_by_app(status="open")
     return [_app_dict(a, issue_counts=counts) for a in apps]
 
@@ -776,15 +989,37 @@ def get_app(app_id: int):
     result["total_issues"] = db().count_issues(app_id)
     return result
 
+# Fields only an admin may change on an app: who owns it, which Play account
+# uploads it and which ssh key pushes it all reach outside the app itself.
+_ADMIN_ONLY_APP_FIELDS = ("owner_user_id", "play_account", "git_ssh_key_path")
+
+
 @app.patch("/api/apps/{app_id}")
-def update_app(app_id: int, body: AppUpdate):
-    a = db().get_app(app_id)
-    if not a:
-        raise HTTPException(404, "App not found")
+def update_app(app_id: int, body: AppUpdate, request: Request):
+    a = _require_own_app(request, app_id)
+    user = _current_user(request)
     updates = {k: v for k, v in body.model_dump().items() if v is not None}
+    if not user.is_admin:
+        blocked = [f for f in _ADMIN_ONLY_APP_FIELDS if f in updates]
+        if blocked:
+            raise HTTPException(403, f"Admin only: {', '.join(blocked)}")
     if "app_type" in updates and updates["app_type"] not in TECH_STACKS:
         raise HTTPException(
             400, f"Unknown app_type '{updates['app_type']}'. Valid: {sorted(TECH_STACKS)}")
+    if "project_path" in updates and not user.is_admin:
+        root = users_core.projects_root_for(user, get_settings())
+        if not users_core.path_within(root, updates["project_path"]):
+            raise HTTPException(400, "project_path must be inside your projects root")
+    if "owner_user_id" in updates:
+        owner = db().get_user(int(updates["owner_user_id"]))
+        if owner is None or not owner.active:
+            raise HTTPException(400, "owner_user_id: no such active user")
+    if "play_account" in updates:
+        # "" clears it back to the default service account.
+        name = (updates["play_account"] or "").strip()
+        if name and name not in users_core.play_account_names(get_settings()):
+            raise HTTPException(400, f"Unknown play_account '{name}'")
+        updates["play_account"] = name or None
     if updates:
         db().update_app(app_id, **updates)
     return {"ok": True}
@@ -1026,15 +1261,25 @@ def scan_projects():
 
 
 @app.post("/api/apps")
-def create_new_app(body: AppCreate):
-    """Create a new app: makes folder, tasklist.json, and DB entry."""
+def create_new_app(body: AppCreate, request: Request):
+    """Create a new app: makes folder, tasklist.json, and DB entry.
+
+    The app is owned by its creator and lives under the creator's projects
+    root (members: users.projects_root; admin: settings projects_root)."""
     import re
+    user = _current_user(request)
     slug = re.sub(r'[^a-z0-9]+', '-', body.name.lower()).strip('-')
     # Project path: {projects_root}\{Name with spaces}
     folder_name = body.name.strip()
-    projects_root = get_settings().get("projects_root", os.path.join(str(Path.home()), "Projects"))
+    projects_root = users_core.projects_root_for(user, get_settings())
+    if not projects_root:
+        raise HTTPException(400, "No projects root is set for your user; ask the admin")
     project_path = f"{projects_root}/{folder_name}"
-    project_path_win = project_path.replace("/", "\\")
+    if not user.is_admin and not users_core.path_within(projects_root, project_path):
+        raise HTTPException(400, "App name must make a folder inside your projects root")
+    # normpath, not a hard "/"->"\\" swap: on macOS the swap made a folder
+    # literally named "\Users\..." in the working directory.
+    project_path_win = os.path.normpath(project_path)
 
     # Check if already exists in DB
     existing = db().get_app_by_slug(slug)
@@ -1269,6 +1514,7 @@ def create_new_app(body: AppCreate):
         status="idle",
         publish_status="development",
         fix_strategy=body.fix_strategy,
+        owner_user_id=user.id,
     )
 
     return {
@@ -1419,9 +1665,13 @@ def _app_dict(a, issue_counts: dict | None = None, include_task_status: bool = T
         "last_ios_build_status": a.last_ios_build_status,
         "apple_app_id": a.apple_app_id,
         "app_store_url": a.app_store_url,
+        "owner_user_id": a.owner_user_id,
+        "play_account": a.play_account or "",
         "created_at": a.created_at, "updated_at": a.updated_at,
         "open_issues": open_issues,
         "last_build_status": _last_build_status(a.id),
+        # Last known Google Play / App Store status (see core/store_status.py).
+        "store_status": store_status_core.load(db(), a.id),
     }
     if include_task_status:
         result["task_status"] = _compute_task_status(a)
@@ -1672,19 +1922,21 @@ def get_app_icon(app_id: int):
 
 @app.get("/api/issues")
 def list_issues(
+    request: Request,
     app_id: Optional[int] = None,
     status: Optional[str] = None,
     category: Optional[str] = None,
     priority: Optional[int] = None,
 ):
     issues = db().get_issues(app_id=app_id, status=status, category=category, priority=priority)
+    owned = _owned_app_ids(request)
+    if owned is not None:
+        issues = [i for i in issues if i.app_id in owned]
     return [_issue_dict(i) for i in issues]
 
 @app.post("/api/issues")
-def create_issue(body: IssueCreate):
-    a = db().get_app(body.app_id)
-    if not a:
-        raise HTTPException(404, "App not found")
+def create_issue(body: IssueCreate, request: Request):
+    a = _require_own_app(request, body.app_id)
     issue_id = db().create_issue(**body.model_dump())
 
     # Auto-queue for fixing
@@ -1915,14 +2167,23 @@ def _parse_meta(v) -> dict:
     return {}
 
 
+def _member_id_or_none(request: Request) -> Optional[int]:
+    """None for admins (see everything), the member's id otherwise."""
+    user = _current_user(request)
+    return None if user.is_admin else user.id
+
+
 @app.get("/api/reports")
-def list_reports(status: Optional[str] = None):
-    return [_report_dict(r) for r in db().get_reports(status=status)]
+def list_reports(request: Request, status: Optional[str] = None):
+    owner = _member_id_or_none(request)
+    return [_report_dict(r) for r in db().get_reports(status=status, owner_user_id=owner)]
 
 
 @app.get("/api/reports/count")
-def reports_count():
-    return {"open": db().count_reports("open"), "total": db().count_reports(None)}
+def reports_count(request: Request):
+    owner = _member_id_or_none(request)
+    return {"open": db().count_reports("open", owner_user_id=owner),
+            "total": db().count_reports(None, owner_user_id=owner)}
 
 
 @app.post("/api/reports/pull")
@@ -1984,29 +2245,40 @@ def delete_report(report_id: str):
 # their own list, shown in the Notes tab next to Reports.
 
 def _notice_dict(n: dict) -> dict:
+    key = n.get("note_key") or ""
+    if n.get("user_id") is not None:  # a member's key is stored as "u<id>:<key>"
+        key = key.removeprefix(f"u{n['user_id']}:")
     return {
         "id": n["id"], "source": n.get("source") or "", "title": n.get("title") or "",
-        "body": n.get("body") or "", "key": n.get("note_key") or "",
+        "body": n.get("body") or "", "key": key,
+        "user_id": n.get("user_id"),
         "read": bool(n.get("is_read")), "created_at": n.get("created_at") or "",
         "updated_at": n.get("updated_at") or "",
     }
 
 
 @app.get("/api/notices")
-def list_notices(unread: bool = False, limit: int = 200):
-    return [_notice_dict(n) for n in db().get_notices(unread_only=unread, limit=max(1, min(limit, 500)))]
+def list_notices(request: Request, unread: bool = False, limit: int = 200):
+    owner = _member_id_or_none(request)
+    return [_notice_dict(n) for n in db().get_notices(
+        unread_only=unread, limit=max(1, min(limit, 500)), user_id=owner)]
 
 
 @app.get("/api/notices/count")
-def notices_count():
-    return {"unread": db().count_notices(unread_only=True), "total": db().count_notices()}
+def notices_count(request: Request):
+    owner = _member_id_or_none(request)
+    return {"unread": db().count_notices(unread_only=True, user_id=owner),
+            "total": db().count_notices(user_id=owner)}
 
 
 @app.post("/api/notices")
-def create_notice(body: NoticeCreate):
+def create_notice(body: NoticeCreate, request: Request):
+    """Admin notices stay server-wide (user_id NULL); a member's are its own."""
     if not body.title.strip():
         raise HTTPException(400, "title is required")
-    nid = db().upsert_notice(body.source.strip(), body.title.strip(), body.body, (body.key or "").strip() or None)
+    owner = _member_id_or_none(request)
+    nid = db().upsert_notice(body.source.strip(), body.title.strip(), body.body,
+                             (body.key or "").strip() or None, user_id=owner)
     return _notice_dict(db().get_notice(nid))
 
 
@@ -2028,9 +2300,17 @@ def delete_notice(notice_id: int):
 # ── Builds ────────────────────────────────────────────────────
 
 @app.get("/api/builds")
-def list_builds(app_id: Optional[int] = None, limit: int = 20):
-    builds = db().get_builds(app_id=app_id, limit=limit)
-    return [_build_dict(b) for b in builds]
+def list_builds(request: Request, app_id: Optional[int] = None, limit: int = 20):
+    owned = _owned_app_ids(request)
+    if owned is None:
+        builds = db().get_builds(app_id=app_id, limit=limit)
+    else:
+        ids = [app_id] if app_id is not None else sorted(owned)
+        builds = [b for i in ids if i in owned for b in db().get_builds(app_id=i, limit=limit)]
+        builds.sort(key=lambda b: b.created_at or "", reverse=True)
+        builds = builds[:limit]
+    names = db().user_names()
+    return [_build_dict(b, names) for b in builds]
 
 @app.get("/api/builds/{build_id}")
 def get_build(build_id: int):
@@ -2039,13 +2319,21 @@ def get_build(build_id: int):
         raise HTTPException(404, "Build not found")
     return _build_dict(b)
 
-def _build_dict(b) -> dict:
+def _build_dict(b, user_names: Optional[dict] = None) -> dict:
+    started_by = getattr(b, "started_by_user_id", None)
+    if started_by is not None and user_names is None:
+        try:
+            user_names = db().user_names()
+        except Exception:  # serialiser must not fail a sync over a label
+            user_names = {}
     return {
         "id": b.id, "app_id": b.app_id, "build_type": b.build_type,
         "version": b.version, "status": b.status,
         "output_path": b.output_path, "duration_seconds": b.duration_seconds,
         "started_at": b.started_at, "completed_at": b.completed_at,
         "created_at": b.created_at, "updated_at": b.updated_at,
+        "started_by_user_id": started_by,
+        "started_by": (user_names or {}).get(started_by, "") if started_by is not None else "",
     }
 
 
@@ -2062,12 +2350,11 @@ def get_build_targets(app_id: int):
 
 
 @app.post("/api/apps/{app_id}/deploy")
-def deploy_app(app_id: int, body: DeployRequest):
-    a = db().get_app(app_id)
-    if not a:
-        raise HTTPException(404, "App not found")
+def deploy_app(app_id: int, body: DeployRequest, request: Request):
+    a = _require_own_app(request, app_id)
     result = deploy_engine().deploy(
-        a, track=body.track, build_target=body.build_target, upload=body.upload
+        a, track=body.track, build_target=body.build_target, upload=body.upload,
+        started_by_user_id=_current_user(request).id,
     )
     if "error" in result:
         raise HTTPException(400, result["error"])
@@ -2129,11 +2416,113 @@ def retry_upload(app_id: int, body: DeployRequest):
     return {"ok": True, "message": f"Re-uploading AAB to {body.track}"}
 
 
+
+# ── Store status + promote without rebuild ──────────────────────
+
+class PromoteRequest(BaseModel):
+    model_config = {"populate_by_name": True}
+    store: str = "play"  # play | apple
+    from_track: str = Field("internal", alias="from")  # Play source track
+    to_track: str = Field("production", alias="to")  # Play target track
+    rollout: Optional[float] = None  # Play staged rollout fraction (0, 1]; None = completed
+    build_id: Optional[str] = None  # Apple: TestFlight build id; None = highest valid build
+
+
+class SubmitForReviewRequest(BaseModel):
+    confirm: bool = False  # must be true: the owner pressed "Submit" himself
+
+
+def store_status_service() -> "store_status_core.StoreStatusService":
+    return app.state.store_status
+
+
+def _store_error(e: Exception) -> HTTPException:
+    """ValueError = the request can't work (400); anything else came back
+    from Google / Apple (502) - its own message is kept."""
+    if isinstance(e, ValueError):
+        return HTTPException(400, str(e))
+    return HTTPException(502, str(e))
+
+
+@app.get("/api/apps/{app_id}/store-status")
+def get_store_status(app_id: int, request: Request):
+    a = _require_own_app(request, app_id)
+    return {"app_id": a.id, **store_status_core.load(db(), a.id)}
+
+
+@app.post("/api/apps/{app_id}/store-status/refresh")
+def refresh_store_status(app_id: int, request: Request):
+    """Refresh this app's store status now (forced, waits for the answer)."""
+    a = _require_own_app(request, app_id)
+    return {"app_id": a.id, **store_status_service().refresh_app(a, force=True)}
+
+
+@app.post("/api/store-status/refresh")
+def refresh_all_store_status(request: Request):
+    """Pull-to-refresh: refresh the caller's apps in the background. Apps
+    refreshed in the last few minutes are skipped (Apple rate limits)."""
+    owned = _owned_app_ids(request)
+    apps = [a for a in db().get_all_apps() if owned is None or a.id in owned]
+    threading.Thread(target=store_status_service().refresh_all, args=(apps,),
+                     daemon=True, name="store-status-pull").start()
+    return {"queued": len(apps)}
+
+
+@app.post("/api/apps/{app_id}/promote")
+def promote_app(app_id: int, body: PromoteRequest, request: Request):
+    """Play: copy the live release of one track to another (no rebuild).
+    Apple: attach a processed TestFlight build to the App Store version
+    (never submits for review)."""
+    a = _require_own_app(request, app_id)
+    user = _current_user(request)
+    svc = store_status_service()
+    try:
+        if body.store == "play":
+            result = svc.promote_play(a, body.from_track, body.to_track, user, rollout=body.rollout)
+        elif body.store == "apple":
+            result = svc.attach_apple(a, user, build_id=body.build_id)
+        else:
+            raise ValueError("store must be 'play' or 'apple'")
+    except Exception as e:
+        raise _store_error(e)
+    return {"ok": True, "store": body.store, "result": result,
+            "store_status": store_status_core.load(db(), a.id)}
+
+
+@app.post("/api/apps/{app_id}/submit-for-review")
+def submit_for_review(app_id: int, body: SubmitForReviewRequest, request: Request):
+    """Apple only. Explicit owner action behind a confirm dialog; nothing
+    else in AGB ever submits for review."""
+    a = _require_own_app(request, app_id)
+    if not body.confirm:
+        raise HTTPException(400, "Submitting for review needs confirm: true")
+    try:
+        result = store_status_service().submit_apple(a, _current_user(request))
+    except Exception as e:
+        raise _store_error(e)
+    return {"ok": True, "result": result, "store_status": store_status_core.load(db(), a.id)}
+
+
+@app.get("/api/apps/{app_id}/promotions")
+def list_promotions(app_id: int, request: Request, limit: int = 50):
+    a = _require_own_app(request, app_id)
+    return db().get_store_promotions(a.id, limit=max(1, min(limit, 200)))
+
+
 # ── Autofix Sessions ─────────────────────────────────────────
 
 @app.get("/api/sessions")
-def list_sessions(app_id: Optional[int] = None, status: Optional[str] = None, limit: int = 50):
-    sessions = db().get_sessions(app_id=app_id, status=status, limit=limit)
+def list_sessions(request: Request, app_id: Optional[int] = None, status: Optional[str] = None,
+                  limit: int = 50):
+    owned = _owned_app_ids(request)
+    if owned is None:
+        sessions = db().get_sessions(app_id=app_id, status=status, limit=limit)
+    else:
+        ids = [app_id] if app_id is not None else sorted(owned)
+        sessions = [s for i in ids if i in owned
+                    for s in db().get_sessions(app_id=i, status=status, limit=limit)]
+        sessions.sort(key=lambda s: s.created_at or "", reverse=True)
+        sessions = sessions[:limit]
     return [_session_dict(s) for s in sessions]
 
 def _session_dict(s) -> dict:
@@ -2970,13 +3359,16 @@ def get_task_attachment(app_id: int, task_id: int, index: int):
 # ── Logs (unified across all apps) ──────────────────────────
 
 @app.get("/api/logs")
-def get_all_logs(app_id: Optional[int] = None, limit: int = 50):
+def get_all_logs(request: Request, app_id: Optional[int] = None, limit: int = 50):
     """Get structured logs from auto_build_logs/completions.log for any app."""
     logs = []
     if app_id:
         apps = [db().get_app(app_id)]
     else:
         apps = db().get_all_apps()
+    owned = _owned_app_ids(request)
+    if owned is not None:
+        apps = [a for a in apps if a and a.id in owned]
 
     # Get automation configs for agent info
     configs = _load_automation_configs()
@@ -3055,11 +3447,14 @@ def _parse_log_line(line: str, app_name: str, app_id: int, agent: str) -> dict:
 # ── Ideas (tasks with type=idea that have AI responses) ──────
 
 @app.get("/api/ideas")
-def get_all_ideas(app_id: Optional[int] = None):
+def get_all_ideas(request: Request, app_id: Optional[int] = None):
     if app_id:
         apps = [db().get_app(app_id)]
     else:
         apps = db().get_all_apps()
+    owned = _owned_app_ids(request)
+    if owned is not None:
+        apps = [a for a in apps if a and a.id in owned]
 
     ideas = []
     configs = _load_automation_configs()
@@ -3489,8 +3884,11 @@ def get_directives():
 # ── Dashboard Summary ─────────────────────────────────────────
 
 @app.get("/api/dashboard")
-def dashboard():
+def dashboard(request: Request):
     apps = db().get_all_apps()
+    owned = _owned_app_ids(request)
+    if owned is not None:
+        apps = [a for a in apps if a.id in owned]
     total_open = 0
     app_summaries = []
     for a in apps:
@@ -4267,11 +4665,14 @@ def _build_ai_command(ai_agent: str, timeout: int, claude_bin: str, gemini_bin: 
 
 
 @app.get("/api/automations")
-def list_automations():
+def list_automations(request: Request):
     configs = _load_automation_configs()
+    owned = _owned_app_ids(request)
     result = []
     for app_id_str, config in configs.items():
         app_id = int(app_id_str)
+        if owned is not None and app_id not in owned:
+            continue
         a = db().get_app(app_id)
         running = app_id in _running_automations and _running_automations[app_id].poll() is None
         result.append({
@@ -4288,11 +4689,16 @@ def list_automations():
     return result
 
 
+def _refuse_member_mcp(request: Request, mcp_servers) -> None:
+    """MCP servers carry the admin's paid API keys; only an admin attaches them."""
+    if mcp_servers and not _current_user(request).is_admin:
+        raise HTTPException(403, "Admin only: mcp_servers")
+
+
 @app.post("/api/automations")
-def create_automation(body: AutomationCreate):
-    a = db().get_app(body.app_id)
-    if not a:
-        raise HTTPException(404, "App not found")
+def create_automation(body: AutomationCreate, request: Request):
+    a = _require_own_app(request, body.app_id)
+    _refuse_member_mcp(request, body.mcp_servers)
 
     configs = _load_automation_configs()
     config = {
@@ -4320,7 +4726,8 @@ def create_automation(body: AutomationCreate):
 
 
 @app.patch("/api/automations/{app_id}")
-def update_automation(app_id: int, body: AutomationUpdate):
+def update_automation(app_id: int, body: AutomationUpdate, request: Request):
+    _refuse_member_mcp(request, body.mcp_servers)
     configs = _load_automation_configs()
     key = str(app_id)
     if key not in configs:
@@ -5526,7 +5933,9 @@ def studio_brainstorm(body: BrainstormRequest):
 
     projects_root = get_settings().get("projects_root", os.path.join(str(Path.home()), "Projects"))
     project_path = f"{projects_root}/{project_name}"
-    project_path_win = project_path.replace("/", "\\")
+    # normpath, not a hard "/"->"\\" swap: on macOS the swap made a folder
+    # literally named "\Users\..." in the working directory.
+    project_path_win = os.path.normpath(project_path)
     os.makedirs(project_path_win, exist_ok=True)
 
     # Create tasklist.json with brainstorm task

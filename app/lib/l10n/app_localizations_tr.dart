@@ -4567,4 +4567,255 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get deleteNoticeBody => 'Bu not kalıcı olarak silinecek.';
+
+  @override
+  String get usersTitle => 'Kullanıcılar';
+
+  @override
+  String get usersManage => 'Kullanıcıları yönet';
+
+  @override
+  String get usersManageSubtitle =>
+      'Üye ekle, yeni anahtar ver, anahtarı kapat';
+
+  @override
+  String get agbAccountTitle => 'Sunucu hesabı';
+
+  @override
+  String signedInAs(Object name) {
+    return '$name olarak bağlı';
+  }
+
+  @override
+  String get roleAdmin => 'Yönetici';
+
+  @override
+  String get roleMember => 'Üye';
+
+  @override
+  String get usersAddMember => 'Üye ekle';
+
+  @override
+  String get usersName => 'Ad';
+
+  @override
+  String get usersProjectsRoot => 'Sunucudaki proje klasörü';
+
+  @override
+  String get usersProjectsRootHint =>
+      'Bu üyenin yeni uygulamaları bu klasörün içinde açılır';
+
+  @override
+  String get usersCreate => 'Oluştur';
+
+  @override
+  String get usersNameRequired => 'Bir ad yaz';
+
+  @override
+  String usersKeyTitle(Object name) {
+    return '$name için anahtar';
+  }
+
+  @override
+  String get usersKeyOnce =>
+      'Bu anahtar yalnızca bir kez gösterilir. Şimdi kopyala ve özel olarak gönder.';
+
+  @override
+  String get usersCopyKey => 'Anahtarı kopyala';
+
+  @override
+  String get usersKeyCopied => 'Kopyalandı';
+
+  @override
+  String get usersScanToPair =>
+      'Üyenin telefonunda: Ayarlar > Eşleştirmek için QR tara.';
+
+  @override
+  String usersAppCount(int count) {
+    return 'Uygulama: $count';
+  }
+
+  @override
+  String get usersInactive => 'Kapalı';
+
+  @override
+  String get usersDeactivate => 'Kapat';
+
+  @override
+  String usersDeactivateTitle(Object name) {
+    return '$name kapatılsın mı?';
+  }
+
+  @override
+  String get usersDeactivateBody =>
+      'Anahtarı hemen çalışmaz olur. Uygulamaları sunucuda kalır.';
+
+  @override
+  String get usersRotateKey => 'Yeni anahtar';
+
+  @override
+  String usersRotateTitle(Object name) {
+    return '$name için yeni anahtar verilsin mi?';
+  }
+
+  @override
+  String get usersRotateBody => 'Şu anki anahtar hemen çalışmaz olur.';
+
+  @override
+  String get usersEmpty => 'Henüz kullanıcı yok';
+
+  @override
+  String buildStartedBy(Object name) {
+    return 'Başlatan: $name';
+  }
+
+  @override
+  String get storePlay => 'Play';
+
+  @override
+  String get storeAppStore => 'App Store';
+
+  @override
+  String storeLineVersion(Object version, Object track) {
+    return '$version ($track)';
+  }
+
+  @override
+  String storeLiveVersion(Object version) {
+    return 'Yayında $version';
+  }
+
+  @override
+  String get storeNotOnStore => 'henüz mağazada değil';
+
+  @override
+  String get storeNotChecked => 'henüz kontrol edilmedi';
+
+  @override
+  String get trackProduction => 'Yayın';
+
+  @override
+  String get trackLive => 'Yayında';
+
+  @override
+  String get trackReview => 'İncelemede';
+
+  @override
+  String get trackTestflight => 'TestFlight';
+
+  @override
+  String get trackPrepare => 'Hazırlanıyor';
+
+  @override
+  String get storePlayTracksTitle => 'Google Play kanalları';
+
+  @override
+  String get storeAppleTitle => 'App Store ve TestFlight';
+
+  @override
+  String get storeRefreshStatus => 'Mağaza durumunu yenile';
+
+  @override
+  String storeLastChecked(Object time) {
+    return 'Son kontrol $time';
+  }
+
+  @override
+  String storeCheckFailed(Object error) {
+    return 'Son kontrol başarısız: $error';
+  }
+
+  @override
+  String get storeShowDetails => 'Mağaza ayrıntılarını göster';
+
+  @override
+  String get storeHideDetails => 'Mağaza ayrıntılarını gizle';
+
+  @override
+  String storeAppStoreVersion(Object version, Object state) {
+    return 'App Store sürümü $version: $state';
+  }
+
+  @override
+  String get storeNoBuildAttached => 'derleme eklenmedi';
+
+  @override
+  String storeActionFailed(Object error) {
+    return 'Başarısız: $error';
+  }
+
+  @override
+  String get promoteToProduction => 'Yayına taşı';
+
+  @override
+  String get promoteChooseSource => 'Hangi kanal yayına taşınsın?';
+
+  @override
+  String promoteBody(Object version, Object track) {
+    return '$track kanalındaki $version sürümü tüm kullanıcılar için yayına çıkar. Yeniden derleme yapılmaz.';
+  }
+
+  @override
+  String get promoteNoSource => 'Taşınacak yayınlanmış sürüm olan kanal yok.';
+
+  @override
+  String get promoteConfirm => 'Taşı';
+
+  @override
+  String promoteDone(Object version, Object track) {
+    return '$version sürümü artık $track kanalında.';
+  }
+
+  @override
+  String get attachToAppStore => 'App Store sürümüne ekle';
+
+  @override
+  String get attachChooseBuild => 'Hangi TestFlight derlemesi?';
+
+  @override
+  String get attachBody =>
+      'Derleme App Store sürümünün derlemesi olur. İncelemeye GÖNDERİLMEZ.';
+
+  @override
+  String get attachConfirm => 'Ekle';
+
+  @override
+  String attachDone(Object build, Object version) {
+    return '$build derlemesi App Store $version sürümüne eklendi.';
+  }
+
+  @override
+  String get attachNoBuild => 'Henüz işlenmiş TestFlight derlemesi yok.';
+
+  @override
+  String get submitForReview => 'İncelemeye gönder';
+
+  @override
+  String get submitReviewTitle => 'App Review\'a gönderilsin mi?';
+
+  @override
+  String submitReviewBody(Object version) {
+    return '$version sürümü incelemesi için Apple\'a gönderilir. Onaylanınca tüm App Store kullanıcılarına yayınlanabilir. Bu uygulamadan geri alınamaz.';
+  }
+
+  @override
+  String get submitReviewConfirm => 'Evet, gönder';
+
+  @override
+  String submitReviewDone(Object version) {
+    return '$version sürümü incelemeye gönderildi.';
+  }
+
+  @override
+  String get tryDemo => 'Demoyu dene';
+
+  @override
+  String get tryDemoSubtitle =>
+      'Tüm ekranları örnek verilerle gez. Sunucu gerekmez.';
+
+  @override
+  String get demoBanner => 'Demo: örnek veriler, işlemler simülasyondur';
+
+  @override
+  String get exitDemo => 'Demodan çık';
 }

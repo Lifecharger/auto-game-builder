@@ -192,6 +192,9 @@ class DeployEngine:
         self._active_deploys: dict[int, dict] = {}  # app_id -> status
         self._active_processes: dict[int, subprocess.Popen] = {}  # app_id -> build subprocess
         self._cancelled: set[int] = set()  # app_ids with cancelled deploys
+        # Who queued the current/last deploy of each app (users.id). Read when
+        # the build row is created so builds.started_by_user_id is recorded.
+        self._started_by: dict[int, Optional[int]] = {}
         self._shutting_down = False
         # Serialize Godot/Unity builds — both drive Gradle and collide on the
         # daemon (and Unity additionally on its single-editor project lock).
@@ -312,10 +315,19 @@ class DeployEngine:
         self._active_processes.clear()
 
     def deploy(self, app: App, track: str = "internal", build_target: str = "aab",
-               upload: bool = False, max_retries: int = 2) -> dict:
-        """Start build (and optional deploy) in background."""
+               upload: bool = False, max_retries: int = 2,
+               started_by_user_id: Optional[int] = None) -> dict:
+        """Start build (and optional deploy) in background.
+
+        The queue is global (one build machine); `started_by_user_id` only
+        records who asked for it."""
         with self._deploy_queue_lock:
-            return self._enqueue_deploy(app, track, build_target, upload, max_retries)
+            result = self._enqueue_deploy(app, track, build_target, upload, max_retries)
+            if result.get("ok"):
+                self._started_by[app.id] = started_by_user_id
+                if app.id in self._active_deploys:
+                    self._active_deploys[app.id]["started_by_user_id"] = started_by_user_id
+            return result
 
     def _enqueue_deploy(self, app: App, track: str, build_target: str,
                         upload: bool, max_retries: int) -> dict:
@@ -1033,6 +1045,7 @@ class DeployEngine:
             version=version or app.current_version,
             status="running",
             started_at=datetime.now().isoformat(),
+            started_by_user_id=self._started_by.get(app.id),
         )
         self._set_app_status(app.id, "building")
         start = time.time()
@@ -1091,6 +1104,7 @@ class DeployEngine:
             version=version or app.current_version,
             status="running",
             started_at=datetime.now().isoformat(),
+            started_by_user_id=self._started_by.get(app.id),
         )
 
         self._set_app_status(app.id, "building")
@@ -1777,7 +1791,10 @@ INSTRUCTIONS (Lead Programmer + Engine Specialist Knowledge):
         def _do_upload():
             nonlocal result, upload_error
             try:
-                sa_key = self.settings.get("service_account_key", "")
+                # Per-app Play account (apps.play_account -> settings
+                # play_accounts); None keeps the default service_account_key.
+                from core.users import play_service_account_path
+                sa_key = play_service_account_path(self.settings, getattr(app, "play_account", None))
                 if not sa_key:
                     raise ValueError("No service_account_key configured in settings.json")
                 credentials = service_account.Credentials.from_service_account_file(
@@ -1989,6 +2006,12 @@ At the end, print a one-paragraph summary of what you committed (commit SHA) and
 
             env = os.environ.copy()
             env["GIT_TERMINAL_PROMPT"] = "0"
+            # Optional per-app deploy key (apps.git_ssh_key_path, admin-set).
+            ssh_key = (getattr(app, "git_ssh_key_path", "") or "").strip()
+            if ssh_key and os.path.isfile(os.path.expanduser(ssh_key)):
+                env["GIT_SSH_COMMAND"] = (
+                    f"ssh -i {shlex.quote(os.path.expanduser(ssh_key))} -o IdentitiesOnly=yes"
+                )
 
             cmd = f'cd {pp_q} && {cb_q} -p --dangerously-skip-permissions --verbose {mcp_flag}'
             process = subprocess.Popen(

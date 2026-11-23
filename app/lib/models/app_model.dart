@@ -1,3 +1,5 @@
+import 'store_status.dart';
+
 class AppModel {
   final int id;
   final String name;
@@ -29,6 +31,8 @@ class AppModel {
   final String appleAppId;
   /// Public Apple App Store URL ('' when not set).
   final String appStoreUrl;
+  /// Last known Google Play / App Store status (server memory).
+  final StoreStatus storeStatus;
 
   AppModel({
     required this.id,
@@ -55,6 +59,7 @@ class AppModel {
     this.lastIosBuildStatus = '',
     this.appleAppId = '',
     this.appStoreUrl = '',
+    this.storeStatus = StoreStatus.empty,
   });
 
   factory AppModel.fromJson(Map<String, dynamic> json) {
@@ -94,6 +99,7 @@ class AppModel {
       lastIosBuildStatus: json['last_ios_build_status'] ?? '',
       appleAppId: json['apple_app_id'] ?? '',
       appStoreUrl: json['app_store_url'] ?? '',
+      storeStatus: StoreStatus.fromJson(json['store_status']),
     );
   }
 }

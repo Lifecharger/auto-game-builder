@@ -13,6 +13,7 @@ import '../models/automation_model.dart';
 import 'cache_service.dart';
 import 'locale_service.dart';
 import 'usage_events.dart';
+import 'user_session.dart';
 
 class ApiResult<T> {
   final T? data;
@@ -73,10 +74,14 @@ class ApiService {
 
   /// True while the server answers but refuses this app's API key (401 / 403
   /// on a read). Cleared by the next read the server accepts.
+  ///
+  /// For a member key a 403 is not a refused key: it is a server-wide route
+  /// that only the admin may call, so it does not raise the banner.
   static final ValueNotifier<bool> keyRefused = ValueNotifier<bool>(false);
 
   static void _noteAuth(int statusCode) {
-    if (statusCode == 401 || statusCode == 403) {
+    if (statusCode == 401 ||
+        (statusCode == 403 && !UserSession.instance.isMember)) {
       keyRefused.value = true;
     } else if (statusCode < 400) {
       keyRefused.value = false;
@@ -197,6 +202,191 @@ class ApiService {
     } catch (e) {
       lastHealthFailure = Usage.causeOf(e);
       return false;
+    }
+  }
+
+  // ── Users (multi-user AGB) ───────────────────────────────
+
+  /// Who this app's key belongs to. A server without users has no `/api/me`
+  /// and answers 404: its single key is the admin, as it always was.
+  static Future<ApiResult<CurrentUser>> getMe() async {
+    try {
+      final response =
+          await _getWithRetry(Uri.parse('$_base/api/me'), maxRetries: 1);
+      if (response.statusCode == 200) {
+        return ApiResult.success(CurrentUser.fromJson(
+            jsonDecode(response.body) as Map<String, dynamic>));
+      }
+      if (response.statusCode == 404) {
+        return const ApiResult.success(
+            CurrentUser(id: 1, name: '', role: 'admin'));
+      }
+      return ApiResult.failure(_httpError(response.statusCode));
+    } catch (e) {
+      return ApiResult.failure(_friendlyError(e));
+    }
+  }
+
+  /// Admin only: every user, never with keys.
+  static Future<ApiResult<List<Map<String, dynamic>>>> getUsers() async {
+    try {
+      final response = await _getWithRetry(Uri.parse('$_base/api/users'));
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        return ApiResult.success(data.cast<Map<String, dynamic>>());
+      }
+      return ApiResult.failure(_detailOrHttpError(response));
+    } catch (e) {
+      return ApiResult.failure(_friendlyError(e));
+    }
+  }
+
+  /// Admin only: creates a user. The answer carries its API key once
+  /// (`{"user": {...}, "api_key": "..."}`); the server keeps only a hash.
+  static Future<ApiResult<Map<String, dynamic>>> createUser({
+    required String name,
+    String role = 'member',
+    String projectsRoot = '',
+  }) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$_base/api/users'),
+            headers: _headers,
+            body: jsonEncode(
+                {'name': name, 'role': role, 'projects_root': projectsRoot}),
+          )
+          .timeout(const Duration(seconds: 10));
+      if (response.statusCode == 200) {
+        return _done('user_create',
+            ApiResult.success(jsonDecode(response.body) as Map<String, dynamic>));
+      }
+      return ApiResult.failure(
+          _detailOrHttpError(response, action: 'user_create'));
+    } catch (e) {
+      return ApiResult.failure(_friendlyError(e, action: 'user_create'));
+    }
+  }
+
+  /// Admin only: the user's key stops working at once.
+  static Future<ApiResult<bool>> deactivateUser(int id) async {
+    try {
+      final response = await http
+          .post(Uri.parse('$_base/api/users/$id/deactivate'), headers: _headers)
+          .timeout(const Duration(seconds: 10));
+      if (response.statusCode == 200) {
+        return _done('user_deactivate', const ApiResult.success(true));
+      }
+      return ApiResult.failure(
+          _detailOrHttpError(response, action: 'user_deactivate'));
+    } catch (e) {
+      return ApiResult.failure(_friendlyError(e, action: 'user_deactivate'));
+    }
+  }
+
+  /// Admin only: a fresh key for a user, returned once; the old key dies.
+  static Future<ApiResult<Map<String, dynamic>>> rotateUserKey(int id) async {
+    try {
+      final response = await http
+          .post(Uri.parse('$_base/api/users/$id/rotate-key'), headers: _headers)
+          .timeout(const Duration(seconds: 10));
+      if (response.statusCode == 200) {
+        return _done('user_rotate_key',
+            ApiResult.success(jsonDecode(response.body) as Map<String, dynamic>));
+      }
+      return ApiResult.failure(
+          _detailOrHttpError(response, action: 'user_rotate_key'));
+    } catch (e) {
+      return ApiResult.failure(_friendlyError(e, action: 'user_rotate_key'));
+    }
+  }
+
+  // ── Store status + promote without rebuild ──────────────
+
+  /// Refresh one app's store status now (Play tracks, TestFlight, App Store).
+  static Future<ApiResult<Map<String, dynamic>>> refreshStoreStatus(int appId) async {
+    try {
+      final response = await http
+          .post(Uri.parse('$_base/api/apps/$appId/store-status/refresh'), headers: _headers)
+          .timeout(const Duration(seconds: 60));
+      if (response.statusCode == 200) {
+        return _done('store_status_refresh',
+            ApiResult.success(jsonDecode(response.body) as Map<String, dynamic>));
+      }
+      return ApiResult.failure(_detailOrHttpError(response, action: 'store_status_refresh'));
+    } catch (e) {
+      return ApiResult.failure(_friendlyError(e, action: 'store_status_refresh'));
+    }
+  }
+
+  /// Pull-to-refresh: the server refreshes every app in the background
+  /// (apps refreshed in the last minutes are skipped).
+  static Future<ApiResult<int>> refreshAllStoreStatus() async {
+    try {
+      final response = await http
+          .post(Uri.parse('$_base/api/store-status/refresh'), headers: _headers)
+          .timeout(const Duration(seconds: 10));
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        return ApiResult.success(decoded is Map && decoded['queued'] is int ? decoded['queued'] as int : 0);
+      }
+      return ApiResult.failure(_httpError(response.statusCode));
+    } catch (e) {
+      return ApiResult.failure(_friendlyError(e));
+    }
+  }
+
+  /// Play: copy the live release of [fromTrack] to [toTrack] (no rebuild).
+  /// Apple: attach a processed TestFlight build ([buildId] or the highest) to
+  /// the App Store version. Never submits for review.
+  static Future<ApiResult<Map<String, dynamic>>> promote(
+    int appId, {
+    required String store,
+    String fromTrack = 'internal',
+    String toTrack = 'production',
+    String? buildId,
+  }) async {
+    final action = store == 'apple' ? 'appstore_attach' : 'play_promote';
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$_base/api/apps/$appId/promote'),
+            headers: _headers,
+            body: jsonEncode({
+              'store': store,
+              'from': fromTrack,
+              'to': toTrack,
+              if (buildId != null) 'build_id': buildId,
+            }),
+          )
+          .timeout(const Duration(seconds: 90));
+      if (response.statusCode == 200) {
+        return _done(action, ApiResult.success(jsonDecode(response.body) as Map<String, dynamic>));
+      }
+      return ApiResult.failure(_detailOrHttpError(response, action: action));
+    } catch (e) {
+      return ApiResult.failure(_friendlyError(e, action: action));
+    }
+  }
+
+  /// Apple: submit the App Store version for review. Only ever called after
+  /// the owner confirmed it in a dialog.
+  static Future<ApiResult<Map<String, dynamic>>> submitForReview(int appId) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$_base/api/apps/$appId/submit-for-review'),
+            headers: _headers,
+            body: jsonEncode({'confirm': true}),
+          )
+          .timeout(const Duration(seconds: 90));
+      if (response.statusCode == 200) {
+        return _done('appstore_submit',
+            ApiResult.success(jsonDecode(response.body) as Map<String, dynamic>));
+      }
+      return ApiResult.failure(_detailOrHttpError(response, action: 'appstore_submit'));
+    } catch (e) {
+      return ApiResult.failure(_friendlyError(e, action: 'appstore_submit'));
     }
   }
 

@@ -14,7 +14,7 @@ class CacheService {
   /// way that makes old cache entries semantically stale (e.g. a new field that
   /// the dashboard relies on). On mismatch, openBoxes() wipes the cache and
   /// forces the next sync to fetch a fresh full snapshot.
-  static const int _schemaVersion = 6;
+  static const int _schemaVersion = 7; // 7: BuildModel.startedBy
 
   static const List<String> _boxNames = [
     CacheBoxes.apps,

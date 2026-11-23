@@ -4608,4 +4608,257 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get deleteNoticeBody => 'Diese Notiz wird endgültig entfernt.';
+
+  @override
+  String get usersTitle => 'Benutzer';
+
+  @override
+  String get usersManage => 'Benutzer verwalten';
+
+  @override
+  String get usersManageSubtitle =>
+      'Mitglied hinzufügen, neuen Schlüssel geben, Schlüssel sperren';
+
+  @override
+  String get agbAccountTitle => 'Server-Konto';
+
+  @override
+  String signedInAs(Object name) {
+    return 'Angemeldet als $name';
+  }
+
+  @override
+  String get roleAdmin => 'Admin';
+
+  @override
+  String get roleMember => 'Mitglied';
+
+  @override
+  String get usersAddMember => 'Mitglied hinzufügen';
+
+  @override
+  String get usersName => 'Name';
+
+  @override
+  String get usersProjectsRoot => 'Projektordner auf dem Server';
+
+  @override
+  String get usersProjectsRootHint =>
+      'Neue Apps dieses Mitglieds werden in diesem Ordner angelegt';
+
+  @override
+  String get usersCreate => 'Erstellen';
+
+  @override
+  String get usersNameRequired => 'Gib einen Namen ein';
+
+  @override
+  String usersKeyTitle(Object name) {
+    return 'Schlüssel für $name';
+  }
+
+  @override
+  String get usersKeyOnce =>
+      'Dieser Schlüssel wird nur einmal angezeigt. Kopiere ihn jetzt und schicke ihn privat.';
+
+  @override
+  String get usersCopyKey => 'Schlüssel kopieren';
+
+  @override
+  String get usersKeyCopied => 'Kopiert';
+
+  @override
+  String get usersScanToPair =>
+      'Auf dem Handy des Mitglieds: Einstellungen > QR zum Koppeln scannen.';
+
+  @override
+  String usersAppCount(int count) {
+    return 'Apps: $count';
+  }
+
+  @override
+  String get usersInactive => 'Inaktiv';
+
+  @override
+  String get usersDeactivate => 'Deaktivieren';
+
+  @override
+  String usersDeactivateTitle(Object name) {
+    return '$name deaktivieren?';
+  }
+
+  @override
+  String get usersDeactivateBody =>
+      'Der Schlüssel funktioniert sofort nicht mehr. Die Apps bleiben auf dem Server.';
+
+  @override
+  String get usersRotateKey => 'Neuer Schlüssel';
+
+  @override
+  String usersRotateTitle(Object name) {
+    return '$name einen neuen Schlüssel geben?';
+  }
+
+  @override
+  String get usersRotateBody =>
+      'Der aktuelle Schlüssel funktioniert sofort nicht mehr.';
+
+  @override
+  String get usersEmpty => 'Noch keine Benutzer';
+
+  @override
+  String buildStartedBy(Object name) {
+    return 'Gestartet von $name';
+  }
+
+  @override
+  String get storePlay => 'Play';
+
+  @override
+  String get storeAppStore => 'App Store';
+
+  @override
+  String storeLineVersion(Object version, Object track) {
+    return '$version ($track)';
+  }
+
+  @override
+  String storeLiveVersion(Object version) {
+    return 'Live $version';
+  }
+
+  @override
+  String get storeNotOnStore => 'noch nicht im Store';
+
+  @override
+  String get storeNotChecked => 'noch nicht geprüft';
+
+  @override
+  String get trackProduction => 'Produktion';
+
+  @override
+  String get trackLive => 'Live';
+
+  @override
+  String get trackReview => 'In Prüfung';
+
+  @override
+  String get trackTestflight => 'TestFlight';
+
+  @override
+  String get trackPrepare => 'In Vorbereitung';
+
+  @override
+  String get storePlayTracksTitle => 'Google-Play-Tracks';
+
+  @override
+  String get storeAppleTitle => 'App Store und TestFlight';
+
+  @override
+  String get storeRefreshStatus => 'Store-Status aktualisieren';
+
+  @override
+  String storeLastChecked(Object time) {
+    return 'Zuletzt geprüft $time';
+  }
+
+  @override
+  String storeCheckFailed(Object error) {
+    return 'Letzte Prüfung fehlgeschlagen: $error';
+  }
+
+  @override
+  String get storeShowDetails => 'Store-Details anzeigen';
+
+  @override
+  String get storeHideDetails => 'Store-Details ausblenden';
+
+  @override
+  String storeAppStoreVersion(Object version, Object state) {
+    return 'App-Store-Version $version: $state';
+  }
+
+  @override
+  String get storeNoBuildAttached => 'kein Build zugeordnet';
+
+  @override
+  String storeActionFailed(Object error) {
+    return 'Fehlgeschlagen: $error';
+  }
+
+  @override
+  String get promoteToProduction => 'In Produktion übernehmen';
+
+  @override
+  String get promoteChooseSource => 'Welcher Track geht in Produktion?';
+
+  @override
+  String promoteBody(Object version, Object track) {
+    return 'Version $version aus $track geht für alle Nutzer in Produktion. Es wird nichts neu gebaut.';
+  }
+
+  @override
+  String get promoteNoSource =>
+      'Kein Track hat ein veröffentlichtes Release zum Übernehmen.';
+
+  @override
+  String get promoteConfirm => 'Übernehmen';
+
+  @override
+  String promoteDone(Object version, Object track) {
+    return 'Version $version ist jetzt in $track.';
+  }
+
+  @override
+  String get attachToAppStore => 'Der App-Store-Version zuordnen';
+
+  @override
+  String get attachChooseBuild => 'Welcher TestFlight-Build?';
+
+  @override
+  String get attachBody =>
+      'Der Build wird der Build der App-Store-Version. Er wird NICHT zur Prüfung eingereicht.';
+
+  @override
+  String get attachConfirm => 'Zuordnen';
+
+  @override
+  String attachDone(Object build, Object version) {
+    return 'Build $build ist der App-Store-Version $version zugeordnet.';
+  }
+
+  @override
+  String get attachNoBuild => 'Noch kein verarbeiteter TestFlight-Build.';
+
+  @override
+  String get submitForReview => 'Zur Prüfung einreichen';
+
+  @override
+  String get submitReviewTitle => 'Bei App Review einreichen?';
+
+  @override
+  String submitReviewBody(Object version) {
+    return 'Version $version wird Apple zur Prüfung geschickt. Nach der Freigabe kann sie für alle App-Store-Nutzer live gehen. Das lässt sich in dieser App nicht zurücknehmen.';
+  }
+
+  @override
+  String get submitReviewConfirm => 'Ja, einreichen';
+
+  @override
+  String submitReviewDone(Object version) {
+    return 'Version $version wurde zur Prüfung eingereicht.';
+  }
+
+  @override
+  String get tryDemo => 'Demo ausprobieren';
+
+  @override
+  String get tryDemoSubtitle =>
+      'Alle Bildschirme mit Beispieldaten ansehen. Kein Server nötig.';
+
+  @override
+  String get demoBanner => 'Demo: Beispieldaten, Aktionen werden simuliert';
+
+  @override
+  String get exitDemo => 'Demo beenden';
 }

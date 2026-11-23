@@ -7851,6 +7851,426 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This note will be removed for good.'**
   String get deleteNoticeBody;
+
+  /// No description provided for @usersTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Users'**
+  String get usersTitle;
+
+  /// No description provided for @usersManage.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage users'**
+  String get usersManage;
+
+  /// No description provided for @usersManageSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a member, give a new key, turn a key off'**
+  String get usersManageSubtitle;
+
+  /// No description provided for @agbAccountTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Server account'**
+  String get agbAccountTitle;
+
+  /// No description provided for @signedInAs.
+  ///
+  /// In en, this message translates to:
+  /// **'Signed in as {name}'**
+  String signedInAs(Object name);
+
+  /// No description provided for @roleAdmin.
+  ///
+  /// In en, this message translates to:
+  /// **'Admin'**
+  String get roleAdmin;
+
+  /// No description provided for @roleMember.
+  ///
+  /// In en, this message translates to:
+  /// **'Member'**
+  String get roleMember;
+
+  /// No description provided for @usersAddMember.
+  ///
+  /// In en, this message translates to:
+  /// **'Add member'**
+  String get usersAddMember;
+
+  /// No description provided for @usersName.
+  ///
+  /// In en, this message translates to:
+  /// **'Name'**
+  String get usersName;
+
+  /// No description provided for @usersProjectsRoot.
+  ///
+  /// In en, this message translates to:
+  /// **'Projects folder on the server'**
+  String get usersProjectsRoot;
+
+  /// No description provided for @usersProjectsRootHint.
+  ///
+  /// In en, this message translates to:
+  /// **'This member\'s new apps are created inside this folder'**
+  String get usersProjectsRootHint;
+
+  /// No description provided for @usersCreate.
+  ///
+  /// In en, this message translates to:
+  /// **'Create'**
+  String get usersCreate;
+
+  /// No description provided for @usersNameRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a name'**
+  String get usersNameRequired;
+
+  /// No description provided for @usersKeyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Key for {name}'**
+  String usersKeyTitle(Object name);
+
+  /// No description provided for @usersKeyOnce.
+  ///
+  /// In en, this message translates to:
+  /// **'This key is shown only once. Copy it now and send it privately.'**
+  String get usersKeyOnce;
+
+  /// No description provided for @usersCopyKey.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy key'**
+  String get usersCopyKey;
+
+  /// No description provided for @usersKeyCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'Copied'**
+  String get usersKeyCopied;
+
+  /// No description provided for @usersScanToPair.
+  ///
+  /// In en, this message translates to:
+  /// **'On the member\'s phone: Settings > Scan QR to pair.'**
+  String get usersScanToPair;
+
+  /// No description provided for @usersAppCount.
+  ///
+  /// In en, this message translates to:
+  /// **'Apps: {count}'**
+  String usersAppCount(int count);
+
+  /// No description provided for @usersInactive.
+  ///
+  /// In en, this message translates to:
+  /// **'Inactive'**
+  String get usersInactive;
+
+  /// No description provided for @usersDeactivate.
+  ///
+  /// In en, this message translates to:
+  /// **'Deactivate'**
+  String get usersDeactivate;
+
+  /// No description provided for @usersDeactivateTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Deactivate {name}?'**
+  String usersDeactivateTitle(Object name);
+
+  /// No description provided for @usersDeactivateBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Their key stops working at once. Their apps stay on the server.'**
+  String get usersDeactivateBody;
+
+  /// No description provided for @usersRotateKey.
+  ///
+  /// In en, this message translates to:
+  /// **'New key'**
+  String get usersRotateKey;
+
+  /// No description provided for @usersRotateTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Give {name} a new key?'**
+  String usersRotateTitle(Object name);
+
+  /// No description provided for @usersRotateBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The current key stops working at once.'**
+  String get usersRotateBody;
+
+  /// No description provided for @usersEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No users yet'**
+  String get usersEmpty;
+
+  /// No description provided for @buildStartedBy.
+  ///
+  /// In en, this message translates to:
+  /// **'Started by {name}'**
+  String buildStartedBy(Object name);
+
+  /// No description provided for @storePlay.
+  ///
+  /// In en, this message translates to:
+  /// **'Play'**
+  String get storePlay;
+
+  /// No description provided for @storeAppStore.
+  ///
+  /// In en, this message translates to:
+  /// **'App Store'**
+  String get storeAppStore;
+
+  /// No description provided for @storeLineVersion.
+  ///
+  /// In en, this message translates to:
+  /// **'{version} ({track})'**
+  String storeLineVersion(Object version, Object track);
+
+  /// No description provided for @storeLiveVersion.
+  ///
+  /// In en, this message translates to:
+  /// **'Live {version}'**
+  String storeLiveVersion(Object version);
+
+  /// No description provided for @storeNotOnStore.
+  ///
+  /// In en, this message translates to:
+  /// **'not on the store yet'**
+  String get storeNotOnStore;
+
+  /// No description provided for @storeNotChecked.
+  ///
+  /// In en, this message translates to:
+  /// **'not checked yet'**
+  String get storeNotChecked;
+
+  /// No description provided for @trackProduction.
+  ///
+  /// In en, this message translates to:
+  /// **'Production'**
+  String get trackProduction;
+
+  /// No description provided for @trackLive.
+  ///
+  /// In en, this message translates to:
+  /// **'Live'**
+  String get trackLive;
+
+  /// No description provided for @trackReview.
+  ///
+  /// In en, this message translates to:
+  /// **'In review'**
+  String get trackReview;
+
+  /// No description provided for @trackTestflight.
+  ///
+  /// In en, this message translates to:
+  /// **'TestFlight'**
+  String get trackTestflight;
+
+  /// No description provided for @trackPrepare.
+  ///
+  /// In en, this message translates to:
+  /// **'Being prepared'**
+  String get trackPrepare;
+
+  /// No description provided for @storePlayTracksTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Google Play tracks'**
+  String get storePlayTracksTitle;
+
+  /// No description provided for @storeAppleTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'App Store and TestFlight'**
+  String get storeAppleTitle;
+
+  /// No description provided for @storeRefreshStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh store status'**
+  String get storeRefreshStatus;
+
+  /// No description provided for @storeLastChecked.
+  ///
+  /// In en, this message translates to:
+  /// **'Last checked {time}'**
+  String storeLastChecked(Object time);
+
+  /// No description provided for @storeCheckFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Last check failed: {error}'**
+  String storeCheckFailed(Object error);
+
+  /// No description provided for @storeShowDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'Show store details'**
+  String get storeShowDetails;
+
+  /// No description provided for @storeHideDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide store details'**
+  String get storeHideDetails;
+
+  /// No description provided for @storeAppStoreVersion.
+  ///
+  /// In en, this message translates to:
+  /// **'App Store version {version}: {state}'**
+  String storeAppStoreVersion(Object version, Object state);
+
+  /// No description provided for @storeNoBuildAttached.
+  ///
+  /// In en, this message translates to:
+  /// **'no build attached'**
+  String get storeNoBuildAttached;
+
+  /// No description provided for @storeActionFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed: {error}'**
+  String storeActionFailed(Object error);
+
+  /// No description provided for @promoteToProduction.
+  ///
+  /// In en, this message translates to:
+  /// **'Promote to production'**
+  String get promoteToProduction;
+
+  /// No description provided for @promoteChooseSource.
+  ///
+  /// In en, this message translates to:
+  /// **'Which track goes to production?'**
+  String get promoteChooseSource;
+
+  /// No description provided for @promoteBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Version {version} from {track} goes to production for all users. Nothing is rebuilt.'**
+  String promoteBody(Object version, Object track);
+
+  /// No description provided for @promoteNoSource.
+  ///
+  /// In en, this message translates to:
+  /// **'No track has a live release to promote.'**
+  String get promoteNoSource;
+
+  /// No description provided for @promoteConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Promote'**
+  String get promoteConfirm;
+
+  /// No description provided for @promoteDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Version {version} is now on {track}.'**
+  String promoteDone(Object version, Object track);
+
+  /// No description provided for @attachToAppStore.
+  ///
+  /// In en, this message translates to:
+  /// **'Attach to App Store version'**
+  String get attachToAppStore;
+
+  /// No description provided for @attachChooseBuild.
+  ///
+  /// In en, this message translates to:
+  /// **'Which TestFlight build?'**
+  String get attachChooseBuild;
+
+  /// No description provided for @attachBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The build becomes the build of the App Store version. It is NOT submitted for review.'**
+  String get attachBody;
+
+  /// No description provided for @attachConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Attach'**
+  String get attachConfirm;
+
+  /// No description provided for @attachDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Build {build} is attached to App Store version {version}.'**
+  String attachDone(Object build, Object version);
+
+  /// No description provided for @attachNoBuild.
+  ///
+  /// In en, this message translates to:
+  /// **'No processed TestFlight build yet.'**
+  String get attachNoBuild;
+
+  /// No description provided for @submitForReview.
+  ///
+  /// In en, this message translates to:
+  /// **'Submit for review'**
+  String get submitForReview;
+
+  /// No description provided for @submitReviewTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Submit to App Review?'**
+  String get submitReviewTitle;
+
+  /// No description provided for @submitReviewBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Version {version} is sent to Apple for review. Once approved it can go live for every App Store user. This cannot be taken back from this app.'**
+  String submitReviewBody(Object version);
+
+  /// No description provided for @submitReviewConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Yes, submit'**
+  String get submitReviewConfirm;
+
+  /// No description provided for @submitReviewDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Version {version} was submitted for review.'**
+  String submitReviewDone(Object version);
+
+  /// No description provided for @tryDemo.
+  ///
+  /// In en, this message translates to:
+  /// **'Try demo'**
+  String get tryDemo;
+
+  /// No description provided for @tryDemoSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Explore every screen with sample data. No server needed.'**
+  String get tryDemoSubtitle;
+
+  /// No description provided for @demoBanner.
+  ///
+  /// In en, this message translates to:
+  /// **'Demo: sample data, actions are simulated'**
+  String get demoBanner;
+
+  /// No description provided for @exitDemo.
+  ///
+  /// In en, this message translates to:
+  /// **'Exit demo'**
+  String get exitDemo;
 }
 
 class _AppLocalizationsDelegate

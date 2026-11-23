@@ -1152,7 +1152,13 @@
   "reportEmailInvalid": "This does not look like an e-mail address.",
   "reportReply": "Reply",
   "reportReplySubject": "About your {app} report",
-  "@reportReplySubject": {"placeholders": {"app": {"type": "String"}}},
+  "@reportReplySubject": {
+    "placeholders": {
+      "app": {
+        "type": "String"
+      }
+    }
+  },
   "navGenerate": "Generate",
   "navGallery": "Generated",
   "navFlow": "Pipeline",
@@ -1166,63 +1172,207 @@
   "errOffline": "Cannot reach the server - check your connection",
   "errTimeout": "The server took too long to answer - try again",
   "errGatewayTimeout": "The server did not answer in time (gateway timeout {status})",
-  "@errGatewayTimeout": {"placeholders": {"status": {"type": "int"}}},
+  "@errGatewayTimeout": {
+    "placeholders": {
+      "status": {
+        "type": "int"
+      }
+    }
+  },
   "errGateway": "The server is unreachable behind its gateway (gateway error {status}) - check that it is running",
-  "@errGateway": {"placeholders": {"status": {"type": "int"}}},
+  "@errGateway": {
+    "placeholders": {
+      "status": {
+        "type": "int"
+      }
+    }
+  },
   "errServer": "Server error ({status}) - try again later",
-  "@errServer": {"placeholders": {"status": {"type": "int"}}},
+  "@errServer": {
+    "placeholders": {
+      "status": {
+        "type": "int"
+      }
+    }
+  },
   "errUnauthorized": "Not authorized ({status}) - check the API key in Settings",
-  "@errUnauthorized": {"placeholders": {"status": {"type": "int"}}},
+  "@errUnauthorized": {
+    "placeholders": {
+      "status": {
+        "type": "int"
+      }
+    }
+  },
   "errNotFound": "Not found on the server ({status})",
-  "@errNotFound": {"placeholders": {"status": {"type": "int"}}},
+  "@errNotFound": {
+    "placeholders": {
+      "status": {
+        "type": "int"
+      }
+    }
+  },
   "errRateLimited": "Too many requests ({status}) - wait a moment and try again",
-  "@errRateLimited": {"placeholders": {"status": {"type": "int"}}},
+  "@errRateLimited": {
+    "placeholders": {
+      "status": {
+        "type": "int"
+      }
+    }
+  },
   "errTooLarge": "Too large for the server ({status})",
-  "@errTooLarge": {"placeholders": {"status": {"type": "int"}}},
+  "@errTooLarge": {
+    "placeholders": {
+      "status": {
+        "type": "int"
+      }
+    }
+  },
   "errRejected": "The server refused the request ({status})",
-  "@errRejected": {"placeholders": {"status": {"type": "int"}}},
+  "@errRejected": {
+    "placeholders": {
+      "status": {
+        "type": "int"
+      }
+    }
+  },
   "errBadResponse": "The server sent an answer the app could not read",
   "errUnknown": "The request failed - try again",
   "bucketsCounting": "Counting {bucket}...",
-  "@bucketsCounting": {"placeholders": {"bucket": {"type": "String"}}},
+  "@bucketsCounting": {
+    "placeholders": {
+      "bucket": {
+        "type": "String"
+      }
+    }
+  },
   "bucketsTakedownTitle": "Takedown (new + legacy)",
   "bucketsDeleteForeverTitle": "Delete permanently",
   "bucketsDeleteWarning": "{count} objects will be deleted. THIS CANNOT BE UNDONE.",
-  "@bucketsDeleteWarning": {"placeholders": {"count": {"type": "int"}}},
+  "@bucketsDeleteWarning": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "bucketsUnmappedNote": "{count} keys have no match in the legacy twin - they are deleted from this bucket only.",
-  "@bucketsUnmappedNote": {"placeholders": {"count": {"type": "int"}}},
+  "@bucketsUnmappedNote": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "bucketsTypeNameToConfirm": "Type the bucket name to confirm: {bucket}",
-  "@bucketsTypeNameToConfirm": {"placeholders": {"bucket": {"type": "String"}}},
+  "@bucketsTypeNameToConfirm": {
+    "placeholders": {
+      "bucket": {
+        "type": "String"
+      }
+    }
+  },
   "bucketsTakedown": "Takedown",
   "bucketsDeleted": "{count} objects deleted",
-  "@bucketsDeleted": {"placeholders": {"count": {"type": "int"}}},
+  "@bucketsDeleted": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "bucketsDeletedWithTwin": "{count} objects deleted, {twin} from the legacy twin",
-  "@bucketsDeletedWithTwin": {"placeholders": {"count": {"type": "int"}, "twin": {"type": "int"}}},
+  "@bucketsDeletedWithTwin": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "twin": {
+        "type": "int"
+      }
+    }
+  },
   "bucketsCopySource": "Source: {path}",
-  "@bucketsCopySource": {"placeholders": {"path": {"type": "String"}}},
+  "@bucketsCopySource": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
   "bucketsCopySourceTree": "Source tree: {path}",
-  "@bucketsCopySourceTree": {"placeholders": {"path": {"type": "String"}}},
+  "@bucketsCopySourceTree": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
   "bucketsWholeBucket": "(whole bucket)",
   "bucketsCopyNote": "The copy runs inside the storage service - no bytes pass through the phone.",
   "bucketsTargetKey": "Target key",
   "bucketsTargetPrefix": "Target prefix",
   "bucketsCopyStarted": "Copy started ({op})",
-  "@bucketsCopyStarted": {"placeholders": {"op": {"type": "String"}}},
+  "@bucketsCopyStarted": {
+    "placeholders": {
+      "op": {
+        "type": "String"
+      }
+    }
+  },
   "bucketsFixHeadersTitle": "Fix headers",
   "bucketsFixHeadersBody": "The Cache-Control header of the objects under {path} is checked; an object that departs from the standard is rewritten in place (Content-Type is kept). No bytes are downloaded.\n\nPrefixes left mutable on purpose are skipped.",
-  "@bucketsFixHeadersBody": {"placeholders": {"path": {"type": "String"}}},
+  "@bucketsFixHeadersBody": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
   "bucketsFixStarted": "Header repair started ({op})",
-  "@bucketsFixStarted": {"placeholders": {"op": {"type": "String"}}},
+  "@bucketsFixStarted": {
+    "placeholders": {
+      "op": {
+        "type": "String"
+      }
+    }
+  },
   "bucketsOperations": "Operations",
   "bucketsNoOperations": "No operations yet",
   "bucketsOpStatus": "{status}  ·  ok {ok}  ·  failed {failed}",
-  "@bucketsOpStatus": {"placeholders": {"status": {"type": "String"}, "ok": {"type": "int"}, "failed": {"type": "int"}}},
+  "@bucketsOpStatus": {
+    "placeholders": {
+      "status": {
+        "type": "String"
+      },
+      "ok": {
+        "type": "int"
+      },
+      "failed": {
+        "type": "int"
+      }
+    }
+  },
   "bucketsTwinDiffRunning": "Computing the twin diff...",
   "bucketsLocalDiffRunning": "Computing the local diff...",
   "bucketsTwinDiffTitle": "{bucket} <-> {twin} (legacy twin)",
-  "@bucketsTwinDiffTitle": {"placeholders": {"bucket": {"type": "String"}, "twin": {"type": "String"}}},
+  "@bucketsTwinDiffTitle": {
+    "placeholders": {
+      "bucket": {
+        "type": "String"
+      },
+      "twin": {
+        "type": "String"
+      }
+    }
+  },
   "bucketsLocalDiffTitle": "Local pushed folder <-> {bucket}",
-  "@bucketsLocalDiffTitle": {"placeholders": {"bucket": {"type": "String"}}},
+  "@bucketsLocalDiffTitle": {
+    "placeholders": {
+      "bucket": {
+        "type": "String"
+      }
+    }
+  },
   "bucketsMissingInLegacy": "Missing in the legacy twin",
   "bucketsMissingInBucket": "Missing in the bucket",
   "bucketsOnlyInLegacy": "Only in the legacy twin",
@@ -1231,7 +1381,16 @@
   "bucketsUnmapped": "Unmatched (no rule)",
   "bucketsDerived": "Generated in the bucket (thumbs)",
   "bucketsDiffCount": "{title}: {count}",
-  "@bucketsDiffCount": {"placeholders": {"title": {"type": "String"}, "count": {"type": "int"}}},
+  "@bucketsDiffCount": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "bucketsFixFolderHeaders": "Fix this folder's headers",
   "bucketsDiffs": "Differences",
   "bucketsTwinDiff": "Legacy twin diff",
@@ -1242,14 +1401,32 @@
   "bucketsBadgeContent": "content",
   "bucketsNotCounted": "not counted",
   "bucketsObjectCount": "{count} objects",
-  "@bucketsObjectCount": {"placeholders": {"count": {"type": "int"}}},
+  "@bucketsObjectCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "bucketsTwinLabel": "twin: {twin}",
-  "@bucketsTwinLabel": {"placeholders": {"twin": {"type": "String"}}},
+  "@bucketsTwinLabel": {
+    "placeholders": {
+      "twin": {
+        "type": "String"
+      }
+    }
+  },
   "bucketsCount": "Count",
   "bucketsEmptyFolder": "This folder is empty",
   "bucketsTruncated": "The list was cut short - open a narrower folder",
   "bucketsSelectedCount": "{count} selected",
-  "@bucketsSelectedCount": {"placeholders": {"count": {"type": "int"}}},
+  "@bucketsSelectedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "bucketsClearSelection": "Clear selection",
   "bucketsTakedownTooltip": "Takedown (also delete from the legacy twin)",
   "bucketsSize": "Size",
@@ -1258,9 +1435,21 @@
   "bucketsNone": "(none)",
   "bucketsMutableOnPurpose": "Mutable on purpose - no standard applies",
   "bucketsHeaderOk": "Meets the cache standard ({kind})",
-  "@bucketsHeaderOk": {"placeholders": {"kind": {"type": "String"}}},
+  "@bucketsHeaderOk": {
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      }
+    }
+  },
   "bucketsHeaderExpected": "Standard: {expected}",
-  "@bucketsHeaderExpected": {"placeholders": {"expected": {"type": "String"}}},
+  "@bucketsHeaderExpected": {
+    "placeholders": {
+      "expected": {
+        "type": "String"
+      }
+    }
+  },
   "bucketsLegacyTwin": "Legacy twin",
   "bucketsAddressCopied": "Address copied",
   "bucketsCopyAddress": "Copy address",
@@ -2561,5 +2750,167 @@
   "noUnreadNotices": "No unread notes",
   "markUnread": "Mark unread",
   "deleteNoticeTitle": "Delete note?",
-  "deleteNoticeBody": "This note will be removed for good."
+  "deleteNoticeBody": "This note will be removed for good.",
+  "usersTitle": "Users",
+  "usersManage": "Manage users",
+  "usersManageSubtitle": "Add a member, give a new key, turn a key off",
+  "agbAccountTitle": "Server account",
+  "signedInAs": "Signed in as {name}",
+  "@signedInAs": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "roleAdmin": "Admin",
+  "roleMember": "Member",
+  "usersAddMember": "Add member",
+  "usersName": "Name",
+  "usersProjectsRoot": "Projects folder on the server",
+  "usersProjectsRootHint": "This member's new apps are created inside this folder",
+  "usersCreate": "Create",
+  "usersNameRequired": "Enter a name",
+  "usersKeyTitle": "Key for {name}",
+  "@usersKeyTitle": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "usersKeyOnce": "This key is shown only once. Copy it now and send it privately.",
+  "usersCopyKey": "Copy key",
+  "usersKeyCopied": "Copied",
+  "usersScanToPair": "On the member's phone: Settings > Scan QR to pair.",
+  "usersAppCount": "Apps: {count}",
+  "@usersAppCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "usersInactive": "Inactive",
+  "usersDeactivate": "Deactivate",
+  "usersDeactivateTitle": "Deactivate {name}?",
+  "@usersDeactivateTitle": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "usersDeactivateBody": "Their key stops working at once. Their apps stay on the server.",
+  "usersRotateKey": "New key",
+  "usersRotateTitle": "Give {name} a new key?",
+  "@usersRotateTitle": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "usersRotateBody": "The current key stops working at once.",
+  "usersEmpty": "No users yet",
+  "buildStartedBy": "Started by {name}",
+  "@buildStartedBy": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "storePlay": "Play",
+  "storeAppStore": "App Store",
+  "storeLineVersion": "{version} ({track})",
+  "@storeLineVersion": {
+    "placeholders": {
+      "version": {},
+      "track": {}
+    }
+  },
+  "storeLiveVersion": "Live {version}",
+  "@storeLiveVersion": {
+    "placeholders": {
+      "version": {}
+    }
+  },
+  "storeNotOnStore": "not on the store yet",
+  "storeNotChecked": "not checked yet",
+  "trackProduction": "Production",
+  "trackLive": "Live",
+  "trackReview": "In review",
+  "trackTestflight": "TestFlight",
+  "trackPrepare": "Being prepared",
+  "storePlayTracksTitle": "Google Play tracks",
+  "storeAppleTitle": "App Store and TestFlight",
+  "storeRefreshStatus": "Refresh store status",
+  "storeLastChecked": "Last checked {time}",
+  "@storeLastChecked": {
+    "placeholders": {
+      "time": {}
+    }
+  },
+  "storeCheckFailed": "Last check failed: {error}",
+  "@storeCheckFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "storeShowDetails": "Show store details",
+  "storeHideDetails": "Hide store details",
+  "storeAppStoreVersion": "App Store version {version}: {state}",
+  "@storeAppStoreVersion": {
+    "placeholders": {
+      "version": {},
+      "state": {}
+    }
+  },
+  "storeNoBuildAttached": "no build attached",
+  "storeActionFailed": "Failed: {error}",
+  "@storeActionFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "promoteToProduction": "Promote to production",
+  "promoteChooseSource": "Which track goes to production?",
+  "promoteBody": "Version {version} from {track} goes to production for all users. Nothing is rebuilt.",
+  "@promoteBody": {
+    "placeholders": {
+      "version": {},
+      "track": {}
+    }
+  },
+  "promoteNoSource": "No track has a live release to promote.",
+  "promoteConfirm": "Promote",
+  "promoteDone": "Version {version} is now on {track}.",
+  "@promoteDone": {
+    "placeholders": {
+      "version": {},
+      "track": {}
+    }
+  },
+  "attachToAppStore": "Attach to App Store version",
+  "attachChooseBuild": "Which TestFlight build?",
+  "attachBody": "The build becomes the build of the App Store version. It is NOT submitted for review.",
+  "attachConfirm": "Attach",
+  "attachDone": "Build {build} is attached to App Store version {version}.",
+  "@attachDone": {
+    "placeholders": {
+      "build": {},
+      "version": {}
+    }
+  },
+  "attachNoBuild": "No processed TestFlight build yet.",
+  "submitForReview": "Submit for review",
+  "submitReviewTitle": "Submit to App Review?",
+  "submitReviewBody": "Version {version} is sent to Apple for review. Once approved it can go live for every App Store user. This cannot be taken back from this app.",
+  "@submitReviewBody": {
+    "placeholders": {
+      "version": {}
+    }
+  },
+  "submitReviewConfirm": "Yes, submit",
+  "submitReviewDone": "Version {version} was submitted for review.",
+  "@submitReviewDone": {
+    "placeholders": {
+      "version": {}
+    }
+  },
+  "tryDemo": "Try demo",
+  "tryDemoSubtitle": "Explore every screen with sample data. No server needed.",
+  "demoBanner": "Demo: sample data, actions are simulated",
+  "exitDemo": "Exit demo"
 }

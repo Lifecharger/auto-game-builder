@@ -42,6 +42,9 @@ class App:
     last_ios_build_status: str = ""
     apple_app_id: str = ""
     app_store_url: str = ""
+    owner_user_id: int = 1  # users.id; 1 = the implicit admin
+    play_account: Optional[str] = None  # settings play_accounts key; None = default account
+    git_ssh_key_path: str = ""  # optional deploy key for the release git push
     created_at: str = ""
     updated_at: str = ""
 
@@ -116,6 +119,7 @@ class Build:
     completed_at: Optional[str] = None
     created_at: str = ""
     updated_at: str = ""
+    started_by_user_id: Optional[int] = None  # who queued it (None = before multi-user)
 
 
 @dataclass

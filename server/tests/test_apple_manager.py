@@ -6,6 +6,12 @@ import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
+import sys
+from pathlib import Path
+
+# core/ and database/ import each other by their top-level names.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 try:
     from server.core.apple_manager import AppleManager, IOS_TRACK_MAP
 except ImportError:
