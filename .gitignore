@@ -220,3 +220,14 @@ tools/body_mesh/
 
 # Rig studio 2 (SVG 2D character creator, restored 2026-11-10): private
 tools/rig2/
+
+.wrangler/
+*.p8
+*.mobileprovision
+*.cer
+*.keychain
+*.keychain-db
+
+
+# Promo worker config contains the Cloudflare account ID — never commit
+workers/promo/wrangler.toml

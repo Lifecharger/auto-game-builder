@@ -21,6 +21,14 @@ class AppModel {
   final String lastBuildStatus;
   /// Play track of the last successful upload ('' = never uploaded).
   final String lastUploadTrack;
+  /// iOS track of the last successful upload ('' = never uploaded).
+  final String lastIosUploadTrack;
+  /// Status of the most recent iOS build.
+  final String lastIosBuildStatus;
+  /// Apple App ID on App Store Connect ('' when not set).
+  final String appleAppId;
+  /// Public Apple App Store URL ('' when not set).
+  final String appStoreUrl;
 
   AppModel({
     required this.id,
@@ -43,6 +51,10 @@ class AppModel {
     required this.taskStatus,
     this.lastBuildStatus = '',
     this.lastUploadTrack = '',
+    this.lastIosUploadTrack = '',
+    this.lastIosBuildStatus = '',
+    this.appleAppId = '',
+    this.appStoreUrl = '',
   });
 
   factory AppModel.fromJson(Map<String, dynamic> json) {
@@ -78,6 +90,10 @@ class AppModel {
       taskStatus: parsedStatus,
       lastBuildStatus: json['last_build_status'] ?? '',
       lastUploadTrack: json['last_upload_track'] ?? '',
+      lastIosUploadTrack: json['last_ios_upload_track'] ?? '',
+      lastIosBuildStatus: json['last_ios_build_status'] ?? '',
+      appleAppId: json['apple_app_id'] ?? '',
+      appStoreUrl: json['app_store_url'] ?? '',
     );
   }
 }

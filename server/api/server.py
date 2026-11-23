@@ -324,6 +324,8 @@ class AppUpdate(BaseModel):
     play_store_url: Optional[str] = None
     website_url: Optional[str] = None
     console_url: Optional[str] = None
+    apple_app_id: Optional[str] = None
+    app_store_url: Optional[str] = None
 
 class DirectiveCreate(BaseModel):
     message: str
@@ -368,9 +370,9 @@ class BuildTrigger(BaseModel):
 
 class DeployRequest(BaseModel):
     track: str = "internal"  # internal|alpha|beta|production
-    build_target: str = "aab"  # flutter: apk|aab|exe|web|ios / godot: apk|aab|windows|web|linux
+    build_target: str = "aab"  # flutter: apk|aab|exe|web|ios|dual / godot: apk|aab|windows|web|linux
                                # unity: apk|aab|debug / phaser: apk|aab|debug|web
-    upload: bool = False  # upload to Google Play after build
+    upload: bool = False  # upload to stores after build
 
 
 def deploy_engine() -> DeployEngine:
@@ -1412,6 +1414,11 @@ def _app_dict(a, issue_counts: dict | None = None, include_task_status: bool = T
         "website_url": a.website_url, "console_url": a.console_url,
         "last_upload_track": a.last_upload_track,
         "last_upload_at": a.last_upload_at,
+        "last_ios_upload_track": a.last_ios_upload_track,
+        "last_ios_upload_at": a.last_ios_upload_at,
+        "last_ios_build_status": a.last_ios_build_status,
+        "apple_app_id": a.apple_app_id,
+        "app_store_url": a.app_store_url,
         "created_at": a.created_at, "updated_at": a.updated_at,
         "open_issues": open_issues,
         "last_build_status": _last_build_status(a.id),

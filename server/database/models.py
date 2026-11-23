@@ -37,6 +37,11 @@ class App:
     console_url: str = ""
     last_upload_track: str = ""  # internal|alpha|beta|production — '' = never uploaded
     last_upload_at: Optional[str] = None
+    last_ios_upload_track: str = ""  # internal|alpha|beta|production — '' = never uploaded
+    last_ios_upload_at: Optional[str] = None
+    last_ios_build_status: str = ""
+    apple_app_id: str = ""
+    app_store_url: str = ""
     created_at: str = ""
     updated_at: str = ""
 

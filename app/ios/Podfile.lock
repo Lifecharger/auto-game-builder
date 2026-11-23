@@ -1,0 +1,251 @@
+PODS:
+  - AppAuth (1.7.6):
+    - AppAuth/Core (= 1.7.6)
+    - AppAuth/ExternalUserAgent (= 1.7.6)
+  - AppAuth/Core (1.7.6)
+  - AppAuth/ExternalUserAgent (1.7.6):
+    - AppAuth/Core
+  - AppCheckCore (11.3.2):
+    - GoogleUtilities/Environment (~> 8.0)
+    - GoogleUtilities/UserDefaults (~> 8.0)
+    - PromisesObjC (~> 2.4)
+    - PromisesSwift (~> 2.4)
+    - RecaptchaInterop (~> 101.0)
+  - audioplayers_darwin (0.0.1):
+    - Flutter
+    - FlutterMacOS
+  - device_info_plus (0.0.1):
+    - Flutter
+  - DKImagePickerController/Core (4.3.9):
+    - DKImagePickerController/ImageDataManager
+    - DKImagePickerController/Resource
+  - DKImagePickerController/ImageDataManager (4.3.9)
+  - DKImagePickerController/PhotoGallery (4.3.9):
+    - DKImagePickerController/Core
+    - DKPhotoGallery
+  - DKImagePickerController/Resource (4.3.9)
+  - DKPhotoGallery (0.0.19):
+    - DKPhotoGallery/Core (= 0.0.19)
+    - DKPhotoGallery/Model (= 0.0.19)
+    - DKPhotoGallery/Preview (= 0.0.19)
+    - DKPhotoGallery/Resource (= 0.0.19)
+    - SDWebImage
+    - SwiftyGif
+  - DKPhotoGallery/Core (0.0.19):
+    - DKPhotoGallery/Model
+    - DKPhotoGallery/Preview
+    - SDWebImage
+    - SwiftyGif
+  - DKPhotoGallery/Model (0.0.19):
+    - SDWebImage
+    - SwiftyGif
+  - DKPhotoGallery/Preview (0.0.19):
+    - DKPhotoGallery/Model
+    - DKPhotoGallery/Resource
+    - SDWebImage
+    - SwiftyGif
+  - DKPhotoGallery/Resource (0.0.19):
+    - SDWebImage
+    - SwiftyGif
+  - file_picker (0.0.1):
+    - DKImagePickerController/PhotoGallery
+    - Flutter
+  - Flutter (1.0.0)
+  - google_sign_in_ios (0.0.1):
+    - AppAuth (>= 1.7.4)
+    - Flutter
+    - FlutterMacOS
+    - GoogleSignIn (~> 8.0)
+    - GTMSessionFetcher (>= 3.4.0)
+  - GoogleDataTransport (10.1.1):
+    - nanopb (~> 3.30910.0)
+    - PromisesObjC (~> 2.4)
+  - GoogleMLKit/BarcodeScanning (7.0.0):
+    - GoogleMLKit/MLKitCore
+    - MLKitBarcodeScanning (~> 6.0.0)
+  - GoogleMLKit/MLKitCore (7.0.0):
+    - MLKitCommon (~> 12.0.0)
+  - GoogleSignIn (8.0.0):
+    - AppAuth (< 2.0, >= 1.7.3)
+    - AppCheckCore (~> 11.0)
+    - GTMAppAuth (< 5.0, >= 4.1.1)
+    - GTMSessionFetcher/Core (~> 3.3)
+  - GoogleToolboxForMac/Defines (4.2.1)
+  - GoogleToolboxForMac/Logger (4.2.1):
+    - GoogleToolboxForMac/Defines (= 4.2.1)
+  - "GoogleToolboxForMac/NSData+zlib (4.2.1)":
+    - GoogleToolboxForMac/Defines (= 4.2.1)
+  - GoogleUtilities/Environment (8.1.5):
+    - GoogleUtilities/Privacy
+  - GoogleUtilities/Logger (8.1.5):
+    - GoogleUtilities/Environment
+    - GoogleUtilities/Privacy
+  - GoogleUtilities/Privacy (8.1.5)
+  - GoogleUtilities/UserDefaults (8.1.5):
+    - GoogleUtilities/Logger
+    - GoogleUtilities/Privacy
+  - GTMAppAuth (4.1.1):
+    - AppAuth/Core (~> 1.7)
+    - GTMSessionFetcher/Core (< 4.0, >= 3.3)
+  - GTMSessionFetcher (3.5.0):
+    - GTMSessionFetcher/Full (= 3.5.0)
+  - GTMSessionFetcher/Core (3.5.0)
+  - GTMSessionFetcher/Full (3.5.0):
+    - GTMSessionFetcher/Core
+  - image_picker_ios (0.0.1):
+    - Flutter
+  - in_app_purchase_storekit (0.0.1):
+    - Flutter
+    - FlutterMacOS
+  - MLImage (1.0.0-beta6)
+  - MLKitBarcodeScanning (6.0.0):
+    - MLKitCommon (~> 12.0)
+    - MLKitVision (~> 8.0)
+  - MLKitCommon (12.0.0):
+    - GoogleDataTransport (~> 10.0)
+    - GoogleToolboxForMac/Logger (< 5.0, >= 4.2.1)
+    - "GoogleToolboxForMac/NSData+zlib (< 5.0, >= 4.2.1)"
+    - GoogleUtilities/Logger (~> 8.0)
+    - GoogleUtilities/UserDefaults (~> 8.0)
+    - GTMSessionFetcher/Core (< 4.0, >= 3.3.2)
+  - MLKitVision (8.0.0):
+    - GoogleToolboxForMac/Logger (< 5.0, >= 4.2.1)
+    - "GoogleToolboxForMac/NSData+zlib (< 5.0, >= 4.2.1)"
+    - GTMSessionFetcher/Core (< 4.0, >= 3.3.2)
+    - MLImage (= 1.0.0-beta6)
+    - MLKitCommon (~> 12.0)
+  - mobile_scanner (6.0.2):
+    - Flutter
+    - GoogleMLKit/BarcodeScanning (~> 7.0.0)
+  - nanopb (3.30910.0):
+    - nanopb/decode (= 3.30910.0)
+    - nanopb/encode (= 3.30910.0)
+  - nanopb/decode (3.30910.0)
+  - nanopb/encode (3.30910.0)
+  - open_filex (0.0.2):
+    - Flutter
+  - package_info_plus (0.4.5):
+    - Flutter
+  - PromisesObjC (2.4.1)
+  - PromisesSwift (2.4.1):
+    - PromisesObjC (= 2.4.1)
+  - RecaptchaInterop (101.0.0)
+  - SDWebImage (5.21.7):
+    - SDWebImage/Core (= 5.21.7)
+  - SDWebImage/Core (5.21.7)
+  - shared_preferences_foundation (0.0.1):
+    - Flutter
+    - FlutterMacOS
+  - SwiftyGif (5.4.5)
+  - url_launcher_ios (0.0.1):
+    - Flutter
+  - video_player_avfoundation (0.0.1):
+    - Flutter
+    - FlutterMacOS
+
+DEPENDENCIES:
+  - audioplayers_darwin (from `.symlinks/plugins/audioplayers_darwin/darwin`)
+  - device_info_plus (from `.symlinks/plugins/device_info_plus/ios`)
+  - file_picker (from `.symlinks/plugins/file_picker/ios`)
+  - Flutter (from `Flutter`)
+  - google_sign_in_ios (from `.symlinks/plugins/google_sign_in_ios/darwin`)
+  - image_picker_ios (from `.symlinks/plugins/image_picker_ios/ios`)
+  - in_app_purchase_storekit (from `.symlinks/plugins/in_app_purchase_storekit/darwin`)
+  - mobile_scanner (from `.symlinks/plugins/mobile_scanner/ios`)
+  - open_filex (from `.symlinks/plugins/open_filex/ios`)
+  - package_info_plus (from `.symlinks/plugins/package_info_plus/ios`)
+  - shared_preferences_foundation (from `.symlinks/plugins/shared_preferences_foundation/darwin`)
+  - url_launcher_ios (from `.symlinks/plugins/url_launcher_ios/ios`)
+  - video_player_avfoundation (from `.symlinks/plugins/video_player_avfoundation/darwin`)
+
+SPEC REPOS:
+  trunk:
+    - AppAuth
+    - AppCheckCore
+    - DKImagePickerController
+    - DKPhotoGallery
+    - GoogleDataTransport
+    - GoogleMLKit
+    - GoogleSignIn
+    - GoogleToolboxForMac
+    - GoogleUtilities
+    - GTMAppAuth
+    - GTMSessionFetcher
+    - MLImage
+    - MLKitBarcodeScanning
+    - MLKitCommon
+    - MLKitVision
+    - nanopb
+    - PromisesObjC
+    - PromisesSwift
+    - RecaptchaInterop
+    - SDWebImage
+    - SwiftyGif
+
+EXTERNAL SOURCES:
+  audioplayers_darwin:
+    :path: ".symlinks/plugins/audioplayers_darwin/darwin"
+  device_info_plus:
+    :path: ".symlinks/plugins/device_info_plus/ios"
+  file_picker:
+    :path: ".symlinks/plugins/file_picker/ios"
+  Flutter:
+    :path: Flutter
+  google_sign_in_ios:
+    :path: ".symlinks/plugins/google_sign_in_ios/darwin"
+  image_picker_ios:
+    :path: ".symlinks/plugins/image_picker_ios/ios"
+  in_app_purchase_storekit:
+    :path: ".symlinks/plugins/in_app_purchase_storekit/darwin"
+  mobile_scanner:
+    :path: ".symlinks/plugins/mobile_scanner/ios"
+  open_filex:
+    :path: ".symlinks/plugins/open_filex/ios"
+  package_info_plus:
+    :path: ".symlinks/plugins/package_info_plus/ios"
+  shared_preferences_foundation:
+    :path: ".symlinks/plugins/shared_preferences_foundation/darwin"
+  url_launcher_ios:
+    :path: ".symlinks/plugins/url_launcher_ios/ios"
+  video_player_avfoundation:
+    :path: ".symlinks/plugins/video_player_avfoundation/darwin"
+
+SPEC CHECKSUMS:
+  AppAuth: 58e37c546bb9bf2073c1392ccba8cef35ff283cb
+  AppCheckCore: be8fce5469f68d7f6a29aa94b25f097409ff7fdc
+  audioplayers_darwin: 835ced6edd4c9fc8ebb0a7cc9e294a91d99917d5
+  device_info_plus: 71ffc6ab7634ade6267c7a93088ed7e4f74e5896
+  DKImagePickerController: 946cec48c7873164274ecc4624d19e3da4c1ef3c
+  DKPhotoGallery: b3834fecb755ee09a593d7c9e389d8b5d6deed60
+  file_picker: a0560bc09d61de87f12d246fc47d2119e6ef37be
+  Flutter: 71a624a5bc0c04062bf19101d501e466baf2fb47
+  google_sign_in_ios: b48bb9af78576358a168361173155596c845f0b9
+  GoogleDataTransport: a24e58982ab3ba2f64d79613e027fe7f57e88539
+  GoogleMLKit: eff9e23ec1d90ea4157a1ee2e32a4f610c5b3318
+  GoogleSignIn: e6b83a7093495f8ba4b7547460485f1e308c8df5
+  GoogleToolboxForMac: d1a2cbf009c453f4d6ded37c105e2f67a32206d8
+  GoogleUtilities: 7dc09b3fa9ecb5c2298b952313d14628b61b9da3
+  GTMAppAuth: 4a3fbbb34098b327feaa51cfbf98b0b12f6892e7
+  GTMSessionFetcher: 5aea5ba6bd522a239e236100971f10cb71b96ab6
+  image_picker_ios: 872ad7b7cb44bf470e7324191b51ee0e26f45cb9
+  in_app_purchase_storekit: 22cca7d08eebca9babdf4d07d0baccb73325d3c8
+  MLImage: 0ad1c5f50edd027672d8b26b0fee78a8b4a0fc56
+  MLKitBarcodeScanning: 0a3064da0a7f49ac24ceb3cb46a5bc67496facd2
+  MLKitCommon: 07c2c33ae5640e5380beaaa6e4b9c249a205542d
+  MLKitVision: 45e79d68845a2de77e2dd4d7f07947f0ed157b0e
+  mobile_scanner: af8f71879eaba2bbcb4d86c6a462c3c0e7f23036
+  nanopb: fad817b59e0457d11a5dfbde799381cd727c1275
+  open_filex: 432f3cd11432da3e39f47fcc0df2b1603854eff1
+  package_info_plus: af8e2ca6888548050f16fa2f1938db7b5a5df499
+  PromisesObjC: 752c3227f599e3467650e47ea36f433eeb10c273
+  PromisesSwift: 217dea0fd5d2ad65222a109c48698add13cc1c5b
+  RecaptchaInterop: 11e0b637842dfb48308d242afc3f448062325aba
+  SDWebImage: e9fc87c1aab89a8ab1bbd74eba378c6f53be8abf
+  shared_preferences_foundation: a7c3904f2dedb3701dd1903cb152ef5e7df92422
+  SwiftyGif: 706c60cf65fa2bc5ee0313beece843c8eb8194d4
+  url_launcher_ios: 7a95fa5b60cc718a708b8f2966718e93db0cef1b
+  video_player_avfoundation: bc5f800d1e1c4f389bc5d51778a4f89dd1bf4a77
+
+PODFILE CHECKSUM: 1857a7cdb7dfafe45f2b0e9a9af44644190f7506
+
+COCOAPODS: 1.17.0

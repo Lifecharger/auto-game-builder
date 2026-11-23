@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../config.dart';
 import '../models/app_model.dart';
 import '../services/api_service.dart';
@@ -624,6 +625,13 @@ class _AppCard extends StatelessWidget {
   bool get isCompleted => appStatus == _AppStatus.completed;
   bool get isPostponed => appStatus == _AppStatus.postponed;
 
+  void _openExternalUrl(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri != null && await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
@@ -814,7 +822,37 @@ class _AppCard extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 6),
-                    _UploadTrackChip(track: app.lastUploadTrack),
+                    Wrap(
+                      spacing: 4,
+                      runSpacing: 4,
+                      children: [
+                        _UploadTrackChip(
+                          platform: 'play',
+                          track: app.lastUploadTrack,
+                          onTap: (app.playStoreUrl.isNotEmpty || app.packageName.isNotEmpty)
+                              ? () => _openExternalUrl(
+                                    app.playStoreUrl.isNotEmpty
+                                        ? app.playStoreUrl
+                                        : 'https://play.google.com/store/apps/details?id=${app.packageName}',
+                                  )
+                              : null,
+                        ),
+                        if (app.appType == 'flutter' || app.appleAppId.isNotEmpty)
+                          _UploadTrackChip(
+                            platform: 'ios',
+                            track: app.lastIosUploadTrack,
+                            onTap: (app.appStoreUrl.isNotEmpty || app.appleAppId.isNotEmpty)
+                                ? () => _openExternalUrl(
+                                      app.appStoreUrl.isNotEmpty
+                                          ? app.appStoreUrl
+                                          : (app.lastIosUploadTrack.contains('flight') || app.lastIosUploadTrack == 'internal'
+                                              ? 'https://appstoreconnect.apple.com/apps/${app.appleAppId}/testflight/ios'
+                                              : 'https://apps.apple.com/app/id${app.appleAppId}'),
+                                    )
+                                : null,
+                          ),
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -1208,18 +1246,29 @@ class _AppIconWidget extends StatelessWidget {
 /// Shows which Google Play track the app was last uploaded to, or
 /// "not yet uploaded" when no successful upload has been recorded.
 class _UploadTrackChip extends StatelessWidget {
+  final String platform;
   final String track;
+  final VoidCallback? onTap;
 
-  const _UploadTrackChip({required this.track});
+  const _UploadTrackChip({
+    this.platform = 'play',
+    required this.track,
+    this.onTap,
+  });
 
-  static const Set<String> _knownTracks = {'internal', 'alpha', 'beta', 'production'};
+  static const Set<String> _knownTracks = {
+    'internal', 'alpha', 'beta', 'production',
+    'testflight_internal', 'testflight_external', 'appstore'
+  };
 
   static Color _trackColor(String track) {
     switch (track) {
       case 'production':
+      case 'appstore':
         return AppColors.success;
       case 'alpha':
       case 'beta':
+      case 'testflight_external':
         return AppColors.warning;
       default:
         return AppColors.info;
@@ -1231,9 +1280,10 @@ class _UploadTrackChip extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     final key = track.toLowerCase();
     final uploaded = _knownTracks.contains(key);
-    final label = uploaded ? key : l10n.notYetUploaded;
+    final prefix = platform == 'ios' ? 'iOS: ' : 'Play: ';
+    final label = uploaded ? '$prefix$key' : '$prefix${l10n.notYetUploaded}';
     final color = uploaded ? _trackColor(key) : Colors.grey.shade500;
-    return Container(
+    final chip = Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
       decoration: BoxDecoration(
         color: color.withValues(alpha: uploaded ? 0.15 : 0.08),
@@ -1252,7 +1302,23 @@ class _UploadTrackChip extends StatelessWidget {
             label,
             style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w500),
           ),
+          if (onTap != null) ...[
+            const SizedBox(width: 4),
+            Icon(Icons.open_in_new, size: 10, color: color.withValues(alpha: 0.8)),
+          ],
         ],
+      ),
+    );
+    if (onTap == null) return chip;
+    return Tooltip(
+      message: platform == 'ios' ? 'Open App Store Connect / TestFlight' : 'Open Google Play',
+      child: InkWell(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          onTap!();
+        },
+        borderRadius: BorderRadius.circular(6),
+        child: chip,
       ),
     );
   }

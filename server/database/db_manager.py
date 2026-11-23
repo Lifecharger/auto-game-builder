@@ -253,6 +253,11 @@ class DBManager:
             console_url=row["console_url"] or "",
             last_upload_track=row["last_upload_track"] or "",
             last_upload_at=row["last_upload_at"],
+            last_ios_upload_track=(row["last_ios_upload_track"] if "last_ios_upload_track" in row.keys() else "") or "",
+            last_ios_upload_at=(row["last_ios_upload_at"] if "last_ios_upload_at" in row.keys() else None),
+            last_ios_build_status=(row["last_ios_build_status"] if "last_ios_build_status" in row.keys() else "") or "",
+            apple_app_id=(row["apple_app_id"] if "apple_app_id" in row.keys() else "") or "",
+            app_store_url=(row["app_store_url"] if "app_store_url" in row.keys() else "") or "",
             created_at=row["created_at"] or "",
             updated_at=row["updated_at"] or "",
         )

@@ -53,9 +53,19 @@ class _AppBuildCardState extends State<AppBuildCard> {
     'windows': Icons.desktop_windows,
     'web': Icons.web,
     'ios': Icons.phone_iphone,
+    'dual': Icons.devices,
     'linux': Icons.computer,
     'debug': Icons.bug_report,
   };
+
+  bool get _supportsUpload =>
+      _buildTarget == 'aab' || _buildTarget == 'ios' || _buildTarget == 'dual';
+
+  String _uploadLabel(AppLocalizations l10n) {
+    if (_buildTarget == 'dual') return 'Upload to Google Play & Apple App Store';
+    if (_buildTarget == 'ios') return 'Upload to Apple TestFlight / App Store';
+    return l10n.uploadToGooglePlay;
+  }
 
   @override
   void initState() {
@@ -150,7 +160,9 @@ class _AppBuildCardState extends State<AppBuildCard> {
 
   Future<void> _startBuild() async {
     // Confirm before production deploy
-    if (_buildTrack == 'production' && _uploadAfterBuild && _buildTarget == 'aab') {
+    final isProd = _buildTrack == 'production';
+    final isUpload = _uploadAfterBuild && _supportsUpload;
+    if (isProd && isUpload) {
       final confirm = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
@@ -158,7 +170,9 @@ class _AppBuildCardState extends State<AppBuildCard> {
           icon: Icon(Icons.warning_amber, size: 40, color: AppColors.error),
           title: Text(l10n.deployToProductionTitle),
           content: Text(
-            l10n.deployToProductionBody,
+            _buildTarget == 'dual'
+                ? 'This will release the app directly to Production on BOTH Google Play and Apple App Store.'
+                : l10n.deployToProductionBody,
           ),
           actions: [
             TextButton(
@@ -181,7 +195,7 @@ class _AppBuildCardState extends State<AppBuildCard> {
       widget.appId,
       track: _buildTrack,
       buildTarget: _buildTarget,
-      upload: _uploadAfterBuild && _buildTarget == 'aab',
+      upload: _uploadAfterBuild && _supportsUpload,
     );
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -366,10 +380,10 @@ class _AppBuildCardState extends State<AppBuildCard> {
             ),
             const SizedBox(height: 14),
 
-            // Upload toggle (only for AAB)
+            // Upload toggle
             InkWell(
               borderRadius: BorderRadius.circular(8),
-              onTap: _buildTarget != 'aab' || isActive ? null : () {
+              onTap: !_supportsUpload || isActive ? null : () {
                 setState(() => _uploadAfterBuild = !_uploadAfterBuild);
                 _saveBuildPrefs();
               },
@@ -378,8 +392,8 @@ class _AppBuildCardState extends State<AppBuildCard> {
                 child: Row(
                   children: [
                     Checkbox(
-                      value: _uploadAfterBuild && _buildTarget == 'aab',
-                      onChanged: _buildTarget != 'aab' || isActive ? null : (v) {
+                      value: _uploadAfterBuild && _supportsUpload,
+                      onChanged: !_supportsUpload || isActive ? null : (v) {
                         setState(() => _uploadAfterBuild = v ?? false);
                         _saveBuildPrefs();
                       },
@@ -387,16 +401,16 @@ class _AppBuildCardState extends State<AppBuildCard> {
                       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
                     const SizedBox(width: 4),
-                    Expanded(child: Text(l10n.uploadToGooglePlay,
+                    Expanded(child: Text(_uploadLabel(l10n),
                         style: TextStyle(fontSize: 13,
-                            color: _buildTarget == 'aab' ? Colors.grey.shade200 : Colors.grey.shade600))),
+                            color: _supportsUpload ? Colors.grey.shade200 : Colors.grey.shade600))),
                   ],
                 ),
               ),
             ),
 
             // Track selector (only when upload is on)
-            if (_uploadAfterBuild && _buildTarget == 'aab') ...[
+            if (_uploadAfterBuild && _supportsUpload) ...[
               const SizedBox(height: 10),
               AnimatedOpacity(
                 opacity: isActive ? 0.4 : 1.0,
@@ -443,10 +457,10 @@ class _AppBuildCardState extends State<AppBuildCard> {
                 child: FilledButton.icon(
                   onPressed: _targetsLoading || _targets.isEmpty ? null : () => _startBuild(),
                   icon: const Icon(Icons.rocket_launch, size: 18),
-                  label: Text(_uploadAfterBuild && _buildTarget == 'aab'
+                  label: Text(_uploadAfterBuild && _supportsUpload
                       ? l10n.buildAndDeploy : l10n.build),
                   style: FilledButton.styleFrom(
-                    backgroundColor: _buildTrack == 'production' && _uploadAfterBuild && _buildTarget == 'aab'
+                    backgroundColor: _buildTrack == 'production' && _uploadAfterBuild && _supportsUpload
                         ? AppColors.error : AppColors.accent,
                   ),
                 ),

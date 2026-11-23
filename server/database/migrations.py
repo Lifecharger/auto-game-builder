@@ -312,6 +312,17 @@ MIGRATIONS = [
 
     CREATE INDEX IF NOT EXISTS idx_notices_created ON notices(created_at);
     """,
+    # Version 14: iOS build and upload tracking + Apple App Store metadata
+    """
+    ALTER TABLE apps ADD COLUMN last_ios_upload_track TEXT DEFAULT '';
+    ALTER TABLE apps ADD COLUMN last_ios_upload_at TEXT;
+    ALTER TABLE apps ADD COLUMN last_ios_build_status TEXT DEFAULT '';
+    ALTER TABLE apps ADD COLUMN apple_app_id TEXT DEFAULT '';
+    """,
+    # Version 15: iOS App Store URL
+    """
+    ALTER TABLE apps ADD COLUMN app_store_url TEXT DEFAULT '';
+    """,
 ]
 
 

@@ -7,7 +7,14 @@
     "projects_root": "~/Projects",
     "keys_dir": "",
     "tools_dir": "",
-    "service_account_key": ""
+    "service_account_key": "",
+    "apple_key_file": ""
+  },
+  "apple": {
+    "key_id": "",
+    "issuer_id": "",
+    "key_file": "",
+    "team_id": ""
   },
   "ai_agents": {
     "claude_path": "",

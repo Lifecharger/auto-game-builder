@@ -17,6 +17,7 @@ analyzer:
     # byte-identical to its canonical source so every app reports the same
     # vocabulary, so it is not re-styled to this project's lint set.
     - lib/services/lifecharger_analytics.dart
+    - ios/**
 include: package:flutter_lints/flutter.yaml
 
 linter:

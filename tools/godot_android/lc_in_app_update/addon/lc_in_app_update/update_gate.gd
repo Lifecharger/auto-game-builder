@@ -3,16 +3,23 @@ extends Node
 ## Forced update gate (UpdateGate autoload). Same behaviour as the Flutter apps'
 ## lifecharger_update_gate.dart.
 ##
-## On launch (after the first frame) and every return to the foreground it asks Google Play,
-## through the LcInAppUpdate Android plugin, whether a newer version exists. If one does,
-## Play's own IMMEDIATE update screen runs; if the player backs out of it or it fails, a
-## full-screen "Update required" page covers the game with a single Update button (the
-## immediate flow again, or the Play Store page when Play does not allow it). While it is
-## up the game is paused and Back does nothing. There is no way past it but updating.
+## On launch (after the first frame) and every return to the foreground it asks Google Play
+## (on Android) through the LcInAppUpdate plugin, or Apple App Store (on iOS) via the iTunes
+## Lookup API, whether a newer version exists.
 ##
-## When the check cannot be made (offline, not installed from Play, debug build, desktop,
+## On Android: Play's own IMMEDIATE update screen runs; if the player backs out of it or it fails,
+## a full-screen "Update required" page covers the game with a single Update button (the
+## immediate flow again, or the Play Store page when Play does not allow it).
+##
+## On iOS: If the store version is strictly newer than current semver, the full-screen "Update
+## required" page covers the game, and pressing Update opens the game's App Store product page.
+##
+## While the blocking page is up the game is paused and Back does nothing. There is no way past
+## it but updating.
+##
+## When the check cannot be made (offline, not installed from store, debug build, desktop,
 ## editor, plugin missing) the game runs normally: a player is never locked out because
-## Play could not be asked.
+## the store could not be asked.
 ##
 ## Strings come from the game's own translations: UPDATE_GATE_TITLE, UPDATE_GATE_BODY,
 ## UPDATE_GATE_BUTTON.
@@ -39,6 +46,8 @@ const COLOR_BUTTON_PRESSED := Color(0.78, 0.52, 0.1)
 const COLOR_BUTTON_TEXT := Color(0.1, 0.07, 0.02)
 
 var _plugin: Object = null
+var _http_request: HTTPRequest = null
+var _app_store_url: String = ""
 var _blocked := false
 var _checking := false
 var _starting := false
@@ -53,18 +62,33 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	if not _is_active():
 		return
-	_plugin = Engine.get_singleton(PLUGIN_NAME)
-	_plugin.connect("update_check_completed", _on_update_check_completed)
-	_plugin.connect("update_check_failed", _on_update_check_failed)
-	_plugin.connect("update_flow_result", _on_update_flow_result)
+	if OS.get_name() == "Android":
+		_plugin = Engine.get_singleton(PLUGIN_NAME)
+		_plugin.connect("update_check_completed", _on_update_check_completed)
+		_plugin.connect("update_check_failed", _on_update_check_failed)
+		_plugin.connect("update_flow_result", _on_update_flow_result)
+	elif OS.get_name() == "iOS":
+		_http_request = HTTPRequest.new()
+		_http_request.name = "UpdateGateHttp"
+		_http_request.timeout = 10.0
+		add_child(_http_request)
+		_http_request.request_completed.connect(_on_ios_http_completed)
+
 	# After the first frame, like the Flutter gate's post-frame callback.
 	await get_tree().process_frame
 	_check(true)
 
 
-## Only a release build running on Android with the plugin present asks Play.
+## Release build on Android with plugin present, or release build on iOS.
 func _is_active() -> bool:
-	return OS.get_name() == "Android" and not OS.is_debug_build() and Engine.has_singleton(PLUGIN_NAME)
+	if OS.is_debug_build():
+		return false
+	var os_name := OS.get_name()
+	if os_name == "Android":
+		return Engine.has_singleton(PLUGIN_NAME)
+	if os_name == "iOS":
+		return true
+	return false
 
 
 func is_blocked() -> bool:
@@ -72,9 +96,8 @@ func is_blocked() -> bool:
 
 
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_APPLICATION_RESUMED and _plugin != null:
-		# Back from Play's update screen (cancelled) or from anywhere else: ask again.
-		# Our activity is only resumed once Play's flow is gone, so nothing is starting now.
+	if what == NOTIFICATION_APPLICATION_RESUMED and _is_active():
+		# Back from Play's/App Store's update screen (cancelled) or from anywhere else: ask again.
 		_starting = false
 		_check(not _blocked)
 
@@ -92,18 +115,102 @@ func _input(event: InputEvent) -> void:
 
 
 func _check(start_update: bool) -> void:
-	if _plugin == null or _checking:
+	if _checking:
 		return
-	_checking = true
 	_start_after_check = start_update
-	_plugin.call("checkForUpdate")
+	if OS.get_name() == "Android":
+		if _plugin == null:
+			return
+		_checking = true
+		_plugin.call("checkForUpdate")
+	elif OS.get_name() == "iOS":
+		if _http_request == null:
+			return
+		var bundle_id := _get_bundle_id()
+		if bundle_id.is_empty():
+			push_warning("[UpdateGate] bundle_id not found for iOS update check")
+			return
+		_checking = true
+		var url := "https://itunes.apple.com/lookup?bundleId=" + bundle_id
+		var err := _http_request.request(url)
+		if err != OK:
+			push_warning("[UpdateGate] iOS update check request failed: %d" % err)
+			_checking = false
+
+
+func _get_bundle_id() -> String:
+	var id: String = ""
+	if ProjectSettings.has_setting("android/modules/package/unique_name"):
+		id = str(ProjectSettings.get_setting("android/modules/package/unique_name"))
+	if id.is_empty() and ProjectSettings.has_setting("modules/package/unique_name"):
+		id = str(ProjectSettings.get_setting("modules/package/unique_name"))
+	if id.is_empty() and ProjectSettings.has_setting("application/config/ios/bundle_identifier"):
+		id = str(ProjectSettings.get_setting("application/config/ios/bundle_identifier"))
+	if id.is_empty() and ProjectSettings.has_setting("package/unique_name"):
+		id = str(ProjectSettings.get_setting("package/unique_name"))
+	return id.strip_edges()
+
+
+static func is_store_version_newer(current: String, store: String) -> bool:
+	var clean_current := current.strip_edges().split("+")[0]
+	var clean_store := store.strip_edges().split("+")[0]
+	var regex := RegEx.new()
+	if regex.compile("^\d+(\.\d+)*$") != OK:
+		return false
+	if regex.search(clean_current) == null or regex.search(clean_store) == null:
+		return false
+	var c_parts := clean_current.split(".")
+	var s_parts := clean_store.split(".")
+	var max_len := maxi(c_parts.size(), s_parts.size())
+	for i in range(max_len):
+		var c := c_parts[i].to_int() if i < c_parts.size() else 0
+		var s := s_parts[i].to_int() if i < s_parts.size() else 0
+		if s > c:
+			return true
+		if s < c:
+			return false
+	return false
+
+
+func _on_ios_http_completed(result: int, response_code: int, _headers: PackedStringArray, body: PackedByteArray) -> void:
+	_checking = false
+	if result != HTTPRequest.RESULT_SUCCESS or response_code != 200:
+		push_warning("[UpdateGate] iOS lookup failed: result=%d code=%d" % [result, response_code])
+		return
+	var text := body.get_string_from_utf8()
+	var json := JSON.new()
+	var err := json.parse(text)
+	if err != OK:
+		push_warning("[UpdateGate] iOS lookup JSON parse error: %d" % err)
+		return
+	var data: Variant = json.data
+	if not (data is Dictionary):
+		return
+	var results: Variant = (data as Dictionary).get("results", [])
+	if not (results is Array) or (results as Array).is_empty():
+		return
+	var first: Variant = (results as Array)[0]
+	if not (first is Dictionary):
+		return
+	var first_dict := first as Dictionary
+	var store_version := str(first_dict.get("version", ""))
+	var track_view_url := str(first_dict.get("trackViewUrl", ""))
+	if track_view_url.is_empty() and first_dict.has("trackId"):
+		track_view_url = "https://apps.apple.com/app/id" + str(first_dict.get("trackId"))
+	_app_store_url = track_view_url
+	var current_version := str(ProjectSettings.get_setting("application/config/version", "0.0.0"))
+	var needed := is_store_version_newer(current_version, store_version)
+	print("[UpdateGate] iOS check: current=%s store=%s needed=%s" % [current_version, store_version, needed])
+	_set_blocked(needed)
+	if needed and _start_after_check:
+		_start_update()
 
 
 func _on_update_check_completed(update_available: bool, availability: int, immediate_allowed: bool, available_version_code: int) -> void:
 	_checking = false
 	_availability = availability
 	_immediate_allowed = immediate_allowed
-	print("[UpdateGate] check: update_available=%s availability=%d immediate_allowed=%s available_version=%d" % [update_available, availability, immediate_allowed, available_version_code])
+	print("[UpdateGate] Android check: update_available=%s availability=%d immediate_allowed=%s available_version=%d" % [update_available, availability, immediate_allowed, available_version_code])
 	_set_blocked(update_available)
 	if update_available and _start_after_check:
 		_start_update()
@@ -113,7 +220,7 @@ func _on_update_check_failed(message: String) -> void:
 	_checking = false
 	# Play could not be asked: nothing changes. The player keeps playing unless an update
 	# was already confirmed, in which case the Update button still works from the last answer.
-	push_warning("[UpdateGate] update check failed: %s" % message)
+	push_warning("[UpdateGate] Android check failed: %s" % message)
 	if _blocked and _start_after_check:
 		_start_update()
 
@@ -121,10 +228,13 @@ func _on_update_check_failed(message: String) -> void:
 func _start_update() -> void:
 	if _starting:
 		return
-	if _immediate_allowed or _availability == AVAILABILITY_IN_PROGRESS:
-		_starting = true
-		_plugin.call("startImmediateUpdate")
-	else:
+	if OS.get_name() == "Android":
+		if _immediate_allowed or _availability == AVAILABILITY_IN_PROGRESS:
+			_starting = true
+			_plugin.call("startImmediateUpdate")
+		else:
+			_open_store()
+	elif OS.get_name() == "iOS":
 		_open_store()
 
 
@@ -140,15 +250,21 @@ func _on_update_flow_result(result_code: int, message: String) -> void:
 
 
 func _open_store() -> void:
-	if _plugin != null:
-		_plugin.call("openStore")
+	if OS.get_name() == "Android":
+		if _plugin != null:
+			_plugin.call("openStore")
+	elif OS.get_name() == "iOS":
+		if not _app_store_url.is_empty():
+			OS.shell_open(_app_store_url)
 
 
 func _on_update_pressed() -> void:
-	# Re-read Play first: the answer may be stale after a cancelled flow.
+	# Re-read store first: the answer may be stale after a cancelled flow.
 	if _checking:
 		_start_after_check = true
 		return
+	if OS.get_name() == "iOS" and not _app_store_url.is_empty():
+		OS.shell_open(_app_store_url)
 	_check(true)
 
 
@@ -206,7 +322,10 @@ func _show_overlay() -> void:
 
 	var title := Label.new()
 	title.name = "Title"
-	title.text = "UPDATE_GATE_TITLE"
+	var title_text := tr("UPDATE_GATE_TITLE")
+	if title_text == "UPDATE_GATE_TITLE":
+		title_text = "Update required"
+	title.text = title_text
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	title.add_theme_font_size_override("font_size", 44)
@@ -215,7 +334,10 @@ func _show_overlay() -> void:
 
 	var body := Label.new()
 	body.name = "Body"
-	body.text = "UPDATE_GATE_BODY"
+	var body_text := tr("UPDATE_GATE_BODY")
+	if body_text == "UPDATE_GATE_BODY":
+		body_text = "A new version is available. Please update to keep playing."
+	body.text = body_text
 	body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	body.add_theme_font_size_override("font_size", 28)
@@ -229,7 +351,10 @@ func _show_overlay() -> void:
 
 	var button := Button.new()
 	button.name = "UpdateButton"
-	button.text = "UPDATE_GATE_BUTTON"
+	var button_text := tr("UPDATE_GATE_BUTTON")
+	if button_text == "UPDATE_GATE_BUTTON":
+		button_text = "Update"
+	button.text = button_text
 	button.custom_minimum_size = Vector2(0, 96)
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	button.focus_mode = Control.FOCUS_NONE

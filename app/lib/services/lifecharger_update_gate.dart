@@ -1,6 +1,7 @@
 // Forced update gate (2026-09-26, user: "update can't skip").
+// ignore_for_file: deprecated_member_use
 //
-// Copied UNCHANGED into every Life Charger Flutter app (sync: <cloudflare-workers repo>/_build/
+// Copied UNCHANGED into every Life Charger Flutter app (sync: C:/Cloudflare Workers/_build/
 // sync_update_gate.py). Wrap the root widget:  runApp(ForcedUpdateGate(child: MyApp()));
 //
 // On launch (after the first frame) and every return to the foreground it asks Google Play
@@ -16,12 +17,16 @@
 // styling and reads the device language for its three strings.
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:in_app_update/in_app_update.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class ForcedUpdateGate extends StatefulWidget {
@@ -33,9 +38,41 @@ class ForcedUpdateGate extends StatefulWidget {
   @visibleForTesting
   static bool enabledInTests = false;
 
-  /// Test seam: stands in for Play's update check. Returns true when an update is available.
+  /// Test seam: stands in for Play/AppStore update check. Returns true when an update is available.
   @visibleForTesting
   static Future<bool> Function()? checkForTest;
+
+  /// Compares semantic version strings (e.g. "1.0.108" vs "1.0.109").
+  /// Returns true if [store] is strictly newer than [current].
+  @visibleForTesting
+  static bool isStoreVersionNewer(String current, String store) {
+    try {
+      final RegExp validFormat = RegExp(r'^\d+(\.\d+)*');
+      final String cleanCurrent = current.trim().split('+').first;
+      final String cleanStore = store.trim().split('+').first;
+      if (!validFormat.hasMatch(cleanCurrent) || !validFormat.hasMatch(cleanStore)) {
+        return false;
+      }
+      final List<int> currentParts = cleanCurrent
+          .split('.')
+          .map((String s) => int.tryParse(s) ?? 0)
+          .toList();
+      final List<int> storeParts = cleanStore
+          .split('.')
+          .map((String s) => int.tryParse(s) ?? 0)
+          .toList();
+      final int maxLen = math.max(currentParts.length, storeParts.length);
+      for (int i = 0; i < maxLen; i++) {
+        final int c = i < currentParts.length ? currentParts[i] : 0;
+        final int s = i < storeParts.length ? storeParts[i] : 0;
+        if (s > c) return true;
+        if (s < c) return false;
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
 
   @override
   State<ForcedUpdateGate> createState() => _ForcedUpdateGateState();
@@ -46,10 +83,11 @@ class _ForcedUpdateGateState extends State<ForcedUpdateGate> with WidgetsBinding
   bool _checking = false;
   bool _starting = false;
   AppUpdateInfo? _info;
+  String? _appStoreUrl;
 
   bool get _active {
     if (Platform.environment.containsKey('FLUTTER_TEST')) return ForcedUpdateGate.enabledInTests;
-    return !kIsWeb && Platform.isAndroid && !kDebugMode;
+    return !kIsWeb && (Platform.isAndroid || Platform.isIOS) && !kDebugMode;
   }
 
   @override
@@ -75,21 +113,40 @@ class _ForcedUpdateGateState extends State<ForcedUpdateGate> with WidgetsBinding
     if (!_active || _checking) return;
     _checking = true;
     try {
-      bool needed;
+      bool needed = false;
       final Future<bool> Function()? fake = ForcedUpdateGate.checkForTest;
       if (fake != null) {
         needed = await fake();
-      } else {
+      } else if (Platform.isAndroid) {
         final AppUpdateInfo info = await InAppUpdate.checkForUpdate();
         _info = info;
         needed = info.updateAvailability == UpdateAvailability.updateAvailable ||
             info.updateAvailability == UpdateAvailability.developerTriggeredUpdateInProgress;
+      } else if (Platform.isIOS) {
+        final PackageInfo packageInfo = await PackageInfo.fromPlatform();
+        final String bundleId = packageInfo.packageName;
+        final String currentVersion = packageInfo.version;
+        final Uri uri = Uri.parse('https://itunes.apple.com/lookup?bundleId=$bundleId');
+        final http.Response res = await http.get(uri).timeout(const Duration(seconds: 10));
+        if (res.statusCode == 200) {
+          final Map<String, dynamic> data = jsonDecode(res.body) as Map<String, dynamic>;
+          final List<dynamic>? results = data['results'] as List<dynamic>?;
+          if (results != null && results.isNotEmpty) {
+            final Map<String, dynamic> first = results[0] as Map<String, dynamic>;
+            final String? storeVersion = first['version'] as String?;
+            _appStoreUrl = first['trackViewUrl'] as String? ??
+                (first['trackId'] != null ? 'https://apps.apple.com/app/id${first["trackId"]}' : null);
+            if (storeVersion != null && ForcedUpdateGate.isStoreVersionNewer(currentVersion, storeVersion)) {
+              needed = true;
+            }
+          }
+        }
       }
       if (!mounted) return;
       if (needed != _blocked) setState(() => _blocked = needed);
       if (needed && startUpdate) await _startUpdate();
     } catch (e) {
-      // Play could not be asked (offline, not a Play install): the player keeps playing.
+      // Store could not be asked (offline, not a store install): the player keeps playing.
       debugPrint('[UpdateGate] update check failed: $e');
     } finally {
       _checking = false;
@@ -100,16 +157,22 @@ class _ForcedUpdateGateState extends State<ForcedUpdateGate> with WidgetsBinding
     if (_starting) return;
     _starting = true;
     try {
-      final AppUpdateInfo? info = _info;
-      final bool immediate = info != null &&
-          (info.immediateUpdateAllowed ||
-              info.updateAvailability == UpdateAvailability.developerTriggeredUpdateInProgress);
-      if (immediate) {
-        final AppUpdateResult result = await InAppUpdate.performImmediateUpdate();
-        debugPrint('[UpdateGate] immediate update: $result');
-        // success restarts the app into the new version; anything else leaves the gate up.
-      } else if (ForcedUpdateGate.checkForTest == null) {
-        await _openStore(info?.packageName);
+      if (Platform.isAndroid) {
+        final AppUpdateInfo? info = _info;
+        final bool immediate = info != null &&
+            (info.immediateUpdateAllowed ||
+                info.updateAvailability == UpdateAvailability.developerTriggeredUpdateInProgress);
+        if (immediate) {
+          final AppUpdateResult result = await InAppUpdate.performImmediateUpdate();
+          debugPrint('[UpdateGate] immediate update: $result');
+          // success restarts the app into the new version; anything else leaves the gate up.
+        } else if (ForcedUpdateGate.checkForTest == null) {
+          await _openStore(info?.packageName);
+        }
+      } else if (Platform.isIOS) {
+        if (ForcedUpdateGate.checkForTest == null) {
+          await _openStore(null);
+        }
       }
     } catch (e) {
       debugPrint('[UpdateGate] update flow failed: $e');
@@ -119,6 +182,18 @@ class _ForcedUpdateGateState extends State<ForcedUpdateGate> with WidgetsBinding
   }
 
   Future<void> _openStore(String? packageName) async {
+    if (Platform.isIOS) {
+      final String? storeUrl = _appStoreUrl;
+      if (storeUrl != null && storeUrl.isNotEmpty) {
+        final Uri uri = Uri.parse(storeUrl);
+        try {
+          if (await launchUrl(uri, mode: LaunchMode.externalApplication)) return;
+        } catch (e) {
+          debugPrint('[UpdateGate] app store link failed: $e');
+        }
+      }
+      return;
+    }
     if (packageName == null || packageName.isEmpty) return;
     final Uri market = Uri.parse('market://details?id=$packageName');
     final Uri web = Uri.parse('https://play.google.com/store/apps/details?id=$packageName');

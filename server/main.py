@@ -49,6 +49,7 @@ def _kill_orphaned_processes():
     ]
     orphan_name_patterns = [
         "cloudflared.exe",
+        "cloudflared",
     ]
 
     # Never touch the processes this server was started from. Killing an
@@ -109,20 +110,34 @@ def start_background_services():
     def _kill_port_holder(port):
         """Kill any process holding the given port."""
         try:
-            result = subprocess.run(
-                ["netstat", "-ano"], capture_output=True, text=True,
-                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
-            )
-            for line in result.stdout.splitlines():
-                if f":{port}" in line and "LISTENING" in line:
-                    pid = int(line.strip().split()[-1])
-                    if pid != os.getpid():
-                        print(f"[AutoGameBuilder] Killing old process on port {port} (pid={pid})")
-                        subprocess.run(
-                            ["taskkill", "/PID", str(pid), "/F"],
-                            capture_output=True,
-                            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
-                        )
+            if os.name == "nt":
+                result = subprocess.run(
+                    ["netstat", "-ano"], capture_output=True, text=True,
+                    creationflags=subprocess.CREATE_NO_WINDOW,
+                )
+                for line in result.stdout.splitlines():
+                    if f":{port}" in line and "LISTENING" in line:
+                        pid = int(line.strip().split()[-1])
+                        if pid != os.getpid():
+                            print(f"[AutoGameBuilder] Killing old process on port {port} (pid={pid})")
+                            subprocess.run(
+                                ["taskkill", "/PID", str(pid), "/F"],
+                                capture_output=True,
+                                creationflags=subprocess.CREATE_NO_WINDOW,
+                            )
+            else:
+                result = subprocess.run(
+                    ["lsof", "-ti", f":{port}"], capture_output=True, text=True
+                )
+                for pid_str in result.stdout.strip().split():
+                    if pid_str.isdigit():
+                        pid = int(pid_str)
+                        if pid != os.getpid():
+                            print(f"[AutoGameBuilder] Killing old process on port {port} (pid={pid})")
+                            try:
+                                os.kill(pid, signal.SIGKILL)
+                            except ProcessLookupError:
+                                pass
         except Exception as e:
             print(f"[AutoGameBuilder] Port cleanup warning: {e}")
 

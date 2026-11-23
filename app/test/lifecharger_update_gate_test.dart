@@ -1,4 +1,5 @@
 // Shared test for the forced update gate (copied unchanged into every app's test/ folder).
+// ignore_for_file: deprecated_member_use
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -60,5 +61,20 @@ void main() {
     await tester.tap(find.byKey(const Key('forced_update_button')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('forced_update_gate')), findsNothing);
+  });
+
+  test('isStoreVersionNewer semantic comparison', () {
+    expect(ForcedUpdateGate.isStoreVersionNewer('1.0.0', '1.0.1'), isTrue);
+    expect(ForcedUpdateGate.isStoreVersionNewer('1.0.108', '1.0.109'), isTrue);
+    expect(ForcedUpdateGate.isStoreVersionNewer('1.0.0', '1.1.0'), isTrue);
+    expect(ForcedUpdateGate.isStoreVersionNewer('1.0.0', '2.0.0'), isTrue);
+    expect(ForcedUpdateGate.isStoreVersionNewer('1.0', '1.0.1'), isTrue);
+    expect(ForcedUpdateGate.isStoreVersionNewer('1.0.108+109', '1.0.109'), isTrue);
+
+    expect(ForcedUpdateGate.isStoreVersionNewer('1.0.1', '1.0.0'), isFalse);
+    expect(ForcedUpdateGate.isStoreVersionNewer('1.0.0', '1.0.0'), isFalse);
+    expect(ForcedUpdateGate.isStoreVersionNewer('1.1.0', '1.0.9'), isFalse);
+    expect(ForcedUpdateGate.isStoreVersionNewer('2.0.0', '1.9.9'), isFalse);
+    expect(ForcedUpdateGate.isStoreVersionNewer('invalid', '1.0.0'), isFalse);
   });
 }

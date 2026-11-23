@@ -657,6 +657,16 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
               field: 'project_path',
               hint: 'C:/MyProject',
             ),
+            if (app.appType == 'flutter' || app.appleAppId.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              _editableField(
+                icon: Icons.apple,
+                label: 'Apple App ID',
+                value: app.appleAppId,
+                field: 'apple_app_id',
+                hint: 'e.g. 6837796130',
+              ),
+            ],
             const Divider(height: 24),
             _buildLinksRow(app),
           ],
@@ -674,11 +684,22 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
     final console = app.consoleUrl.isNotEmpty
         ? app.consoleUrl
         : '';
+    final appleId = app.appleAppId;
+    final appStore = app.appStoreUrl.isNotEmpty
+        ? app.appStoreUrl
+        : (appleId.isNotEmpty ? 'https://apps.apple.com/app/id$appleId' : '');
+    final testFlight = appleId.isNotEmpty
+        ? 'https://appstoreconnect.apple.com/apps/$appleId/testflight/ios'
+        : '';
 
     final links = <_LinkInfo>[
       _LinkInfo(Icons.code, 'GitHub', app.githubUrl, 'github_url', 'https://github.com/user/repo'),
       _LinkInfo(Icons.store, 'Play Store', playStore, 'play_store_url', 'https://play.google.com/store/apps/details?id=...'),
       _LinkInfo(Icons.admin_panel_settings, l10n.console, console, 'console_url', 'https://play.google.com/console/...'),
+      if (app.appType == 'flutter' || appleId.isNotEmpty) ...[
+        _LinkInfo(Icons.apple, 'App Store', appStore, 'app_store_url', 'https://apps.apple.com/app/id...'),
+        _LinkInfo(Icons.flight_takeoff, 'TestFlight', testFlight, 'apple_app_id', 'Apple App ID (e.g. 6837796130)'),
+      ],
       _LinkInfo(Icons.language, l10n.website, app.websiteUrl, 'website_url', 'https://example.com'),
     ];
 

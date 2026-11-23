@@ -23,6 +23,7 @@ from database.models import App
 from config.path_utils import to_unix_path
 from core.event_log import event_log
 from core import unity_project
+from core.apple_manager import AppleManager, IOS_TRACK_MAP
 SCOPES = ["https://www.googleapis.com/auth/androidpublisher"]
 
 # Valid Google Play tracks
@@ -78,6 +79,11 @@ BUILD_TARGETS = {
             "cmd_args": ["build", "ipa", "--release"],
             "output": "build/ios/ipa",
         },
+        "dual": {
+            "label": "Dual (AAB + iOS)",
+            "cmd_args": ["dual"],
+            "output": "build",
+        },
     },
     "godot": {
         "apk": {
@@ -104,6 +110,17 @@ BUILD_TARGETS = {
             "label": "Linux",
             "preset": "Linux",
             "output": "build/{slug}.x86_64",
+        },
+        # 2026-11-23: built by AppleManager.build_godot_ipa (preset "iOS" is created on demand)
+        "ios": {
+            "label": "iOS",
+            "preset": "iOS",
+            "output": "build/ios/ipa",
+        },
+        "dual": {
+            "label": "Dual (AAB + iOS)",
+            "preset": "",
+            "output": "build",
         },
     },
     # Unity has no CLI export command — every target runs a static C# method
@@ -167,6 +184,11 @@ class DeployEngine:
     def __init__(self, db: DBManager, settings: dict):
         self.db = db
         self.settings = settings
+        try:
+            from core.apple_manager import AppleManager
+            self.apple = AppleManager(settings or {})
+        except Exception:
+            self.apple = None
         self._active_deploys: dict[int, dict] = {}  # app_id -> status
         self._active_processes: dict[int, subprocess.Popen] = {}  # app_id -> build subprocess
         self._cancelled: set[int] = set()  # app_ids with cancelled deploys
@@ -444,9 +466,9 @@ class DeployEngine:
             target_info = targets.get(build_target, {})
             target_label = target_info.get("label", build_target)
 
-            # Step 1: Bump version (only for Android targets)
+            # Step 1: Bump version
             new_version = None
-            if build_target in ("aab", "apk"):
+            if build_target in ("aab", "apk", "ios", "dual"):
                 if self._is_cancelled(app.id):
                     return
                 self._update_status(app.id, phase="versioning", message="Bumping version...")
@@ -454,6 +476,10 @@ class DeployEngine:
                 if new_version:
                     self._update_status(app.id, message=f"Version bumped to {new_version}")
                     self.db.update_app(app.id, current_version=new_version)
+
+            # Step 1.5: Dual Deploy (Sequential AAB + iOS IPA)
+            if build_target == "dual":
+                return self._run_deploy_dual(app, track, upload, max_retries, new_version)
 
             # Step 2: Build (with retry on failure)
             output_path = None
@@ -465,7 +491,10 @@ class DeployEngine:
                     message=f"Building {target_label} (attempt {attempt})..."
                 )
 
-                build_id = self._run_build(app, build_target, version=new_version)
+                if build_target == "ios":
+                    build_id = self._run_build_ios(app, version=new_version)
+                else:
+                    build_id = self._run_build(app, build_target, version=new_version)
                 self._update_status(app.id, build_id=build_id)
 
                 build = self._wait_for_build(build_id, timeout=900)
@@ -584,12 +613,50 @@ class DeployEngine:
                         message=f"Upload failed after 3 attempts: {err}"
                     )
                     self._set_app_status(app.id, "error")
+            elif upload and build_target == "ios":
+                if self._is_cancelled(app.id):
+                    return
+                self._set_app_status(app.id, "uploading")
+                self._update_status(
+                    app.id, phase="uploading",
+                    message=f"Uploading to Apple App Store Connect / TestFlight ({track})..."
+                )
+                upload_result = self.apple.upload_to_app_store(output_path, track=track)
+                if upload_result.get("ok"):
+                    self._update_status(
+                        app.id, phase="done",
+                        message=f"Deployed to iOS ({track}): v{new_version or app.current_version}"
+                    )
+                    publish_map = {
+                        "internal": "internal_test",
+                        "alpha": "external_test",
+                        "beta": "external_test",
+                        "production": "published",
+                    }
+                    self._set_app_status(
+                        app.id,
+                        "idle",
+                        publish_status=publish_map.get(track, "internal_test"),
+                        last_ios_upload_track=track,
+                        last_ios_upload_at=datetime.now().isoformat(),
+                        last_ios_build_status="success",
+                    )
+                    self._maybe_git_push(app, new_version or app.current_version, track)
+                else:
+                    err = upload_result.get("error", "Unknown error")
+                    self._update_status(
+                        app.id, phase="failed",
+                        message=f"iOS Upload failed: {err}"
+                    )
+                    self._set_app_status(app.id, "error", last_ios_build_status="failed")
             else:
                 # Build-only complete
                 self._update_status(
                     app.id, phase="done",
                     message=f"{target_label} build complete: {output_path}"
                 )
+                if build_target == "ios":
+                    self.db.update_app(app.id, last_ios_build_status="success")
                 self._set_app_status(app.id, "idle")
 
         except Exception as e:
@@ -597,6 +664,119 @@ class DeployEngine:
                 app.id, phase="failed",
                 message=f"Deploy error: {str(e)}"
             )
+            self._set_app_status(app.id, "error")
+        finally:
+            self._active_processes.pop(app.id, None)
+
+    def _run_deploy_dual(self, app: App, track: str, upload: bool, max_retries: int, new_version: Optional[str]):
+        """Run sequential Dual Deploy: Android AAB (+ Google Play upload), then iOS IPA (+ App Store upload)."""
+        target_version = new_version or app.current_version
+        try:
+            # ── 1. Android Phase ──
+            self._update_status(app.id, phase="building", message="Dual Deploy (1/2): Building Android AAB...")
+            aab_path = None
+            for attempt in range(1, max_retries + 2):
+                if self._is_cancelled(app.id):
+                    return
+                self._update_status(
+                    app.id, phase="building", attempt=attempt,
+                    message=f"Dual Deploy (1/2): Building AAB (attempt {attempt})..."
+                )
+                build_id = self._run_build(app, "aab", version=target_version)
+                self._update_status(app.id, build_id=build_id)
+                build = self._wait_for_build(build_id, timeout=900)
+                if build and build.status == "success":
+                    aab_path = build.output_path
+                    break
+                if attempt <= max_retries:
+                    self._update_status(app.id, phase="fixing", message=f"Android build failed. Auto-fixing (attempt {attempt}/{max_retries})...")
+                    self._auto_fix_build(app, build)
+                else:
+                    self._update_status(app.id, phase="failed", message="Dual Deploy failed during Android build")
+                    self._set_app_status(app.id, "error")
+                    return
+
+            if upload and aab_path and os.path.exists(aab_path):
+                self._set_app_status(app.id, "uploading")
+                self._update_status(app.id, phase="uploading", message=f"Dual Deploy (1/2): Uploading AAB to Google Play ({track})...")
+                upload_result = self._upload_to_play(app, aab_path, track)
+                if upload_result.get("ok"):
+                    self.db.update_app(
+                        app.id,
+                        last_upload_track=track,
+                        last_upload_at=datetime.now().isoformat(),
+                    )
+                else:
+                    err = upload_result.get("error", "Unknown")
+                    self._update_status(app.id, phase="failed", message=f"Dual Deploy: Google Play upload failed: {err}")
+                    self._set_app_status(app.id, "error")
+                    return
+
+            # ── 2. iOS Phase ──
+            self._update_status(app.id, phase="building", message="Dual Deploy (2/2): Building iOS IPA...")
+            ipa_path = None
+            for attempt in range(1, max_retries + 2):
+                if self._is_cancelled(app.id):
+                    return
+                self._update_status(
+                    app.id, phase="building", attempt=attempt,
+                    message=f"Dual Deploy (2/2): Building IPA (attempt {attempt})..."
+                )
+                build_id = self._run_build_ios(app, version=target_version)
+                self._update_status(app.id, build_id=build_id)
+                build = self._wait_for_build(build_id, timeout=900)
+                if build and build.status == "success":
+                    ipa_path = build.output_path
+                    break
+                if attempt <= max_retries:
+                    self._update_status(app.id, phase="fixing", message=f"iOS build failed. Auto-fixing (attempt {attempt}/{max_retries})...")
+                    self._auto_fix_build(app, build)
+                else:
+                    self._update_status(app.id, phase="failed", message="Dual Deploy failed during iOS build")
+                    self._set_app_status(app.id, "error", last_ios_build_status="failed")
+                    return
+
+            if upload and ipa_path and os.path.exists(ipa_path):
+                self._set_app_status(app.id, "uploading")
+                self._update_status(app.id, phase="uploading", message=f"Dual Deploy (2/2): Uploading IPA to Apple App Store Connect ({track})...")
+                ios_upload = self.apple.upload_to_app_store(ipa_path, track=track)
+                if ios_upload.get("ok"):
+                    self.db.update_app(
+                        app.id,
+                        last_ios_upload_track=track,
+                        last_ios_upload_at=datetime.now().isoformat(),
+                        last_ios_build_status="success",
+                    )
+                else:
+                    err = ios_upload.get("error", "Unknown")
+                    self._update_status(app.id, phase="failed", message=f"Dual Deploy: Apple App Store upload failed: {err}")
+                    self._set_app_status(app.id, "error", last_ios_build_status="failed")
+                    return
+            elif ipa_path and os.path.exists(ipa_path):
+                self.db.update_app(app.id, last_ios_build_status="success")
+
+            # ── 3. Finalize ──
+            self._mark_tasks_built(app, target_version)
+            self._archive_built_overflow(app)
+            publish_map = {
+                "internal": "internal_test",
+                "alpha": "external_test",
+                "beta": "external_test",
+                "production": "published",
+            }
+            self._set_app_status(
+                app.id, "idle",
+                publish_status=publish_map.get(track, "internal_test"),
+            )
+            msg = f"Dual build complete: v{target_version}"
+            if upload:
+                msg = f"Dual deployed to Android ({track}) & iOS ({track}): v{target_version}"
+            self._update_status(app.id, phase="done", message=msg)
+            if upload:
+                self._maybe_git_push(app, target_version, track)
+
+        except Exception as e:
+            self._update_status(app.id, phase="failed", message=f"Dual deploy error: {str(e)}")
             self._set_app_status(app.id, "error")
         finally:
             self._active_processes.pop(app.id, None)
@@ -844,6 +1024,46 @@ class DeployEngine:
                     proc.kill()
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 pass
+
+    def _run_build_ios(self, app: App, version: Optional[str] = None) -> int:
+        """Build iOS IPA using AppleManager and return build_id."""
+        build_id = self.db.create_build(
+            app_id=app.id,
+            build_type="ios",
+            version=version or app.current_version,
+            status="running",
+            started_at=datetime.now().isoformat(),
+        )
+        self._set_app_status(app.id, "building")
+        start = time.time()
+
+        def _on_log(line: str):
+            self._update_status(app.id, message=line[:120])
+
+        try:
+            if app.app_type == "godot":
+                # 2026-11-23: Godot iOS = export Xcode project, archive, App Store export.
+                godot = self.settings.get("godot_path", "") or "godot"
+                success, ipa_path, log_output = self.apple.build_godot_ipa(
+                    app.project_path, app.package_name, app.name, godot, log_callback=_on_log
+                )
+            else:
+                flutter_root = self._resolve_flutter_root(app.project_path)
+                success, ipa_path, log_output = self.apple.build_ipa(
+                    flutter_root, app.package_name, app.name, log_callback=_on_log
+                )
+        except Exception as e:  # a crash here must still close the build record
+            success, ipa_path, log_output = False, "", f"iOS build error: {e}\n{traceback.format_exc()}"
+        duration = int(time.time() - start)
+        self.db.update_build(
+            build_id,
+            status="success" if success else "failed",
+            output_path=ipa_path if success else "",
+            log_output=log_output,
+            duration_seconds=duration,
+            completed_at=datetime.now().isoformat(),
+        )
+        return build_id
 
     def _run_build(self, app: App, build_target: str, version: Optional[str] = None) -> int:
         """Build the specified target and return build_id."""
