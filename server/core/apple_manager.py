@@ -231,6 +231,12 @@ class AppleManager:
         if re.search(old_pattern, content, flags=re.MULTILINE):
             content = re.sub(old_pattern, _replace_bundle_id, content, flags=re.MULTILINE)
 
+        # iPhone only (2026-11-24): our games are phone games; declaring iPad (Flutter's default
+        # "1,2") makes Apple require iPad screenshots and iPad review.
+        if re.search(r'TARGETED_DEVICE_FAMILY = "?1,2"?;', content):
+            content = re.sub(r'TARGETED_DEVICE_FAMILY = "?1,2"?;', 'TARGETED_DEVICE_FAMILY = 1;', content)
+            changed = True
+
         # Ensure DEVELOPMENT_TEAM is present in target build settings if not already
         if f"DEVELOPMENT_TEAM = {self.team_id};" not in content:
             content = re.sub(
@@ -298,7 +304,63 @@ class AppleManager:
         #    string, even if the app never calls it; google_mobile_ads crashes at launch without
         #    GADApplicationIdentifier.
         self.ensure_info_plist(project_path)
+        # 5. App icon: never ship Flutter's default (2026-11-24, every Flutter app went to
+        #    TestFlight with the Flutter logo because the template's 1024 icon counted as "present").
+        self.ensure_ios_icon(project_path)
 
+        return True
+
+    FLUTTER_DEFAULT_ICON_MD5 = "c785f8932297af4acd5f5ccb7630f01c"
+
+    def _icon_source(self, project_path: str) -> str:
+        cands = ["store_icon_1024.png"]
+        pub = os.path.join(project_path, "pubspec.yaml")
+        if os.path.isfile(pub):
+            m = re.search(r'image_path(?:_ios)?\s*:\s*["\']?([^"\'\n]+)', open(pub, encoding="utf-8").read())
+            if m:
+                cands.append(m.group(1).strip())
+        cands += ["store/icon_512.png", "store/art/icon_512.png", "assets/icon.png", "assets/icons/icon.png",
+                  "assets/images/icon.png", "android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png"]
+        for c in cands:
+            p = os.path.join(project_path, c)
+            if os.path.isfile(p):
+                return p
+        return ""
+
+    def ensure_ios_icon(self, project_path: str) -> bool:
+        import hashlib
+        icon_dir = os.path.join(project_path, "ios", "Runner", "Assets.xcassets", "AppIcon.appiconset")
+        big = os.path.join(icon_dir, "Icon-App-1024x1024@1x.png")
+        contents = os.path.join(icon_dir, "Contents.json")
+        if not (os.path.isfile(big) and os.path.isfile(contents)):
+            return False
+        if hashlib.md5(open(big, "rb").read()).hexdigest() != self.FLUTTER_DEFAULT_ICON_MD5:
+            return False  # already the game's icon
+        src = self._icon_source(project_path)
+        if not src:
+            logger.warning("[AppleManager] %s still has Flutter's default iOS icon and no icon source", project_path)
+            return False
+        # flatten (App Store icons must not have alpha) at 1024, then every size Contents.json lists
+        tmp_jpg = os.path.join(icon_dir, "_src.jpg")
+        master = os.path.join(icon_dir, "_master.png")
+        subprocess.run(["sips", "-z", "1024", "1024", "-s", "format", "jpeg", "-s", "formatOptions", "100", src,
+                        "--out", tmp_jpg], capture_output=True)
+        subprocess.run(["sips", "-s", "format", "png", tmp_jpg, "--out", master], capture_output=True)
+        with open(contents, encoding="utf-8") as f:
+            images = json.load(f).get("images", [])
+        for im in images:
+            fn = im.get("filename")
+            if not fn:
+                continue
+            px = int(round(float(im["size"].split("x")[0]) * int(im["scale"].rstrip("x"))))
+            subprocess.run(["sips", "-z", str(px), str(px), master, "--out", os.path.join(icon_dir, fn)],
+                           capture_output=True)
+        for t in (tmp_jpg, master):
+            try:
+                os.remove(t)
+            except OSError:
+                pass
+        logger.info("[AppleManager] iOS icon set rebuilt from %s", src)
         return True
 
     PURPOSE_STRINGS = {
@@ -399,6 +461,11 @@ storyboard/use_launch_screen_storyboard=true
                     sec = re.sub(r'^application/version=.*$', f'application/version="{code}"', sec, flags=re.M)
                     for k, v in self.GODOT_PRIVACY.items():
                         sec = re.sub(rf'^{re.escape(k)}=""$', f'{k}="{v}"', sec, flags=re.M)
+                    # iPhone only (0); Godot's default 2 = iPhone + iPad
+                    if re.search(r'^application/targeted_device_family=', sec, flags=re.M):
+                        sec = re.sub(r'^application/targeted_device_family=.*$', 'application/targeted_device_family=0', sec, flags=re.M)
+                    else:
+                        sec = sec.replace("\napplication/bundle_identifier=", "\napplication/targeted_device_family=0\napplication/bundle_identifier=", 1)
                     sections[i] = sec
             s = "".join(sections)
         with open(p, "w", encoding="utf-8") as f:
