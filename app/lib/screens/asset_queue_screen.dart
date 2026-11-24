@@ -6,6 +6,7 @@ import '../l10n/app_localizations.dart';
 import '../services/generate_service.dart';
 import '../services/mode_service.dart';
 import '../theme.dart';
+import '../widgets/app_toast.dart';
 
 /// Asset Mod - Sira ekrani.
 ///
@@ -24,8 +25,10 @@ class AssetQueueScreen extends StatefulWidget {
 
 class _AssetQueueScreenState extends State<AssetQueueScreen> {
   QueueState? _q;
+
   /// #299: birlesik sira - `/api/queue` varsa bu doludur.
   UnifiedQueue? _u;
+
   /// Sunucu birlesik ucu bilmiyorsa bir daha denenmez (eski sunucu).
   bool _unifiedOff = false;
   String? _error;
@@ -35,21 +38,24 @@ class _AssetQueueScreenState extends State<AssetQueueScreen> {
 
   /// #299: is turu -> ikon + ekran adi.
   (IconData, String) _kindOf(String k) => switch (k) {
-        'comfy' => (Icons.auto_awesome, l10n.queueKindGeneration),
-        'character' => (Icons.person_outline, l10n.kindCharacter),
-        'tag' => (Icons.sell_outlined, l10n.queueKindTag),
-        'cbn' => (Icons.format_paint_outlined, 'CBN'),
-        'music' => (Icons.music_note, l10n.queueKindMusic),
-        'cpu' => (Icons.memory, 'CPU'),
-        'gpu' => (Icons.developer_board, 'GPU'),
-        _ => (Icons.play_circle_outline, k.isEmpty ? l10n.queueKindJob : k),
-      };
+    'comfy' => (Icons.auto_awesome, l10n.queueKindGeneration),
+    'character' => (Icons.person_outline, l10n.kindCharacter),
+    'tag' => (Icons.sell_outlined, l10n.queueKindTag),
+    'cbn' => (Icons.format_paint_outlined, 'CBN'),
+    'music' => (Icons.music_note, l10n.queueKindMusic),
+    'cpu' => (Icons.memory, 'CPU'),
+    'gpu' => (Icons.developer_board, 'GPU'),
+    _ => (Icons.play_circle_outline, k.isEmpty ? l10n.queueKindJob : k),
+  };
 
   @override
   void initState() {
     super.initState();
     _load();
-    _timer = Timer.periodic(const Duration(seconds: 3), (_) => _load(silent: true));
+    _timer = Timer.periodic(
+      const Duration(seconds: 3),
+      (_) => _load(silent: true),
+    );
   }
 
   @override
@@ -93,8 +99,7 @@ class _AssetQueueScreenState extends State<AssetQueueScreen> {
       await _load();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))));
+      AppToast.of(context).show(e.toString().replaceFirst('Exception: ', ''));
     }
   }
 
@@ -103,14 +108,23 @@ class _AssetQueueScreenState extends State<AssetQueueScreen> {
   Future<void> _cancelTicket(QueueTicket t, {required bool running}) async {
     final ok = await showDialog<bool>(
       context: context,
-      builder: (c) => AlertDialog(
-        title: Text(running ? l10n.queueCancelRunningTitle : l10n.queueRemoveTitle),
-        content: Text(t.label.isEmpty ? _kindOf(t.kind).$2 : t.label),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c, false), child: Text(l10n.back)),
-          FilledButton(onPressed: () => Navigator.pop(c, true), child: Text(l10n.queueCancelIt)),
-        ],
-      ),
+      builder:
+          (c) => AlertDialog(
+            title: Text(
+              running ? l10n.queueCancelRunningTitle : l10n.queueRemoveTitle,
+            ),
+            content: Text(t.label.isEmpty ? _kindOf(t.kind).$2 : t.label),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(c, false),
+                child: Text(l10n.back),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(c, true),
+                child: Text(l10n.queueCancelIt),
+              ),
+            ],
+          ),
     );
     if (ok == true) _act(() => QueueService.cancelTicket(t));
   }
@@ -118,14 +132,21 @@ class _AssetQueueScreenState extends State<AssetQueueScreen> {
   Future<void> _clear() async {
     final ok = await showDialog<bool>(
       context: context,
-      builder: (c) => AlertDialog(
-        title: Text(l10n.queueClearTitle),
-        content: Text(l10n.queueClearBody),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c, false), child: Text(l10n.back)),
-          FilledButton(onPressed: () => Navigator.pop(c, true), child: Text(l10n.queueCancelIt)),
-        ],
-      ),
+      builder:
+          (c) => AlertDialog(
+            title: Text(l10n.queueClearTitle),
+            content: Text(l10n.queueClearBody),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(c, false),
+                child: Text(l10n.back),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(c, true),
+                child: Text(l10n.queueCancelIt),
+              ),
+            ],
+          ),
     );
     if (ok == true) _act(GenerateService.clearQueue);
   }
@@ -155,37 +176,54 @@ class _AssetQueueScreenState extends State<AssetQueueScreen> {
               tooltip: l10n.queueCancelWaiting,
               onPressed: _clear,
             ),
-          IconButton(icon: const Icon(Icons.refresh), tooltip: l10n.refresh, onPressed: _load),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: l10n.refresh,
+            onPressed: _load,
+          ),
         ],
       ),
-      body: _error != null && u == null && q == null
-          ? _errorView()
-          : RefreshIndicator(
-              onRefresh: _load,
-              child: bos
-                  ? ListView(
-                      children: [
-                        SizedBox(height: MediaQuery.of(context).size.height * 0.25),
-                        Center(
-                          child: Column(
-                            children: [
-                              const Icon(Icons.done_all, size: 48, color: Colors.grey),
-                              const SizedBox(height: 12),
-                              Text(l10n.queueEmpty),
-                              const SizedBox(height: 4),
-                              Text(l10n.queueEmptyHint,
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                            ],
-                          ),
+      body:
+          _error != null && u == null && q == null
+              ? _errorView()
+              : RefreshIndicator(
+                onRefresh: _load,
+                child:
+                    bos
+                        ? ListView(
+                          children: [
+                            SizedBox(
+                              height: MediaQuery.of(context).size.height * 0.25,
+                            ),
+                            Center(
+                              child: Column(
+                                children: [
+                                  const Icon(
+                                    Icons.done_all,
+                                    size: 48,
+                                    color: Colors.grey,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(l10n.queueEmpty),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    l10n.queueEmptyHint,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        )
+                        : ListView(
+                          padding: const EdgeInsets.all(12),
+                          children: _rows(u, q),
                         ),
-                      ],
-                    )
-                  : ListView(
-                      padding: const EdgeInsets.all(12),
-                      children: _rows(u, q),
-                    ),
-            ),
+              ),
     );
   }
 
@@ -225,33 +263,44 @@ class _AssetQueueScreenState extends State<AssetQueueScreen> {
   }
 
   Widget _section(String baslik) => Padding(
-        padding: const EdgeInsets.only(top: 2, bottom: 6),
-        child: Text(baslik,
-            style: const TextStyle(
-                fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
-      );
+    padding: const EdgeInsets.only(top: 2, bottom: 6),
+    child: Text(
+      baslik,
+      style: const TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.bold,
+        color: Colors.grey,
+      ),
+    ),
+  );
 
   /// #299: birlesik sira basligi - toplam is sayisi.
   Widget _uHeader(UnifiedQueue u) => Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: Row(
-          children: [
-            Icon(Icons.circle,
-                size: 9,
-                color: u.running != null ? AppColors.success : Colors.grey),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(l10n.queueOneQueue,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 12, color: Colors.grey)),
-            ),
-            const SizedBox(width: 8),
-            Text(l10n.queueJobCount(u.depth),
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-          ],
+    padding: const EdgeInsets.only(bottom: 12),
+    child: Row(
+      children: [
+        Icon(
+          Icons.circle,
+          size: 9,
+          color: u.running != null ? AppColors.success : Colors.grey,
         ),
-      );
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            l10n.queueOneQueue,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          l10n.queueJobCount(u.depth),
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+        ),
+      ],
+    ),
+  );
 
   /// #299: kuyruktaki tek is. Calisan iste ilerleme cubugu ve mesaj gorunur,
   /// bekleyende sira numarasi ve bekleme suresi.
@@ -281,33 +330,47 @@ class _AssetQueueScreenState extends State<AssetQueueScreen> {
                     color: running ? AppColors.accent : Colors.white10,
                     borderRadius: BorderRadius.circular(9),
                   ),
-                  child: running
-                      ? Icon(ikon, size: 16, color: Colors.white)
-                      : Text('${sira ?? ''}',
-                          style: const TextStyle(
-                              fontSize: 12, fontWeight: FontWeight.bold)),
+                  child:
+                      running
+                          ? Icon(ikon, size: 16, color: Colors.white)
+                          : Text(
+                            '${sira ?? ''}',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Text(t.label.isEmpty ? tur : t.label,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          fontSize: 13, fontWeight: FontWeight.w600)),
+                  child: Text(
+                    t.label.isEmpty ? tur : t.label,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
                 if (!running) ...[
                   Icon(ikon, size: 13, color: Colors.grey),
                   const SizedBox(width: 4),
                 ],
-                Text(tur, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                Text(
+                  tur,
+                  style: const TextStyle(fontSize: 11, color: Colors.grey),
+                ),
               ],
             ),
             if (t.message.isNotEmpty) ...[
               const SizedBox(height: 8),
-              Text(t.message,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 12)),
+              Text(
+                t.message,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 12),
+              ),
             ],
             if (running) ...[
               const SizedBox(height: 10),
@@ -324,38 +387,46 @@ class _AssetQueueScreenState extends State<AssetQueueScreen> {
                   IconButton(
                     tooltip: l10n.queueMoveUp,
                     icon: const Icon(Icons.arrow_upward, size: 18),
-                    onPressed: t.canMoveUp
-                        ? () => _act(() => GenerateService.move(t.jobId, -1))
-                        : null,
+                    onPressed:
+                        t.canMoveUp
+                            ? () =>
+                                _act(() => GenerateService.move(t.jobId, -1))
+                            : null,
                   ),
                   IconButton(
                     tooltip: l10n.queueMoveDown,
                     icon: const Icon(Icons.arrow_downward, size: 18),
-                    onPressed: t.canMoveDown
-                        ? () => _act(() => GenerateService.move(t.jobId, 1))
-                        : null,
+                    onPressed:
+                        t.canMoveDown
+                            ? () => _act(() => GenerateService.move(t.jobId, 1))
+                            : null,
                   ),
                 ],
               ),
             Row(
               children: [
                 if (t.total > 0)
-                  Text('${t.done}/${t.total}',
-                      style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                  Text(
+                    '${t.done}/${t.total}',
+                    style: const TextStyle(fontSize: 10, color: Colors.grey),
+                  ),
                 const Spacer(),
                 if (t.elapsedLabel.isNotEmpty)
                   Text(
-                      running
-                          ? l10n.queueElapsed(t.elapsedLabel)
-                          : l10n.queueWaitingFor(t.elapsedLabel),
-                      style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                    running
+                        ? l10n.queueElapsed(t.elapsedLabel)
+                        : l10n.queueWaitingFor(t.elapsedLabel),
+                    style: const TextStyle(fontSize: 10, color: Colors.grey),
+                  ),
                 const SizedBox(width: 6),
                 // #352: her bilet iptal edilebilir (op / comfy isi / serit bileti).
                 TextButton.icon(
                   onPressed: () => _cancelTicket(t, running: running),
                   icon: Icon(Icons.close, size: 16, color: AppColors.error),
-                  label: Text(l10n.cancel,
-                      style: TextStyle(fontSize: 12, color: AppColors.error)),
+                  label: Text(
+                    l10n.cancel,
+                    style: TextStyle(fontSize: 12, color: AppColors.error),
+                  ),
                 ),
               ],
             ),
@@ -366,20 +437,27 @@ class _AssetQueueScreenState extends State<AssetQueueScreen> {
   }
 
   Widget _header(QueueState q) => Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: Row(
-          children: [
-            Icon(Icons.circle,
-                size: 9, color: q.comfyUp ? AppColors.success : AppColors.error),
-            const SizedBox(width: 8),
-            Text(q.comfyUp ? l10n.queueComfyReady : l10n.queueComfyOff,
-                style: const TextStyle(fontSize: 12, color: Colors.grey)),
-            const Spacer(),
-            Text(l10n.queueJobCount(q.depth),
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-          ],
+    padding: const EdgeInsets.only(bottom: 12),
+    child: Row(
+      children: [
+        Icon(
+          Icons.circle,
+          size: 9,
+          color: q.comfyUp ? AppColors.success : AppColors.error,
         ),
-      );
+        const SizedBox(width: 8),
+        Text(
+          q.comfyUp ? l10n.queueComfyReady : l10n.queueComfyOff,
+          style: const TextStyle(fontSize: 12, color: Colors.grey),
+        ),
+        const Spacer(),
+        Text(
+          l10n.queueJobCount(q.depth),
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+        ),
+      ],
+    ),
+  );
 
   Widget _card(GenerateJob j, int pendingCount) {
     final running = j.isRunning;
@@ -407,39 +485,58 @@ class _AssetQueueScreenState extends State<AssetQueueScreen> {
                     color: running ? AppColors.accent : Colors.white10,
                     borderRadius: BorderRadius.circular(9),
                   ),
-                  child: running
-                      ? const Icon(Icons.play_arrow, size: 16, color: Colors.white)
-                      : Text('${j.position ?? ''}',
-                          style: const TextStyle(
-                              fontSize: 12, fontWeight: FontWeight.bold)),
+                  child:
+                      running
+                          ? const Icon(
+                            Icons.play_arrow,
+                            size: 16,
+                            color: Colors.white,
+                          )
+                          : Text(
+                            '${j.position ?? ''}',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Text(j.task,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          fontSize: 13, fontWeight: FontWeight.w600)),
+                  child: Text(
+                    j.task,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
                 // #299: kategori (karakter isleri icin karakter adi) - hangi
                 // isin kime ait oldugu kuyrukta ayirt edilsin.
                 if (j.category.isNotEmpty) ...[
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.white10,
                       borderRadius: BorderRadius.circular(6),
                     ),
-                    child: Text(j.category,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                    child: Text(
+                      j.category,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 10, color: Colors.grey),
+                    ),
                   ),
                   const SizedBox(width: 6),
                 ],
                 Text(
-                  running ? (j.node.isEmpty ? l10n.appStatusWorking : j.node) : l10n.queueWaiting,
+                  running
+                      ? (j.node.isEmpty ? l10n.appStatusWorking : j.node)
+                      : l10n.queueWaiting,
                   style: const TextStyle(fontSize: 11, color: Colors.grey),
                 ),
               ],
@@ -461,34 +558,46 @@ class _AssetQueueScreenState extends State<AssetQueueScreen> {
                 ),
               ),
               const SizedBox(height: 4),
-              Text(l10n.percentValue(j.progress),
-                  style: const TextStyle(fontSize: 10, color: Colors.grey)),
+              Text(
+                l10n.percentValue(j.progress),
+                style: const TextStyle(fontSize: 10, color: Colors.grey),
+              ),
             ],
             const SizedBox(height: 8),
             Row(
               children: [
                 if (!running) ...[
                   TextButton.icon(
-                    onPressed: (j.position ?? 1) > 1
-                        ? () => _act(() => GenerateService.move(j.id, -1))
-                        : null,
+                    onPressed:
+                        (j.position ?? 1) > 1
+                            ? () => _act(() => GenerateService.move(j.id, -1))
+                            : null,
                     icon: const Icon(Icons.arrow_upward, size: 16),
-                    label: Text(l10n.queueUp, style: const TextStyle(fontSize: 12)),
+                    label: Text(
+                      l10n.queueUp,
+                      style: const TextStyle(fontSize: 12),
+                    ),
                   ),
                   TextButton.icon(
-                    onPressed: (j.position ?? 0) < pendingCount
-                        ? () => _act(() => GenerateService.move(j.id, 1))
-                        : null,
+                    onPressed:
+                        (j.position ?? 0) < pendingCount
+                            ? () => _act(() => GenerateService.move(j.id, 1))
+                            : null,
                     icon: const Icon(Icons.arrow_downward, size: 16),
-                    label: Text(l10n.queueDown, style: const TextStyle(fontSize: 12)),
+                    label: Text(
+                      l10n.queueDown,
+                      style: const TextStyle(fontSize: 12),
+                    ),
                   ),
                 ],
                 const Spacer(),
                 TextButton.icon(
                   onPressed: () => _act(() => GenerateService.cancel(j.id)),
                   icon: Icon(Icons.close, size: 16, color: AppColors.error),
-                  label: Text(l10n.cancel,
-                      style: TextStyle(fontSize: 12, color: AppColors.error)),
+                  label: Text(
+                    l10n.cancel,
+                    style: TextStyle(fontSize: 12, color: AppColors.error),
+                  ),
                 ),
               ],
             ),
@@ -499,22 +608,22 @@ class _AssetQueueScreenState extends State<AssetQueueScreen> {
   }
 
   Widget _errorView() => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.cloud_off, size: 48, color: AppColors.error),
-              const SizedBox(height: 12),
-              Text(_error!, textAlign: TextAlign.center),
-              const SizedBox(height: 16),
-              FilledButton.icon(
-                onPressed: _load,
-                icon: const Icon(Icons.refresh),
-                label: Text(l10n.retry),
-              ),
-            ],
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.cloud_off, size: 48, color: AppColors.error),
+          const SizedBox(height: 12),
+          Text(_error!, textAlign: TextAlign.center),
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            onPressed: _load,
+            icon: const Icon(Icons.refresh),
+            label: Text(l10n.retry),
           ),
-        ),
-      );
+        ],
+      ),
+    ),
+  );
 }

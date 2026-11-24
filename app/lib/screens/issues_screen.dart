@@ -14,6 +14,7 @@ import '../widgets/sync_status_chip.dart';
 import '../widgets/task_filters_widget.dart';
 import '../l10n/app_localizations.dart';
 import '../utils/l10n_labels.dart';
+import '../widgets/app_toast.dart';
 
 class IssuesScreen extends StatefulWidget {
   const IssuesScreen({super.key});
@@ -22,12 +23,14 @@ class IssuesScreen extends StatefulWidget {
   State<IssuesScreen> createState() => _IssuesScreenState();
 }
 
-class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver {
+class _IssuesScreenState extends State<IssuesScreen>
+    with WidgetsBindingObserver {
   AppLocalizations get l10n => AppLocalizations.of(context)!;
 
   List<dynamic> _allItems = [];
   bool _loading = false;
   String? _loadError;
+
   /// Moment the task list was last successfully fetched from the server
   /// (for the "Synced Xm ago" chip). Null until the first good load.
   DateTime? _lastSyncedAt;
@@ -59,6 +62,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
 
   String _statusFilter = 'all';
   String _typeFilter = 'all';
+
   /// Whether the collapsed "Built" block (built tasks only) is expanded.
   /// Only applies to the unfiltered list view.
   bool _doneExpanded = false;
@@ -79,7 +83,15 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
   Set<int> _postponedAppIds = {};
   static const _postponedAppsKey = 'postponed_app_ids';
 
-  static const _statusOptions = ['all', 'in_progress', 'pending', 'failed', 'divided', 'completed', 'built'];
+  static const _statusOptions = [
+    'all',
+    'in_progress',
+    'pending',
+    'failed',
+    'divided',
+    'completed',
+    'built',
+  ];
   static const _typeOptions = ['all', 'issue', 'bug', 'fix', 'feature', 'idea'];
 
   static const _promptHistoryKey = 'idea_prompt_history';
@@ -96,7 +108,8 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
     int totalCompleted = 0;
 
     for (final item in items) {
-      final type = (item['task_type'] ?? item['type'] ?? '').toString().toLowerCase();
+      final type =
+          (item['task_type'] ?? item['type'] ?? '').toString().toLowerCase();
       final status = (item['status'] ?? '').toString().toLowerCase();
       final title = (item['title'] ?? '').toString().toLowerCase();
       final desc = (item['description'] ?? '').toString().toLowerCase();
@@ -107,26 +120,39 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
       if (status == 'completed') totalCompleted++;
 
       // Categorize by content
-      if (combined.contains('ui') || combined.contains('layout') ||
-          combined.contains('design') || combined.contains('screen') ||
-          combined.contains('button') || combined.contains('navigation') ||
-          combined.contains('theme') || combined.contains('color') ||
-          type == 'bug' && (combined.contains('display') || combined.contains('visual'))) {
+      if (combined.contains('ui') ||
+          combined.contains('layout') ||
+          combined.contains('design') ||
+          combined.contains('screen') ||
+          combined.contains('button') ||
+          combined.contains('navigation') ||
+          combined.contains('theme') ||
+          combined.contains('color') ||
+          type == 'bug' &&
+              (combined.contains('display') || combined.contains('visual'))) {
         uiBugs++;
       }
-      if (combined.contains('secur') || combined.contains('auth') ||
-          combined.contains('encrypt') || combined.contains('permission') ||
-          combined.contains('token') || combined.contains('password')) {
+      if (combined.contains('secur') ||
+          combined.contains('auth') ||
+          combined.contains('encrypt') ||
+          combined.contains('permission') ||
+          combined.contains('token') ||
+          combined.contains('password')) {
         securityTasks++;
       }
-      if (combined.contains('perform') || combined.contains('speed') ||
-          combined.contains('cache') || combined.contains('memory') ||
-          combined.contains('optim') || combined.contains('slow') ||
+      if (combined.contains('perform') ||
+          combined.contains('speed') ||
+          combined.contains('cache') ||
+          combined.contains('memory') ||
+          combined.contains('optim') ||
+          combined.contains('slow') ||
           combined.contains('loading')) {
         perfTasks++;
       }
-      if (type == 'feature' || combined.contains('add') && combined.contains('feature') ||
-          combined.contains('new feature') || combined.contains('functionality')) {
+      if (type == 'feature' ||
+          combined.contains('add') && combined.contains('feature') ||
+          combined.contains('new feature') ||
+          combined.contains('functionality')) {
         featureTasks++;
       }
     }
@@ -135,93 +161,118 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
     if (uiBugs >= 3) {
       suggestions.add({
         'label': l10n.suggestUxPolish,
-        'prompt': 'Many UI-related tasks were worked on recently. Suggest ideas for further UX improvements, better user flows, and visual polish to build on those fixes.',
+        'prompt':
+            'Many UI-related tasks were worked on recently. Suggest ideas for further UX improvements, better user flows, and visual polish to build on those fixes.',
       });
     }
 
     if (securityTasks >= 2) {
       suggestions.add({
         'label': l10n.suggestSecurityHardening,
-        'prompt': 'There are security-related tasks in this app. Suggest additional security improvements like input validation, secure storage, API hardening, and data protection.',
+        'prompt':
+            'There are security-related tasks in this app. Suggest additional security improvements like input validation, secure storage, API hardening, and data protection.',
       });
     }
 
     if (perfTasks >= 2) {
       suggestions.add({
         'label': l10n.suggestPerformanceBoost,
-        'prompt': 'Performance-related work has been done on this app. Suggest further optimizations like lazy loading, caching strategies, reducing rebuilds, and memory efficiency.',
+        'prompt':
+            'Performance-related work has been done on this app. Suggest further optimizations like lazy loading, caching strategies, reducing rebuilds, and memory efficiency.',
       });
     }
 
     if (failedCount >= 2) {
       suggestions.add({
         'label': l10n.suggestFixFailures,
-        'prompt': 'Several tasks have failed status. Suggest ideas for improving reliability, adding error recovery, better error handling, and automated testing to prevent failures.',
+        'prompt':
+            'Several tasks have failed status. Suggest ideas for improving reliability, adding error recovery, better error handling, and automated testing to prevent failures.',
       });
     }
 
     if (featureTasks >= 3) {
       suggestions.add({
         'label': l10n.suggestFeatureIntegration,
-        'prompt': 'Multiple features have been added. Suggest ideas for better integration between existing features, reducing complexity, and improving feature discoverability.',
+        'prompt':
+            'Multiple features have been added. Suggest ideas for better integration between existing features, reducing complexity, and improving feature discoverability.',
       });
     }
 
     if (totalCompleted >= 10 && pendingCount == 0) {
       suggestions.add({
         'label': l10n.suggestNextMilestone,
-        'prompt': 'Many tasks are completed with nothing pending. Suggest ideas for the next development milestone, including new capabilities, polish, and user-requested features.',
+        'prompt':
+            'Many tasks are completed with nothing pending. Suggest ideas for the next development milestone, including new capabilities, polish, and user-requested features.',
       });
     }
 
     if (pendingCount >= 5) {
       suggestions.add({
         'label': l10n.suggestTaskPrioritization,
-        'prompt': 'There are many pending tasks. Suggest ideas for which areas to focus on first, potential quick wins, and how to group related tasks for efficient execution.',
+        'prompt':
+            'There are many pending tasks. Suggest ideas for which areas to focus on first, potential quick wins, and how to group related tasks for efficient execution.',
       });
     }
 
     // GDD-based suggestions
     if (_selectedAppId != null) {
       final gddResult = await ApiService.getGdd(_selectedAppId!);
-      if (gddResult.ok && gddResult.data != null && gddResult.data!.isNotEmpty) {
+      if (gddResult.ok &&
+          gddResult.data != null &&
+          gddResult.data!.isNotEmpty) {
         final gdd = gddResult.data!.toLowerCase();
 
-        if (gdd.contains('monetiz') || gdd.contains('revenue') || gdd.contains('business model')) {
+        if (gdd.contains('monetiz') ||
+            gdd.contains('revenue') ||
+            gdd.contains('business model')) {
           suggestions.add({
             'label': l10n.suggestRevenueIdeas,
-            'prompt': 'Based on the app\'s design document mentioning monetization/revenue, suggest creative monetization strategies that align with the app\'s goals and user base.',
+            'prompt':
+                'Based on the app\'s design document mentioning monetization/revenue, suggest creative monetization strategies that align with the app\'s goals and user base.',
           });
         }
 
-        if (gdd.contains('user') && (gdd.contains('engage') || gdd.contains('retention'))) {
+        if (gdd.contains('user') &&
+            (gdd.contains('engage') || gdd.contains('retention'))) {
           suggestions.add({
             'label': l10n.suggestUserEngagement,
-            'prompt': 'The app\'s design document focuses on user engagement. Suggest ideas for notifications, gamification, onboarding improvements, and retention strategies.',
+            'prompt':
+                'The app\'s design document focuses on user engagement. Suggest ideas for notifications, gamification, onboarding improvements, and retention strategies.',
           });
         }
 
-        if (gdd.contains('api') || gdd.contains('backend') || gdd.contains('server')) {
+        if (gdd.contains('api') ||
+            gdd.contains('backend') ||
+            gdd.contains('server')) {
           suggestions.add({
             'label': l10n.suggestApiBackend,
-            'prompt': 'The app relies on API/backend services. Suggest ideas for offline support, better error recovery, API caching, and reducing network dependency.',
+            'prompt':
+                'The app relies on API/backend services. Suggest ideas for offline support, better error recovery, API caching, and reducing network dependency.',
           });
         }
 
         if (gdd.contains('test') || gdd.contains('quality')) {
           suggestions.add({
             'label': l10n.suggestTestingQa,
-            'prompt': 'Suggest ideas for improving test coverage, adding integration tests, automated UI testing, and quality assurance workflows.',
+            'prompt':
+                'Suggest ideas for improving test coverage, adding integration tests, automated UI testing, and quality assurance workflows.',
           });
         }
 
         // If GDD exists but no specific pattern matched, add a generic GDD-aware prompt
-        if (suggestions.where((s) =>
-            s['label'] == l10n.suggestRevenueIdeas || s['label'] == l10n.suggestUserEngagement ||
-            s['label'] == l10n.suggestApiBackend || s['label'] == l10n.suggestTestingQa).isEmpty) {
+        if (suggestions
+            .where(
+              (s) =>
+                  s['label'] == l10n.suggestRevenueIdeas ||
+                  s['label'] == l10n.suggestUserEngagement ||
+                  s['label'] == l10n.suggestApiBackend ||
+                  s['label'] == l10n.suggestTestingQa,
+            )
+            .isEmpty) {
           suggestions.add({
             'label': l10n.suggestGddAligned,
-            'prompt': 'Based on this app\'s design document and goals, suggest ideas that align with the product vision and fill gaps in the current implementation.',
+            'prompt':
+                'Based on this app\'s design document and goals, suggest ideas that align with the product vision and fill gaps in the current implementation.',
           });
         }
       }
@@ -231,7 +282,8 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
     if (suggestions.isEmpty && items.isNotEmpty) {
       suggestions.add({
         'label': l10n.suggestImproveCodebase,
-        'prompt': 'Based on the app\'s current state and task history, suggest ideas for code quality improvements, refactoring opportunities, and developer experience enhancements.',
+        'prompt':
+            'Based on the app\'s current state and task history, suggest ideas for code quality improvements, refactoring opportunities, and developer experience enhancements.',
       });
     }
 
@@ -251,7 +303,10 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
     await prefs.setString(_promptHistoryKey, jsonEncode(history));
   }
 
-  Future<void> _addPromptToHistory(String prompt, List<String> categories) async {
+  Future<void> _addPromptToHistory(
+    String prompt,
+    List<String> categories,
+  ) async {
     final history = await _loadPromptHistory();
     history.insert(0, {
       'id': DateTime.now().millisecondsSinceEpoch,
@@ -286,8 +341,13 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
     final postponedIds = prefs.getStringList(_postponedAppsKey) ?? [];
     if (mounted) {
       setState(() {
-        _completedAppIds = ids.map((e) => int.tryParse(e) ?? 0).where((e) => e > 0).toSet();
-        _postponedAppIds = postponedIds.map((e) => int.tryParse(e) ?? 0).where((e) => e > 0).toSet();
+        _completedAppIds =
+            ids.map((e) => int.tryParse(e) ?? 0).where((e) => e > 0).toSet();
+        _postponedAppIds =
+            postponedIds
+                .map((e) => int.tryParse(e) ?? 0)
+                .where((e) => e > 0)
+                .toSet();
       });
     }
   }
@@ -297,10 +357,22 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
       return apps.where((a) => _completedAppIds.contains(a.id)).toList();
     }
     if (_appCategory == 'postponed') {
-      return apps.where((a) => _postponedAppIds.contains(a.id) && !_completedAppIds.contains(a.id)).toList();
+      return apps
+          .where(
+            (a) =>
+                _postponedAppIds.contains(a.id) &&
+                !_completedAppIds.contains(a.id),
+          )
+          .toList();
     }
     // in_progress: exclude both completed and postponed
-    return apps.where((a) => !_completedAppIds.contains(a.id) && !_postponedAppIds.contains(a.id)).toList();
+    return apps
+        .where(
+          (a) =>
+              !_completedAppIds.contains(a.id) &&
+              !_postponedAppIds.contains(a.id),
+        )
+        .toList();
   }
 
   @override
@@ -393,77 +465,87 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
     final appId = _selectedAppId!;
     final seq = ++_loadSeq;
     _loadInFlight = true;
-    if (!silent) setState(() {
-      _loading = true;
-      _loadError = null;
-    });
-
-    try {
-    // getAppTasks already returns all tasks including ideas - no need for separate getIdeas call
-    final result = await ApiService.getAppTasks(appId);
-
-    // Ignore stale/overlapping responses: the app was switched or a newer
-    // request superseded this one while it was in flight.
-    if (!mounted || seq != _loadSeq || appId != _selectedAppId) return;
-    {
-      if (!result.ok) {
-        // Keep the previously loaded list (and its scroll position) on
-        // screen; the failure is surfaced as an inline banner instead.
-        setState(() {
-          _loadError = result.error ?? l10n.failedToLoadTasks;
-          _loading = false;
-        });
-        return;
-      }
+    if (!silent)
       setState(() {
-        final items = <dynamic>[];
+        _loading = true;
         _loadError = null;
-        _lastSyncedAt = DateTime.now();
-        for (final t in result.data!) {
-          final type = (t['task_type'] ?? t['type'] ?? 'issue').toString();
-          t['_source'] = type == 'idea' ? 'idea' : 'task';
-          items.add(t);
-        }
-
-        // Normalize "done" → "completed" (some agents use "done" instead)
-        for (final item in items) {
-          if ((item['status'] ?? '').toString().toLowerCase() == 'done') {
-            item['status'] = 'completed';
-          }
-        }
-
-        // Sort: status groups first, then by task ID (highest first) within each group
-        int statusWeight(String s) {
-          switch (s) {
-            case 'in_progress': return 0;
-            case 'pending': return 1;
-            case 'failed': return 2;
-            case 'divided': return 3;
-            case 'completed': return 4;
-            case 'built': return 5;
-            default: return 1;
-          }
-        }
-        items.sort((a, b) {
-          final aStatus = (a['status'] ?? 'pending').toString();
-          final bStatus = (b['status'] ?? 'pending').toString();
-          final sw = statusWeight(aStatus).compareTo(statusWeight(bStatus));
-          if (sw != 0) return sw;
-          return (b['id'] as int? ?? 0).compareTo(a['id'] as int? ?? 0);
-        });
-
-        _allItems = items;
-        _loading = false;
-        if (!silent) _expandedTaskId = null;
       });
 
-      // Update pending count in AppState for badge
-      final pendingCount = _allItems.where((i) {
-        final s = (i['status'] ?? 'pending').toString().toLowerCase();
-        return s == 'pending' || s == 'in_progress';
-      }).length;
-      context.read<AppState>().updatePendingCount(pendingCount);
-    }
+    try {
+      // getAppTasks already returns all tasks including ideas - no need for separate getIdeas call
+      final result = await ApiService.getAppTasks(appId);
+
+      // Ignore stale/overlapping responses: the app was switched or a newer
+      // request superseded this one while it was in flight.
+      if (!mounted || seq != _loadSeq || appId != _selectedAppId) return;
+      {
+        if (!result.ok) {
+          // Keep the previously loaded list (and its scroll position) on
+          // screen; the failure is surfaced as an inline banner instead.
+          setState(() {
+            _loadError = result.error ?? l10n.failedToLoadTasks;
+            _loading = false;
+          });
+          return;
+        }
+        setState(() {
+          final items = <dynamic>[];
+          _loadError = null;
+          _lastSyncedAt = DateTime.now();
+          for (final t in result.data!) {
+            final type = (t['task_type'] ?? t['type'] ?? 'issue').toString();
+            t['_source'] = type == 'idea' ? 'idea' : 'task';
+            items.add(t);
+          }
+
+          // Normalize "done" → "completed" (some agents use "done" instead)
+          for (final item in items) {
+            if ((item['status'] ?? '').toString().toLowerCase() == 'done') {
+              item['status'] = 'completed';
+            }
+          }
+
+          // Sort: status groups first, then by task ID (highest first) within each group
+          int statusWeight(String s) {
+            switch (s) {
+              case 'in_progress':
+                return 0;
+              case 'pending':
+                return 1;
+              case 'failed':
+                return 2;
+              case 'divided':
+                return 3;
+              case 'completed':
+                return 4;
+              case 'built':
+                return 5;
+              default:
+                return 1;
+            }
+          }
+
+          items.sort((a, b) {
+            final aStatus = (a['status'] ?? 'pending').toString();
+            final bStatus = (b['status'] ?? 'pending').toString();
+            final sw = statusWeight(aStatus).compareTo(statusWeight(bStatus));
+            if (sw != 0) return sw;
+            return (b['id'] as int? ?? 0).compareTo(a['id'] as int? ?? 0);
+          });
+
+          _allItems = items;
+          _loading = false;
+          if (!silent) _expandedTaskId = null;
+        });
+
+        // Update pending count in AppState for badge
+        final pendingCount =
+            _allItems.where((i) {
+              final s = (i['status'] ?? 'pending').toString().toLowerCase();
+              return s == 'pending' || s == 'in_progress';
+            }).length;
+        context.read<AppState>().updatePendingCount(pendingCount);
+      }
     } finally {
       _loadInFlight = false;
     }
@@ -476,7 +558,10 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
     final source = _searchQuery.trim().isNotEmpty ? _searchResults : _allItems;
     return source.where((item) {
       final status = (item['status'] ?? 'pending').toString().toLowerCase();
-      final type = (item['task_type'] ?? item['type'] ?? 'issue').toString().toLowerCase();
+      final type =
+          (item['task_type'] ?? item['type'] ?? 'issue')
+              .toString()
+              .toLowerCase();
       if (_statusFilter != 'all' && status != _statusFilter) return false;
       if (_typeFilter != 'all' && type != _typeFilter) return false;
       return true;
@@ -485,10 +570,12 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
 
   /// True when the list is grouped into actionable + collapsed built block.
   /// A specific status filter or a search query shows a flat list instead.
-  bool get _isGroupedView => _statusFilter == 'all' && _searchQuery.trim().isEmpty;
+  bool get _isGroupedView =>
+      _statusFilter == 'all' && _searchQuery.trim().isEmpty;
 
-  static bool _isDone(dynamic item) =>
-      _doneStatuses.contains((item['status'] ?? 'pending').toString().toLowerCase());
+  static bool _isDone(dynamic item) => _doneStatuses.contains(
+    (item['status'] ?? 'pending').toString().toLowerCase(),
+  );
 
   Widget _buildDoneHeader(int count) {
     return Padding(
@@ -508,13 +595,19 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
           ),
           child: Row(
             children: [
-              Icon(Icons.rocket_launch_outlined,
-                  size: 18, color: AppColors.taskStatusColor('built')),
+              Icon(
+                Icons.rocket_launch_outlined,
+                size: 18,
+                color: AppColors.taskStatusColor('built'),
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   l10n.builtCount(count),
-                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
                 ),
               ),
               Text(
@@ -621,63 +714,69 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
 
   /// Show the blocker task's details when a "blocked by #N" chip is tapped.
   void _showBlockerDialog(int blockerId) {
-    final blocker =
-        _allItems.where((i) => i['id'] == blockerId).firstOrNull;
+    final blocker = _allItems.where((i) => i['id'] == blockerId).firstOrNull;
     if (blocker == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(l10n.blockerNotInList(blockerId)),
-          backgroundColor: AppColors.warning,
-        ),
-      );
+      AppToast.of(context).show(l10n.blockerNotInList(blockerId));
       return;
     }
     final status = (blocker['status'] ?? 'pending').toString();
     final desc = (blocker['description'] ?? '').toString().trim();
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.bgCard,
-        title: Text('#$blockerId ${blocker['title'] ?? ''}',
-            style: const TextStyle(fontSize: 16)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: AppColors.taskStatusColor(status).withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                status,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: AppColors.taskStatusColor(status),
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+      builder:
+          (ctx) => AlertDialog(
+            backgroundColor: AppColors.bgCard,
+            title: Text(
+              '#$blockerId ${blocker['title'] ?? ''}',
+              style: const TextStyle(fontSize: 16),
             ),
-            if (desc.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              Flexible(
-                child: SingleChildScrollView(
-                  child: Text(desc,
-                      style: TextStyle(
-                          fontSize: 13, color: Colors.grey.shade300)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.taskStatusColor(
+                      status,
+                    ).withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    status,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.taskStatusColor(status),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
+                if (desc.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Flexible(
+                    child: SingleChildScrollView(
+                      child: Text(
+                        desc,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade300,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text(l10n.close),
               ),
             ],
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(l10n.close),
           ),
-        ],
-      ),
     );
   }
 
@@ -707,21 +806,22 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
     final agentLabel = aiAgent.isNotEmpty ? aiAgent : 'default';
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.bgCard,
-        title: Text(l10n.workOnThis),
-        content: Text(l10n.workOnThisConfirm(agentLabel, title)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(l10n.cancel),
+      builder:
+          (ctx) => AlertDialog(
+            backgroundColor: AppColors.bgCard,
+            title: Text(l10n.workOnThis),
+            content: Text(l10n.workOnThisConfirm(agentLabel, title)),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(l10n.cancel),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text(l10n.doIt),
+              ),
+            ],
           ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(l10n.doIt),
-          ),
-        ],
-      ),
     );
     if (confirm != true || !mounted) return;
     // Immediately show in_progress in UI
@@ -733,13 +833,11 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
       await ApiService.updateAppTask(appId, taskId, {'status': 'in_progress'});
       final result = await ApiService.runTask(appId, taskId, aiAgent: aiAgent);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(result.ok
-                ? l10n.agentTriggeredFor(agentLabel, title)
-                : result.error ?? l10n.failedToRunTask),
-            backgroundColor: result.ok ? AppColors.success : AppColors.error,
-          ),
+        AppToast.of(context).show(
+          result.ok
+              ? l10n.agentTriggeredFor(agentLabel, title)
+              : result.error ?? l10n.failedToRunTask,
+          error: true,
         );
         // If run failed, revert task status so it doesn't stay stuck in_progress
         if (!result.ok) {
@@ -766,12 +864,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
           item['status'] = 'pending';
           item.remove('started_at');
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(l10n.errorWithMessage(e)),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        AppToast.of(context).show(l10n.errorWithMessage(e), error: true);
       }
     }
   }
@@ -780,13 +873,15 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
     final appId = item['app_id'] as int? ?? _selectedAppId;
     final taskId = item['id'] as int?;
     if (appId == null || taskId == null) return;
-    final result = await ApiService.updateAppTask(appId, taskId, {'status': 'pending'});
+    final result = await ApiService.updateAppTask(appId, taskId, {
+      'status': 'pending',
+    });
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result.ok ? l10n.taskResetToPending : result.error ?? l10n.failedToReset),
-          backgroundColor: result.ok ? AppColors.success : AppColors.error,
-        ),
+      AppToast.of(context).show(
+        result.ok
+            ? l10n.taskResetToPending
+            : result.error ?? l10n.failedToReset,
+        error: true,
       );
       if (result.ok) {
         setState(() {
@@ -804,13 +899,15 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
     final appId = item['app_id'] as int? ?? _selectedAppId;
     final taskId = item['id'] as int?;
     if (appId == null || taskId == null) return;
-    final result = await ApiService.updateAppTask(appId, taskId, {'status': 'completed'});
+    final result = await ApiService.updateAppTask(appId, taskId, {
+      'status': 'completed',
+    });
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result.ok ? l10n.markedAsCompleted : result.error ?? l10n.failedToUpdate),
-          backgroundColor: result.ok ? AppColors.success : AppColors.error,
-        ),
+      AppToast.of(context).show(
+        result.ok
+            ? l10n.markedAsCompleted
+            : result.error ?? l10n.failedToUpdate,
+        error: true,
       );
       if (result.ok) _loadItems();
     }
@@ -823,11 +920,9 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
       if (ideaId == null) return;
       final result = await ApiService.deleteIdea(ideaId);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(result.ok ? l10n.deleted : result.error ?? l10n.failedToDelete),
-            backgroundColor: result.ok ? AppColors.success : AppColors.error,
-          ),
+        AppToast.of(context).show(
+          result.ok ? l10n.deleted : result.error ?? l10n.failedToDelete,
+          error: true,
         );
         if (result.ok) _loadItems();
       }
@@ -837,11 +932,9 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
       if (appId == null || taskId == null) return;
       final result = await ApiService.deleteAppTask(appId, taskId);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(result.ok ? l10n.deleted : result.error ?? l10n.failedToDelete),
-            backgroundColor: result.ok ? AppColors.success : AppColors.error,
-          ),
+        AppToast.of(context).show(
+          result.ok ? l10n.deleted : result.error ?? l10n.failedToDelete,
+          error: true,
         );
         if (result.ok) _loadItems();
       }
@@ -853,22 +946,23 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
     final title = item['title'] ?? '';
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.bgCard,
-        title: Text(l10n.delete),
-        content: Text(l10n.deleteConfirmTitled(title)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(l10n.cancel),
+      builder:
+          (ctx) => AlertDialog(
+            backgroundColor: AppColors.bgCard,
+            title: Text(l10n.delete),
+            content: Text(l10n.deleteConfirmTitled(title)),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(l10n.cancel),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+                child: Text(l10n.delete),
+              ),
+            ],
           ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
-            child: Text(l10n.delete),
-          ),
-        ],
-      ),
     );
     if (confirm != true || !mounted) return;
     _deleteItemDirect(item);
@@ -878,47 +972,49 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
     if (_selectedAppId == null) return;
     // Blocked tasks (unmet depends_on) are skipped — their blocker has to
     // finish first; the server would reject the run anyway.
-    final blockedCount = _allItems.where((item) {
-      final status = (item['status'] ?? 'pending').toString().toLowerCase();
-      return status == 'pending' && item['blocked'] == true;
-    }).length;
-    final pendingItems = _allItems.where((item) {
-      final status = (item['status'] ?? 'pending').toString().toLowerCase();
-      return status == 'pending' && item['blocked'] != true;
-    }).toList();
+    final blockedCount =
+        _allItems.where((item) {
+          final status = (item['status'] ?? 'pending').toString().toLowerCase();
+          return status == 'pending' && item['blocked'] == true;
+        }).length;
+    final pendingItems =
+        _allItems.where((item) {
+          final status = (item['status'] ?? 'pending').toString().toLowerCase();
+          return status == 'pending' && item['blocked'] != true;
+        }).toList();
 
     if (pendingItems.isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(blockedCount > 0
-                ? l10n.allPendingBlocked
-                : l10n.noPendingItems),
-            backgroundColor: AppColors.warning,
-          ),
-        );
+        AppToast.of(
+          context,
+        ).show(blockedCount > 0 ? l10n.allPendingBlocked : l10n.noPendingItems);
       }
       return;
     }
 
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.bgCard,
-        title: Text(l10n.workOnAllPending),
-        content: Text(l10n.workOnAllConfirm(pendingItems.length) +
-            (blockedCount > 0 ? l10n.workOnAllBlockedNote(blockedCount) : '')),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(l10n.cancel),
+      builder:
+          (ctx) => AlertDialog(
+            backgroundColor: AppColors.bgCard,
+            title: Text(l10n.workOnAllPending),
+            content: Text(
+              l10n.workOnAllConfirm(pendingItems.length) +
+                  (blockedCount > 0
+                      ? l10n.workOnAllBlockedNote(blockedCount)
+                      : ''),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(l10n.cancel),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text(l10n.workOnAll),
+              ),
+            ],
           ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(l10n.workOnAll),
-          ),
-        ],
-      ),
     );
     if (confirm != true || !mounted) return;
 
@@ -932,29 +1028,31 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
         if (!mounted) break;
         processed++;
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(l10n.processingTasks(processed, total)),
-              duration: const Duration(seconds: 30),
-              backgroundColor: AppColors.info,
-            ),
-          );
+          AppToast.of(context).show(l10n.processingTasks(processed, total));
         }
         final appId = item['app_id'] as int? ?? _selectedAppId!;
         final taskId = item['id'] as int?;
         if (taskId != null) {
-          await ApiService.updateAppTask(appId, taskId, {'status': 'in_progress'});
+          await ApiService.updateAppTask(appId, taskId, {
+            'status': 'in_progress',
+          });
           setInProgress.add(taskId);
           setState(() {
             item['status'] = 'in_progress';
             item['started_at'] = DateTime.now().toIso8601String();
           });
-          final result = await ApiService.runTask(appId, taskId, aiAgent: aiAgent);
+          final result = await ApiService.runTask(
+            appId,
+            taskId,
+            aiAgent: aiAgent,
+          );
           if (result.ok) {
             triggered++;
           } else {
             // Revert to pending if run failed so task doesn't get stuck
-            await ApiService.updateAppTask(appId, taskId, {'status': 'pending'});
+            await ApiService.updateAppTask(appId, taskId, {
+              'status': 'pending',
+            });
             setInProgress.remove(taskId);
             if (mounted) {
               setState(() {
@@ -967,33 +1065,29 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
       }
     } catch (e) {
       for (final taskId in setInProgress) {
-        final appId = pendingItems
-            .where((i) => i['id'] == taskId)
-            .firstOrNull?['app_id'] as int? ?? _selectedAppId;
+        final appId =
+            pendingItems.where((i) => i['id'] == taskId).firstOrNull?['app_id']
+                as int? ??
+            _selectedAppId;
         if (appId != null) {
           try {
-            await ApiService.updateAppTask(appId, taskId, {'status': 'pending'});
+            await ApiService.updateAppTask(appId, taskId, {
+              'status': 'pending',
+            });
           } catch (revertError) {
             debugPrint('Failed to revert task $taskId: $revertError');
           }
         }
       }
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(l10n.batchRunError(e)),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        AppToast.of(context).show(l10n.batchRunError(e), error: true);
       }
     }
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(l10n.triggeredOfItems(triggered, pendingItems.length)),
-          backgroundColor: triggered > 0 ? AppColors.success : AppColors.error,
-        ),
+      AppToast.of(context).show(
+        l10n.triggeredOfItems(triggered, pendingItems.length),
+        error: true,
       );
       _loadItems();
     }
@@ -1001,12 +1095,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
 
   Future<void> _createTestTask() async {
     if (_selectedAppId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(l10n.selectAnAppFirst),
-          backgroundColor: AppColors.warning,
-        ),
-      );
+      AppToast.of(context).show(l10n.selectAnAppFirst);
       return;
     }
 
@@ -1025,41 +1114,34 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
     if (!mounted) return;
 
     if (result.ok) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(l10n.testTaskCreated),
-          backgroundColor: AppColors.success,
-        ),
-      );
+      AppToast.of(context).show(l10n.testTaskCreated);
       _loadItems();
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result.error ?? l10n.failedToCreateTestTask),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      AppToast.of(
+        context,
+      ).show(result.error ?? l10n.failedToCreateTestTask, error: true);
     }
   }
 
   Future<void> _generateIdeas() async {
     if (_selectedAppId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(l10n.selectAnAppFirst),
-          backgroundColor: AppColors.warning,
-        ),
-      );
+      AppToast.of(context).show(l10n.selectAnAppFirst);
       return;
     }
 
     const categoryChips = <String, String>{
-      'UI/UX': 'Ideas for improving the user interface and user experience, such as better layouts, navigation, animations, and visual design',
-      'Performance': 'Ideas for improving app performance, such as faster loading, reduced memory usage, caching, and optimization',
-      'Features': 'Ideas for new features and functionality that would add value to the app',
-      'Security': 'Ideas for improving app security, such as authentication, data protection, input validation, and encryption',
-      'Monetization': 'Ideas for monetization strategies, such as in-app purchases, subscriptions, ads, and premium features',
-      'Accessibility': 'Ideas for improving accessibility, such as screen reader support, color contrast, font scaling, and keyboard navigation',
+      'UI/UX':
+          'Ideas for improving the user interface and user experience, such as better layouts, navigation, animations, and visual design',
+      'Performance':
+          'Ideas for improving app performance, such as faster loading, reduced memory usage, caching, and optimization',
+      'Features':
+          'Ideas for new features and functionality that would add value to the app',
+      'Security':
+          'Ideas for improving app security, such as authentication, data protection, input validation, and encryption',
+      'Monetization':
+          'Ideas for monetization strategies, such as in-app purchases, subscriptions, ads, and premium features',
+      'Accessibility':
+          'Ideas for improving accessibility, such as screen reader support, color contrast, font scaling, and keyboard navigation',
     };
 
     // Load smart suggestions before showing dialog
@@ -1105,326 +1187,422 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
               }
             }
 
-            final filteredHistory = showFavoritesOnly
-                ? historyItems.where((e) => e['favorite'] == true).toList()
-                : historyItems;
+            final filteredHistory =
+                showFavoritesOnly
+                    ? historyItems.where((e) => e['favorite'] == true).toList()
+                    : historyItems;
 
             return Dialog(
-              insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 16,
+              ),
               child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Header with history toggle
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              showHistory ? l10n.promptHistory : l10n.generateIdeas,
-                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header with history toggle
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            showHistory
+                                ? l10n.promptHistory
+                                : l10n.generateIdeas,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
-                          if (showHistory)
-                            IconButton(
-                              icon: Icon(
-                                showFavoritesOnly ? Icons.star : Icons.star_border,
-                                color: showFavoritesOnly ? Colors.amber : Colors.grey,
-                                size: 22,
-                              ),
-                              tooltip: showFavoritesOnly ? l10n.showAll : l10n.favoritesOnly,
-                              onPressed: () => setDialogState(
-                                () => showFavoritesOnly = !showFavoritesOnly,
-                              ),
-                            ),
+                        ),
+                        if (showHistory)
                           IconButton(
                             icon: Icon(
-                              showHistory ? Icons.edit : Icons.history,
+                              showFavoritesOnly
+                                  ? Icons.star
+                                  : Icons.star_border,
+                              color:
+                                  showFavoritesOnly
+                                      ? Colors.amber
+                                      : Colors.grey,
                               size: 22,
                             ),
-                            tooltip: showHistory ? l10n.newPrompt : l10n.promptHistoryTooltip,
-                            onPressed: () {
-                              setDialogState(() => showHistory = !showHistory);
-                              if (showHistory && !historyLoaded) {
-                                loadHistory(setDialogState);
-                              }
-                            },
+                            tooltip:
+                                showFavoritesOnly
+                                    ? l10n.showAll
+                                    : l10n.favoritesOnly,
+                            onPressed:
+                                () => setDialogState(
+                                  () => showFavoritesOnly = !showFavoritesOnly,
+                                ),
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      // Compose view
-                      if (!showHistory) ...[
-                        Flexible(
-                          child: SingleChildScrollView(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // Smart suggestions section
-                                if (smartSuggestions.isNotEmpty) ...[
-                                  Row(
-                                    children: [
-                                      Icon(Icons.auto_awesome, size: 14, color: Colors.amber.shade400),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        l10n.suggestedForYou,
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w600,
-                                          color: Colors.amber.shade400,
-                                        ),
+                        IconButton(
+                          icon: Icon(
+                            showHistory ? Icons.edit : Icons.history,
+                            size: 22,
+                          ),
+                          tooltip:
+                              showHistory
+                                  ? l10n.newPrompt
+                                  : l10n.promptHistoryTooltip,
+                          onPressed: () {
+                            setDialogState(() => showHistory = !showHistory);
+                            if (showHistory && !historyLoaded) {
+                              loadHistory(setDialogState);
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    // Compose view
+                    if (!showHistory) ...[
+                      Flexible(
+                        child: SingleChildScrollView(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Smart suggestions section
+                              if (smartSuggestions.isNotEmpty) ...[
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.auto_awesome,
+                                      size: 14,
+                                      color: Colors.amber.shade400,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      l10n.suggestedForYou,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.amber.shade400,
                                       ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Wrap(
-                                    spacing: 6,
-                                    runSpacing: 6,
-                                    children: smartSuggestions.map((s) {
-                                      final isSelected = selectedSmartPrompt == s['prompt'];
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Wrap(
+                                  spacing: 6,
+                                  runSpacing: 6,
+                                  children:
+                                      smartSuggestions.map((s) {
+                                        final isSelected =
+                                            selectedSmartPrompt == s['prompt'];
+                                        return FilterChip(
+                                          label: Text(
+                                            s['label']!,
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                          selected: isSelected,
+                                          selectedColor: Colors.amber.withAlpha(
+                                            140,
+                                          ),
+                                          backgroundColor: AppColors.bgCard,
+                                          checkmarkColor: Colors.white,
+                                          avatar:
+                                              isSelected
+                                                  ? null
+                                                  : Icon(
+                                                    Icons.lightbulb_outline,
+                                                    size: 14,
+                                                    color:
+                                                        Colors.amber.shade300,
+                                                  ),
+                                          onSelected: (selected) {
+                                            setDialogState(() {
+                                              if (selected) {
+                                                selectedSmartPrompt =
+                                                    s['prompt'];
+                                                selectedCategories.clear();
+                                              } else {
+                                                selectedSmartPrompt = null;
+                                              }
+                                              updatePromptFromChips();
+                                            });
+                                          },
+                                        );
+                                      }).toList(),
+                                ),
+                                const SizedBox(height: 8),
+                                const Divider(height: 1),
+                                const SizedBox(height: 8),
+                              ],
+                              Text(
+                                l10n.selectCategoriesOrPrompt,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Wrap(
+                                spacing: 6,
+                                runSpacing: 6,
+                                children:
+                                    categoryChips.entries.map((e) {
+                                      final isSelected = selectedCategories
+                                          .contains(e.key);
                                       return FilterChip(
-                                        label: Text(s['label']!, style: const TextStyle(fontSize: 12)),
+                                        label: Text(
+                                          ideaCategoryLabel(l10n, e.key),
+                                          style: const TextStyle(fontSize: 12),
+                                        ),
                                         selected: isSelected,
-                                        selectedColor: Colors.amber.withAlpha(140),
+                                        selectedColor: AppColors.accent
+                                            .withAlpha(180),
                                         backgroundColor: AppColors.bgCard,
                                         checkmarkColor: Colors.white,
-                                        avatar: isSelected ? null : Icon(Icons.lightbulb_outline, size: 14, color: Colors.amber.shade300),
                                         onSelected: (selected) {
                                           setDialogState(() {
+                                            selectedSmartPrompt = null;
                                             if (selected) {
-                                              selectedSmartPrompt = s['prompt'];
-                                              selectedCategories.clear();
+                                              selectedCategories.add(e.key);
                                             } else {
-                                              selectedSmartPrompt = null;
+                                              selectedCategories.remove(e.key);
                                             }
                                             updatePromptFromChips();
                                           });
                                         },
                                       );
                                     }).toList(),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  const Divider(height: 1),
-                                  const SizedBox(height: 8),
-                                ],
-                                Text(
-                                  l10n.selectCategoriesOrPrompt,
-                                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                              ),
+                              const SizedBox(height: 10),
+                              TextField(
+                                controller: controller,
+                                autofocus: true,
+                                maxLines: 2,
+                                onChanged: (_) {
+                                  if (selectedCategories.isNotEmpty ||
+                                      selectedSmartPrompt != null) {
+                                    setDialogState(() {
+                                      selectedCategories.clear();
+                                      selectedSmartPrompt = null;
+                                    });
+                                  }
+                                },
+                                decoration: InputDecoration(
+                                  hintText: l10n.generateIdeasHint,
+                                  border: OutlineInputBorder(),
                                 ),
-                                const SizedBox(height: 8),
-                                Wrap(
-                                  spacing: 6,
-                                  runSpacing: 6,
-                                  children: categoryChips.entries.map((e) {
-                                    final isSelected = selectedCategories.contains(e.key);
-                                    return FilterChip(
-                                      label: Text(ideaCategoryLabel(l10n, e.key),
-                                          style: const TextStyle(fontSize: 12)),
-                                      selected: isSelected,
-                                      selectedColor: AppColors.accent.withAlpha(180),
-                                      backgroundColor: AppColors.bgCard,
-                                      checkmarkColor: Colors.white,
-                                      onSelected: (selected) {
-                                        setDialogState(() {
-                                          selectedSmartPrompt = null;
-                                          if (selected) {
-                                            selectedCategories.add(e.key);
-                                          } else {
-                                            selectedCategories.remove(e.key);
-                                          }
-                                          updatePromptFromChips();
-                                        });
-                                      },
-                                    );
-                                  }).toList(),
-                                ),
-                                const SizedBox(height: 10),
-                                TextField(
-                                  controller: controller,
-                                  autofocus: true,
-                                  maxLines: 2,
-                                  onChanged: (_) {
-                                    if (selectedCategories.isNotEmpty || selectedSmartPrompt != null) {
-                                      setDialogState(() {
-                                        selectedCategories.clear();
-                                        selectedSmartPrompt = null;
-                                      });
-                                    }
-                                  },
-                                  decoration: InputDecoration(
-                                    hintText: l10n.generateIdeasHint,
-                                    border: OutlineInputBorder(),
-                                  ),
-                                ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
                         ),
-                        const SizedBox(height: 10),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(ctx),
-                              child: Text(l10n.cancel, style: TextStyle(fontSize: 13)),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            child: Text(
+                              l10n.cancel,
+                              style: TextStyle(fontSize: 13),
                             ),
-                            const SizedBox(width: 8),
-                            FilledButton(
-                              onPressed: () => Navigator.pop(ctx, {
-                                'prompt': controller.text,
-                                'categories': selectedCategories.toList(),
-                              }),
-                              child: Text(l10n.generate, style: TextStyle(fontSize: 13)),
+                          ),
+                          const SizedBox(width: 8),
+                          FilledButton(
+                            onPressed:
+                                () => Navigator.pop(ctx, {
+                                  'prompt': controller.text,
+                                  'categories': selectedCategories.toList(),
+                                }),
+                            child: Text(
+                              l10n.generate,
+                              style: TextStyle(fontSize: 13),
                             ),
-                          ],
-                        ),
-                      ] else ...[
-                        // History view
-                        if (!historyLoaded)
-                          const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 32),
-                            child: Center(child: CircularProgressIndicator()),
-                          )
-                        else if (filteredHistory.isEmpty)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 32),
-                            child: Center(
-                              child: Text(
-                                showFavoritesOnly
-                                    ? l10n.noFavoritePrompts
-                                    : l10n.noPromptHistory,
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(color: Colors.grey, fontSize: 14),
+                          ),
+                        ],
+                      ),
+                    ] else ...[
+                      // History view
+                      if (!historyLoaded)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 32),
+                          child: Center(child: CircularProgressIndicator()),
+                        )
+                      else if (filteredHistory.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 32),
+                          child: Center(
+                            child: Text(
+                              showFavoritesOnly
+                                  ? l10n.noFavoritePrompts
+                                  : l10n.noPromptHistory,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Colors.grey,
+                                fontSize: 14,
                               ),
                             ),
-                          )
-                        else
-                          Flexible(
-                            child: ListView.builder(
-                              shrinkWrap: true,
-                              itemCount: filteredHistory.length,
-                              itemBuilder: (_, i) {
-                                final entry = filteredHistory[i];
-                                final prompt = entry['prompt'] as String? ?? '';
-                                final cats = (entry['categories'] as List?)
-                                    ?.cast<String>() ?? [];
-                                final isFav = entry['favorite'] as bool? ?? false;
-                                final ts = entry['timestamp'] as String? ?? '';
-                                final date = ts.isNotEmpty
-                                    ? DateTime.tryParse(ts)
-                                    : null;
-                                final dateStr = date != null
-                                    ? '${date.day}/${date.month}/${date.year} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}'
-                                    : '';
+                          ),
+                        )
+                      else
+                        Flexible(
+                          child: ListView.builder(
+                            shrinkWrap: true,
+                            itemCount: filteredHistory.length,
+                            itemBuilder: (_, i) {
+                              final entry = filteredHistory[i];
+                              final prompt = entry['prompt'] as String? ?? '';
+                              final cats =
+                                  (entry['categories'] as List?)
+                                      ?.cast<String>() ??
+                                  [];
+                              final isFav = entry['favorite'] as bool? ?? false;
+                              final ts = entry['timestamp'] as String? ?? '';
+                              final date =
+                                  ts.isNotEmpty ? DateTime.tryParse(ts) : null;
+                              final dateStr =
+                                  date != null
+                                      ? '${date.day}/${date.month}/${date.year} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}'
+                                      : '';
 
-                                return Card(
-                                  margin: const EdgeInsets.only(bottom: 6),
-                                  child: InkWell(
-                                    borderRadius: BorderRadius.circular(12),
-                                    onTap: () {
-                                      // Fill prompt and switch to compose view
-                                      controller.text = prompt;
-                                      selectedCategories.clear();
-                                      selectedCategories.addAll(cats);
-                                      setDialogState(() => showHistory = false);
-                                    },
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 12, vertical: 10),
-                                      child: Row(
-                                        children: [
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  prompt,
-                                                  style: const TextStyle(fontSize: 13),
-                                                  maxLines: 2,
-                                                  overflow: TextOverflow.ellipsis,
+                              return Card(
+                                margin: const EdgeInsets.only(bottom: 6),
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(12),
+                                  onTap: () {
+                                    // Fill prompt and switch to compose view
+                                    controller.text = prompt;
+                                    selectedCategories.clear();
+                                    selectedCategories.addAll(cats);
+                                    setDialogState(() => showHistory = false);
+                                  },
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 10,
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                prompt,
+                                                style: const TextStyle(
+                                                  fontSize: 13,
                                                 ),
-                                                const SizedBox(height: 4),
-                                                Row(
-                                                  children: [
-                                                    if (cats.isNotEmpty) ...[
-                                                      Icon(Icons.category,
-                                                          size: 12,
-                                                          color: Colors.grey.shade500),
-                                                      const SizedBox(width: 4),
-                                                      Flexible(
-                                                        child: Text(
-                                                          cats.join(', '),
-                                                          style: TextStyle(
-                                                              fontSize: 11,
-                                                              color: Colors.grey.shade500),
-                                                          overflow: TextOverflow.ellipsis,
-                                                        ),
-                                                      ),
-                                                      const SizedBox(width: 8),
-                                                    ],
-                                                    Text(
-                                                      dateStr,
-                                                      style: TextStyle(
-                                                          fontSize: 11,
-                                                          color: Colors.grey.shade600),
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Row(
+                                                children: [
+                                                  if (cats.isNotEmpty) ...[
+                                                    Icon(
+                                                      Icons.category,
+                                                      size: 12,
+                                                      color:
+                                                          Colors.grey.shade500,
                                                     ),
+                                                    const SizedBox(width: 4),
+                                                    Flexible(
+                                                      child: Text(
+                                                        cats.join(', '),
+                                                        style: TextStyle(
+                                                          fontSize: 11,
+                                                          color:
+                                                              Colors
+                                                                  .grey
+                                                                  .shade500,
+                                                        ),
+                                                        overflow:
+                                                            TextOverflow
+                                                                .ellipsis,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 8),
                                                   ],
-                                                ),
-                                              ],
-                                            ),
+                                                  Text(
+                                                    dateStr,
+                                                    style: TextStyle(
+                                                      fontSize: 11,
+                                                      color:
+                                                          Colors.grey.shade600,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
                                           ),
-                                          IconButton(
-                                            icon: Icon(
-                                              isFav ? Icons.star : Icons.star_border,
-                                              color: isFav ? Colors.amber : Colors.grey,
-                                              size: 20,
-                                            ),
-                                            constraints: const BoxConstraints(
-                                                minWidth: 48, minHeight: 48),
-                                            padding: EdgeInsets.zero,
-                                            onPressed: () async {
-                                              await _toggleFavorite(entry['id'] as int);
-                                              await loadHistory(setDialogState);
-                                            },
+                                        ),
+                                        IconButton(
+                                          icon: Icon(
+                                            isFav
+                                                ? Icons.star
+                                                : Icons.star_border,
+                                            color:
+                                                isFav
+                                                    ? Colors.amber
+                                                    : Colors.grey,
+                                            size: 20,
                                           ),
-                                          IconButton(
-                                            icon: Icon(Icons.delete_outline,
-                                                size: 18,
-                                                color: Colors.grey.shade500),
-                                            constraints: const BoxConstraints(
-                                                minWidth: 48, minHeight: 48),
-                                            padding: EdgeInsets.zero,
-                                            onPressed: () async {
-                                              await _deletePromptFromHistory(
-                                                  entry['id'] as int);
-                                              await loadHistory(setDialogState);
-                                            },
+                                          constraints: const BoxConstraints(
+                                            minWidth: 48,
+                                            minHeight: 48,
                                           ),
-                                        ],
-                                      ),
+                                          padding: EdgeInsets.zero,
+                                          onPressed: () async {
+                                            await _toggleFavorite(
+                                              entry['id'] as int,
+                                            );
+                                            await loadHistory(setDialogState);
+                                          },
+                                        ),
+                                        IconButton(
+                                          icon: Icon(
+                                            Icons.delete_outline,
+                                            size: 18,
+                                            color: Colors.grey.shade500,
+                                          ),
+                                          constraints: const BoxConstraints(
+                                            minWidth: 48,
+                                            minHeight: 48,
+                                          ),
+                                          padding: EdgeInsets.zero,
+                                          onPressed: () async {
+                                            await _deletePromptFromHistory(
+                                              entry['id'] as int,
+                                            );
+                                            await loadHistory(setDialogState);
+                                          },
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                );
-                              },
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            child: Text(
+                              l10n.close,
+                              style: TextStyle(fontSize: 13),
                             ),
                           ),
-                        const SizedBox(height: 8),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(ctx),
-                              child: Text(l10n.close, style: TextStyle(fontSize: 13)),
-                            ),
-                          ],
-                        ),
-                      ],
+                        ],
+                      ),
                     ],
-                  ),
+                  ],
                 ),
+              ),
             );
           },
         );
@@ -1435,9 +1613,10 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
 
     final userPrompt = (result['prompt'] as String? ?? '').trim();
     final categories = (result['categories'] as List?)?.cast<String>() ?? [];
-    final title = userPrompt.isEmpty
-        ? 'Generate improvement ideas for this app'
-        : 'Generate ideas: $userPrompt';
+    final title =
+        userPrompt.isEmpty
+            ? 'Generate improvement ideas for this app'
+            : 'Generate ideas: $userPrompt';
 
     final apiResult = await ApiService.createAppTask(
       appId: _selectedAppId!,
@@ -1447,16 +1626,18 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
     );
     if (apiResult.ok) {
       await _addPromptToHistory(
-        userPrompt.isEmpty ? 'Generate improvement ideas for this app' : userPrompt,
+        userPrompt.isEmpty
+            ? 'Generate improvement ideas for this app'
+            : userPrompt,
         categories,
       );
     }
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(apiResult.ok ? l10n.ideaGenerationRequested : apiResult.error ?? l10n.failedToRequestIdeas),
-          backgroundColor: apiResult.ok ? AppColors.success : AppColors.error,
-        ),
+      AppToast.of(context).show(
+        apiResult.ok
+            ? l10n.ideaGenerationRequested
+            : apiResult.error ?? l10n.failedToRequestIdeas,
+        error: true,
       );
       if (apiResult.ok) _loadItems();
     }
@@ -1464,12 +1645,7 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
 
   Future<void> _codeCheck() async {
     if (_selectedAppId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(l10n.selectAnAppFirst),
-          backgroundColor: AppColors.warning,
-        ),
-      );
+      AppToast.of(context).show(l10n.selectAnAppFirst);
       return;
     }
 
@@ -1501,25 +1677,38 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
                     style: TextStyle(fontSize: 13, color: Colors.white70),
                   ),
                   const SizedBox(height: 12),
-                  Text(l10n.checksToRun, style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text(
+                    l10n.checksToRun,
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                   const SizedBox(height: 4),
-                  ...checks.entries.map((e) => CheckboxListTile(
-                    dense: true,
-                    visualDensity: VisualDensity.compact,
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(codeCheckLabel(l10n, e.key),
-                        style: const TextStyle(fontSize: 14)),
-                    value: e.value,
-                    onChanged: (v) => setDialogState(() => checks[e.key] = v ?? false),
-                  )),
+                  ...checks.entries.map(
+                    (e) => CheckboxListTile(
+                      dense: true,
+                      visualDensity: VisualDensity.compact,
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(
+                        codeCheckLabel(l10n, e.key),
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                      value: e.value,
+                      onChanged:
+                          (v) =>
+                              setDialogState(() => checks[e.key] = v ?? false),
+                    ),
+                  ),
                 ],
               ),
               actions: [
-                TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(l10n.cancel)),
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: Text(l10n.cancel),
+                ),
                 FilledButton(
-                  onPressed: checks.values.any((v) => v)
-                      ? () => Navigator.pop(ctx, true)
-                      : null,
+                  onPressed:
+                      checks.values.any((v) => v)
+                          ? () => Navigator.pop(ctx, true)
+                          : null,
                   child: Text(l10n.runCheck),
                 ),
               ],
@@ -1531,8 +1720,10 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
 
     if (confirmed != true) return;
 
-    final selected = checks.entries.where((e) => e.value).map((e) => e.key).toList();
-    final description = 'Perform a code review focusing on: ${selected.join(', ')}. '
+    final selected =
+        checks.entries.where((e) => e.value).map((e) => e.key).toList();
+    final description =
+        'Perform a code review focusing on: ${selected.join(', ')}. '
         'For EACH issue found, create a separate NEW task in tasklist.json with type "bug" for crash risks or "fix" for quality issues. '
         'Include specific file paths and line numbers. Check: null/validity guards after await, signal cleanup in _exit_tree, '
         'memory leaks, typed variables, single responsibility (no scripts >500 lines), data-driven economy values (not hardcoded), '
@@ -1546,11 +1737,11 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
       priority: 'high',
     );
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result.ok ? l10n.codeCheckRequested : result.error ?? l10n.failedToRequestCodeCheck),
-          backgroundColor: result.ok ? AppColors.success : AppColors.error,
-        ),
+      AppToast.of(context).show(
+        result.ok
+            ? l10n.codeCheckRequested
+            : result.error ?? l10n.failedToRequestCodeCheck,
+        error: true,
       );
       if (result.ok) _loadItems();
     }
@@ -1558,18 +1749,17 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
 
   Future<void> _designReview() async {
     if (_selectedAppId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.selectAnAppFirst), backgroundColor: AppColors.warning),
-      );
+      AppToast.of(context).show(l10n.selectAnAppFirst);
       return;
     }
-    final result = await ApiService.studioAction(_selectedAppId!, 'design-review');
+    final result = await ApiService.studioAction(
+      _selectedAppId!,
+      'design-review',
+    );
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(result.ok ? l10n.designReviewTaskCreated : result.error ?? l10n.failed),
-        backgroundColor: result.ok ? AppColors.success : AppColors.error,
-      ),
+    AppToast.of(context).show(
+      result.ok ? l10n.designReviewTaskCreated : result.error ?? l10n.failed,
+      error: true,
     );
     if (result.ok) _loadItems();
   }
@@ -1583,18 +1773,14 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
   /// and refreshes the task list on success.
   Future<void> _runStudioAction(String action, String successMessage) async {
     if (_selectedAppId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.selectAnAppFirst), backgroundColor: AppColors.warning),
-      );
+      AppToast.of(context).show(l10n.selectAnAppFirst);
       return;
     }
     final result = await ApiService.studioAction(_selectedAppId!, action);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(result.ok ? successMessage : result.error ?? l10n.failed),
-        backgroundColor: result.ok ? AppColors.success : AppColors.error,
-      ),
+    AppToast.of(context).show(
+      result.ok ? successMessage : result.error ?? l10n.failed,
+      error: true,
     );
     if (result.ok) _loadItems();
   }
@@ -1644,7 +1830,10 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
                   _balanceCheck();
                   break;
                 case 'consistency-check':
-                  _runStudioAction('consistency-check', l10n.consistencyCheckTaskCreated);
+                  _runStudioAction(
+                    'consistency-check',
+                    l10n.consistencyCheckTaskCreated,
+                  );
                   break;
                 case 'tech-debt':
                   _runStudioAction('tech-debt', l10n.techDebtTaskCreated);
@@ -1653,7 +1842,10 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
                   _runStudioAction('asset-audit', l10n.assetAuditTaskCreated);
                   break;
                 case 'content-audit':
-                  _runStudioAction('content-audit', l10n.contentAuditTaskCreated);
+                  _runStudioAction(
+                    'content-audit',
+                    l10n.contentAuditTaskCreated,
+                  );
                   break;
                 case 'scope-check':
                   _runStudioAction('scope-check', l10n.scopeCheckTaskCreated);
@@ -1663,90 +1855,145 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
                   break;
               }
             },
-            itemBuilder: (_) => [
-              PopupMenuItem(
-                value: 'code-review',
-                child: ListTile(
-                  dense: true,
-                  leading: Icon(Icons.bug_report, size: 20),
-                  title: Text(l10n.codeReview, style: TextStyle(fontSize: 14)),
-                  subtitle: Text(l10n.codeReviewSubtitle, style: TextStyle(fontSize: 11)),
-                ),
-              ),
-              PopupMenuItem(
-                value: 'design-review',
-                child: ListTile(
-                  dense: true,
-                  leading: Icon(Icons.design_services, size: 20),
-                  title: Text(l10n.designReview, style: TextStyle(fontSize: 14)),
-                  subtitle: Text(l10n.designReviewSubtitle, style: TextStyle(fontSize: 11)),
-                ),
-              ),
-              PopupMenuItem(
-                value: 'balance-check',
-                child: ListTile(
-                  dense: true,
-                  leading: Icon(Icons.balance, size: 20),
-                  title: Text(l10n.balanceCheck, style: TextStyle(fontSize: 14)),
-                  subtitle: Text(l10n.balanceCheckSubtitle, style: TextStyle(fontSize: 11)),
-                ),
-              ),
-              const PopupMenuDivider(),
-              PopupMenuItem(
-                value: 'consistency-check',
-                child: ListTile(
-                  dense: true,
-                  leading: Icon(Icons.rule, size: 20),
-                  title: Text(l10n.consistencyCheck, style: TextStyle(fontSize: 14)),
-                  subtitle: Text(l10n.consistencyCheckSubtitle, style: TextStyle(fontSize: 11)),
-                ),
-              ),
-              PopupMenuItem(
-                value: 'tech-debt',
-                child: ListTile(
-                  dense: true,
-                  leading: Icon(Icons.cleaning_services, size: 20),
-                  title: Text(l10n.techDebtScan, style: TextStyle(fontSize: 14)),
-                  subtitle: Text(l10n.techDebtScanSubtitle, style: TextStyle(fontSize: 11)),
-                ),
-              ),
-              PopupMenuItem(
-                value: 'asset-audit',
-                child: ListTile(
-                  dense: true,
-                  leading: Icon(Icons.fact_check, size: 20),
-                  title: Text(l10n.assetAudit, style: TextStyle(fontSize: 14)),
-                  subtitle: Text(l10n.assetAuditSubtitle, style: TextStyle(fontSize: 11)),
-                ),
-              ),
-              PopupMenuItem(
-                value: 'content-audit',
-                child: ListTile(
-                  dense: true,
-                  leading: Icon(Icons.playlist_add_check, size: 20),
-                  title: Text(l10n.contentAudit, style: TextStyle(fontSize: 14)),
-                  subtitle: Text(l10n.contentAuditSubtitle, style: TextStyle(fontSize: 11)),
-                ),
-              ),
-              PopupMenuItem(
-                value: 'scope-check',
-                child: ListTile(
-                  dense: true,
-                  leading: Icon(Icons.filter_list, size: 20),
-                  title: Text(l10n.scopeCheck, style: TextStyle(fontSize: 14)),
-                  subtitle: Text(l10n.scopeCheckSubtitle, style: TextStyle(fontSize: 11)),
-                ),
-              ),
-              PopupMenuItem(
-                value: 'perf-profile',
-                child: ListTile(
-                  dense: true,
-                  leading: Icon(Icons.speed, size: 20),
-                  title: Text(l10n.performanceProfile, style: TextStyle(fontSize: 14)),
-                  subtitle: Text(l10n.performanceProfileSubtitle, style: TextStyle(fontSize: 11)),
-                ),
-              ),
-            ],
+            itemBuilder:
+                (_) => [
+                  PopupMenuItem(
+                    value: 'code-review',
+                    child: ListTile(
+                      dense: true,
+                      leading: Icon(Icons.bug_report, size: 20),
+                      title: Text(
+                        l10n.codeReview,
+                        style: TextStyle(fontSize: 14),
+                      ),
+                      subtitle: Text(
+                        l10n.codeReviewSubtitle,
+                        style: TextStyle(fontSize: 11),
+                      ),
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'design-review',
+                    child: ListTile(
+                      dense: true,
+                      leading: Icon(Icons.design_services, size: 20),
+                      title: Text(
+                        l10n.designReview,
+                        style: TextStyle(fontSize: 14),
+                      ),
+                      subtitle: Text(
+                        l10n.designReviewSubtitle,
+                        style: TextStyle(fontSize: 11),
+                      ),
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'balance-check',
+                    child: ListTile(
+                      dense: true,
+                      leading: Icon(Icons.balance, size: 20),
+                      title: Text(
+                        l10n.balanceCheck,
+                        style: TextStyle(fontSize: 14),
+                      ),
+                      subtitle: Text(
+                        l10n.balanceCheckSubtitle,
+                        style: TextStyle(fontSize: 11),
+                      ),
+                    ),
+                  ),
+                  const PopupMenuDivider(),
+                  PopupMenuItem(
+                    value: 'consistency-check',
+                    child: ListTile(
+                      dense: true,
+                      leading: Icon(Icons.rule, size: 20),
+                      title: Text(
+                        l10n.consistencyCheck,
+                        style: TextStyle(fontSize: 14),
+                      ),
+                      subtitle: Text(
+                        l10n.consistencyCheckSubtitle,
+                        style: TextStyle(fontSize: 11),
+                      ),
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'tech-debt',
+                    child: ListTile(
+                      dense: true,
+                      leading: Icon(Icons.cleaning_services, size: 20),
+                      title: Text(
+                        l10n.techDebtScan,
+                        style: TextStyle(fontSize: 14),
+                      ),
+                      subtitle: Text(
+                        l10n.techDebtScanSubtitle,
+                        style: TextStyle(fontSize: 11),
+                      ),
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'asset-audit',
+                    child: ListTile(
+                      dense: true,
+                      leading: Icon(Icons.fact_check, size: 20),
+                      title: Text(
+                        l10n.assetAudit,
+                        style: TextStyle(fontSize: 14),
+                      ),
+                      subtitle: Text(
+                        l10n.assetAuditSubtitle,
+                        style: TextStyle(fontSize: 11),
+                      ),
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'content-audit',
+                    child: ListTile(
+                      dense: true,
+                      leading: Icon(Icons.playlist_add_check, size: 20),
+                      title: Text(
+                        l10n.contentAudit,
+                        style: TextStyle(fontSize: 14),
+                      ),
+                      subtitle: Text(
+                        l10n.contentAuditSubtitle,
+                        style: TextStyle(fontSize: 11),
+                      ),
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'scope-check',
+                    child: ListTile(
+                      dense: true,
+                      leading: Icon(Icons.filter_list, size: 20),
+                      title: Text(
+                        l10n.scopeCheck,
+                        style: TextStyle(fontSize: 14),
+                      ),
+                      subtitle: Text(
+                        l10n.scopeCheckSubtitle,
+                        style: TextStyle(fontSize: 11),
+                      ),
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'perf-profile',
+                    child: ListTile(
+                      dense: true,
+                      leading: Icon(Icons.speed, size: 20),
+                      title: Text(
+                        l10n.performanceProfile,
+                        style: TextStyle(fontSize: 14),
+                      ),
+                      subtitle: Text(
+                        l10n.performanceProfileSubtitle,
+                        style: TextStyle(fontSize: 11),
+                      ),
+                    ),
+                  ),
+                ],
           ),
           PopupMenuButton<String>(
             icon: const Icon(Icons.palette),
@@ -1761,26 +2008,39 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
                   break;
               }
             },
-            itemBuilder: (_) => [
-              PopupMenuItem(
-                value: 'art-bible',
-                child: ListTile(
-                  dense: true,
-                  leading: Icon(Icons.auto_stories, size: 20),
-                  title: Text(l10n.artBible, style: TextStyle(fontSize: 14)),
-                  subtitle: Text(l10n.artBibleCardSubtitle, style: TextStyle(fontSize: 11)),
-                ),
-              ),
-              PopupMenuItem(
-                value: 'asset-spec',
-                child: ListTile(
-                  dense: true,
-                  leading: Icon(Icons.inventory_2, size: 20),
-                  title: Text(l10n.assetSpecs, style: TextStyle(fontSize: 14)),
-                  subtitle: Text(l10n.assetSpecsSubtitle, style: TextStyle(fontSize: 11)),
-                ),
-              ),
-            ],
+            itemBuilder:
+                (_) => [
+                  PopupMenuItem(
+                    value: 'art-bible',
+                    child: ListTile(
+                      dense: true,
+                      leading: Icon(Icons.auto_stories, size: 20),
+                      title: Text(
+                        l10n.artBible,
+                        style: TextStyle(fontSize: 14),
+                      ),
+                      subtitle: Text(
+                        l10n.artBibleCardSubtitle,
+                        style: TextStyle(fontSize: 11),
+                      ),
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'asset-spec',
+                    child: ListTile(
+                      dense: true,
+                      leading: Icon(Icons.inventory_2, size: 20),
+                      title: Text(
+                        l10n.assetSpecs,
+                        style: TextStyle(fontSize: 14),
+                      ),
+                      subtitle: Text(
+                        l10n.assetSpecsSubtitle,
+                        style: TextStyle(fontSize: 11),
+                      ),
+                    ),
+                  ),
+                ],
           ),
           IconButton(
             onPressed: _workOnAll,
@@ -1789,12 +2049,13 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
           ),
         ],
       ),
-      floatingActionButton: _selectedAppId != null
-          ? FloatingActionButton(
-              onPressed: _showCreateSheet,
-              child: const Icon(Icons.add),
-            )
-          : null,
+      floatingActionButton:
+          _selectedAppId != null
+              ? FloatingActionButton(
+                onPressed: _showCreateSheet,
+                child: const Icon(Icons.add),
+              )
+              : null,
       body: Column(
         children: [
           // App category toggle
@@ -1861,16 +2122,21 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
               decoration: InputDecoration(
                 hintText: l10n.selectApp,
                 prefixIcon: Icon(Icons.apps),
-                contentPadding:
-                    EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
               ),
               dropdownColor: AppColors.bgCard,
-              items: categoryApps
-                  .map<DropdownMenuItem<int>>((app) => DropdownMenuItem<int>(
-                        value: app.id,
-                        child: Text(app.name),
-                      ))
-                  .toList(),
+              items:
+                  categoryApps
+                      .map<DropdownMenuItem<int>>(
+                        (app) => DropdownMenuItem<int>(
+                          value: app.id,
+                          child: Text(app.name),
+                        ),
+                      )
+                      .toList(),
               onChanged: (val) {
                 setState(() {
                   _selectedAppId = val;
@@ -1926,30 +2192,38 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
             ),
           // Item list
           Expanded(
-            child: _selectedAppId == null
-                ? Center(
-                    child: Text(
-                      l10n.selectAppToViewItems,
-                      style: TextStyle(color: Colors.grey, fontSize: 16),
-                    ),
-                  )
-                : _loading
+            child:
+                _selectedAppId == null
+                    ? Center(
+                      child: Text(
+                        l10n.selectAppToViewItems,
+                        style: TextStyle(color: Colors.grey, fontSize: 16),
+                      ),
+                    )
+                    : _loading
                     ? const Center(child: CircularProgressIndicator())
                     : RefreshIndicator(
-                        color: AppColors.accent,
-                        onRefresh: _loadItems,
-                        child: _loadError != null && _allItems.isEmpty
-                            ? ListView(
+                      color: AppColors.accent,
+                      onRefresh: _loadItems,
+                      child:
+                          _loadError != null && _allItems.isEmpty
+                              ? ListView(
                                 children: [
                                   const SizedBox(height: 120),
-                                  Icon(Icons.cloud_off, size: 64, color: Colors.grey.shade600),
+                                  Icon(
+                                    Icons.cloud_off,
+                                    size: 64,
+                                    color: Colors.grey.shade600,
+                                  ),
                                   const SizedBox(height: 16),
                                   Center(
                                     child: Text(
                                       _loadError!,
                                       textAlign: TextAlign.center,
                                       style: const TextStyle(
-                                          color: Colors.grey, fontSize: 16),
+                                        color: Colors.grey,
+                                        fontSize: 16,
+                                      ),
                                     ),
                                   ),
                                   const SizedBox(height: 16),
@@ -1962,18 +2236,22 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
                                   ),
                                 ],
                               )
-                            : filtered.isEmpty
-                            ? ListView(
+                              : filtered.isEmpty
+                              ? ListView(
                                 children: [
                                   const SizedBox(height: 160),
                                   Center(
                                     child: Text(
                                       l10n.noItemsFound,
                                       style: TextStyle(
-                                          color: Colors.grey, fontSize: 16),
+                                        color: Colors.grey,
+                                        fontSize: 16,
+                                      ),
                                     ),
                                   ),
-                                  if (_statusFilter != 'all' || _typeFilter != 'all' || _searchQuery.isNotEmpty) ...[
+                                  if (_statusFilter != 'all' ||
+                                      _typeFilter != 'all' ||
+                                      _searchQuery.isNotEmpty) ...[
                                     const SizedBox(height: 12),
                                     Center(
                                       child: Wrap(
@@ -1983,21 +2261,62 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
                                         children: [
                                           if (_statusFilter != 'all')
                                             Chip(
-                                              label: Text(l10n.statusFilterChip(TaskFiltersWidget.chipLabel(context, _statusFilter)), style: const TextStyle(fontSize: 11)),
-                                              visualDensity: VisualDensity.compact,
-                                              side: BorderSide(color: AppColors.taskStatusColor(_statusFilter)),
+                                              label: Text(
+                                                l10n.statusFilterChip(
+                                                  TaskFiltersWidget.chipLabel(
+                                                    context,
+                                                    _statusFilter,
+                                                  ),
+                                                ),
+                                                style: const TextStyle(
+                                                  fontSize: 11,
+                                                ),
+                                              ),
+                                              visualDensity:
+                                                  VisualDensity.compact,
+                                              side: BorderSide(
+                                                color:
+                                                    AppColors.taskStatusColor(
+                                                      _statusFilter,
+                                                    ),
+                                              ),
                                             ),
                                           if (_typeFilter != 'all')
                                             Chip(
-                                              label: Text(l10n.typeFilterChip(TaskFiltersWidget.chipLabel(context, _typeFilter)), style: const TextStyle(fontSize: 11)),
-                                              visualDensity: VisualDensity.compact,
-                                              side: BorderSide(color: AppColors.taskTypeColor(_typeFilter)),
+                                              label: Text(
+                                                l10n.typeFilterChip(
+                                                  TaskFiltersWidget.chipLabel(
+                                                    context,
+                                                    _typeFilter,
+                                                  ),
+                                                ),
+                                                style: const TextStyle(
+                                                  fontSize: 11,
+                                                ),
+                                              ),
+                                              visualDensity:
+                                                  VisualDensity.compact,
+                                              side: BorderSide(
+                                                color: AppColors.taskTypeColor(
+                                                  _typeFilter,
+                                                ),
+                                              ),
                                             ),
                                           if (_searchQuery.isNotEmpty)
                                             Chip(
-                                              label: Text(l10n.searchFilterChip(_searchQuery), style: const TextStyle(fontSize: 11)),
-                                              visualDensity: VisualDensity.compact,
-                                              side: BorderSide(color: Colors.grey.shade600),
+                                              label: Text(
+                                                l10n.searchFilterChip(
+                                                  _searchQuery,
+                                                ),
+                                                style: const TextStyle(
+                                                  fontSize: 11,
+                                                ),
+                                              ),
+                                              visualDensity:
+                                                  VisualDensity.compact,
+                                              side: BorderSide(
+                                                color: Colors.grey.shade600,
+                                              ),
                                             ),
                                         ],
                                       ),
@@ -2014,22 +2333,28 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
                                             _expandedTaskId = null;
                                           });
                                         },
-                                        icon: const Icon(Icons.filter_alt_off, size: 16),
+                                        icon: const Icon(
+                                          Icons.filter_alt_off,
+                                          size: 16,
+                                        ),
                                         label: Text(l10n.clearFilters),
                                       ),
                                     ),
                                   ],
                                 ],
                               )
-                            : _isGroupedView
-                                ? _buildGroupedList(filtered)
-                                : ListView.builder(
-                                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                                    itemCount: filtered.length,
-                                    itemBuilder: (context, index) =>
+                              : _isGroupedView
+                              ? _buildGroupedList(filtered)
+                              : ListView.builder(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                ),
+                                itemCount: filtered.length,
+                                itemBuilder:
+                                    (context, index) =>
                                         _buildItemCard(filtered[index], index),
-                                  ),
-                      ),
+                              ),
+                    ),
           ),
         ],
       ),

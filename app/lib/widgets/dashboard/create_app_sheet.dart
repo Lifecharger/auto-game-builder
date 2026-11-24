@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
 import '../../theme.dart';
 import '../../l10n/app_localizations.dart';
+import '../app_toast.dart';
 
 /// Bottom sheet that creates a new app by name + type + AI agent.
 ///
@@ -62,9 +63,13 @@ class CreateAppSheet {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(l10n.newApp,
-                        style: TextStyle(
-                            fontSize: 20, fontWeight: FontWeight.bold)),
+                    Text(
+                      l10n.newApp,
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     const SizedBox(height: 16),
                     TextField(
                       controller: nameController,
@@ -74,100 +79,105 @@ class CreateAppSheet {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    Text(l10n.type,
-                        style: TextStyle(fontWeight: FontWeight.w600)),
+                    Text(
+                      l10n.type,
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
-                      children: ['flutter', 'godot', 'python', 'phaser']
-                          .map((t) {
-                        return ChoiceChip(
-                          label:
-                              Text(t[0].toUpperCase() + t.substring(1)),
-                          selected: t == appType,
-                          selectedColor: AppColors.accent,
-                          avatar: Icon(AppColors.appTypeIcon(t),
-                              size: 18,
-                              color: t == appType
-                                  ? Colors.white
-                                  : Colors.grey.shade400),
-                          onSelected: (sel) {
-                            if (sel) setSheetState(() => appType = t);
-                          },
-                        );
-                      }).toList(),
+                      children:
+                          ['flutter', 'godot', 'python', 'phaser'].map((t) {
+                            return ChoiceChip(
+                              label: Text(t[0].toUpperCase() + t.substring(1)),
+                              selected: t == appType,
+                              selectedColor: AppColors.accent,
+                              avatar: Icon(
+                                AppColors.appTypeIcon(t),
+                                size: 18,
+                                color:
+                                    t == appType
+                                        ? Colors.white
+                                        : Colors.grey.shade400,
+                              ),
+                              onSelected: (sel) {
+                                if (sel) setSheetState(() => appType = t);
+                              },
+                            );
+                          }).toList(),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       _appTypeHint(l10n, appType),
                       style: TextStyle(
-                          fontSize: 12, color: Colors.grey.shade500),
+                        fontSize: 12,
+                        color: Colors.grey.shade500,
+                      ),
                     ),
                     const SizedBox(height: 12),
-                    Text(l10n.aiAgent,
-                        style: TextStyle(fontWeight: FontWeight.w600)),
+                    Text(
+                      l10n.aiAgent,
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
                       children:
                           ['claude', 'gemini', 'codex', 'local'].map((a) {
-                        return ChoiceChip(
-                          label:
-                              Text(a[0].toUpperCase() + a.substring(1)),
-                          selected: a == agent,
-                          selectedColor: AppColors.info,
-                          onSelected: (sel) {
-                            if (sel) setSheetState(() => agent = a);
-                          },
-                        );
-                      }).toList(),
+                            return ChoiceChip(
+                              label: Text(a[0].toUpperCase() + a.substring(1)),
+                              selected: a == agent,
+                              selectedColor: AppColors.info,
+                              onSelected: (sel) {
+                                if (sel) setSheetState(() => agent = a);
+                              },
+                            );
+                          }).toList(),
                     ),
                     const SizedBox(height: 20),
                     SizedBox(
                       width: double.infinity,
                       height: 48,
                       child: FilledButton.icon(
-                        onPressed: submitting
-                            ? null
-                            : () async {
-                                final name = nameController.text.trim();
-                                if (name.isEmpty) {
-                                  ScaffoldMessenger.of(ctx).showSnackBar(
-                                    SnackBar(
-                                        content: Text(l10n.nameIsRequired),
-                                        backgroundColor: AppColors.warning),
-                                  );
-                                  return;
-                                }
-                                setSheetState(() => submitting = true);
-                                final result = await ApiService.createApp(
+                        onPressed:
+                            submitting
+                                ? null
+                                : () async {
+                                  final name = nameController.text.trim();
+                                  if (name.isEmpty) {
+                                    AppToast.of(ctx).show(l10n.nameIsRequired);
+                                    return;
+                                  }
+                                  setSheetState(() => submitting = true);
+                                  final result = await ApiService.createApp(
                                     name: name,
                                     appType: appType,
-                                    fixStrategy: agent);
-                                if (!ctx.mounted) return;
-                                Navigator.pop(ctx);
-                                ScaffoldMessenger.of(ctx).showSnackBar(
-                                  SnackBar(
-                                    content: Text(result.ok
+                                    fixStrategy: agent,
+                                  );
+                                  if (!ctx.mounted) return;
+                                  Navigator.pop(ctx);
+                                  AppToast.of(ctx).show(
+                                    result.ok
                                         ? l10n.appCreated
                                         : result.error ??
-                                            l10n.failedToCreateApp),
-                                    backgroundColor: result.ok
-                                        ? AppColors.success
-                                        : AppColors.error,
+                                            l10n.failedToCreateApp,
+                                    error: true,
+                                  );
+                                  if (result.ok) onCreated();
+                                },
+                        icon:
+                            submitting
+                                ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
                                   ),
-                                );
-                                if (result.ok) onCreated();
-                              },
-                        icon: submitting
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                    strokeWidth: 2))
-                            : const Icon(Icons.add),
+                                )
+                                : const Icon(Icons.add),
                         label: Text(
-                            submitting ? l10n.creating : l10n.createApp),
+                          submitting ? l10n.creating : l10n.createApp,
+                        ),
                       ),
                     ),
                   ],

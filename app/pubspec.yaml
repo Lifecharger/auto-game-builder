@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.257+258
+version: 1.0.259+260
 
 environment:
   sdk: ^3.7.0
@@ -56,6 +56,8 @@ dependencies:
   google_sign_in: ^6.2.0
   extension_google_sign_in_as_googleapis_auth: ^2.0.12
   in_app_purchase: ^3.3.0
+  # StoreKit transactions (iOS purchase recovery, purchase_gate.dart)
+  in_app_purchase_storekit: ^0.4.17
   mobile_scanner: ^6.0.0
   qr_flutter: ^4.1.0
   hive: ^2.2.3
@@ -69,6 +71,8 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  # Lets the purchase tests swap in a fake store platform.
+  in_app_purchase_platform_interface: ^1.4.1
   # In-memory SharedPreferencesAsync for test/api_key_backup_exclusion_test.dart.
   shared_preferences_platform_interface: ^2.4.0
 

@@ -5,6 +5,7 @@ import '../services/app_l10n.dart';
 import '../services/character_flow_service.dart';
 import '../services/generate_service.dart';
 import '../theme.dart';
+import 'app_toast.dart';
 
 /// #331: RPG giydirme secimi - set + tek secimli parcalar + coklu parcalar.
 /// Sunucuya `outfit` (set slug) ve `pieces` (giydirme sirasiyla slug'lar)
@@ -17,11 +18,11 @@ class EquipSelection {
   bool get isEmpty => set.isEmpty && pieces.isEmpty;
 
   List<String> get pieces => [
-        for (final c in CharacterFlowService.singlePieceCategories)
-          if ((single[c] ?? '').isNotEmpty) single[c]!,
-        for (final c in CharacterFlowService.multiPieceCategories)
-          ...(multi[c] ?? const <String>[]),
-      ];
+    for (final c in CharacterFlowService.singlePieceCategories)
+      if ((single[c] ?? '').isNotEmpty) single[c]!,
+    for (final c in CharacterFlowService.multiPieceCategories)
+      ...(multi[c] ?? const <String>[]),
+  ];
 
   /// Bir yuvadaki secili slug'lar (set/tek = 0-1, coklu = n).
   List<String> of(String cat) {
@@ -83,78 +84,100 @@ const kEquipRight = <(String, IconData)>[
 ];
 
 /// Kiyafet kucuk resmi (9:16 contain) - her yerde ayni gorunum.
-Widget outfitThumb(OutfitItem o, {double width = 78, double height = 132,
-    bool selected = false, double radius = 8}) =>
-    Container(
-      width: width,
-      height: height,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(radius),
-        border: Border.all(
-            color: selected ? AppColors.success : Colors.white24,
-            width: selected ? 2.5 : 1),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: ColoredBox(
-        color: Colors.black26,
-        child: o.ready
+Widget outfitThumb(
+  OutfitItem o, {
+  double width = 78,
+  double height = 132,
+  bool selected = false,
+  double radius = 8,
+}) => Container(
+  width: width,
+  height: height,
+  decoration: BoxDecoration(
+    borderRadius: BorderRadius.circular(radius),
+    border: Border.all(
+      color: selected ? AppColors.success : Colors.white24,
+      width: selected ? 2.5 : 1,
+    ),
+  ),
+  clipBehavior: Clip.antiAlias,
+  child: ColoredBox(
+    color: Colors.black26,
+    child:
+        o.ready
             ? Image.network(
-                CharacterFlowService.outfitThumbUrl(o.slug, size: 300),
-                headers: CharacterFlowService.authHeaders,
-                fit: BoxFit.contain,
-                errorBuilder: (_, _, _) => Container(
-                  color: Colors.white10,
-                  alignment: Alignment.center,
-                  child: const Icon(Icons.checkroom, size: 20, color: Colors.grey),
-                ),
-              )
+              CharacterFlowService.outfitThumbUrl(o.slug, size: 300),
+              headers: CharacterFlowService.authHeaders,
+              fit: BoxFit.contain,
+              errorBuilder:
+                  (_, _, _) => Container(
+                    color: Colors.white10,
+                    alignment: Alignment.center,
+                    child: const Icon(
+                      Icons.checkroom,
+                      size: 20,
+                      color: Colors.grey,
+                    ),
+                  ),
+            )
             : Container(
-                color: Colors.white10,
-                alignment: Alignment.center,
-                child: Text(appL10n.appStatusQueued,
-                    style: const TextStyle(fontSize: 10, color: Colors.orange)),
+              color: Colors.white10,
+              alignment: Alignment.center,
+              child: Text(
+                appL10n.appStatusQueued,
+                style: const TextStyle(fontSize: 10, color: Colors.orange),
               ),
-      ),
-    );
+            ),
+  ),
+);
 
 /// #331: basili tutunca buyuk gorunum - tam boy kiyafet karesi + ad + prompt.
 Future<void> showOutfitPreview(BuildContext context, OutfitItem o) =>
     showDialog<void>(
       context: context,
-      builder: (c) => Dialog(
-        insetPadding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Flexible(
-              child: InteractiveViewer(
-                child: Image.network(
-                  CharacterFlowService.outfitThumbUrl(o.slug, size: 1024),
-                  headers: CharacterFlowService.authHeaders,
-                  fit: BoxFit.contain,
+      builder:
+          (c) => Dialog(
+            insetPadding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: InteractiveViewer(
+                    child: Image.network(
+                      CharacterFlowService.outfitThumbUrl(o.slug, size: 1024),
+                      headers: CharacterFlowService.authHeaders,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
                 ),
-              ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                  child: Column(
+                    children: [
+                      Text(
+                        o.name,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        '${CharacterFlowService.categoryLabel(o.category)}'
+                        '${o.prompt.isEmpty ? "" : " - ${o.prompt}"}',
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-              child: Column(
-                children: [
-                  Text(o.name,
-                      style: const TextStyle(
-                          fontSize: 15, fontWeight: FontWeight.bold)),
-                  Text(
-                      '${CharacterFlowService.categoryLabel(o.category)}'
-                      '${o.prompt.isEmpty ? "" : " - ${o.prompt}"}',
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
+          ),
     );
 
 /// #331: bir yuva icin secici - o kategorinin kiyafetleri 3'lu izgara,
@@ -171,61 +194,75 @@ Future<void> showSlotPicker(
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
-    builder: (c) => StatefulBuilder(
-      builder: (c, setLocal) {
-        final l10n = AppLocalizations.of(c)!;
-        return SafeArea(
-        child: SizedBox(
-          height: MediaQuery.of(c).size.height * 0.7,
-          child: Column(
-            children: [
-              ListTile(
-                title: Text(l10n.equipSlotTitle(
-                    CharacterFlowService.categoryLabel(cat))),
-                subtitle: Text(
-                    multi
-                        ? l10n.equipSlotMultiHint
-                        : l10n.equipSlotSingleHint,
-                    style: const TextStyle(fontSize: 11)),
-                trailing: TextButton(
-                  onPressed: () {
-                    selection.clear(cat);
-                    onChanged();
-                    setLocal(() {});
-                    if (!multi) Navigator.pop(c);
-                  },
-                  child: Text(l10n.equipSlotEmpty),
-                ),
-              ),
-              const Divider(height: 1),
-              Expanded(
-                child: list.isEmpty
-                    ? Center(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Text(l10n.equipSlotNoOutfits,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                  fontSize: 12, color: Colors.grey)),
-                        ))
-                    : OutfitCatalogGrid(
-                        outfits: list,
-                        selected: (o) => selection.of(cat).contains(o.slug),
-                        onTap: (o) {
-                          selection.toggle(cat, o.slug);
+    builder:
+        (c) => StatefulBuilder(
+          builder: (c, setLocal) {
+            final l10n = AppLocalizations.of(c)!;
+            return SafeArea(
+              child: SizedBox(
+                height: MediaQuery.of(c).size.height * 0.7,
+                child: Column(
+                  children: [
+                    ListTile(
+                      title: Text(
+                        l10n.equipSlotTitle(
+                          CharacterFlowService.categoryLabel(cat),
+                        ),
+                      ),
+                      subtitle: Text(
+                        multi
+                            ? l10n.equipSlotMultiHint
+                            : l10n.equipSlotSingleHint,
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                      trailing: TextButton(
+                        onPressed: () {
+                          selection.clear(cat);
                           onChanged();
                           setLocal(() {});
                           if (!multi) Navigator.pop(c);
                         },
-                        onLongPress: (o) => showOutfitPreview(c, o),
+                        child: Text(l10n.equipSlotEmpty),
                       ),
+                    ),
+                    const Divider(height: 1),
+                    Expanded(
+                      child:
+                          list.isEmpty
+                              ? Center(
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                  ),
+                                  child: Text(
+                                    l10n.equipSlotNoOutfits,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                ),
+                              )
+                              : OutfitCatalogGrid(
+                                outfits: list,
+                                selected:
+                                    (o) => selection.of(cat).contains(o.slug),
+                                onTap: (o) {
+                                  selection.toggle(cat, o.slug);
+                                  onChanged();
+                                  setLocal(() {});
+                                  if (!multi) Navigator.pop(c);
+                                },
+                                onLongPress: (o) => showOutfitPreview(c, o),
+                              ),
+                    ),
+                  ],
+                ),
               ),
-            ],
-          ),
+            );
+          },
         ),
-      );
-      },
-    ),
   );
 }
 
@@ -249,50 +286,58 @@ class OutfitCatalogGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => GridView.builder(
-        shrinkWrap: shrinkWrap,
-        physics: shrinkWrap ? const NeverScrollableScrollPhysics() : null,
-        padding: const EdgeInsets.all(8),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 3,
-          mainAxisSpacing: 8,
-          crossAxisSpacing: 8,
-          childAspectRatio: 0.52,
-        ),
-        itemCount: outfits.length,
-        itemBuilder: (_, i) {
-          final o = outfits[i];
-          final on = selected?.call(o) ?? false;
-          return GestureDetector(
-            onTap: () => onTap(o),
-            onLongPress: () => onLongPress(o),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(
-                  child: LayoutBuilder(
-                    builder: (_, cons) => outfitThumb(o,
-                        width: cons.maxWidth,
-                        height: cons.maxHeight,
-                        selected: on),
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(o.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                        fontSize: 11,
-                        color: on ? AppColors.success : Colors.white)),
-                Text(CharacterFlowService.categoryLabel(o.category),
-                    maxLines: 1,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 10, color: AppColors.accent)),
-              ],
+    shrinkWrap: shrinkWrap,
+    physics: shrinkWrap ? const NeverScrollableScrollPhysics() : null,
+    padding: const EdgeInsets.all(8),
+    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+      crossAxisCount: 3,
+      mainAxisSpacing: 8,
+      crossAxisSpacing: 8,
+      childAspectRatio: 0.52,
+    ),
+    itemCount: outfits.length,
+    itemBuilder: (_, i) {
+      final o = outfits[i];
+      final on = selected?.call(o) ?? false;
+      return GestureDetector(
+        onTap: () => onTap(o),
+        onLongPress: () => onLongPress(o),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: LayoutBuilder(
+                builder:
+                    (_, cons) => outfitThumb(
+                      o,
+                      width: cons.maxWidth,
+                      height: cons.maxHeight,
+                      selected: on,
+                    ),
+              ),
             ),
-          );
-        },
+            const SizedBox(height: 3),
+            Text(
+              o.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 11,
+                color: on ? AppColors.success : Colors.white,
+              ),
+            ),
+            Text(
+              CharacterFlowService.categoryLabel(o.category),
+              maxLines: 1,
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 10, color: AppColors.accent),
+            ),
+          ],
+        ),
       );
+    },
+  );
 }
 
 /// #331: RPG giydirme paneli - ortada secili karakterin base'i (South),
@@ -335,14 +380,17 @@ class EquipPanel extends StatelessWidget {
       children: [
         Row(
           children: [
-            Text(l10n.equipBaseLabel,
-                style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            Text(
+              l10n.equipBaseLabel,
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            ),
             const SizedBox(width: 8),
             Expanded(
               child: DropdownButton<String>(
-                value: characters.any((c) => c.name == selectedName)
-                    ? selectedName
-                    : null,
+                value:
+                    characters.any((c) => c.name == selectedName)
+                        ? selectedName
+                        : null,
                 isExpanded: true,
                 isDense: true,
                 underline: const SizedBox.shrink(),
@@ -351,10 +399,11 @@ class EquipPanel extends StatelessWidget {
                     DropdownMenuItem(
                       value: c.name,
                       child: Text(
-                          '${c.name}${c.klass.isEmpty ? "" : "  (${c.klass})"}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 13)),
+                        '${c.name}${c.klass.isEmpty ? "" : "  (${c.klass})"}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 13),
+                      ),
                     ),
                 ],
                 onChanged: (v) {
@@ -363,13 +412,17 @@ class EquipPanel extends StatelessWidget {
               ),
             ),
             TextButton(
-              onPressed: selection.isEmpty
-                  ? null
-                  : () {
-                      selection.clearAll();
-                      onChanged();
-                    },
-              child: Text(l10n.equipUndress, style: const TextStyle(fontSize: 12)),
+              onPressed:
+                  selection.isEmpty
+                      ? null
+                      : () {
+                        selection.clearAll();
+                        onChanged();
+                      },
+              child: Text(
+                l10n.equipUndress,
+                style: const TextStyle(fontSize: 12),
+              ),
             ),
           ],
         ),
@@ -390,15 +443,17 @@ class EquipPanel extends StatelessWidget {
               clipBehavior: Clip.antiAlias,
               child: ColoredBox(
                 color: Colors.black26,
-                child: baseThumbUrl.isEmpty
-                    ? const Icon(Icons.person, color: Colors.grey)
-                    : Image.network(
-                        baseThumbUrl,
-                        headers: CharacterFlowService.authHeaders,
-                        fit: BoxFit.contain,
-                        errorBuilder: (_, _, _) =>
-                            const Icon(Icons.person, color: Colors.grey),
-                      ),
+                child:
+                    baseThumbUrl.isEmpty
+                        ? const Icon(Icons.person, color: Colors.grey)
+                        : Image.network(
+                          baseThumbUrl,
+                          headers: CharacterFlowService.authHeaders,
+                          fit: BoxFit.contain,
+                          errorBuilder:
+                              (_, _, _) =>
+                                  const Icon(Icons.person, color: Colors.grey),
+                        ),
               ),
             ),
             const SizedBox(width: 6),
@@ -418,39 +473,51 @@ class EquipPanel extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: GestureDetector(
-        onTap: () => showSlotPicker(context,
-            cat: cat,
-            outfits: outfits,
-            selection: selection,
-            onChanged: onChanged),
+        onTap:
+            () => showSlotPicker(
+              context,
+              cat: cat,
+              outfits: outfits,
+              selection: selection,
+              onChanged: onChanged,
+            ),
         onLongPress: ilk == null ? null : () => showOutfitPreview(context, ilk),
         child: Container(
           height: 44,
           padding: const EdgeInsets.symmetric(horizontal: 4),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(8),
-            color: dolu ? AppColors.success.withValues(alpha: 0.12) : Colors.white10,
+            color:
+                dolu
+                    ? AppColors.success.withValues(alpha: 0.12)
+                    : Colors.white10,
             border: Border.all(
-                color: dolu ? AppColors.success : Colors.white24,
-                width: dolu ? 1.5 : 1),
+              color: dolu ? AppColors.success : Colors.white24,
+              width: dolu ? 1.5 : 1,
+            ),
           ),
           child: Row(
             children: [
               SizedBox(
                 width: 30,
                 height: 38,
-                child: ilk == null
-                    ? Icon(ikon, size: 18, color: Colors.grey)
-                    : ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: Image.network(
-                          CharacterFlowService.outfitThumbUrl(ilk.slug, size: 120),
-                          headers: CharacterFlowService.authHeaders,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) =>
-                              Icon(ikon, size: 18, color: Colors.grey),
+                child:
+                    ilk == null
+                        ? Icon(ikon, size: 18, color: Colors.grey)
+                        : ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: Image.network(
+                            CharacterFlowService.outfitThumbUrl(
+                              ilk.slug,
+                              size: 120,
+                            ),
+                            headers: CharacterFlowService.authHeaders,
+                            fit: BoxFit.cover,
+                            errorBuilder:
+                                (_, _, _) =>
+                                    Icon(ikon, size: 18, color: Colors.grey),
+                          ),
                         ),
-                      ),
               ),
               const SizedBox(width: 4),
               Expanded(
@@ -458,21 +525,25 @@ class EquipPanel extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(etiket,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 9, color: Colors.grey)),
                     Text(
-                        ilk == null
-                            ? '-'
-                            : (secili.length > 1
-                                ? '${ilk.name} +${secili.length - 1}'
-                                : ilk.name),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                            fontSize: 10,
-                            color: dolu ? AppColors.success : Colors.white70)),
+                      etiket,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 9, color: Colors.grey),
+                    ),
+                    Text(
+                      ilk == null
+                          ? '-'
+                          : (secili.length > 1
+                              ? '${ilk.name} +${secili.length - 1}'
+                              : ilk.name),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: dolu ? AppColors.success : Colors.white70,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -489,13 +560,13 @@ class EquipPanel extends StatelessWidget {
 Future<GenerateJob?> pickGeneratedImage(BuildContext context) async {
   List<GenerateJob> jobs;
   try {
-    jobs = (await GenerateService.list(limit: 60))
-        .where((j) => j.isDone && j.isImage)
-        .toList();
+    jobs =
+        (await GenerateService.list(
+          limit: 60,
+        )).where((j) => j.isDone && j.isImage).toList();
   } catch (e) {
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))));
+      AppToast.of(context).show(e.toString().replaceFirst('Exception: ', ''));
     }
     return null;
   }
@@ -504,60 +575,68 @@ Future<GenerateJob?> pickGeneratedImage(BuildContext context) async {
   return showModalBottomSheet<GenerateJob>(
     context: context,
     isScrollControlled: true,
-    builder: (c) => SafeArea(
-      child: SizedBox(
-        height: MediaQuery.of(c).size.height * 0.75,
-        child: Column(
-          children: [
-            ListTile(
-              title: Text(l10n.equipPickSourceTitle),
-              subtitle: Text(l10n.equipPickSourceHint,
-                  style: const TextStyle(fontSize: 11)),
-            ),
-            const Divider(height: 1),
-            Expanded(
-              child: jobs.isEmpty
-                  ? Center(
-                      child: Text(l10n.equipNoFinishedImage,
-                          style: const TextStyle(color: Colors.grey)))
-                  : GridView.builder(
-                      padding: const EdgeInsets.all(8),
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 3,
-                        mainAxisSpacing: 8,
-                        crossAxisSpacing: 8,
-                        childAspectRatio: 0.6,
-                      ),
-                      itemCount: jobs.length,
-                      itemBuilder: (_, i) {
-                        final j = jobs[i];
-                        return GestureDetector(
-                          onTap: () => Navigator.pop(c, j),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Colors.white24),
+    builder:
+        (c) => SafeArea(
+          child: SizedBox(
+            height: MediaQuery.of(c).size.height * 0.75,
+            child: Column(
+              children: [
+                ListTile(
+                  title: Text(l10n.equipPickSourceTitle),
+                  subtitle: Text(
+                    l10n.equipPickSourceHint,
+                    style: const TextStyle(fontSize: 11),
+                  ),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child:
+                      jobs.isEmpty
+                          ? Center(
+                            child: Text(
+                              l10n.equipNoFinishedImage,
+                              style: const TextStyle(color: Colors.grey),
                             ),
-                            clipBehavior: Clip.antiAlias,
-                            child: ColoredBox(
-                              color: Colors.black26,
-                              child: Image.network(
-                                j.thumbUrl(size: 300),
-                                headers: GenerateService.authHeaders,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, _, _) =>
-                                    Container(color: Colors.white10),
-                              ),
-                            ),
+                          )
+                          : GridView.builder(
+                            padding: const EdgeInsets.all(8),
+                            gridDelegate:
+                                const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 3,
+                                  mainAxisSpacing: 8,
+                                  crossAxisSpacing: 8,
+                                  childAspectRatio: 0.6,
+                                ),
+                            itemCount: jobs.length,
+                            itemBuilder: (_, i) {
+                              final j = jobs[i];
+                              return GestureDetector(
+                                onTap: () => Navigator.pop(c, j),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: Colors.white24),
+                                  ),
+                                  clipBehavior: Clip.antiAlias,
+                                  child: ColoredBox(
+                                    color: Colors.black26,
+                                    child: Image.network(
+                                      j.thumbUrl(size: 300),
+                                      headers: GenerateService.authHeaders,
+                                      fit: BoxFit.cover,
+                                      errorBuilder:
+                                          (_, _, _) =>
+                                              Container(color: Colors.white10),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
                           ),
-                        );
-                      },
-                    ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
-      ),
-    ),
   );
 }

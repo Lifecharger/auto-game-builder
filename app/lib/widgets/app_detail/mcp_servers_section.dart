@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
-import '../../theme.dart';
 import '../../l10n/app_localizations.dart';
+import '../app_toast.dart';
 
 /// Collapsible card on the App Detail screen that lists every MCP
 /// server preset and lets the user toggle which are enabled for the
@@ -89,8 +89,7 @@ class _McpServersSectionState extends State<McpServersSection> {
         _enabled.remove(name);
       }
     });
-    final result =
-        await ApiService.setAppMcp(widget.appId, _enabled.toList());
+    final result = await ApiService.setAppMcp(widget.appId, _enabled.toList());
     if (!mounted) return;
     if (!result.ok) {
       setState(() {
@@ -100,12 +99,9 @@ class _McpServersSectionState extends State<McpServersSection> {
           _enabled.add(name);
         }
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result.error ?? l10n.failedToUpdateMcp),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      AppToast.of(
+        context,
+      ).show(result.error ?? l10n.failedToUpdateMcp, error: true);
       return;
     }
     widget.onChanged?.call(Set<String>.from(_enabled));
@@ -122,23 +118,27 @@ class _McpServersSectionState extends State<McpServersSection> {
             onTap: () => setState(() => _expanded = !_expanded),
             child: Padding(
               padding: const EdgeInsets.all(16),
-              child: Row(children: [
-                Icon(Icons.hub, size: 18, color: Colors.purple.shade200),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    _loading
-                        ? l10n.mcpServers
-                        : l10n.mcpServersActive(activeCount),
-                    style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.bold),
+              child: Row(
+                children: [
+                  Icon(Icons.hub, size: 18, color: Colors.purple.shade200),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _loading
+                          ? l10n.mcpServers
+                          : l10n.mcpServersActive(activeCount),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
-                ),
-                Icon(
-                  _expanded ? Icons.expand_less : Icons.expand_more,
-                  color: Colors.grey.shade500,
-                ),
-              ]),
+                  Icon(
+                    _expanded ? Icons.expand_less : Icons.expand_more,
+                    color: Colors.grey.shade500,
+                  ),
+                ],
+              ),
             ),
           ),
           AnimatedCrossFade(
@@ -148,16 +148,18 @@ class _McpServersSectionState extends State<McpServersSection> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(l10n.mcpServersDesc,
-                      style: TextStyle(
-                          fontSize: 11, color: Colors.grey.shade500)),
+                  Text(
+                    l10n.mcpServersDesc,
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                  ),
                   const SizedBox(height: 8),
                   if (_loading)
                     const Center(
-                        child: Padding(
-                      padding: EdgeInsets.all(12),
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ))
+                      child: Padding(
+                        padding: EdgeInsets.all(12),
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    )
                   else
                     ..._presets.map((p) {
                       final name = p['name']?.toString() ?? '';
@@ -167,16 +169,25 @@ class _McpServersSectionState extends State<McpServersSection> {
                       return SwitchListTile(
                         dense: true,
                         contentPadding: EdgeInsets.zero,
-                        secondary: Icon(_mcpIcon(name),
-                            size: 20,
-                            color: active
-                                ? Colors.purple.shade200
-                                : Colors.grey.shade600),
-                        title:
-                            Text(label, style: const TextStyle(fontSize: 14)),
-                        subtitle: Text(desc,
-                            style: TextStyle(
-                                fontSize: 11, color: Colors.grey.shade500)),
+                        secondary: Icon(
+                          _mcpIcon(name),
+                          size: 20,
+                          color:
+                              active
+                                  ? Colors.purple.shade200
+                                  : Colors.grey.shade600,
+                        ),
+                        title: Text(
+                          label,
+                          style: const TextStyle(fontSize: 14),
+                        ),
+                        subtitle: Text(
+                          desc,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey.shade500,
+                          ),
+                        ),
                         value: active,
                         onChanged: (sel) => _toggle(name, sel),
                       );
@@ -184,9 +195,10 @@ class _McpServersSectionState extends State<McpServersSection> {
                 ],
               ),
             ),
-            crossFadeState: _expanded
-                ? CrossFadeState.showSecond
-                : CrossFadeState.showFirst,
+            crossFadeState:
+                _expanded
+                    ? CrossFadeState.showSecond
+                    : CrossFadeState.showFirst,
             duration: const Duration(milliseconds: 200),
           ),
         ],

@@ -9,14 +9,15 @@ import '../services/cbn_flow_service.dart';
 import '../services/character_flow_service.dart';
 import '../services/jigsaw_flow_service.dart';
 import '../services/jigsaw_profiles.dart';
-import 'character_flow_screen.dart' show characterCreateDialog;  // #306
+import 'character_flow_screen.dart' show characterCreateDialog; // #306
 import '../theme.dart';
 import '../services/mode_service.dart';
 import '../widgets/bottom_inset.dart';
 import '../widgets/network_video.dart';
 import '../widgets/generated_audio.dart';
 import '../widgets/flow_kind_switch.dart';
-import '../widgets/outfit_extract_dialog.dart';  // #329
+import '../widgets/app_toast.dart';
+import '../widgets/outfit_extract_dialog.dart'; // #329
 
 /// Asset Mod - Uretilenler ekrani.
 ///
@@ -92,7 +93,8 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
         .toList();
   }
 
-  List<GenerateJob> _videosOf(GenerateJob j) => _videosByImage[j.id] ?? const [];
+  List<GenerateJob> _videosOf(GenerateJob j) =>
+      _videosByImage[j.id] ?? const [];
 
   /// Kartta oynatilacak is: bagli video varsa o, kart zaten videoysa kendisi.
   GenerateJob? _playable(GenerateJob j) {
@@ -105,9 +107,8 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
     final c = _cards;
     return switch (_filter) {
       _Filter.all => c,
-      _Filter.image => c
-          .where((j) => j.isDone && j.isImage && _videosOf(j).isEmpty)
-          .toList(),
+      _Filter.image =>
+        c.where((j) => j.isDone && j.isImage && _videosOf(j).isEmpty).toList(),
       _Filter.video =>
         c.where((j) => _playable(j) != null && j.isDone).toList(),
       _Filter.audio => c.where((j) => j.isDone && j.isAudio).toList(),
@@ -145,7 +146,9 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
       await GenerateService.setFavorite(j.id, !j.favorite);
       _load();
     } catch (e) {
-      _msg(e.toString().replaceFirst('Exception: ', ''));   // #352: sessiz kalmasin
+      _msg(
+        e.toString().replaceFirst('Exception: ', ''),
+      ); // #352: sessiz kalmasin
     }
   }
 
@@ -158,17 +161,21 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
     final n = _sel.length;
     final ok = await showDialog<bool>(
       context: context,
-      builder: (c) => AlertDialog(
-        title: Text(l10n.delete),
-        content: Text(l10n.galleryDeleteSelectedConfirm(n)),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(c, false),
-              child: Text(l10n.cancel)),
-          FilledButton(
-              onPressed: () => Navigator.pop(c, true), child: Text(l10n.delete)),
-        ],
-      ),
+      builder:
+          (c) => AlertDialog(
+            title: Text(l10n.delete),
+            content: Text(l10n.galleryDeleteSelectedConfirm(n)),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(c, false),
+                child: Text(l10n.cancel),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(c, true),
+                child: Text(l10n.delete),
+              ),
+            ],
+          ),
     );
     if (ok != true || !mounted) return;
     setState(() => _busy = true);
@@ -192,8 +199,9 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
       _sel.clear();
       _busy = false;
     });
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(hata == 0 ? l10n.galleryDeleted(n) : l10n.galleryDeleteFailed(hata))));
+    AppToast.of(
+      context,
+    ).show(hata == 0 ? l10n.galleryDeleted(n) : l10n.galleryDeleteFailed(hata));
     _load();
   }
 
@@ -201,18 +209,19 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
   Future<void> _play(GenerateJob j) async {
     final v = _playable(j);
     if (v == null) return;
-    final changed = await Navigator.of(context).push<bool>(MaterialPageRoute(
-      builder: (_) => _ViewerPage(jobs: [v], index: 0),
-    ));
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => _ViewerPage(jobs: [v], index: 0)),
+    );
     if (changed == true) _load();
   }
 
   /// Secili tamamlanmis gorseller - karakter eylemleri bunlarla calisir.
-  List<GenerateJob> get _selectedImages => _sel
-      .map((id) => _jobs.where((j) => j.id == id).firstOrNull)
-      .whereType<GenerateJob>()
-      .where((j) => j.isDone && j.isImage)
-      .toList();
+  List<GenerateJob> get _selectedImages =>
+      _sel
+          .map((id) => _jobs.where((j) => j.id == id).firstOrNull)
+          .whereType<GenerateJob>()
+          .where((j) => j.isDone && j.isImage)
+          .toList();
 
   /// #329: her kipte - secili TEK gorseldeki kiyafeti gardirop kutuphanesine
   /// cikarir (sunucuda edit_qwen, kuyruk). Kaynak gorsel is kimligiyle gider.
@@ -231,11 +240,12 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
     setState(() => _busy = true);
     try {
       await CharacterFlowService.outfitExtract(
-          name: secim.name,
-          category: secim.category,
-          kind: secim.kind,
-          jobId: gorseller.first.id,
-          note: secim.note);
+        name: secim.name,
+        category: secim.category,
+        kind: secim.kind,
+        jobId: gorseller.first.id,
+        note: secim.note,
+      );
       if (!mounted) return;
       _msg(l10n.outfitExtractStarted(secim.name));
       setState(_sel.clear);
@@ -275,11 +285,12 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
       // #314: pencerede secilen tur (Kadin/Erkek/Hayvan/Makine) sunucuya
       // gonderilir - prompt'lar, notr base ve animasyon yollari buna gore.
       await CharacterFlowService.create(
-          name: sonuc.name,
-          klass: sonuc.klass,
-          prompt: sonuc.prompt,
-          kind: sonuc.kind,
-          jobId: gorseller.first.id);
+        name: sonuc.name,
+        klass: sonuc.klass,
+        prompt: sonuc.prompt,
+        kind: sonuc.kind,
+        jobId: gorseller.first.id,
+      );
       if (!mounted) return;
       _msg(l10n.galleryCharacterQueued(sonuc.name));
       setState(_sel.clear);
@@ -312,34 +323,42 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
     }
     final ad = await showDialog<String>(
       context: context,
-      builder: (c) => AlertDialog(
-        title: Text(l10n.galleryAddToCandidatesTitle(gorseller.length)),
-        content: SizedBox(
-          width: 380,
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              for (final k in karakterler)
-                ListTile(
-                  dense: true,
-                  title: Text(k.name),
-                  subtitle: Text(k.klass.isEmpty ? '-' : k.klass,
-                      style: const TextStyle(fontSize: 11)),
-                  onTap: () => Navigator.pop(c, k.name),
-                ),
+      builder:
+          (c) => AlertDialog(
+            title: Text(l10n.galleryAddToCandidatesTitle(gorseller.length)),
+            content: SizedBox(
+              width: 380,
+              child: ListView(
+                shrinkWrap: true,
+                children: [
+                  for (final k in karakterler)
+                    ListTile(
+                      dense: true,
+                      title: Text(k.name),
+                      subtitle: Text(
+                        k.klass.isEmpty ? '-' : k.klass,
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                      onTap: () => Navigator.pop(c, k.name),
+                    ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(c),
+                child: Text(l10n.cancel),
+              ),
             ],
           ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c), child: Text(l10n.cancel)),
-        ],
-      ),
     );
     if (ad == null || !mounted) return;
     setState(() => _busy = true);
     try {
       final n = await CharacterFlowService.stage(
-          name: ad, jobIds: gorseller.map((j) => j.id).toList());
+        name: ad,
+        jobIds: gorseller.map((j) => j.id).toList(),
+      );
       if (!mounted) return;
       _msg(l10n.galleryAddedToCandidates(n, ad));
       setState(_sel.clear);
@@ -383,41 +402,48 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
     // 1) hedef sec (koleksiyon ya da krupiye)
     final hedef = await showDialog<(String, String)>(
       context: context,
-      builder: (c) => AlertDialog(
-        title: Text(l10n.galleryAddToCollection),
-        content: SizedBox(
-          width: 380,
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              for (final k in koleksiyonlar)
-                ListTile(
-                  dense: true,
-                  leading: const Icon(Icons.style_outlined, size: 20),
-                  title: Text(k.name),
-                  subtitle: Text(k.theme.isEmpty ? k.id : k.theme,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 11)),
-                  onTap: () => Navigator.pop(c, ('card', k.id)),
-                ),
-              for (final d in krupiyeler)
-                ListTile(
-                  dense: true,
-                  leading: const Icon(Icons.person_outline, size: 20),
-                  title: Text(d.name),
-                  subtitle: Text(l10n.galleryDealerNoRank,
-                      style: const TextStyle(fontSize: 11)),
-                  onTap: () => Navigator.pop(c, ('dealer', d.id)),
-                ),
+      builder:
+          (c) => AlertDialog(
+            title: Text(l10n.galleryAddToCollection),
+            content: SizedBox(
+              width: 380,
+              child: ListView(
+                shrinkWrap: true,
+                children: [
+                  for (final k in koleksiyonlar)
+                    ListTile(
+                      dense: true,
+                      leading: const Icon(Icons.style_outlined, size: 20),
+                      title: Text(k.name),
+                      subtitle: Text(
+                        k.theme.isEmpty ? k.id : k.theme,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                      onTap: () => Navigator.pop(c, ('card', k.id)),
+                    ),
+                  for (final d in krupiyeler)
+                    ListTile(
+                      dense: true,
+                      leading: const Icon(Icons.person_outline, size: 20),
+                      title: Text(d.name),
+                      subtitle: Text(
+                        l10n.galleryDealerNoRank,
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                      onTap: () => Navigator.pop(c, ('dealer', d.id)),
+                    ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(c),
+                child: Text(l10n.cancel),
+              ),
             ],
           ),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(c), child: Text(l10n.cancel)),
-        ],
-      ),
     );
     if (hedef == null || !mounted) return;
     final (tur, id) = hedef;
@@ -428,31 +454,38 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
       final k = koleksiyonlar.firstWhere((e) => e.id == id);
       final secim = await showDialog<String>(
         context: context,
-        builder: (c) => AlertDialog(
-          title: Text(l10n.galleryPickRank(k.name)),
-          content: SizedBox(
-            width: 360,
-            child: Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                for (final r in k.rankOrder)
-                  ActionChip(
-                    label: Text(r),
-                    // Dolu rutbe uzerine yazmak riskli - kullanici gorsun.
-                    avatar: k.stateOf(r).still
-                        ? const Icon(Icons.warning_amber_rounded, size: 14)
-                        : null,
-                    onPressed: () => Navigator.pop(c, r),
-                  ),
+        builder:
+            (c) => AlertDialog(
+              title: Text(l10n.galleryPickRank(k.name)),
+              content: SizedBox(
+                width: 360,
+                child: Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    for (final r in k.rankOrder)
+                      ActionChip(
+                        label: Text(r),
+                        // Dolu rutbe uzerine yazmak riskli - kullanici gorsun.
+                        avatar:
+                            k.stateOf(r).still
+                                ? const Icon(
+                                  Icons.warning_amber_rounded,
+                                  size: 14,
+                                )
+                                : null,
+                        onPressed: () => Navigator.pop(c, r),
+                      ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(c),
+                  child: Text(l10n.cancel),
+                ),
               ],
             ),
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(c), child: Text(l10n.cancel)),
-          ],
-        ),
       );
       if (secim == null) return;
       rank = secim;
@@ -461,7 +494,11 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
     setState(() => _busy = true);
     try {
       await CardFlowService.stage(
-          collection: id, rank: rank, jobId: gorseller.first.id, kind: tur);
+        collection: id,
+        rank: rank,
+        jobId: gorseller.first.id,
+        kind: tur,
+      );
       if (!mounted) return;
       _msg(l10n.galleryQueuedOne);
       setState(_sel.clear);
@@ -476,16 +513,17 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
 
   void _msg(String m) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+    AppToast.of(context).show(m);
   }
 
   /// 1 -> 2. Secili gorselleri sunucuda _Incoming'e tasitir ve etiketletir.
   Future<void> _acceptSelected() async {
-    final gorseller = _sel
-        .map((id) => _jobs.where((j) => j.id == id).firstOrNull)
-        .whereType<GenerateJob>()
-        .where((j) => j.isDone && j.isImage)
-        .toList();
+    final gorseller =
+        _sel
+            .map((id) => _jobs.where((j) => j.id == id).firstOrNull)
+            .whereType<GenerateJob>()
+            .where((j) => j.isDone && j.isImage)
+            .toList();
     if (gorseller.isEmpty) {
       _msg(l10n.assetPickFinishedImage);
       return;
@@ -494,20 +532,27 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
     final ratings = cbn ? CbnFlowService.ratings : JigsawProfiles.ratings;
     final rating = await showDialog<String>(
       context: context,
-      builder: (c) => AlertDialog(
-        scrollable: true,
-        title: Text(l10n.flowAccept),
-        content: Text(cbn
-            ? l10n.galleryAcceptBodyCbn(gorseller.length)
-            : l10n.galleryAcceptBodyJigsaw(gorseller.length)),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(c), child: Text(l10n.cancel)),
-          for (final e in ratings.entries)
-            FilledButton(
-                onPressed: () => Navigator.pop(c, e.key), child: Text(e.value)),
-        ],
-      ),
+      builder:
+          (c) => AlertDialog(
+            scrollable: true,
+            title: Text(l10n.flowAccept),
+            content: Text(
+              cbn
+                  ? l10n.galleryAcceptBodyCbn(gorseller.length)
+                  : l10n.galleryAcceptBodyJigsaw(gorseller.length),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(c),
+                child: Text(l10n.cancel),
+              ),
+              for (final e in ratings.entries)
+                FilledButton(
+                  onPressed: () => Navigator.pop(c, e.key),
+                  child: Text(e.value),
+                ),
+            ],
+          ),
     );
     if (rating == null || !mounted) return;
     setState(() => _busy = true);
@@ -524,8 +569,7 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
       _load();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(e.toString().replaceFirst('Exception: ', ''))));
+      AppToast.of(context).show(e.toString().replaceFirst('Exception: ', ''));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -538,9 +582,12 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
     }
     if (!j.isDone) return;
     final list = _visible;
-    final changed = await Navigator.of(context).push<bool>(MaterialPageRoute(
-      builder: (_) => _ViewerPage(jobs: List.of(list), index: list.indexOf(j)),
-    ));
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder:
+            (_) => _ViewerPage(jobs: List.of(list), index: list.indexOf(j)),
+      ),
+    );
     if (changed == true) _load();
   }
 
@@ -548,80 +595,88 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        leading: _selecting
-            ? IconButton(
-                icon: const Icon(Icons.close),
-                tooltip: l10n.bucketsClearSelection,
-                onPressed: () => setState(_sel.clear),
-              )
-            : null,
-        title: Text(_selecting ? l10n.bucketsSelectedCount(_sel.length) : l10n.navGallery),
-        actions: _selecting
-            ? [
-                IconButton(
-                  icon: const Icon(Icons.select_all),
-                  tooltip: l10n.flowSelectAll,
-                  onPressed: () =>
-                      setState(() => _sel.addAll(_visible.map((j) => j.id))),
-                ),
-                // #329: her kipte - secili tek gorselden kiyafet cikar.
-                IconButton(
-                  icon: const Icon(Icons.checkroom_outlined),
-                  tooltip: l10n.galleryExtractTooltip,
-                  onPressed: _busy ? null : _extractOutfit,
-                ),
-                if (_mode == 'character') ...[
+        leading:
+            _selecting
+                ? IconButton(
+                  icon: const Icon(Icons.close),
+                  tooltip: l10n.bucketsClearSelection,
+                  onPressed: () => setState(_sel.clear),
+                )
+                : null,
+        title: Text(
+          _selecting ? l10n.bucketsSelectedCount(_sel.length) : l10n.navGallery,
+        ),
+        actions:
+            _selecting
+                ? [
                   IconButton(
-                    icon: const Icon(Icons.person_add_alt),
-                    tooltip: l10n.galleryMakeCharacterTooltip,
-                    onPressed: _busy ? null : _makeCharacter,
+                    icon: const Icon(Icons.select_all),
+                    tooltip: l10n.flowSelectAll,
+                    onPressed:
+                        () => setState(
+                          () => _sel.addAll(_visible.map((j) => j.id)),
+                        ),
+                  ),
+                  // #329: her kipte - secili tek gorselden kiyafet cikar.
+                  IconButton(
+                    icon: const Icon(Icons.checkroom_outlined),
+                    tooltip: l10n.galleryExtractTooltip,
+                    onPressed: _busy ? null : _extractOutfit,
+                  ),
+                  if (_mode == 'character') ...[
+                    IconButton(
+                      icon: const Icon(Icons.person_add_alt),
+                      tooltip: l10n.galleryMakeCharacterTooltip,
+                      onPressed: _busy ? null : _makeCharacter,
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.playlist_add),
+                      tooltip: l10n.galleryAddToCandidatesTooltip,
+                      onPressed: _busy ? null : _stageToCharacter,
+                    ),
+                  ] else if (_mode == 'card')
+                    // #323: secili is bir koleksiyonun rutbesine still olur.
+                    IconButton(
+                      icon: const Icon(Icons.style_outlined),
+                      tooltip: l10n.galleryAddToCollectionTooltip,
+                      onPressed: _busy ? null : _stageToCollection,
+                    )
+                  else if (_mode != 'free')
+                    IconButton(
+                      icon: const Icon(Icons.check_circle_outline),
+                      tooltip: l10n.galleryAcceptTooltip,
+                      onPressed: _busy ? null : _acceptSelected,
+                    ),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline),
+                    tooltip: l10n.galleryDeleteSelected,
+                    onPressed: _busy ? null : _deleteSelected,
+                  ),
+                ]
+                : [
+                  IconButton(
+                    icon: const Icon(Icons.code),
+                    tooltip: l10n.assetCodeMode,
+                    onPressed: () => ModeService.set(false),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.playlist_add),
-                    tooltip: l10n.galleryAddToCandidatesTooltip,
-                    onPressed: _busy ? null : _stageToCharacter,
+                    icon: const Icon(Icons.local_shipping_outlined),
+                    tooltip: l10n.deliveryModeTooltip,
+                    onPressed:
+                        () => ModeService.setMode(ModeService.delivery), // #363
                   ),
-                ] else if (_mode == 'card')
-                  // #323: secili is bir koleksiyonun rutbesine still olur.
                   IconButton(
-                    icon: const Icon(Icons.style_outlined),
-                    tooltip: l10n.galleryAddToCollectionTooltip,
-                    onPressed: _busy ? null : _stageToCollection,
-                  )
-                else if (_mode != 'free')
-                  IconButton(
-                    icon: const Icon(Icons.check_circle_outline),
-                    tooltip: l10n.galleryAcceptTooltip,
-                    onPressed: _busy ? null : _acceptSelected,
+                    icon: const Icon(Icons.refresh),
+                    tooltip: l10n.refresh,
+                    onPressed: _load,
                   ),
-                IconButton(
-                  icon: const Icon(Icons.delete_outline),
-                  tooltip: l10n.galleryDeleteSelected,
-                  onPressed: _busy ? null : _deleteSelected,
-                ),
-              ]
-            : [
-                IconButton(
-                  icon: const Icon(Icons.code),
-                  tooltip: l10n.assetCodeMode,
-                  onPressed: () => ModeService.set(false),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.local_shipping_outlined),
-                  tooltip: l10n.deliveryModeTooltip,
-                  onPressed: () => ModeService.setMode(ModeService.delivery),   // #363
-                ),
-                IconButton(
-                  icon: const Icon(Icons.refresh),
-                  tooltip: l10n.refresh,
-                  onPressed: _load,
-                ),
-              ],
+                ],
         // #355: uc ekranda da AYNI kalip (kindSwitchBottom) - ayni yukseklik,
         // ayni yatay bosluk, ayni hiza.
         bottom: kindSwitchBottom(
-          FlowKindSwitch(                               // #327
-            items: kindLabels,                          // #355: tek kaynak
+          FlowKindSwitch(
+            // #327
+            items: kindLabels, // #355: tek kaynak
             selected: _mode,
             onChanged: (v) {
               setState(() {
@@ -649,38 +704,38 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
           ),
         ),
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
+      body:
+          _loading
+              ? const Center(child: CircularProgressIndicator())
+              : _error != null
               ? _errorView()
               : _visible.isEmpty
-                  ? _emptyView()
-                  : RefreshIndicator(
-                      onRefresh: _load,
-                      child: GridView.builder(
-                        padding: const EdgeInsets.all(10),
-                        gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 3,
-                          childAspectRatio: 9 / 16,
-                          crossAxisSpacing: 8,
-                          mainAxisSpacing: 8,
-                        ),
-                        itemCount: _visible.length,
-                        itemBuilder: (_, i) => _tile(_visible[i]),
-                      ),
-                    ),
+              ? _emptyView()
+              : RefreshIndicator(
+                onRefresh: _load,
+                child: GridView.builder(
+                  padding: const EdgeInsets.all(10),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3,
+                    childAspectRatio: 9 / 16,
+                    crossAxisSpacing: 8,
+                    mainAxisSpacing: 8,
+                  ),
+                  itemCount: _visible.length,
+                  itemBuilder: (_, i) => _tile(_visible[i]),
+                ),
+              ),
     );
   }
 
   Widget _chip(String label, _Filter f) => Padding(
-        padding: const EdgeInsets.only(right: 8),
-        child: ChoiceChip(
-          label: Text(label),
-          selected: _filter == f,
-          onSelected: (_) => setState(() => _filter = f),
-        ),
-      );
+    padding: const EdgeInsets.only(right: 8),
+    child: ChoiceChip(
+      label: Text(label),
+      selected: _filter == f,
+      onSelected: (_) => setState(() => _filter = f),
+    ),
+  );
 
   Widget _tile(GenerateJob j) {
     final on = _sel.contains(j.id);
@@ -691,161 +746,181 @@ class _AssetGalleryScreenState extends State<AssetGalleryScreen> {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-              color: on ? AppColors.accent : Colors.transparent, width: 3),
+            color: on ? AppColors.accent : Colors.transparent,
+            width: 3,
+          ),
         ),
         child: ClipRRect(
-        borderRadius: BorderRadius.circular(10),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            // Sigdir, kirpma: yatay/kare ciktilar hucrede butun gorunsun.
-            const ColoredBox(color: Colors.black),
-            if (j.isDone && j.isAudio)
-              const Center(child: Icon(Icons.music_note, size: 48))
-            else if (j.isDone)
-              Image.network(
-                j.thumbUrl(),
-                headers: GenerateService.authHeaders,
-                fit: BoxFit.contain,
-                errorBuilder: (_, _, _) => _placeholder(j),
-              )
-            else
-              _placeholder(j),
-            if (j.isDone && _playable(j) != null)
-              Positioned.fill(
-                child: Center(
-                  child: GestureDetector(
-                    onTap: () =>
-                        _selecting ? _toggleSel(j) : _play(j),
-                    child: Container(
-                      decoration: const BoxDecoration(
-                        color: Colors.black54,
-                        shape: BoxShape.circle,
+          borderRadius: BorderRadius.circular(10),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // Sigdir, kirpma: yatay/kare ciktilar hucrede butun gorunsun.
+              const ColoredBox(color: Colors.black),
+              if (j.isDone && j.isAudio)
+                const Center(child: Icon(Icons.music_note, size: 48))
+              else if (j.isDone)
+                Image.network(
+                  j.thumbUrl(),
+                  headers: GenerateService.authHeaders,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, _, _) => _placeholder(j),
+                )
+              else
+                _placeholder(j),
+              if (j.isDone && _playable(j) != null)
+                Positioned.fill(
+                  child: Center(
+                    child: GestureDetector(
+                      onTap: () => _selecting ? _toggleSel(j) : _play(j),
+                      child: Container(
+                        decoration: const BoxDecoration(
+                          color: Colors.black54,
+                          shape: BoxShape.circle,
+                        ),
+                        padding: const EdgeInsets.all(4),
+                        child: const Icon(
+                          Icons.play_arrow,
+                          size: 26,
+                          color: Colors.white,
+                        ),
                       ),
-                      padding: const EdgeInsets.all(4),
-                      child: const Icon(Icons.play_arrow,
-                          size: 26, color: Colors.white),
                     ),
                   ),
                 ),
+              Positioned(
+                right: 0,
+                top: 0,
+                child: IconButton(
+                  iconSize: 18,
+                  visualDensity: VisualDensity.compact,
+                  icon: Icon(
+                    j.favorite ? Icons.star : Icons.star_border,
+                    color: j.favorite ? Colors.amber : Colors.white70,
+                  ),
+                  onPressed: () => _toggleFav(j),
+                ),
               ),
-            Positioned(
-              right: 0,
-              top: 0,
-              child: IconButton(
-                iconSize: 18,
-                visualDensity: VisualDensity.compact,
-                icon: Icon(j.favorite ? Icons.star : Icons.star_border,
-                    color: j.favorite ? Colors.amber : Colors.white70),
-                onPressed: () => _toggleFav(j),
-              ),
-            ),
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(6, 14, 6, 5),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [Colors.transparent, Colors.black.withValues(alpha: 0.8)],
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(6, 14, 6, 5),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.transparent,
+                        Colors.black.withValues(alpha: 0.8),
+                      ],
+                    ),
+                  ),
+                  child: Text(
+                    j.prompt.isEmpty ? j.task : j.prompt,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 9, color: Colors.white),
                   ),
                 ),
-                child: Text(
-                  j.prompt.isEmpty ? j.task : j.prompt,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 9, color: Colors.white),
-                ),
               ),
-            ),
-            if (_selecting)
-              Positioned(
-                left: 6,
-                bottom: 6,
-                child: Icon(
+              if (_selecting)
+                Positioned(
+                  left: 6,
+                  bottom: 6,
+                  child: Icon(
                     on ? Icons.check_circle : Icons.radio_button_unchecked,
                     size: 20,
-                    color: on ? AppColors.accent : Colors.white70),
-              ),
-          ],
+                    color: on ? AppColors.accent : Colors.white70,
+                  ),
+                ),
+            ],
+          ),
         ),
-      ),
       ),
     );
   }
 
   Widget _placeholder(GenerateJob j) => Container(
-        color: Colors.white10,
-        alignment: Alignment.center,
-        padding: const EdgeInsets.all(8),
-        child: j.isBusy
+    color: Colors.white10,
+    alignment: Alignment.center,
+    padding: const EdgeInsets.all(8),
+    child:
+        j.isBusy
             ? Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const SizedBox(
-                      width: 20, height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2)),
-                  const SizedBox(height: 8),
-                  Text(
-                    j.isRunning ? l10n.percentValue(j.progress) : l10n.galleryQueuedAt('${j.position ?? ''}'),
-                    style: const TextStyle(fontSize: 10, color: Colors.grey),
-                  ),
-                ],
-              )
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  j.isRunning
+                      ? l10n.percentValue(j.progress)
+                      : l10n.galleryQueuedAt('${j.position ?? ''}'),
+                  style: const TextStyle(fontSize: 10, color: Colors.grey),
+                ),
+              ],
+            )
             : Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(j.isFailed ? Icons.error_outline : Icons.image_outlined,
-                      size: 22, color: Colors.grey),
-                  const SizedBox(height: 6),
-                  Text(
-                    (j.error ?? j.status),
-                    maxLines: 3,
-                    textAlign: TextAlign.center,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 9, color: Colors.grey),
-                  ),
-                ],
-              ),
-      );
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  j.isFailed ? Icons.error_outline : Icons.image_outlined,
+                  size: 22,
+                  color: Colors.grey,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  (j.error ?? j.status),
+                  maxLines: 3,
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 9, color: Colors.grey),
+                ),
+              ],
+            ),
+  );
 
   Widget _errorView() => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.cloud_off, size: 48, color: AppColors.error),
-              const SizedBox(height: 12),
-              Text(_error!, textAlign: TextAlign.center),
-              const SizedBox(height: 16),
-              FilledButton.icon(
-                onPressed: _load,
-                icon: const Icon(Icons.refresh),
-                label: Text(l10n.retry),
-              ),
-            ],
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.cloud_off, size: 48, color: AppColors.error),
+          const SizedBox(height: 12),
+          Text(_error!, textAlign: TextAlign.center),
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            onPressed: _load,
+            icon: const Icon(Icons.refresh),
+            label: Text(l10n.retry),
           ),
-        ),
-      );
+        ],
+      ),
+    ),
+  );
 
   Widget _emptyView() => Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.image_outlined, size: 48, color: Colors.grey),
-            const SizedBox(height: 12),
-            Text(l10n.galleryEmpty),
-            const SizedBox(height: 4),
-            Text(l10n.galleryEmptyHint,
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 12, color: Colors.grey)),
-          ],
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Icon(Icons.image_outlined, size: 48, color: Colors.grey),
+        const SizedBox(height: 12),
+        Text(l10n.galleryEmpty),
+        const SizedBox(height: 4),
+        Text(
+          l10n.galleryEmptyHint,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 12, color: Colors.grey),
         ),
-      );
+      ],
+    ),
+  );
 }
 
 /// Tam ekran goruntuleyici - gorseller yakinlastirilabilir, videolar oynar.
@@ -877,14 +952,21 @@ class _ViewerPageState extends State<_ViewerPage> {
   Future<void> _delete() async {
     final ok = await showDialog<bool>(
       context: context,
-      builder: (c) => AlertDialog(
-        title: Text(l10n.delete),
-        content: Text(l10n.galleryDeleteOneConfirm),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c, false), child: Text(l10n.cancel)),
-          FilledButton(onPressed: () => Navigator.pop(c, true), child: Text(l10n.delete)),
-        ],
-      ),
+      builder:
+          (c) => AlertDialog(
+            title: Text(l10n.delete),
+            content: Text(l10n.galleryDeleteOneConfirm),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(c, false),
+                child: Text(l10n.cancel),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(c, true),
+                child: Text(l10n.delete),
+              ),
+            ],
+          ),
     );
     if (ok != true) return;
     try {
@@ -892,8 +974,7 @@ class _ViewerPageState extends State<_ViewerPage> {
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))));
+        AppToast.of(context).show(e.toString().replaceFirst('Exception: ', ''));
       }
     }
   }
@@ -908,18 +989,24 @@ class _ViewerPageState extends State<_ViewerPage> {
     final ratings = cbn ? CbnFlowService.ratings : JigsawProfiles.ratings;
     final rating = await showDialog<String>(
       context: context,
-      builder: (c) => AlertDialog(
-        title: Text(l10n.flowAccept),
-        content: Text(cbn
-            ? l10n.galleryAcceptOneCbn
-            : l10n.galleryAcceptOneJigsaw),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c), child: Text(l10n.cancel)),
-          for (final e in ratings.entries)
-            FilledButton(
-                onPressed: () => Navigator.pop(c, e.key), child: Text(e.value)),
-        ],
-      ),
+      builder:
+          (c) => AlertDialog(
+            title: Text(l10n.flowAccept),
+            content: Text(
+              cbn ? l10n.galleryAcceptOneCbn : l10n.galleryAcceptOneJigsaw,
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(c),
+                child: Text(l10n.cancel),
+              ),
+              for (final e in ratings.entries)
+                FilledButton(
+                  onPressed: () => Navigator.pop(c, e.key),
+                  child: Text(e.value),
+                ),
+            ],
+          ),
     );
     if (rating == null) return;
     try {
@@ -965,7 +1052,7 @@ class _ViewerPageState extends State<_ViewerPage> {
 
   void _snack(String m) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+    AppToast.of(context).show(m);
   }
 
   /// Duzenle: bu gorseli kaynak alip edit motoruyla (Qwen Image Edit -
@@ -977,41 +1064,45 @@ class _ViewerPageState extends State<_ViewerPage> {
     final ctl = TextEditingController();
     final text = await showDialog<String>(
       context: context,
-      builder: (c) => AlertDialog(
-        // 4 satirlik otomatik odakli prompt kutusu klavyeyle tasiyordu (gorev #289).
-        scrollable: true,
-        title: Text(l10n.edit),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              l10n.galleryEditBody,
-              style: const TextStyle(fontSize: 12, color: Colors.grey),
+      builder:
+          (c) => AlertDialog(
+            // 4 satirlik otomatik odakli prompt kutusu klavyeyle tasiyordu (gorev #289).
+            scrollable: true,
+            title: Text(l10n.edit),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  l10n.galleryEditBody,
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: ctl,
+                  autofocus: true,
+                  maxLines: 4,
+                  decoration: InputDecoration(
+                    labelText: l10n.galleryEditPromptLabel,
+                    hintText: l10n.galleryEditPromptHint,
+                    hintMaxLines: 3,
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: ctl,
-              autofocus: true,
-              maxLines: 4,
-              decoration: InputDecoration(
-                labelText: l10n.galleryEditPromptLabel,
-                hintText: l10n.galleryEditPromptHint,
-                hintMaxLines: 3,
-                border: const OutlineInputBorder(),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(c),
+                child: Text(l10n.cancel),
               ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c), child: Text(l10n.cancel)),
-          FilledButton.icon(
-            onPressed: () => Navigator.pop(c, ctl.text.trim()),
-            icon: const Icon(Icons.auto_fix_high, size: 18),
-            label: Text(l10n.generate),
+              FilledButton.icon(
+                onPressed: () => Navigator.pop(c, ctl.text.trim()),
+                icon: const Icon(Icons.auto_fix_high, size: 18),
+                label: Text(l10n.generate),
+              ),
+            ],
           ),
-        ],
-      ),
     );
     if (text == null || text.isEmpty) return;
     try {
@@ -1042,8 +1133,10 @@ class _ViewerPageState extends State<_ViewerPage> {
         ),
         actions: [
           IconButton(
-            icon: Icon(j.favorite ? Icons.star : Icons.star_border,
-                color: j.favorite ? Colors.amber : null),
+            icon: Icon(
+              j.favorite ? Icons.star : Icons.star_border,
+              color: j.favorite ? Colors.amber : null,
+            ),
             onPressed: () async {
               try {
                 await GenerateService.setFavorite(j.id, !j.favorite);
@@ -1058,7 +1151,11 @@ class _ViewerPageState extends State<_ViewerPage> {
               tooltip: l10n.galleryEditTooltip,
               onPressed: _edit,
             ),
-          IconButton(icon: const Icon(Icons.delete_outline), tooltip: l10n.delete, onPressed: _delete),
+          IconButton(
+            icon: const Icon(Icons.delete_outline),
+            tooltip: l10n.delete,
+            onPressed: _delete,
+          ),
         ],
       ),
       body: Column(
@@ -1070,18 +1167,22 @@ class _ViewerPageState extends State<_ViewerPage> {
               onPageChanged: (i) => setState(() => _i = i),
               itemBuilder: (_, i) {
                 final job = widget.jobs[i];
-                if (job.isAudio) return GeneratedAudio(key: ValueKey(job.id), job: job);
+                if (job.isAudio)
+                  return GeneratedAudio(key: ValueKey(job.id), job: job);
                 return job.isVideo
                     ? NetworkVideo(
-                        key: ValueKey(job.id),
-                        url: job.fileUrl,
-                        headers: GenerateService.authHeaders)
+                      key: ValueKey(job.id),
+                      url: job.fileUrl,
+                      headers: GenerateService.authHeaders,
+                    )
                     : InteractiveViewer(
-                        child: Center(
-                          child: Image.network(job.fileUrl,
-                              headers: GenerateService.authHeaders),
+                      child: Center(
+                        child: Image.network(
+                          job.fileUrl,
+                          headers: GenerateService.authHeaders,
                         ),
-                      );
+                      ),
+                    );
               },
             ),
           ),
@@ -1106,7 +1207,13 @@ class _ViewerPageState extends State<_ViewerPage> {
     return Container(
       width: double.infinity,
       color: Colors.black,
-      padding: bottomSafePadding(context, left: 16, top: 10, right: 16, bottom: 20),
+      padding: bottomSafePadding(
+        context,
+        left: 16,
+        top: 10,
+        right: 16,
+        bottom: 20,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -1118,9 +1225,13 @@ class _ViewerPageState extends State<_ViewerPage> {
             style: const TextStyle(fontSize: 12, color: Colors.white70),
           ),
           const SizedBox(height: 6),
-          Text(bits.join('  ·  '),
-              style: const TextStyle(fontSize: 11, color: Colors.grey)),
-          if ((j.mode == 'jigsaw' || j.mode == 'cbn') && j.isDone && j.isImage) ...[
+          Text(
+            bits.join('  ·  '),
+            style: const TextStyle(fontSize: 11, color: Colors.grey),
+          ),
+          if ((j.mode == 'jigsaw' || j.mode == 'cbn') &&
+              j.isDone &&
+              j.isImage) ...[
             const SizedBox(height: 10),
             Row(
               children: [

@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import '../services/api_service.dart';
 import '../theme.dart';
 import '../l10n/app_localizations.dart';
+import 'app_toast.dart';
 
 /// A file staged for upload. The sheet has to remember whether a pick is a
 /// document or an image: PDFs cannot be shown as a thumbnail.
@@ -337,14 +338,10 @@ class CreateTaskSheet {
                                     final picked = await _pickPdfs();
                                     if (!ctx.mounted) return;
                                     if (picked.oversized.isNotEmpty) {
-                                      ScaffoldMessenger.of(ctx).showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            l10n.fileTooLarge(
-                                                _maxPdfBytes ~/ (1024 * 1024),
-                                                picked.oversized.join(', ')),
-                                          ),
-                                          backgroundColor: AppColors.warning,
+                                      AppToast.of(ctx).show(
+                                        l10n.fileTooLarge(
+                                          _maxPdfBytes ~/ (1024 * 1024),
+                                          picked.oversized.join(', '),
                                         ),
                                       );
                                     }
@@ -382,12 +379,9 @@ class CreateTaskSheet {
                                 HapticFeedback.lightImpact();
                                 final title = titleController.text.trim();
                                 if (title.isEmpty) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(l10n.titleIsRequired),
-                                      backgroundColor: AppColors.warning,
-                                    ),
-                                  );
+                                  AppToast.of(
+                                    context,
+                                  ).show(l10n.titleIsRequired);
                                   return;
                                 }
                                 setSheetState(() => submitting = true);
@@ -411,19 +405,12 @@ class CreateTaskSheet {
                                 );
                                 if (ctx.mounted) Navigator.pop(ctx);
                                 if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        result.ok
-                                            ? l10n.itemCreated
-                                            : result.error ??
-                                                l10n.failedToCreateItem,
-                                      ),
-                                      backgroundColor:
-                                          result.ok
-                                              ? AppColors.success
-                                              : AppColors.error,
-                                    ),
+                                  AppToast.of(context).show(
+                                    result.ok
+                                        ? l10n.itemCreated
+                                        : result.error ??
+                                            l10n.failedToCreateItem,
+                                    error: true,
                                   );
                                   if (result.ok) onCreated();
                                 }

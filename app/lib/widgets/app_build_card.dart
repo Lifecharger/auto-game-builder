@@ -8,6 +8,7 @@ import '../config.dart';
 import '../services/api_service.dart';
 import '../theme.dart';
 import '../l10n/app_localizations.dart';
+import 'app_toast.dart';
 
 class AppBuildCard extends StatefulWidget {
   final int appId;
@@ -62,7 +63,8 @@ class _AppBuildCardState extends State<AppBuildCard> {
       _buildTarget == 'aab' || _buildTarget == 'ios' || _buildTarget == 'dual';
 
   String _uploadLabel(AppLocalizations l10n) {
-    if (_buildTarget == 'dual') return 'Upload to Google Play & Apple App Store';
+    if (_buildTarget == 'dual')
+      return 'Upload to Google Play & Apple App Store';
     if (_buildTarget == 'ios') return 'Upload to Apple TestFlight / App Store';
     return l10n.uploadToGooglePlay;
   }
@@ -142,7 +144,8 @@ class _AppBuildCardState extends State<AppBuildCard> {
       setState(() {
         if (targetIsValid) {
           _buildTarget = target;
-        } else if (_targets.isNotEmpty && !_targets.any((t) => t.key == _buildTarget)) {
+        } else if (_targets.isNotEmpty &&
+            !_targets.any((t) => t.key == _buildTarget)) {
           _buildTarget = _targets.first.key;
         }
         if (upload != null) _uploadAfterBuild = upload;
@@ -165,27 +168,30 @@ class _AppBuildCardState extends State<AppBuildCard> {
     if (isProd && isUpload) {
       final confirm = await showDialog<bool>(
         context: context,
-        builder: (ctx) => AlertDialog(
-          backgroundColor: AppColors.bgCard,
-          icon: Icon(Icons.warning_amber, size: 40, color: AppColors.error),
-          title: Text(l10n.deployToProductionTitle),
-          content: Text(
-            _buildTarget == 'dual'
-                ? 'This will release the app directly to Production on BOTH Google Play and Apple App Store.'
-                : l10n.deployToProductionBody,
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text(l10n.cancel),
+        builder:
+            (ctx) => AlertDialog(
+              backgroundColor: AppColors.bgCard,
+              icon: Icon(Icons.warning_amber, size: 40, color: AppColors.error),
+              title: Text(l10n.deployToProductionTitle),
+              content: Text(
+                _buildTarget == 'dual'
+                    ? 'This will release the app directly to Production on BOTH Google Play and Apple App Store.'
+                    : l10n.deployToProductionBody,
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: Text(l10n.cancel),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.error,
+                  ),
+                  child: Text(l10n.deployToProduction),
+                ),
+              ],
             ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              style: FilledButton.styleFrom(backgroundColor: AppColors.error),
-              child: Text(l10n.deployToProduction),
-            ),
-          ],
-        ),
       );
       if (confirm != true || !mounted) return;
     }
@@ -198,10 +204,9 @@ class _AppBuildCardState extends State<AppBuildCard> {
       upload: _uploadAfterBuild && _supportsUpload,
     );
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(result.ok ? result.data! : result.error!),
-        backgroundColor: result.ok ? AppColors.success : AppColors.error,
-      ));
+      AppToast.of(
+        context,
+      ).show(result.ok ? result.data! : result.error!, error: true);
       if (result.ok) {
         setState(() => _deploying = true);
         _pollDeployStatus();
@@ -215,7 +220,8 @@ class _AppBuildCardState extends State<AppBuildCard> {
     final deadline = DateTime.now().add(const Duration(minutes: 30));
     while (_deploying && mounted && myGeneration == _deployPollGeneration) {
       await Future.delayed(const Duration(seconds: 3));
-      if (!_deploying || !mounted || myGeneration != _deployPollGeneration) return;
+      if (!_deploying || !mounted || myGeneration != _deployPollGeneration)
+        return;
       if (DateTime.now().isAfter(deadline)) {
         if (mounted) {
           setState(() {
@@ -250,15 +256,9 @@ class _AppBuildCardState extends State<AppBuildCard> {
     ]);
     if (mounted) {
       setState(() {
-        _deployStatus = {
-          'phase': 'failed',
-          'message': l10n.buildCancelled,
-        };
+        _deployStatus = {'phase': 'failed', 'message': l10n.buildCancelled};
       });
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(l10n.buildCancelled),
-        backgroundColor: AppColors.success,
-      ));
+      AppToast.of(context).show(l10n.buildCancelled);
     }
   }
 
@@ -266,26 +266,30 @@ class _AppBuildCardState extends State<AppBuildCard> {
     final track = _deployStatus?['track'] ?? 'internal';
     setState(() => _deploying = true);
     try {
-      final response = await http.post(
-        Uri.parse('${AppConfig.baseUrl}/api/apps/${widget.appId}/deploy/retry-upload'),
-        headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
-        body: jsonEncode({'track': track}),
-      ).timeout(const Duration(minutes: 10));
+      final response = await http
+          .post(
+            Uri.parse(
+              '${AppConfig.baseUrl}/api/apps/${widget.appId}/deploy/retry-upload',
+            ),
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: jsonEncode({'track': track}),
+          )
+          .timeout(const Duration(minutes: 10));
       if (mounted) {
         final ok = response.statusCode == 200;
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(ok ? l10n.reuploadStarted : l10n.failedToStartReupload),
-          backgroundColor: ok ? AppColors.success : AppColors.error,
-        ));
+        AppToast.of(context).show(
+          ok ? l10n.reuploadStarted : l10n.failedToStartReupload,
+          error: true,
+        );
         if (ok) _pollDeployStatus();
       }
     } catch (e) {
       if (mounted) {
         setState(() => _deploying = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(l10n.errorWithMessage(e)),
-          backgroundColor: AppColors.error,
-        ));
+        AppToast.of(context).show(l10n.errorWithMessage(e), error: true);
       }
     }
   }
@@ -294,7 +298,8 @@ class _AppBuildCardState extends State<AppBuildCard> {
   Widget build(BuildContext context) {
     final phase = _deployStatus?['phase'] ?? 'none';
     final message = _deployStatus?['message'] ?? '';
-    final isActive = _deploying && phase != 'none' && phase != 'done' && phase != 'failed';
+    final isActive =
+        _deploying && phase != 'none' && phase != 'done' && phase != 'failed';
 
     return Card(
       child: Padding(
@@ -307,23 +312,44 @@ class _AppBuildCardState extends State<AppBuildCard> {
               children: [
                 Icon(Icons.build_circle, color: AppColors.accent),
                 const SizedBox(width: 8),
-                Text(l10n.buildAndDeploy, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                Text(
+                  l10n.buildAndDeploy,
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
               ],
             ),
             const SizedBox(height: 14),
 
             // Build target chips
-            Text(l10n.buildTarget, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade400)),
+            Text(
+              l10n.buildTarget,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade400,
+              ),
+            ),
             const SizedBox(height: 8),
             if (_targetsLoading)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 12),
-                child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
+                child: Center(
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
               )
             else if (_targetsError != null)
               Row(
                 children: [
-                  Expanded(child: Text(_targetsError!, style: TextStyle(fontSize: 12, color: AppColors.error))),
+                  Expanded(
+                    child: Text(
+                      _targetsError!,
+                      style: TextStyle(fontSize: 12, color: AppColors.error),
+                    ),
+                  ),
                   TextButton.icon(
                     onPressed: _loadTargetsAndPrefs,
                     icon: const Icon(Icons.refresh, size: 16),
@@ -332,78 +358,125 @@ class _AppBuildCardState extends State<AppBuildCard> {
                 ],
               )
             else if (_targets.isEmpty)
-              Text(l10n.noBuildTargetsFor(widget.appType),
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500))
+              Text(
+                l10n.noBuildTargetsFor(widget.appType),
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+              )
             else
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: _targets.map((t) {
-                final key = t.key;
-                final label = t.value;
-                final selected = _buildTarget == key;
-                final disabled = isActive && !selected;
-                return GestureDetector(
-                  onTap: isActive ? null : () {
-                    setState(() => _buildTarget = key);
-                    _saveBuildPrefs();
-                  },
-                  child: AnimatedOpacity(
-                    opacity: disabled ? 0.35 : 1.0,
-                    duration: const Duration(milliseconds: 150),
-                    child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                    decoration: BoxDecoration(
-                      color: selected ? AppColors.accent.withValues(alpha: 0.25) : AppColors.bgDark,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: selected ? AppColors.accent : Colors.grey.shade700,
-                        width: selected ? 1.5 : 1,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(_targetIcons[key] ?? Icons.build, size: 16,
-                            color: selected ? AppColors.accent : Colors.grey.shade400),
-                        const SizedBox(width: 6),
-                        Text(label, style: TextStyle(fontSize: 13,
-                            color: selected ? AppColors.accent : Colors.grey.shade300,
-                            fontWeight: selected ? FontWeight.w600 : FontWeight.normal)),
-                      ],
-                    ),
-                  ),
-                  ),
-                );
-              }).toList(),
-            ),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children:
+                    _targets.map((t) {
+                      final key = t.key;
+                      final label = t.value;
+                      final selected = _buildTarget == key;
+                      final disabled = isActive && !selected;
+                      return GestureDetector(
+                        onTap:
+                            isActive
+                                ? null
+                                : () {
+                                  setState(() => _buildTarget = key);
+                                  _saveBuildPrefs();
+                                },
+                        child: AnimatedOpacity(
+                          opacity: disabled ? 0.35 : 1.0,
+                          duration: const Duration(milliseconds: 150),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 150),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 14,
+                            ),
+                            decoration: BoxDecoration(
+                              color:
+                                  selected
+                                      ? AppColors.accent.withValues(alpha: 0.25)
+                                      : AppColors.bgDark,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color:
+                                    selected
+                                        ? AppColors.accent
+                                        : Colors.grey.shade700,
+                                width: selected ? 1.5 : 1,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  _targetIcons[key] ?? Icons.build,
+                                  size: 16,
+                                  color:
+                                      selected
+                                          ? AppColors.accent
+                                          : Colors.grey.shade400,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  label,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color:
+                                        selected
+                                            ? AppColors.accent
+                                            : Colors.grey.shade300,
+                                    fontWeight:
+                                        selected
+                                            ? FontWeight.w600
+                                            : FontWeight.normal,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+              ),
             const SizedBox(height: 14),
 
             // Upload toggle
             InkWell(
               borderRadius: BorderRadius.circular(8),
-              onTap: !_supportsUpload || isActive ? null : () {
-                setState(() => _uploadAfterBuild = !_uploadAfterBuild);
-                _saveBuildPrefs();
-              },
+              onTap:
+                  !_supportsUpload || isActive
+                      ? null
+                      : () {
+                        setState(() => _uploadAfterBuild = !_uploadAfterBuild);
+                        _saveBuildPrefs();
+                      },
               child: ConstrainedBox(
                 constraints: const BoxConstraints(minHeight: 48),
                 child: Row(
                   children: [
                     Checkbox(
                       value: _uploadAfterBuild && _supportsUpload,
-                      onChanged: !_supportsUpload || isActive ? null : (v) {
-                        setState(() => _uploadAfterBuild = v ?? false);
-                        _saveBuildPrefs();
-                      },
+                      onChanged:
+                          !_supportsUpload || isActive
+                              ? null
+                              : (v) {
+                                setState(() => _uploadAfterBuild = v ?? false);
+                                _saveBuildPrefs();
+                              },
                       activeColor: AppColors.accent,
                       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
                     const SizedBox(width: 4),
-                    Expanded(child: Text(_uploadLabel(l10n),
-                        style: TextStyle(fontSize: 13,
-                            color: _supportsUpload ? Colors.grey.shade200 : Colors.grey.shade600))),
+                    Expanded(
+                      child: Text(
+                        _uploadLabel(l10n),
+                        style: TextStyle(
+                          fontSize: 13,
+                          color:
+                              _supportsUpload
+                                  ? Colors.grey.shade200
+                                  : Colors.grey.shade600,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -419,18 +492,32 @@ class _AppBuildCardState extends State<AppBuildCard> {
                   width: double.infinity,
                   child: SegmentedButton<String>(
                     segments: [
-                      ButtonSegment(value: 'internal', label: Text(l10n.trackInternal)),
-                      ButtonSegment(value: 'alpha', label: Text(l10n.trackAlpha)),
+                      ButtonSegment(
+                        value: 'internal',
+                        label: Text(l10n.trackInternal),
+                      ),
+                      ButtonSegment(
+                        value: 'alpha',
+                        label: Text(l10n.trackAlpha),
+                      ),
                       ButtonSegment(value: 'beta', label: Text(l10n.trackBeta)),
-                      ButtonSegment(value: 'production', label: Text(l10n.trackProd)),
+                      ButtonSegment(
+                        value: 'production',
+                        label: Text(l10n.trackProd),
+                      ),
                     ],
                     selected: {_buildTrack},
-                    onSelectionChanged: isActive ? null : (set) {
-                      setState(() => _buildTrack = set.first);
-                      _saveBuildPrefs();
-                    },
+                    onSelectionChanged:
+                        isActive
+                            ? null
+                            : (set) {
+                              setState(() => _buildTrack = set.first);
+                              _saveBuildPrefs();
+                            },
                     style: ButtonStyle(
-                      backgroundColor: WidgetStateProperty.resolveWith((states) {
+                      backgroundColor: WidgetStateProperty.resolveWith((
+                        states,
+                      ) {
                         if (states.contains(WidgetState.selected)) {
                           return AppColors.accent.withValues(alpha: 0.3);
                         }
@@ -444,8 +531,10 @@ class _AppBuildCardState extends State<AppBuildCard> {
               if (_buildTrack == 'production')
                 Padding(
                   padding: const EdgeInsets.only(top: 6),
-                  child: Text(l10n.warningPublishesToAll,
-                      style: TextStyle(color: AppColors.error, fontSize: 11)),
+                  child: Text(
+                    l10n.warningPublishesToAll,
+                    style: TextStyle(color: AppColors.error, fontSize: 11),
+                  ),
                 ),
             ],
             const SizedBox(height: 14),
@@ -453,15 +542,26 @@ class _AppBuildCardState extends State<AppBuildCard> {
             // Build button
             if (!isActive)
               SizedBox(
-                width: double.infinity, height: 44,
+                width: double.infinity,
+                height: 44,
                 child: FilledButton.icon(
-                  onPressed: _targetsLoading || _targets.isEmpty ? null : () => _startBuild(),
+                  onPressed:
+                      _targetsLoading || _targets.isEmpty
+                          ? null
+                          : () => _startBuild(),
                   icon: const Icon(Icons.rocket_launch, size: 18),
-                  label: Text(_uploadAfterBuild && _supportsUpload
-                      ? l10n.buildAndDeploy : l10n.build),
+                  label: Text(
+                    _uploadAfterBuild && _supportsUpload
+                        ? l10n.buildAndDeploy
+                        : l10n.build,
+                  ),
                   style: FilledButton.styleFrom(
-                    backgroundColor: _buildTrack == 'production' && _uploadAfterBuild && _supportsUpload
-                        ? AppColors.error : AppColors.accent,
+                    backgroundColor:
+                        _buildTrack == 'production' &&
+                                _uploadAfterBuild &&
+                                _supportsUpload
+                            ? AppColors.error
+                            : AppColors.accent,
                   ),
                 ),
               ),
@@ -478,7 +578,10 @@ class _AppBuildCardState extends State<AppBuildCard> {
                   Expanded(
                     child: Text(
                       '${phase.toUpperCase()}: $message',
-                      style: TextStyle(fontSize: 13, color: Colors.grey.shade300),
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey.shade300,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -502,7 +605,12 @@ class _AppBuildCardState extends State<AppBuildCard> {
                 children: [
                   Icon(Icons.check_circle, color: AppColors.success, size: 18),
                   const SizedBox(width: 6),
-                  Expanded(child: Text(message, style: TextStyle(fontSize: 13, color: AppColors.success))),
+                  Expanded(
+                    child: Text(
+                      message,
+                      style: TextStyle(fontSize: 13, color: AppColors.success),
+                    ),
+                  ),
                 ],
               ),
             ],
@@ -514,7 +622,12 @@ class _AppBuildCardState extends State<AppBuildCard> {
                 children: [
                   Icon(Icons.error, color: AppColors.error, size: 18),
                   const SizedBox(width: 6),
-                  Expanded(child: Text(message, style: TextStyle(fontSize: 13, color: AppColors.error))),
+                  Expanded(
+                    child: Text(
+                      message,
+                      style: TextStyle(fontSize: 13, color: AppColors.error),
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 8),
@@ -535,22 +648,26 @@ class _AppBuildCardState extends State<AppBuildCard> {
                     onPressed: () async {
                       final confirm = await showDialog<bool>(
                         context: context,
-                        builder: (ctx) => AlertDialog(
-                          backgroundColor: AppColors.bgCard,
-                          icon: Icon(Icons.replay, color: AppColors.warning),
-                          title: Text(l10n.rebuildTitle),
-                          content: Text(l10n.rebuildBody),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(ctx, false),
-                              child: Text(l10n.cancel),
+                        builder:
+                            (ctx) => AlertDialog(
+                              backgroundColor: AppColors.bgCard,
+                              icon: Icon(
+                                Icons.replay,
+                                color: AppColors.warning,
+                              ),
+                              title: Text(l10n.rebuildTitle),
+                              content: Text(l10n.rebuildBody),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx, false),
+                                  child: Text(l10n.cancel),
+                                ),
+                                FilledButton(
+                                  onPressed: () => Navigator.pop(ctx, true),
+                                  child: Text(l10n.rebuild),
+                                ),
+                              ],
                             ),
-                            FilledButton(
-                              onPressed: () => Navigator.pop(ctx, true),
-                              child: Text(l10n.rebuild),
-                            ),
-                          ],
-                        ),
                       );
                       if (confirm == true) _startBuild();
                     },

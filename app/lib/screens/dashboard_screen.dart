@@ -22,6 +22,7 @@ import '../l10n/app_localizations.dart';
 import '../utils/l10n_labels.dart';
 import '../services/mode_service.dart';
 import '../services/user_session.dart';
+import '../widgets/app_toast.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -30,7 +31,8 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingObserver {
+class _DashboardScreenState extends State<DashboardScreen>
+    with WidgetsBindingObserver {
   AppLocalizations get l10n => AppLocalizations.of(context)!;
 
   Map<String, String?> _installedVersions = {};
@@ -41,6 +43,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   static const _postponedAppsKey = 'postponed_app_ids';
   static const _completedExpandedKey = 'dashboard_completed_expanded';
   static const _postponedExpandedKey = 'dashboard_postponed_expanded';
+
   /// App ids whose card shows the store details (remembered on this phone).
   Set<int> _storeExpandedIds = {};
   DateTime? _lastSyncedAt;
@@ -94,7 +97,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     final expanded = prefs.getBool(_completedExpandedKey) ?? false;
     if (mounted) {
       setState(() {
-        _completedAppIds = ids.map((e) => int.tryParse(e) ?? 0).where((e) => e > 0).toSet();
+        _completedAppIds =
+            ids.map((e) => int.tryParse(e) ?? 0).where((e) => e > 0).toSet();
         _completedExpanded = expanded;
       });
     }
@@ -148,7 +152,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     final expanded = prefs.getBool(_postponedExpandedKey) ?? false;
     if (mounted) {
       setState(() {
-        _postponedAppIds = ids.map((e) => int.tryParse(e) ?? 0).where((e) => e > 0).toSet();
+        _postponedAppIds =
+            ids.map((e) => int.tryParse(e) ?? 0).where((e) => e > 0).toSet();
         _postponedExpanded = expanded;
       });
     }
@@ -193,21 +198,29 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         _syncFailed = hasError;
         if (!hasError) _lastSyncedAt = DateTime.now();
       });
-      if (force) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(hasError
-              ? l10n.forceRefreshFailed('${state.error}')
-              : l10n.refreshedFromServer),
-          backgroundColor:
-              hasError ? AppColors.error : AppColors.success,
-          duration: Duration(seconds: hasError ? 4 : 2),
-          action: hasError
-              ? SnackBarAction(
-                  label: l10n.retry,
-                  onPressed: () => _refresh(force: true),
-                )
-              : null,
-        ));
+      if (force && !hasError) {
+        AppToast.of(context).show(l10n.refreshedFromServer);
+      } else if (force) {
+        final retry = await showDialog<bool>(
+          context: context,
+          builder:
+              (dialogContext) => AlertDialog(
+                content: Text(l10n.forceRefreshFailed('${state.error}')),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(false),
+                    child: Text(
+                      MaterialLocalizations.of(dialogContext).closeButtonLabel,
+                    ),
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(true),
+                    child: Text(l10n.retry),
+                  ),
+                ],
+              ),
+        );
+        if (retry == true && mounted) await _refresh(force: true);
       }
     }
   }
@@ -220,39 +233,28 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   Future<void> _scanProjects() async {
     HapticFeedback.lightImpact();
     try {
-      final resp = await http.post(
-        Uri.parse('${ApiService.baseUrl}/api/apps/scan'),
-        headers: {'Content-Type': 'application/json'},
-      ).timeout(const Duration(seconds: 30));
+      final resp = await http
+          .post(
+            Uri.parse('${ApiService.baseUrl}/api/apps/scan'),
+            headers: {'Content-Type': 'application/json'},
+          )
+          .timeout(const Duration(seconds: 30));
       if (!mounted) return;
       if (resp.statusCode != 200) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(l10n.scanFailedStatus(resp.statusCode)),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        AppToast.of(
+          context,
+        ).show(l10n.scanFailedStatus(resp.statusCode), error: true);
         return;
       }
       final data = jsonDecode(resp.body);
       final imported = data['imported'] ?? 0;
       final found = data['found'] ?? 0;
       final skipped = data['skipped'] ?? 0;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(l10n.scanResult(found, imported, skipped)),
-          backgroundColor: imported > 0 ? AppColors.success : AppColors.info,
-        ),
-      );
+      AppToast.of(context).show(l10n.scanResult(found, imported, skipped));
       if (imported > 0) await _refresh();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(l10n.scanError(e)),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        AppToast.of(context).show(l10n.scanError(e), error: true);
       }
     }
   }
@@ -268,8 +270,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     final packageNames =
         apps.map((a) => a.packageName).where((p) => p.isNotEmpty).toList();
     if (packageNames.isEmpty) return;
-    final versions =
-        await InstalledAppsService.getInstalledVersions(packageNames);
+    final versions = await InstalledAppsService.getInstalledVersions(
+      packageNames,
+    );
     if (mounted) {
       setState(() => _installedVersions = versions);
     }
@@ -367,14 +370,21 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                   const SizedBox(height: 16),
                   Text(
                     l10n.cannotReachServer,
-                    style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 32),
                     child: Text(
                       state.error!,
-                      style: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+                      style: TextStyle(
+                        color: Colors.grey.shade400,
+                        fontSize: 14,
+                      ),
                       textAlign: TextAlign.center,
                     ),
                   ),
@@ -389,201 +399,319 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             );
           }
 
-          final activeApps = state.apps
-              .where((a) => !_completedAppIds.contains(a.id) && !_postponedAppIds.contains(a.id))
-              .toList();
-          final completedApps = state.apps
-              .where((a) => _completedAppIds.contains(a.id))
-              .toList();
-          final postponedApps = state.apps
-              .where((a) => _postponedAppIds.contains(a.id) && !_completedAppIds.contains(a.id))
-              .toList();
+          final activeApps =
+              state.apps
+                  .where(
+                    (a) =>
+                        !_completedAppIds.contains(a.id) &&
+                        !_postponedAppIds.contains(a.id),
+                  )
+                  .toList();
+          final completedApps =
+              state.apps.where((a) => _completedAppIds.contains(a.id)).toList();
+          final postponedApps =
+              state.apps
+                  .where(
+                    (a) =>
+                        _postponedAppIds.contains(a.id) &&
+                        !_completedAppIds.contains(a.id),
+                  )
+                  .toList();
 
           final showCreateEmpty = state.apps.isEmpty;
-          final showAllCategorized = !showCreateEmpty && activeApps.isEmpty && (completedApps.isNotEmpty || postponedApps.isNotEmpty);
+          final showAllCategorized =
+              !showCreateEmpty &&
+              activeApps.isEmpty &&
+              (completedApps.isNotEmpty || postponedApps.isNotEmpty);
 
           return RefreshIndicator(
             color: AppColors.accent,
             onRefresh: _pullRefresh,
-            child: showCreateEmpty
-                ? ListView(
-                    children: [
-                      const SizedBox(height: 120),
-                      Center(
-                        child: Column(
-                          children: [
-                            Icon(Icons.rocket_launch, size: 64, color: Colors.grey.shade600),
-                            const SizedBox(height: 16),
-                            Text(
-                              l10n.noAppsYet,
-                              style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w600),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              l10n.createFirstApp,
-                              style: TextStyle(color: Colors.grey.shade400, fontSize: 14),
-                            ),
-                            const SizedBox(height: 24),
-                            FilledButton.icon(
-                              onPressed: () => _showCreateAppSheet(),
-                              icon: const Icon(Icons.add),
-                              label: Text(l10n.createApp),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  )
-                : ListView(
-                    // Extra bottom padding clears the stacked FABs
-                    // (lightbulb + plus = ~56+16+56) plus a small
-                    // breathing margin so the last app card never
-                    // sits behind them.
-                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 160),
-                    children: [
-                      _TaskSummaryCard(apps: state.apps, totalBuilds: state.totalBuilds),
-                      if (showAllCategorized)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 24),
-                          child: Center(
-                            child: Column(
-                              children: [
-                                Icon(Icons.check_circle_outline, size: 48, color: Colors.grey.shade600),
-                                const SizedBox(height: 12),
-                                Text(
-                                  l10n.allAppsCompletedOrPostponed,
-                                  style: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+            child:
+                showCreateEmpty
+                    ? ListView(
+                      children: [
+                        const SizedBox(height: 120),
+                        Center(
+                          child: Column(
+                            children: [
+                              Icon(
+                                Icons.rocket_launch,
+                                size: 64,
+                                color: Colors.grey.shade600,
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                l10n.noAppsYet,
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w600,
                                 ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  l10n.expandFoldersOrCreate,
-                                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                l10n.createFirstApp,
+                                style: TextStyle(
+                                  color: Colors.grey.shade400,
+                                  fontSize: 14,
                                 ),
-                              ],
-                            ),
+                              ),
+                              const SizedBox(height: 24),
+                              FilledButton.icon(
+                                onPressed: () => _showCreateAppSheet(),
+                                icon: const Icon(Icons.add),
+                                label: Text(l10n.createApp),
+                              ),
+                            ],
                           ),
                         ),
-                      ...activeApps.map((app) => AppCard(
-                        app: app,
-                        taskStatus: app.taskStatus,
-                        installedVersion: app.packageName.isNotEmpty
-                            ? _installedVersions[app.packageName]
-                            : null,
-                        hasPackageName: app.packageName.isNotEmpty,
-                        appStatus: AppCardStatus.active,
-                        storeExpanded: _storeExpandedIds.contains(app.id),
-                        onToggleStore: () => _toggleStoreExpanded(app.id),
-                        onStoreChanged: _refresh,
-                        onToggleCompleted: () => _toggleAppCompleted(app.id),
-                        onTogglePostponed: () => _toggleAppPostponed(app.id),
-                        onIconTap: () => context.read<AppState>().requestIssuesForApp(app.id),
-                        onAttentionTap: () => context.read<AppState>()
-                            .requestIssuesForApp(app.id, statusFilter: 'failed'),
-                      )),
-                      if (postponedApps.isNotEmpty)
-                        Card(
-                          margin: const EdgeInsets.only(top: 4, bottom: 10),
-                          clipBehavior: Clip.antiAlias,
-                          child: ExpansionTile(
-                            key: PageStorageKey('postponed_folder'),
-                            initiallyExpanded: _postponedExpanded,
-                            onExpansionChanged: (expanded) async {
-                              setState(() => _postponedExpanded = expanded);
-                              final prefs = await SharedPreferences.getInstance();
-                              await prefs.setBool(_postponedExpandedKey, expanded);
-                            },
-                            leading: Icon(
-                              _postponedExpanded ? Icons.folder_open : Icons.folder,
-                              color: AppColors.warning,
-                            ),
-                            title: Text(
-                              l10n.postponedCount(postponedApps.length),
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 15,
+                      ],
+                    )
+                    : ListView(
+                      // Extra bottom padding clears the stacked FABs
+                      // (lightbulb + plus = ~56+16+56) plus a small
+                      // breathing margin so the last app card never
+                      // sits behind them.
+                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 160),
+                      children: [
+                        _TaskSummaryCard(
+                          apps: state.apps,
+                          totalBuilds: state.totalBuilds,
+                        ),
+                        if (showAllCategorized)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 24),
+                            child: Center(
+                              child: Column(
+                                children: [
+                                  Icon(
+                                    Icons.check_circle_outline,
+                                    size: 48,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    l10n.allAppsCompletedOrPostponed,
+                                    style: TextStyle(
+                                      color: Colors.grey.shade400,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    l10n.expandFoldersOrCreate,
+                                    style: TextStyle(
+                                      color: Colors.grey.shade600,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                            subtitle: Text(
-                              l10n.onHold,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey.shade500,
-                              ),
-                            ),
-                            tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                            childrenPadding: const EdgeInsets.only(left: 8, right: 8, bottom: 8),
-                            children: postponedApps.map((app) => AppCard(
-                              app: app,
-                              taskStatus: app.taskStatus,
-                              installedVersion: app.packageName.isNotEmpty
-                                  ? _installedVersions[app.packageName]
-                                  : null,
-                              hasPackageName: app.packageName.isNotEmpty,
-                              appStatus: AppCardStatus.postponed,
-                        storeExpanded: _storeExpandedIds.contains(app.id),
-                        onToggleStore: () => _toggleStoreExpanded(app.id),
-                        onStoreChanged: _refresh,
-                              onToggleCompleted: () => _toggleAppCompleted(app.id),
-                              onTogglePostponed: () => _toggleAppPostponed(app.id),
-                              onIconTap: () => context.read<AppState>().requestIssuesForApp(app.id),
-                        onAttentionTap: () => context.read<AppState>()
-                            .requestIssuesForApp(app.id, statusFilter: 'failed'),
-                            )).toList(),
+                          ),
+                        ...activeApps.map(
+                          (app) => AppCard(
+                            app: app,
+                            taskStatus: app.taskStatus,
+                            installedVersion:
+                                app.packageName.isNotEmpty
+                                    ? _installedVersions[app.packageName]
+                                    : null,
+                            hasPackageName: app.packageName.isNotEmpty,
+                            appStatus: AppCardStatus.active,
+                            storeExpanded: _storeExpandedIds.contains(app.id),
+                            onToggleStore: () => _toggleStoreExpanded(app.id),
+                            onStoreChanged: _refresh,
+                            onToggleCompleted:
+                                () => _toggleAppCompleted(app.id),
+                            onTogglePostponed:
+                                () => _toggleAppPostponed(app.id),
+                            onIconTap:
+                                () => context
+                                    .read<AppState>()
+                                    .requestIssuesForApp(app.id),
+                            onAttentionTap:
+                                () => context
+                                    .read<AppState>()
+                                    .requestIssuesForApp(
+                                      app.id,
+                                      statusFilter: 'failed',
+                                    ),
                           ),
                         ),
-                      if (completedApps.isNotEmpty)
-                        Card(
-                          margin: const EdgeInsets.only(top: 4, bottom: 10),
-                          clipBehavior: Clip.antiAlias,
-                          child: ExpansionTile(
-                            key: PageStorageKey('completed_folder'),
-                            initiallyExpanded: _completedExpanded,
-                            onExpansionChanged: (expanded) async {
-                              setState(() => _completedExpanded = expanded);
-                              final prefs = await SharedPreferences.getInstance();
-                              await prefs.setBool(_completedExpandedKey, expanded);
-                            },
-                            leading: Icon(
-                              _completedExpanded ? Icons.folder_open : Icons.folder,
-                              color: AppColors.success,
-                            ),
-                            title: Text(
-                              l10n.completedCount(completedApps.length),
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 15,
+                        if (postponedApps.isNotEmpty)
+                          Card(
+                            margin: const EdgeInsets.only(top: 4, bottom: 10),
+                            clipBehavior: Clip.antiAlias,
+                            child: ExpansionTile(
+                              key: PageStorageKey('postponed_folder'),
+                              initiallyExpanded: _postponedExpanded,
+                              onExpansionChanged: (expanded) async {
+                                setState(() => _postponedExpanded = expanded);
+                                final prefs =
+                                    await SharedPreferences.getInstance();
+                                await prefs.setBool(
+                                  _postponedExpandedKey,
+                                  expanded,
+                                );
+                              },
+                              leading: Icon(
+                                _postponedExpanded
+                                    ? Icons.folder_open
+                                    : Icons.folder,
+                                color: AppColors.warning,
                               ),
-                            ),
-                            subtitle: Text(
-                              l10n.maintenanceOnly,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey.shade500,
+                              title: Text(
+                                l10n.postponedCount(postponedApps.length),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 15,
+                                ),
                               ),
+                              subtitle: Text(
+                                l10n.onHold,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey.shade500,
+                                ),
+                              ),
+                              tilePadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 4,
+                              ),
+                              childrenPadding: const EdgeInsets.only(
+                                left: 8,
+                                right: 8,
+                                bottom: 8,
+                              ),
+                              children:
+                                  postponedApps
+                                      .map(
+                                        (app) => AppCard(
+                                          app: app,
+                                          taskStatus: app.taskStatus,
+                                          installedVersion:
+                                              app.packageName.isNotEmpty
+                                                  ? _installedVersions[app
+                                                      .packageName]
+                                                  : null,
+                                          hasPackageName:
+                                              app.packageName.isNotEmpty,
+                                          appStatus: AppCardStatus.postponed,
+                                          storeExpanded: _storeExpandedIds
+                                              .contains(app.id),
+                                          onToggleStore:
+                                              () =>
+                                                  _toggleStoreExpanded(app.id),
+                                          onStoreChanged: _refresh,
+                                          onToggleCompleted:
+                                              () => _toggleAppCompleted(app.id),
+                                          onTogglePostponed:
+                                              () => _toggleAppPostponed(app.id),
+                                          onIconTap:
+                                              () => context
+                                                  .read<AppState>()
+                                                  .requestIssuesForApp(app.id),
+                                          onAttentionTap:
+                                              () => context
+                                                  .read<AppState>()
+                                                  .requestIssuesForApp(
+                                                    app.id,
+                                                    statusFilter: 'failed',
+                                                  ),
+                                        ),
+                                      )
+                                      .toList(),
                             ),
-                            tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                            childrenPadding: const EdgeInsets.only(left: 8, right: 8, bottom: 8),
-                            children: completedApps.map((app) => AppCard(
-                              app: app,
-                              taskStatus: app.taskStatus,
-                              installedVersion: app.packageName.isNotEmpty
-                                  ? _installedVersions[app.packageName]
-                                  : null,
-                              hasPackageName: app.packageName.isNotEmpty,
-                              appStatus: AppCardStatus.completed,
-                        storeExpanded: _storeExpandedIds.contains(app.id),
-                        onToggleStore: () => _toggleStoreExpanded(app.id),
-                        onStoreChanged: _refresh,
-                              onToggleCompleted: () => _toggleAppCompleted(app.id),
-                              onTogglePostponed: () => _toggleAppPostponed(app.id),
-                              onIconTap: () => context.read<AppState>().requestIssuesForApp(app.id),
-                        onAttentionTap: () => context.read<AppState>()
-                            .requestIssuesForApp(app.id, statusFilter: 'failed'),
-                            )).toList(),
                           ),
-                        ),
-                    ],
-                  ),
+                        if (completedApps.isNotEmpty)
+                          Card(
+                            margin: const EdgeInsets.only(top: 4, bottom: 10),
+                            clipBehavior: Clip.antiAlias,
+                            child: ExpansionTile(
+                              key: PageStorageKey('completed_folder'),
+                              initiallyExpanded: _completedExpanded,
+                              onExpansionChanged: (expanded) async {
+                                setState(() => _completedExpanded = expanded);
+                                final prefs =
+                                    await SharedPreferences.getInstance();
+                                await prefs.setBool(
+                                  _completedExpandedKey,
+                                  expanded,
+                                );
+                              },
+                              leading: Icon(
+                                _completedExpanded
+                                    ? Icons.folder_open
+                                    : Icons.folder,
+                                color: AppColors.success,
+                              ),
+                              title: Text(
+                                l10n.completedCount(completedApps.length),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 15,
+                                ),
+                              ),
+                              subtitle: Text(
+                                l10n.maintenanceOnly,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey.shade500,
+                                ),
+                              ),
+                              tilePadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 4,
+                              ),
+                              childrenPadding: const EdgeInsets.only(
+                                left: 8,
+                                right: 8,
+                                bottom: 8,
+                              ),
+                              children:
+                                  completedApps
+                                      .map(
+                                        (app) => AppCard(
+                                          app: app,
+                                          taskStatus: app.taskStatus,
+                                          installedVersion:
+                                              app.packageName.isNotEmpty
+                                                  ? _installedVersions[app
+                                                      .packageName]
+                                                  : null,
+                                          hasPackageName:
+                                              app.packageName.isNotEmpty,
+                                          appStatus: AppCardStatus.completed,
+                                          storeExpanded: _storeExpandedIds
+                                              .contains(app.id),
+                                          onToggleStore:
+                                              () =>
+                                                  _toggleStoreExpanded(app.id),
+                                          onStoreChanged: _refresh,
+                                          onToggleCompleted:
+                                              () => _toggleAppCompleted(app.id),
+                                          onTogglePostponed:
+                                              () => _toggleAppPostponed(app.id),
+                                          onIconTap:
+                                              () => context
+                                                  .read<AppState>()
+                                                  .requestIssuesForApp(app.id),
+                                          onAttentionTap:
+                                              () => context
+                                                  .read<AppState>()
+                                                  .requestIssuesForApp(
+                                                    app.id,
+                                                    statusFilter: 'failed',
+                                                  ),
+                                        ),
+                                      )
+                                      .toList(),
+                            ),
+                          ),
+                      ],
+                    ),
           );
         },
       ),
@@ -625,19 +753,20 @@ class _AnimatedFabState extends State<_AnimatedFab> {
 
   @override
   Widget build(BuildContext context) {
-    final fab = widget.small
-        ? FloatingActionButton.small(
-            heroTag: widget.heroTag,
-            backgroundColor: widget.backgroundColor,
-            onPressed: _handlePress,
-            child: widget.child,
-          )
-        : FloatingActionButton(
-            heroTag: widget.heroTag,
-            backgroundColor: widget.backgroundColor,
-            onPressed: _handlePress,
-            child: widget.child,
-          );
+    final fab =
+        widget.small
+            ? FloatingActionButton.small(
+              heroTag: widget.heroTag,
+              backgroundColor: widget.backgroundColor,
+              onPressed: _handlePress,
+              child: widget.child,
+            )
+            : FloatingActionButton(
+              heroTag: widget.heroTag,
+              backgroundColor: widget.backgroundColor,
+              onPressed: _handlePress,
+              child: widget.child,
+            );
     return AnimatedScale(
       scale: _scale,
       duration: _pressDuration,
@@ -658,9 +787,11 @@ class AppCard extends StatelessWidget {
   final VoidCallback onToggleCompleted;
   final VoidCallback onTogglePostponed;
   final VoidCallback? onIconTap;
+
   /// Fired when the red needs-attention chip is tapped (opens Issues
   /// filtered to failed tasks for this app).
   final VoidCallback? onAttentionTap;
+
   /// Store details (all tracks + promote / attach / submit) are shown.
   final bool storeExpanded;
   final VoidCallback? onToggleStore;
@@ -703,7 +834,10 @@ class AppCard extends StatelessWidget {
     final blockedTasks = taskStatus['blocked'] ?? 0;
     final lastBuildFailed = app.lastBuildStatus.toLowerCase() == 'failed';
     final needsAttention =
-        failedTasks > 0 || urgentTasks > 0 || blockedTasks > 0 || lastBuildFailed;
+        failedTasks > 0 ||
+        urgentTasks > 0 ||
+        blockedTasks > 0 ||
+        lastBuildFailed;
     final unshipped = pendingTasks + inProgressTasks;
     final totalUnbuilt = pendingTasks + inProgressTasks + completedTasks;
 
@@ -713,9 +847,10 @@ class AppCard extends StatelessWidget {
     // read 'working' so the user can see that something is happening right
     // now without waiting for app.status to flip.
     final serverStatus = app.status.toLowerCase();
-    final displayStatus = (serverStatus == 'idle' && inProgressTasks > 0)
-        ? 'working'
-        : serverStatus;
+    final displayStatus =
+        (serverStatus == 'idle' && inProgressTasks > 0)
+            ? 'working'
+            : serverStatus;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
@@ -725,13 +860,24 @@ class AppCard extends StatelessWidget {
           Navigator.push(
             context,
             PageRouteBuilder(
-              pageBuilder: (context, animation, secondaryAnimation) =>
-                  AppDetailScreen(appId: app.id),
-              transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              pageBuilder:
+                  (context, animation, secondaryAnimation) =>
+                      AppDetailScreen(appId: app.id),
+              transitionsBuilder: (
+                context,
+                animation,
+                secondaryAnimation,
+                child,
+              ) {
                 final offsetAnimation = Tween<Offset>(
                   begin: const Offset(0, 0.15),
                   end: Offset.zero,
-                ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic));
+                ).animate(
+                  CurvedAnimation(
+                    parent: animation,
+                    curve: Curves.easeOutCubic,
+                  ),
+                );
                 return SlideTransition(
                   position: offsetAnimation,
                   child: FadeTransition(opacity: animation, child: child),
@@ -750,291 +896,329 @@ class AppCard extends StatelessWidget {
             shape: const RoundedRectangleBorder(
               borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
             ),
-            builder: (ctx) => SafeArea(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (appStatus != AppCardStatus.active)
-                    ListTile(
-                      leading: Icon(Icons.replay, color: AppColors.info),
-                      title: Text(l10n.moveBackToActive),
-                      subtitle: Text(l10n.resumeActiveDevelopment),
-                      onTap: () {
-                        Navigator.pop(ctx);
-                        if (isCompleted) {
-                          onToggleCompleted();
-                        } else {
-                          onTogglePostponed();
-                        }
-                      },
-                    ),
-                  if (!isCompleted)
-                    ListTile(
-                      leading: Icon(Icons.check_circle_outline, color: AppColors.success),
-                      title: Text(l10n.markAsCompleted),
-                      subtitle: Text(l10n.moveToCompletedFolder),
-                      onTap: () {
-                        Navigator.pop(ctx);
-                        onToggleCompleted();
-                      },
-                    ),
-                  if (!isPostponed)
-                    ListTile(
-                      leading: Icon(Icons.pause_circle_outline, color: AppColors.warning),
-                      title: Text(l10n.postpone),
-                      subtitle: Text(l10n.putOnHoldForLater),
-                      onTap: () {
-                        Navigator.pop(ctx);
-                        onTogglePostponed();
-                      },
-                    ),
-                ],
-              ),
-            ),
+            builder:
+                (ctx) => SafeArea(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (appStatus != AppCardStatus.active)
+                        ListTile(
+                          leading: Icon(Icons.replay, color: AppColors.info),
+                          title: Text(l10n.moveBackToActive),
+                          subtitle: Text(l10n.resumeActiveDevelopment),
+                          onTap: () {
+                            Navigator.pop(ctx);
+                            if (isCompleted) {
+                              onToggleCompleted();
+                            } else {
+                              onTogglePostponed();
+                            }
+                          },
+                        ),
+                      if (!isCompleted)
+                        ListTile(
+                          leading: Icon(
+                            Icons.check_circle_outline,
+                            color: AppColors.success,
+                          ),
+                          title: Text(l10n.markAsCompleted),
+                          subtitle: Text(l10n.moveToCompletedFolder),
+                          onTap: () {
+                            Navigator.pop(ctx);
+                            onToggleCompleted();
+                          },
+                        ),
+                      if (!isPostponed)
+                        ListTile(
+                          leading: Icon(
+                            Icons.pause_circle_outline,
+                            color: AppColors.warning,
+                          ),
+                          title: Text(l10n.postpone),
+                          subtitle: Text(l10n.putOnHoldForLater),
+                          onTap: () {
+                            Navigator.pop(ctx);
+                            onTogglePostponed();
+                          },
+                        ),
+                    ],
+                  ),
+                ),
           );
         },
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-          Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-          child: Row(
-            children: [
-              // App icon — tappable to navigate to issues
-              GestureDetector(
-                onTap: onIconTap != null
-                    ? () {
-                        HapticFeedback.lightImpact();
-                        onIconTap!();
-                      }
-                    : null,
-                child: Tooltip(
-                  message: l10n.viewIssues,
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      _AppIconWidget(
-                        app: app,
-                        dimmed: isCompleted || isPostponed,
-                      ),
-                      Positioned(
-                        right: -3,
-                        bottom: -3,
-                        child: Container(
-                          padding: const EdgeInsets.all(2),
-                          decoration: BoxDecoration(
-                            color: AppColors.bgCard,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: AppColors.bgDark, width: 1),
-                          ),
-                          child: Icon(
-                            Icons.bug_report,
-                            size: 12,
-                            color: AppColors.info,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 14),
-              // App info
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      app.name,
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                        color: (isCompleted || isPostponed) ? Colors.grey.shade400 : null,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                    ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            l10n.versionWithNumber(app.currentVersion),
-                            style: TextStyle(
-                              color: Colors.grey.shade400,
-                              fontSize: 13,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        if (hasPackageName) ...[
-                          const SizedBox(width: 6),
-                          _installedBadge(context),
-                        ],
-                        const SizedBox(width: 6),
-                        Text(
-                          app.appType,
-                          style: TextStyle(
-                            color: Colors.grey.shade500,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 4,
-                      runSpacing: 4,
-                      children: [
-                        if (app.storeStatus.play != null)
-                          StoreStatusChip(
-                            store: 'play',
-                            info: app.storeStatus.play!,
-                            onTap: onToggleStore,
-                          )
-                        else
-                        _UploadTrackChip(
-                          platform: 'play',
-                          track: app.lastUploadTrack,
-                          onTap: (app.playStoreUrl.isNotEmpty || app.packageName.isNotEmpty)
-                              ? () => _openExternalUrl(
-                                    app.playStoreUrl.isNotEmpty
-                                        ? app.playStoreUrl
-                                        : 'https://play.google.com/store/apps/details?id=${app.packageName}',
-                                  )
-                              : null,
-                        ),
-                        if (app.storeStatus.apple != null)
-                          StoreStatusChip(
-                            store: 'apple',
-                            info: app.storeStatus.apple!,
-                            onTap: onToggleStore,
-                          )
-                        else if (app.appType == 'flutter' || app.appleAppId.isNotEmpty)
-                          _UploadTrackChip(
-                            platform: 'ios',
-                            track: app.lastIosUploadTrack,
-                            onTap: (app.appStoreUrl.isNotEmpty || app.appleAppId.isNotEmpty)
-                                ? () => _openExternalUrl(
-                                      app.appStoreUrl.isNotEmpty
-                                          ? app.appStoreUrl
-                                          : (app.lastIosUploadTrack.contains('flight') || app.lastIosUploadTrack == 'internal'
-                                              ? 'https://appstoreconnect.apple.com/apps/${app.appleAppId}/testflight/ios'
-                                              : 'https://apps.apple.com/app/id${app.appleAppId}'),
-                                    )
-                                : null,
-                          ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              // Status, issues, and tasks
-              const SizedBox(width: 8),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 140),
-                child: Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+              child: Row(
                 children: [
-                  // Status dot + label
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 12,
-                        height: 12,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: AppColors.statusColor(displayStatus),
-                        ),
+                  // App icon — tappable to navigate to issues
+                  GestureDetector(
+                    onTap:
+                        onIconTap != null
+                            ? () {
+                              HapticFeedback.lightImpact();
+                              onIconTap!();
+                            }
+                            : null,
+                    child: Tooltip(
+                      message: l10n.viewIssues,
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          _AppIconWidget(
+                            app: app,
+                            dimmed: isCompleted || isPostponed,
+                          ),
+                          Positioned(
+                            right: -3,
+                            bottom: -3,
+                            child: Container(
+                              padding: const EdgeInsets.all(2),
+                              decoration: BoxDecoration(
+                                color: AppColors.bgCard,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: AppColors.bgDark,
+                                  width: 1,
+                                ),
+                              ),
+                              child: Icon(
+                                Icons.bug_report,
+                                size: 12,
+                                color: AppColors.info,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 6),
-                      Flexible(
-                        child: Text(
-                          appStatusLabel(l10n, displayStatus),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  // App info
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          app.name,
                           style: TextStyle(
-                            color: AppColors.statusColor(displayStatus),
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            color:
+                                (isCompleted || isPostponed)
+                                    ? Colors.grey.shade400
+                                    : null,
                           ),
                           overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                l10n.versionWithNumber(app.currentVersion),
+                                style: TextStyle(
+                                  color: Colors.grey.shade400,
+                                  fontSize: 13,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            if (hasPackageName) ...[
+                              const SizedBox(width: 6),
+                              _installedBadge(context),
+                            ],
+                            const SizedBox(width: 6),
+                            Text(
+                              app.appType,
+                              style: TextStyle(
+                                color: Colors.grey.shade500,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 4,
+                          runSpacing: 4,
+                          children: [
+                            if (app.storeStatus.play != null)
+                              StoreStatusChip(
+                                store: 'play',
+                                info: app.storeStatus.play!,
+                                onTap: onToggleStore,
+                              )
+                            else
+                              _UploadTrackChip(
+                                platform: 'play',
+                                track: app.lastUploadTrack,
+                                onTap:
+                                    (app.playStoreUrl.isNotEmpty ||
+                                            app.packageName.isNotEmpty)
+                                        ? () => _openExternalUrl(
+                                          app.playStoreUrl.isNotEmpty
+                                              ? app.playStoreUrl
+                                              : 'https://play.google.com/store/apps/details?id=${app.packageName}',
+                                        )
+                                        : null,
+                              ),
+                            if (app.storeStatus.apple != null)
+                              StoreStatusChip(
+                                store: 'apple',
+                                info: app.storeStatus.apple!,
+                                onTap: onToggleStore,
+                              )
+                            else if (app.appType == 'flutter' ||
+                                app.appleAppId.isNotEmpty)
+                              _UploadTrackChip(
+                                platform: 'ios',
+                                track: app.lastIosUploadTrack,
+                                onTap:
+                                    (app.appStoreUrl.isNotEmpty ||
+                                            app.appleAppId.isNotEmpty)
+                                        ? () => _openExternalUrl(
+                                          app.appStoreUrl.isNotEmpty
+                                              ? app.appStoreUrl
+                                              : (app.lastIosUploadTrack
+                                                          .contains('flight') ||
+                                                      app.lastIosUploadTrack ==
+                                                          'internal'
+                                                  ? 'https://appstoreconnect.apple.com/apps/${app.appleAppId}/testflight/ios'
+                                                  : 'https://apps.apple.com/app/id${app.appleAppId}'),
+                                        )
+                                        : null,
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 6),
-                  // Needs-attention chip: failed / urgent / blocked tasks and
-                  // a failed last build, so "which app broke?" is visible
-                  // without opening every app.
-                  if (needsAttention) ...[
-                    const SizedBox(height: 4),
-                    _AttentionChip(
-                      failed: failedTasks,
-                      urgent: urgentTasks,
-                      blocked: blockedTasks,
-                      buildFailed: lastBuildFailed,
-                      onTap: onAttentionTap,
-                    ),
-                  ],
-                  // Task count badge
-                  if (totalUnbuilt > 0) ...[
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: unshipped > 0
-                            ? AppColors.warning.withValues(alpha: 0.2)
-                            : AppColors.success.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        '$completedTasks/$totalUnbuilt',
-                        style: TextStyle(
-                          color: unshipped > 0
-                              ? AppColors.warning
-                              : AppColors.success,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
+                  // Status, issues, and tasks
+                  const SizedBox(width: 8),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 140),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        // Status dot + label
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 12,
+                              height: 12,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: AppColors.statusColor(displayStatus),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                appStatusLabel(l10n, displayStatus),
+                                style: TextStyle(
+                                  color: AppColors.statusColor(displayStatus),
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
                         ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                        const SizedBox(height: 6),
+                        // Needs-attention chip: failed / urgent / blocked tasks and
+                        // a failed last build, so "which app broke?" is visible
+                        // without opening every app.
+                        if (needsAttention) ...[
+                          const SizedBox(height: 4),
+                          _AttentionChip(
+                            failed: failedTasks,
+                            urgent: urgentTasks,
+                            blocked: blockedTasks,
+                            buildFailed: lastBuildFailed,
+                            onTap: onAttentionTap,
+                          ),
+                        ],
+                        // Task count badge
+                        if (totalUnbuilt > 0) ...[
+                          const SizedBox(height: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color:
+                                  unshipped > 0
+                                      ? AppColors.warning.withValues(alpha: 0.2)
+                                      : AppColors.success.withValues(
+                                        alpha: 0.2,
+                                      ),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              '$completedTasks/$totalUnbuilt',
+                              style: TextStyle(
+                                color:
+                                    unshipped > 0
+                                        ? AppColors.warning
+                                        : AppColors.success,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                        if (onToggleStore != null)
+                          IconButton(
+                            tooltip:
+                                storeExpanded
+                                    ? l10n.storeHideDetails
+                                    : l10n.storeShowDetails,
+                            onPressed: onToggleStore,
+                            icon: Icon(
+                              storeExpanded
+                                  ? Icons.expand_less
+                                  : Icons.expand_more,
+                            ),
+                          ),
+                      ],
                     ),
-                  ],
-                  if (onToggleStore != null)
-                    IconButton(
-                      tooltip: storeExpanded ? l10n.storeHideDetails : l10n.storeShowDetails,
-                      onPressed: onToggleStore,
-                      icon: Icon(storeExpanded ? Icons.expand_less : Icons.expand_more),
-                    ),
+                  ),
                 ],
               ),
-              ),
-            ],
-          ),
-        ),
-          AnimatedSize(
-            duration: const Duration(milliseconds: 200),
-            alignment: Alignment.topCenter,
-            child: storeExpanded
-                ? StoreStatusPanel(
-                    appId: app.id,
-                    status: app.storeStatus,
-                    onChanged: onStoreChanged,
-                  )
-                : const SizedBox(width: double.infinity),
-          ),
-          if (serverStatus == 'building' || serverStatus == 'uploading' || displayStatus == 'working')
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
-              child: LinearProgressIndicator(
-                minHeight: 3,
-                color: AppColors.statusColor(displayStatus),
-                backgroundColor: AppColors.bgDark,
-              ),
             ),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 200),
+              alignment: Alignment.topCenter,
+              child:
+                  storeExpanded
+                      ? StoreStatusPanel(
+                        appId: app.id,
+                        status: app.storeStatus,
+                        onChanged: onStoreChanged,
+                      )
+                      : const SizedBox(width: double.infinity),
+            ),
+            if (serverStatus == 'building' ||
+                serverStatus == 'uploading' ||
+                displayStatus == 'working')
+              ClipRRect(
+                borderRadius: const BorderRadius.vertical(
+                  bottom: Radius.circular(12),
+                ),
+                child: LinearProgressIndicator(
+                  minHeight: 3,
+                  color: AppColors.statusColor(displayStatus),
+                  backgroundColor: AppColors.bgDark,
+                ),
+              ),
           ],
         ),
       ),
@@ -1053,7 +1237,11 @@ class AppCard extends StatelessWidget {
         ),
         child: Text(
           l10n.notInstalled,
-          style: TextStyle(fontSize: 10, color: AppColors.warning, fontWeight: FontWeight.w500),
+          style: TextStyle(
+            fontSize: 10,
+            color: AppColors.warning,
+            fontWeight: FontWeight.w500,
+          ),
         ),
       );
     }
@@ -1081,8 +1269,14 @@ class AppCard extends StatelessWidget {
           ),
           const SizedBox(width: 3),
           Text(
-            isUpToDate ? l10n.installed : l10n.versionWithNumber('$installedVersion'),
-            style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.w500),
+            isUpToDate
+                ? l10n.installed
+                : l10n.versionWithNumber('$installedVersion'),
+            style: TextStyle(
+              fontSize: 10,
+              color: color,
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ],
       ),
@@ -1099,7 +1293,12 @@ class _TaskSummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    int total = 0, pending = 0, inProgress = 0, completed = 0, built = 0, failed = 0;
+    int total = 0,
+        pending = 0,
+        inProgress = 0,
+        completed = 0,
+        built = 0,
+        failed = 0;
     for (final app in apps) {
       final counts = app.taskStatus;
       total += counts['total'] ?? 0;
@@ -1123,13 +1322,21 @@ class _TaskSummaryCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(Icons.analytics_outlined, size: 18, color: AppColors.accent),
+                Icon(
+                  Icons.analytics_outlined,
+                  size: 18,
+                  color: AppColors.accent,
+                ),
                 const SizedBox(width: 8),
-                Text(l10n.taskOverview,
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                Text(
+                  l10n.taskOverview,
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                ),
                 const Spacer(),
-                Text(l10n.doneOfTotal(done, total),
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
+                Text(
+                  l10n.doneOfTotal(done, total),
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                ),
               ],
             ),
             const SizedBox(height: 10),
@@ -1137,22 +1344,40 @@ class _TaskSummaryCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(4),
               child: SizedBox(
                 height: 6,
-                child: total > 0
-                    ? Row(
-                        children: [
-                          if (built > 0)
-                            Expanded(flex: built, child: Container(color: const Color(0xFF9B59B6))),
-                          if (completed > 0)
-                            Expanded(flex: completed, child: Container(color: AppColors.success)),
-                          if (inProgress > 0)
-                            Expanded(flex: inProgress, child: Container(color: AppColors.info)),
-                          if (pending > 0)
-                            Expanded(flex: pending, child: Container(color: AppColors.warning)),
-                          if (failed > 0)
-                            Expanded(flex: failed, child: Container(color: AppColors.error)),
-                        ],
-                      )
-                    : Container(color: Colors.grey.shade800),
+                child:
+                    total > 0
+                        ? Row(
+                          children: [
+                            if (built > 0)
+                              Expanded(
+                                flex: built,
+                                child: Container(
+                                  color: const Color(0xFF9B59B6),
+                                ),
+                              ),
+                            if (completed > 0)
+                              Expanded(
+                                flex: completed,
+                                child: Container(color: AppColors.success),
+                              ),
+                            if (inProgress > 0)
+                              Expanded(
+                                flex: inProgress,
+                                child: Container(color: AppColors.info),
+                              ),
+                            if (pending > 0)
+                              Expanded(
+                                flex: pending,
+                                child: Container(color: AppColors.warning),
+                              ),
+                            if (failed > 0)
+                              Expanded(
+                                flex: failed,
+                                child: Container(color: AppColors.error),
+                              ),
+                          ],
+                        )
+                        : Container(color: Colors.grey.shade800),
               ),
             ),
             const SizedBox(height: 10),
@@ -1161,8 +1386,18 @@ class _TaskSummaryCard extends StatelessWidget {
               children: [
                 _stat(context, l10n.statusPending, pending, AppColors.warning),
                 _stat(context, l10n.statusActive, inProgress, AppColors.info),
-                _stat(context, l10n.statusCompleted, completed, AppColors.success),
-                _stat(context, l10n.statusBuilt, built, const Color(0xFF9B59B6)),
+                _stat(
+                  context,
+                  l10n.statusCompleted,
+                  completed,
+                  AppColors.success,
+                ),
+                _stat(
+                  context,
+                  l10n.statusBuilt,
+                  built,
+                  const Color(0xFF9B59B6),
+                ),
                 if (failed > 0)
                   _stat(
                     context,
@@ -1182,22 +1417,39 @@ class _TaskSummaryCard extends StatelessWidget {
   /// Jump to the Issues tab filtered to failed tasks. The Issues tab is
   /// scoped to one app, so open the first app that actually has failures.
   void _openFailedIssues(BuildContext context) {
-    final target = apps.where((a) => (a.taskStatus['failed'] ?? 0) > 0).firstOrNull;
+    final target =
+        apps.where((a) => (a.taskStatus['failed'] ?? 0) > 0).firstOrNull;
     if (target == null) return;
     HapticFeedback.lightImpact();
-    context.read<AppState>().requestIssuesForApp(target.id, statusFilter: 'failed');
+    context.read<AppState>().requestIssuesForApp(
+      target.id,
+      statusFilter: 'failed',
+    );
   }
 
-  Widget _stat(BuildContext context, String label, int count, Color color,
-      {VoidCallback? onTap}) {
+  Widget _stat(
+    BuildContext context,
+    String label,
+    int count,
+    Color color, {
+    VoidCallback? onTap,
+  }) {
     final l10n = AppLocalizations.of(context)!;
     final column = Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text('$count',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color)),
-        Text(label,
-            style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+        Text(
+          '$count',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+        Text(
+          label,
+          style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+        ),
       ],
     );
     if (onTap == null) return column;
@@ -1250,7 +1502,8 @@ class _AttentionChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final color = (failed > 0 || buildFailed) ? AppColors.error : AppColors.warning;
+    final color =
+        (failed > 0 || buildFailed) ? AppColors.error : AppColors.warning;
     final chip = Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
@@ -1260,13 +1513,20 @@ class _AttentionChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(buildFailed ? Icons.build_circle_outlined : Icons.error_outline,
-              size: 12, color: color),
+          Icon(
+            buildFailed ? Icons.build_circle_outlined : Icons.error_outline,
+            size: 12,
+            color: color,
+          ),
           const SizedBox(width: 4),
           Flexible(
             child: Text(
               _label(context),
-              style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                color: color,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -1311,24 +1571,26 @@ class _AppIconWidget extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
       ),
       clipBehavior: Clip.antiAlias,
-      child: showReal
-          ? Opacity(
-              opacity: dimmed ? 0.5 : 1.0,
-              child: CachedAppIcon(
-                // One state per app: a reordered list must not hand this
-                // app's slot the picture another app was showing.
-                key: ValueKey('app-icon-${app.id}'),
-                appId: app.id,
-                iconPath: app.iconPath,
-                size: 48,
-                errorBuilder: (_) => AppLetterAvatar(name: app.name, size: 48),
+      child:
+          showReal
+              ? Opacity(
+                opacity: dimmed ? 0.5 : 1.0,
+                child: CachedAppIcon(
+                  // One state per app: a reordered list must not hand this
+                  // app's slot the picture another app was showing.
+                  key: ValueKey('app-icon-${app.id}'),
+                  appId: app.id,
+                  iconPath: app.iconPath,
+                  size: 48,
+                  errorBuilder:
+                      (_) => AppLetterAvatar(name: app.name, size: 48),
+                ),
+              )
+              : Icon(
+                AppColors.appTypeIcon(app.appType),
+                color: dimmed ? Colors.grey : AppColors.accent,
+                size: 26,
               ),
-            )
-          : Icon(
-              AppColors.appTypeIcon(app.appType),
-              color: dimmed ? Colors.grey : AppColors.accent,
-              size: 26,
-            ),
     );
   }
 }
@@ -1347,8 +1609,13 @@ class _UploadTrackChip extends StatelessWidget {
   });
 
   static const Set<String> _knownTracks = {
-    'internal', 'alpha', 'beta', 'production',
-    'testflight_internal', 'testflight_external', 'appstore'
+    'internal',
+    'alpha',
+    'beta',
+    'production',
+    'testflight_internal',
+    'testflight_external',
+    'appstore',
   };
 
   static Color _trackColor(String track) {
@@ -1390,18 +1657,29 @@ class _UploadTrackChip extends StatelessWidget {
           const SizedBox(width: 4),
           Text(
             label,
-            style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w500),
+            style: TextStyle(
+              fontSize: 11,
+              color: color,
+              fontWeight: FontWeight.w500,
+            ),
           ),
           if (onTap != null) ...[
             const SizedBox(width: 4),
-            Icon(Icons.open_in_new, size: 10, color: color.withValues(alpha: 0.8)),
+            Icon(
+              Icons.open_in_new,
+              size: 10,
+              color: color.withValues(alpha: 0.8),
+            ),
           ],
         ],
       ),
     );
     if (onTap == null) return chip;
     return Tooltip(
-      message: platform == 'ios' ? 'Open App Store Connect / TestFlight' : 'Open Google Play',
+      message:
+          platform == 'ios'
+              ? 'Open App Store Connect / TestFlight'
+              : 'Open Google Play',
       child: InkWell(
         onTap: () {
           HapticFeedback.lightImpact();

@@ -10,7 +10,8 @@ import '../services/generate_service.dart';
 import '../services/jigsaw_profiles.dart';
 import '../theme.dart';
 import '../services/mode_service.dart';
-import '../widgets/flow_kind_switch.dart';   // #353
+import '../widgets/app_toast.dart';
+import '../widgets/flow_kind_switch.dart'; // #353
 
 /// Asset Mod - Uretim ekrani.
 ///
@@ -50,7 +51,7 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
   Map<String, JigsawProfile> _profiles = {};
   final Map<String, DetailState> _details = {};
   String _rating = 'hot';
-  String _aspect = '2:3';                 // CBN: oran secici (bes oran, gorev #285)
+  String _aspect = '2:3'; // CBN: oran secici (bes oran, gorev #285)
   // Yedek tablo; sunucu aspect_sizes gonderiyorsa o kullanilir (_aspectSize).
   static const _aspectSizes = {
     '9:16': (720, 1280),
@@ -60,7 +61,9 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
     '16:9': (1280, 720),
   };
   (int, int) get _aspectSize =>
-      _modeDef.aspectSizes[_aspect] ?? _aspectSizes[_aspect] ?? _aspectSizes['2:3']!;
+      _modeDef.aspectSizes[_aspect] ??
+      _aspectSizes[_aspect] ??
+      _aspectSizes['2:3']!;
   int _randomCount = 10;
 
   DetailState? get _det => _details[_rating];
@@ -74,14 +77,14 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
   int _duration = 5;
   int _count = 1;
 
-  GenerateJob? _source;                  // girdi olarak secilen onceki uretim
+  GenerateJob? _source; // girdi olarak secilen onceki uretim
   List<GenerateJob> _sourceOptions = [];
 
   /// Is akisinin girdi yuvalari -> secilen girdi (gorev #287). Free kipinde
   /// her yuva icin ayri bir secici cikar: FLF2V ilk+son kare, V2V referans
   /// gorsel + surucu video, S2V gorsel + ses.
   final Map<String, GenerateInputRef> _inputs = {};
-  String? _uploading;                    // o an yuklenen yuvanin adi
+  String? _uploading; // o an yuklenen yuvanin adi
   int _queueDepth = 0;
   Timer? _poll;
 
@@ -92,24 +95,32 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
   /// Kipin derece listesi. Karakter ve Kart kiplerinde derece yoktur - tek
   /// profil vardir, o yuzden derece anahtari da gosterilmez.
   Map<String, String> get _ratingsMap => switch (_modeDef.profiles) {
-        'cbn' => CbnProfiles.ratings,
-        'character' => CharacterProfiles.ratings,
-        'card' => CardProfiles.ratings,          // #323
-        _ => JigsawProfiles.ratings,
-      };
+    'cbn' => CbnProfiles.ratings,
+    'character' => CharacterProfiles.ratings,
+    'card' => CardProfiles.ratings, // #323
+    _ => JigsawProfiles.ratings,
+  };
 
   /// Secenek dosyasi okunamadiysa ekranda gosterilecek hata - kipe gore.
   String? get _profileError => switch (_modeDef.profiles) {
-        'cbn' => CbnProfiles.loadError,
-        'character' => CharacterProfiles.loadError,
-        'card' => CardProfiles.loadError,        // #323
-        _ => JigsawProfiles.loadError,
-      };
+    'cbn' => CbnProfiles.loadError,
+    'character' => CharacterProfiles.loadError,
+    'card' => CardProfiles.loadError, // #323
+    _ => JigsawProfiles.loadError,
+  };
 
-  GenerateMode get _modeDef => _modes.firstWhere((m) => m.id == _mode,
-      orElse: () => const GenerateMode(
-          id: 'free', label: 'Free Mod', prompt2: '', motion2: '',
-          negative: '', exports: false));
+  GenerateMode get _modeDef => _modes.firstWhere(
+    (m) => m.id == _mode,
+    orElse:
+        () => const GenerateMode(
+          id: 'free',
+          label: 'Free Mod',
+          prompt2: '',
+          motion2: '',
+          negative: '',
+          exports: false,
+        ),
+  );
 
   @override
   void initState() {
@@ -149,15 +160,16 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
       // Secenek dosyasi kipe gore: jigsaw / cbn / karakter / kart_secenekler.
       // #323: sunucu yeni "card" kipini `profiles: "card"` ile gonderir;
       // gondermezse asagidaki `_profilesKeyFor` kip kimliginden turetir.
-      final pk = r.modes.isNotEmpty
-          ? r.modes
-              .firstWhere((m) => m.id == _mode, orElse: () => r.modes.first)
-              .profiles
-          : _modeDef.profiles;
+      final pk =
+          r.modes.isNotEmpty
+              ? r.modes
+                  .firstWhere((m) => m.id == _mode, orElse: () => r.modes.first)
+                  .profiles
+              : _modeDef.profiles;
       final profs = switch (pk) {
         'cbn' => await CbnProfiles.load(),
         'character' => await CharacterProfiles.load(),
-        'card' => await CardProfiles.load(),     // #323
+        'card' => await CardProfiles.load(), // #323
         _ => await JigsawProfiles.load(),
       };
       List<GenerateJob> srcs = [];
@@ -170,13 +182,14 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
       if (!mounted) return;
       setState(() {
         _sourceOptions = srcs;
-        if (_source != null && !srcs.any((j) => j.id == _source!.id)) _source = null;
+        if (_source != null && !srcs.any((j) => j.id == _source!.id))
+          _source = null;
         _tasks = r.tasks;
         if (r.modes.isNotEmpty) _modes = r.modes;
         _comfyUp = r.comfyUp;
         _task = r.tasks.isNotEmpty ? r.tasks.first : null;
         _duration = _task?.duration ?? 5;
-        _pruneInputs();          // yeni gorevde olmayan yuva secimleri dussun
+        _pruneInputs(); // yeni gorevde olmayan yuva secimleri dussun
         _profiles = profs;
         // Kipler farkli anahtarlar kullanir (hot/kid vs character); eldeki
         // derece yeni kipte yoksa ilkine duseriz.
@@ -245,7 +258,8 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
     if (id == _mode) return;
     setState(() {
       _mode = id;
-      _details.clear();      // hot/kid anahtarlari kipler arasinda ortak, durum degil
+      _details
+          .clear(); // hot/kid anahtarlari kipler arasinda ortak, durum degil
     });
     HapticFeedback.selectionClick();
     _loadAll();
@@ -269,7 +283,10 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
         spacing: 6,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          Text(_smithModel, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+          Text(
+            _smithModel,
+            style: const TextStyle(fontSize: 10, color: Colors.grey),
+          ),
           TextButton.icon(
             onPressed: bos || _smithBusy ? null : () => _smithRun('enrich'),
             icon: const Icon(Icons.auto_awesome, size: 15),
@@ -287,7 +304,10 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
           ),
           if (_smithBusy)
             const SizedBox(
-                width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
         ],
       ),
     );
@@ -305,14 +325,26 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
     if (y.trim() == onceki.trim()) {
       _snack(l10n.genPromptUnchanged);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(l10n.genPromptWritten),
-        action: SnackBarAction(
-            label: l10n.commonUndo,
-            onPressed: () {
-              if (mounted) setState(() => _p1.text = onceki);
-            }),
-      ));
+      final undo = await showDialog<bool>(
+        context: context,
+        builder:
+            (dialogContext) => AlertDialog(
+              content: Text(l10n.genPromptWritten),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(true),
+                  child: Text(l10n.commonUndo),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(false),
+                  child: Text(
+                    MaterialLocalizations.of(dialogContext).okButtonLabel,
+                  ),
+                ),
+              ],
+            ),
+      );
+      if (undo == true && mounted) setState(() => _p1.text = onceki);
     }
   }
 
@@ -327,32 +359,36 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
     }
     final sec = await showDialog<String>(
       context: context,
-      builder: (c) => AlertDialog(
-        scrollable: true,
-        title: Text(l10n.genPickVariant),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (final x in v)
-              ListTile(
-                dense: true,
-                title: Text(x, style: const TextStyle(fontSize: 12)),
-                onTap: () => Navigator.pop(c, x),
+      builder:
+          (c) => AlertDialog(
+            scrollable: true,
+            title: Text(l10n.genPickVariant),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final x in v)
+                  ListTile(
+                    dense: true,
+                    title: Text(x, style: const TextStyle(fontSize: 12)),
+                    onTap: () => Navigator.pop(c, x),
+                  ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(c),
+                child: Text(l10n.cancel),
               ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c), child: Text(l10n.cancel)),
-        ],
-      ),
+            ],
+          ),
     );
-    if (sec != null && sec.isNotEmpty && mounted) setState(() => _p1.text = sec);
+    if (sec != null && sec.isNotEmpty && mounted)
+      setState(() => _p1.text = sec);
   }
 
   String _prompt2([Map<String, String>? v]) {
     if (!_hasProfiles || _det == null) return _p2.text.trim();
-    return _det!.templateFor(_p2.text,
-        isVideo: _task?.isVideo ?? false, v: v);
+    return _det!.templateFor(_p2.text, isVideo: _task?.isVideo ?? false, v: v);
   }
 
   /// Iki pozitif promptu birlestirir - sunucudaki kuralin aynisi.
@@ -392,7 +428,8 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
       isScrollControlled: true,
       backgroundColor: AppColors.bgCard,
       shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(18))),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
       builder: (_) => _GalleryPickerSheet(slot: s),
     );
     if (job == null || !mounted) return;
@@ -411,7 +448,8 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
     if (picked == null || !mounted) return;
     setState(() => _uploading = s.slot);
     try {
-      final bytes = picked.bytes ??
+      final bytes =
+          picked.bytes ??
           (picked.path != null ? await File(picked.path!).readAsBytes() : null);
       if (bytes == null) throw Exception(l10n.genFileUnreadable);
       final ref = await GenerateService.upload(picked.name, bytes);
@@ -426,10 +464,10 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
   }
 
   static List<String> _extsFor(String kind) => switch (kind) {
-        'video' => const ['mp4', 'webm', 'mov', 'mkv'],
-        'audio' => const ['mp3', 'wav', 'flac', 'ogg', 'm4a'],
-        _ => const ['png', 'jpg', 'jpeg', 'webp', 'bmp'],
-      };
+    'video' => const ['mp4', 'webm', 'mov', 'mkv'],
+    'audio' => const ['mp3', 'wav', 'flac', 'ogg', 'm4a'],
+    _ => const ['png', 'jpg', 'jpeg', 'webp', 'bmp'],
+  };
 
   // -------------------------------------------------------------- uretim
   Future<void> _generate() async {
@@ -481,7 +519,7 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
 
   void _snack(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    AppToast.of(context).show(msg);
   }
 
   // -------------------------------------------------------------- arayuz
@@ -502,8 +540,10 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
                   color: AppColors.accent,
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: Text(l10n.genQueueBadge(_queueDepth),
-                    style: const TextStyle(fontSize: 11, color: Colors.white)),
+                child: Text(
+                  l10n.genQueueBadge(_queueDepth),
+                  style: const TextStyle(fontSize: 11, color: Colors.white),
+                ),
               ),
             ),
           IconButton(
@@ -514,7 +554,7 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
           IconButton(
             icon: const Icon(Icons.local_shipping_outlined),
             tooltip: l10n.deliveryModeTooltip,
-            onPressed: () => ModeService.setMode(ModeService.delivery),   // #363
+            onPressed: () => ModeService.setMode(ModeService.delivery), // #363
           ),
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -523,38 +563,43 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
           ),
         ],
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _loadError != null
+      body:
+          _loading
+              ? const Center(child: CircularProgressIndicator())
+              : _loadError != null
               ? _errorView()
               : _form(),
     );
   }
 
   Widget _errorView() => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.cloud_off, size: 48, color: AppColors.error),
-              const SizedBox(height: 12),
-              Text(l10n.cannotReachServer,
-                  style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 6),
-              Text(_loadError!.replaceFirst('Exception: ', ''),
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodySmall),
-              const SizedBox(height: 16),
-              FilledButton.icon(
-                onPressed: _loadAll,
-                icon: const Icon(Icons.refresh),
-                label: Text(l10n.retry),
-              ),
-            ],
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.cloud_off, size: 48, color: AppColors.error),
+          const SizedBox(height: 12),
+          Text(
+            l10n.cannotReachServer,
+            style: Theme.of(context).textTheme.titleMedium,
           ),
-        ),
-      );
+          const SizedBox(height: 6),
+          Text(
+            _loadError!.replaceFirst('Exception: ', ''),
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            onPressed: _loadAll,
+            icon: const Icon(Icons.refresh),
+            label: Text(l10n.retry),
+          ),
+        ],
+      ),
+    ),
+  );
 
   Widget _form() {
     final t = _task;
@@ -571,9 +616,7 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
                 children: [
                   Icon(Icons.warning_amber, color: AppColors.error),
                   const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(l10n.genComfyOffBody),
-                  ),
+                  Expanded(child: Text(l10n.genComfyOffBody)),
                 ],
               ),
             ),
@@ -585,14 +628,15 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
             labelText: l10n.genTask,
             border: const OutlineInputBorder(),
           ),
-          items: _tasks
-              .map((e) => DropdownMenuItem(value: e, child: Text(e.label)))
-              .toList(),
+          items:
+              _tasks
+                  .map((e) => DropdownMenuItem(value: e, child: Text(e.label)))
+                  .toList(),
           onChanged: (v) {
             setState(() {
               _task = v;
               _duration = v?.duration ?? 5;
-              _pruneInputs();       // baska is akisinin yuvalari kalmasin
+              _pruneInputs(); // baska is akisinin yuvalari kalmasin
             });
             _applyModeDefaults();
           },
@@ -602,23 +646,30 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
             const SizedBox(height: 12),
             _ratingSwitch(),
           ],
-          if (_modeDef.aspects) ...[
-            const SizedBox(height: 10),
-            _aspectRow(),
-          ],
+          if (_modeDef.aspects) ...[const SizedBox(height: 10), _aspectRow()],
         ],
         if (t != null && _useSlots) ...[
           const SizedBox(height: 16),
-          Text(l10n.genWorkflowInputs,
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold,
-                  color: Colors.grey)),
+          Text(
+            l10n.genWorkflowInputs,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey,
+            ),
+          ),
           const SizedBox(height: 6),
           for (final s in _slots) _slotRow(s),
         ] else if (t != null && t.needsImage) ...[
           const SizedBox(height: 16),
-          Text(l10n.genInputImage,
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold,
-                  color: Colors.grey)),
+          Text(
+            l10n.genInputImage,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey,
+            ),
+          ),
           const SizedBox(height: 8),
           _sourceStrip(),
         ],
@@ -635,10 +686,7 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
           ),
         ),
         _smithBar(),
-        if (jigsaw) ...[
-          const SizedBox(height: 12),
-          _detailPanel(),
-        ],
+        if (jigsaw) ...[const SizedBox(height: 12), _detailPanel()],
         const SizedBox(height: 12),
         TextField(
           controller: _p2,
@@ -654,14 +702,19 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
         ),
         const SizedBox(height: 12),
         ExpansionTile(
-          title: Text(l10n.genFinalPrompt, style: const TextStyle(fontSize: 13)),
+          title: Text(
+            l10n.genFinalPrompt,
+            style: const TextStyle(fontSize: 13),
+          ),
           tilePadding: EdgeInsets.zero,
           childrenPadding: const EdgeInsets.only(bottom: 12),
           children: [
             Align(
               alignment: Alignment.centerLeft,
-              child: Text(_combined.isEmpty ? l10n.equipSlotEmpty : _combined,
-                  style: const TextStyle(fontSize: 12, color: Colors.grey)),
+              child: Text(
+                _combined.isEmpty ? l10n.equipSlotEmpty : _combined,
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
             ),
           ],
         ),
@@ -706,25 +759,31 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
         // 16:9 secilse bile gorevin varsayilani (896x1600) gorunuyordu.
         if (t != null && (_modeDef.aspects || t.width > 0))
           Text(
-              _modeDef.aspects
-                  ? l10n.genSizeAspect(_aspectSize.$1, _aspectSize.$2, _aspect)
-                  : l10n.genSize(t.width, t.height),
-              style: const TextStyle(color: Colors.grey, fontSize: 12)),
+            _modeDef.aspects
+                ? l10n.genSizeAspect(_aspectSize.$1, _aspectSize.$2, _aspect)
+                : l10n.genSize(t.width, t.height),
+            style: const TextStyle(color: Colors.grey, fontSize: 12),
+          ),
         const SizedBox(height: 16),
         FilledButton.icon(
           onPressed: _sending ? null : _generate,
-          icon: _sending
-              ? const SizedBox(
-                  width: 16, height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2))
-              : const Icon(Icons.playlist_add),
+          icon:
+              _sending
+                  ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                  : const Icon(Icons.playlist_add),
           label: Text(_sending ? l10n.sending : l10n.genAddToQueueUpper),
           style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50)),
         ),
         const SizedBox(height: 8),
-        Text(l10n.genFootnote,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 11, color: Colors.grey)),
+        Text(
+          l10n.genFootnote,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 11, color: Colors.grey),
+        ),
       ],
     );
   }
@@ -732,17 +791,20 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
   /// CBN: bes oran (9:16, 2:3, 1:1, 3:2, 16:9) - boyutlar sunucunun
   /// tablosundan gelir; hepsi tam oran, cizgi sayfasi esnemez.
   Widget _aspectRow() => SegmentedButton<String>(
-        segments: [
-          for (final id in (_modeDef.aspectSizes.isNotEmpty ? _modeDef.aspectSizes.keys : _aspectSizes.keys))
-            ButtonSegment(value: id, label: Text(id)),
-        ],
-        selected: {_aspect},
-        showSelectedIcon: false,
-        onSelectionChanged: (v) {
-          HapticFeedback.selectionClick();
-          setState(() => _aspect = v.first);
-        },
-      );
+    segments: [
+      for (final id
+          in (_modeDef.aspectSizes.isNotEmpty
+              ? _modeDef.aspectSizes.keys
+              : _aspectSizes.keys))
+        ButtonSegment(value: id, label: Text(id)),
+    ],
+    selected: {_aspect},
+    showSelectedIcon: false,
+    onSelectionChanged: (v) {
+      HapticFeedback.selectionClick();
+      setState(() => _aspect = v.first);
+    },
+  );
 
   /// Derece secimi - Hot/Kid (Jigsaw ya da CBN). Gorevin hemen altinda durur.
   Widget _ratingSwitch() {
@@ -753,31 +815,32 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
         borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
-        children: _ratingsMap.entries.map((e) {
-          final on = e.key == _rating;
-          return Expanded(
-            child: GestureDetector(
-              onTap: () => _setRating(e.key),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 160),
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                decoration: BoxDecoration(
-                  color: on ? AppColors.accent : Colors.transparent,
-                  borderRadius: BorderRadius.circular(11),
-                ),
-                child: Text(
-                  e.value,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: on ? Colors.white : Colors.grey,
+        children:
+            _ratingsMap.entries.map((e) {
+              final on = e.key == _rating;
+              return Expanded(
+                child: GestureDetector(
+                  onTap: () => _setRating(e.key),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 160),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    decoration: BoxDecoration(
+                      color: on ? AppColors.accent : Colors.transparent,
+                      borderRadius: BorderRadius.circular(11),
+                    ),
+                    child: Text(
+                      e.value,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: on ? Colors.white : Colors.grey,
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ),
-          );
-        }).toList(),
+              );
+            }).toList(),
       ),
     );
   }
@@ -791,8 +854,10 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
         color: AppColors.error.withValues(alpha: 0.12),
         child: Padding(
           padding: const EdgeInsets.all(12),
-          child: Text(_profileError!,
-              style: TextStyle(color: AppColors.error, fontSize: 12)),
+          child: Text(
+            _profileError!,
+            style: TextStyle(color: AppColors.error, fontSize: 12),
+          ),
         ),
       );
     }
@@ -803,9 +868,14 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(l10n.genDetailsTitle,
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold,
-                    color: Colors.grey)),
+            Text(
+              l10n.genDetailsTitle,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey,
+              ),
+            ),
             const SizedBox(height: 6),
             for (final f in d.profile.fields) _detailRow(d, f),
             const SizedBox(height: 8),
@@ -874,27 +944,36 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
               decoration: InputDecoration(
                 labelText: f.displayLabel,
                 border: const OutlineInputBorder(),
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 10,
+                ),
               ),
               items: [
                 const DropdownMenuItem(
-                    value: '',
-                    child: Text('-', style: TextStyle(color: Colors.grey))),
-                ...pool.map((o) => DropdownMenuItem(
+                  value: '',
+                  child: Text('-', style: TextStyle(color: Colors.grey)),
+                ),
+                ...pool.map(
+                  (o) => DropdownMenuItem(
                     value: o,
-                    child: Text(o, overflow: TextOverflow.ellipsis))),
+                    child: Text(o, overflow: TextOverflow.ellipsis),
+                  ),
+                ),
               ],
               onChanged: (v) => setState(() => d.values[f.key] = v ?? ''),
             ),
           ),
           IconButton(
-            tooltip: d.isLocked(f.key) ? l10n.genLockedTooltip : l10n.cardTplLock,
-            icon: Icon(d.isLocked(f.key) ? Icons.lock : Icons.lock_open,
-                size: 20,
-                color: d.isLocked(f.key) ? AppColors.accent : Colors.grey),
-            onPressed: () =>
-                setState(() => d.locks[f.key] = !d.isLocked(f.key)),
+            tooltip:
+                d.isLocked(f.key) ? l10n.genLockedTooltip : l10n.cardTplLock,
+            icon: Icon(
+              d.isLocked(f.key) ? Icons.lock : Icons.lock_open,
+              size: 20,
+              color: d.isLocked(f.key) ? AppColors.accent : Colors.grey,
+            ),
+            onPressed:
+                () => setState(() => d.locks[f.key] = !d.isLocked(f.key)),
           ),
         ],
       ),
@@ -911,7 +990,9 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
       return;
     }
     if (_useSlots && _missingSlots.isNotEmpty) {
-      _snack(l10n.genMissingInputs(_missingSlots.map((s) => s.label).join(', ')));
+      _snack(
+        l10n.genMissingInputs(_missingSlots.map((s) => s.label).join(', ')),
+      );
       return;
     }
     if (!_useSlots && t.needsImage && _source == null) {
@@ -928,8 +1009,7 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
       for (var i = 0; i < cekilisler.length; i++) {
         last = cekilisler[i];
         final p1 = d.promptWith(_p1.text, last);
-        final p2 = d.templateFor(_p2.text,
-            isVideo: t.isVideo, v: last);
+        final p2 = d.templateFor(_p2.text, isVideo: t.isVideo, v: last);
         if (p1.isEmpty && p2.isEmpty) {
           _snack(l10n.genPromptEmpty);
           break;
@@ -951,7 +1031,7 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
         n++;
       }
       if (!mounted) return;
-      if (last != null) setState(() => d.apply(last!));   // son cekilis gorunsun
+      if (last != null) setState(() => d.apply(last!)); // son cekilis gorunsun
       _snack(l10n.genQueuedCount(n));
       _pollQueue();
     } catch (e) {
@@ -997,40 +1077,55 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
                       Row(
                         children: [
                           Flexible(
-                            child: Text(s.label,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.bold, fontSize: 13)),
+                            child: Text(
+                              s.label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
                           ),
                           if (!s.required)
                             Padding(
                               padding: const EdgeInsets.only(left: 6),
-                              child: Text(l10n.genOptional,
-                                  style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                              child: Text(
+                                l10n.genOptional,
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.grey,
+                                ),
+                              ),
                             ),
                         ],
                       ),
                       if (ipucu.isNotEmpty)
-                        Text(ipucu,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style:
-                                const TextStyle(fontSize: 11, color: Colors.grey)),
+                        Text(
+                          ipucu,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey,
+                          ),
+                        ),
                       const SizedBox(height: 2),
                       Text(
                         busy
                             ? l10n.genUploading
                             : ref == null
-                                ? l10n.genNotSelected
-                                : ref.display,
+                            ? l10n.genNotSelected
+                            : ref.display,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                            fontSize: 12,
-                            color: ref == null && !busy
-                                ? AppColors.error
-                                : Colors.white70),
+                          fontSize: 12,
+                          color:
+                              ref == null && !busy
+                                  ? AppColors.error
+                                  : Colors.white70,
+                        ),
                       ),
                     ],
                   ),
@@ -1050,22 +1145,28 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
                   child: OutlinedButton.icon(
                     onPressed: busy ? null : () => _pickFromGallery(s),
                     icon: const Icon(Icons.photo_library, size: 16),
-                    label: Text(l10n.genFromGallery,
-                        style: const TextStyle(fontSize: 12)),
+                    label: Text(
+                      l10n.genFromGallery,
+                      style: const TextStyle(fontSize: 12),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: busy ? null : () => _pickFromFile(s),
-                    icon: busy
-                        ? const SizedBox(
-                            width: 14,
-                            height: 14,
-                            child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Icon(Icons.folder_open, size: 16),
-                    label: Text(l10n.genFromFile,
-                        style: const TextStyle(fontSize: 12)),
+                    icon:
+                        busy
+                            ? const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                            : const Icon(Icons.folder_open, size: 16),
+                    label: Text(
+                      l10n.genFromFile,
+                      style: const TextStyle(fontSize: 12),
+                    ),
                   ),
                 ),
               ],
@@ -1101,8 +1202,9 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
         color: Colors.white10,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-            color: ref == null ? Colors.transparent : AppColors.accent,
-            width: 1.5),
+          color: ref == null ? Colors.transparent : AppColors.accent,
+          width: 1.5,
+        ),
       ),
       clipBehavior: Clip.antiAlias,
       child: Center(child: child),
@@ -1143,8 +1245,7 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
                   j.thumbUrl(size: 200),
                   headers: GenerateService.authHeaders,
                   fit: BoxFit.contain,
-                  errorBuilder: (_, _, _) =>
-                      Container(color: Colors.white10),
+                  errorBuilder: (_, _, _) => Container(color: Colors.white10),
                 ),
               ),
             ),
@@ -1154,7 +1255,6 @@ class _AssetGenerateScreenState extends State<AssetGenerateScreen> {
     );
   }
 }
-
 
 /// Uretilenler galerisinden bir is ciktisi secme sayfasi (gorev #287).
 ///
@@ -1226,10 +1326,12 @@ class _GalleryPickerSheetState extends State<_GalleryPickerSheet> {
     final q = _search.text.trim().toLowerCase();
     if (q.isEmpty) return _all;
     return _all
-        .where((j) =>
-            j.prompt.toLowerCase().contains(q) ||
-            j.combined.toLowerCase().contains(q) ||
-            j.task.toLowerCase().contains(q))
+        .where(
+          (j) =>
+              j.prompt.toLowerCase().contains(q) ||
+              j.combined.toLowerCase().contains(q) ||
+              j.task.toLowerCase().contains(q),
+        )
         .toList();
   }
 
@@ -1241,14 +1343,16 @@ class _GalleryPickerSheetState extends State<_GalleryPickerSheet> {
     // Sabit 0.72 yukseklik klavye acilinca ekrani asiyordu (gorev #289):
     // guvenli alan + klavye dusuldukten sonra kalanla sinirla.
     final tavan = mq.size.height * 0.72;
-    final kalan = mq.size.height - mq.viewInsets.bottom - mq.padding.vertical - 24;
+    final kalan =
+        mq.size.height - mq.viewInsets.bottom - mq.padding.vertical - 24;
     return SafeArea(
       child: Padding(
         padding: EdgeInsets.only(
-            left: 14,
-            right: 14,
-            top: 12,
-            bottom: mq.viewInsets.bottom + 12),
+          left: 14,
+          right: 14,
+          top: 12,
+          bottom: mq.viewInsets.bottom + 12,
+        ),
         child: SizedBox(
           height: kalan > 0 && kalan < tavan ? kalan : tavan,
           child: Column(
@@ -1256,9 +1360,13 @@ class _GalleryPickerSheetState extends State<_GalleryPickerSheet> {
               Row(
                 children: [
                   Expanded(
-                    child: Text(l10n.genPickerTitle(widget.slot.label),
-                        style: const TextStyle(
-                            fontSize: 15, fontWeight: FontWeight.bold)),
+                    child: Text(
+                      l10n.genPickerTitle(widget.slot.label),
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                   IconButton(
                     icon: const Icon(Icons.refresh),
@@ -1279,22 +1387,28 @@ class _GalleryPickerSheetState extends State<_GalleryPickerSheet> {
               ),
               const SizedBox(height: 10),
               Expanded(
-                child: _loading
-                    ? const Center(child: CircularProgressIndicator())
-                    : _error != null
+                child:
+                    _loading
+                        ? const Center(child: CircularProgressIndicator())
+                        : _error != null
                         ? Center(
-                            child: Text(_error!,
-                                textAlign: TextAlign.center,
-                                style: TextStyle(color: AppColors.error)))
+                          child: Text(
+                            _error!,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: AppColors.error),
+                          ),
+                        )
                         : list.isEmpty
-                            ? Center(
-                                child: Text(
-                                    l10n.genPickerEmpty,
-                                    textAlign: TextAlign.center,
-                                    style: const TextStyle(color: Colors.grey)))
-                            : widget.slot.isAudio
-                                ? _audioList(list)
-                                : _thumbGrid(list),
+                        ? Center(
+                          child: Text(
+                            l10n.genPickerEmpty,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(color: Colors.grey),
+                          ),
+                        )
+                        : widget.slot.isAudio
+                        ? _audioList(list)
+                        : _thumbGrid(list),
               ),
             ],
           ),
@@ -1304,73 +1418,83 @@ class _GalleryPickerSheetState extends State<_GalleryPickerSheet> {
   }
 
   Widget _thumbGrid(List<GenerateJob> list) => GridView.builder(
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 3,
-          mainAxisSpacing: 8,
-          crossAxisSpacing: 8,
-          childAspectRatio: 0.72,
-        ),
-        itemCount: list.length,
-        itemBuilder: (_, i) {
-          final j = list[i];
-          return InkWell(
-            onTap: () => Navigator.pop(context, j),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        Image.network(
-                          j.thumbUrl(size: 300),
-                          headers: GenerateService.authHeaders,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) =>
-                              Container(color: Colors.white10),
-                        ),
-                        if (j.isVideo)
-                          const Align(
-                            alignment: Alignment.topRight,
-                            child: Padding(
-                              padding: EdgeInsets.all(4),
-                              child: Icon(Icons.play_circle_fill,
-                                  size: 18, color: Colors.white70),
-                            ),
-                          ),
-                      ],
+    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+      crossAxisCount: 3,
+      mainAxisSpacing: 8,
+      crossAxisSpacing: 8,
+      childAspectRatio: 0.72,
+    ),
+    itemCount: list.length,
+    itemBuilder: (_, i) {
+      final j = list[i];
+      return InkWell(
+        onTap: () => Navigator.pop(context, j),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Image.network(
+                      j.thumbUrl(size: 300),
+                      headers: GenerateService.authHeaders,
+                      fit: BoxFit.cover,
+                      errorBuilder:
+                          (_, _, _) => Container(color: Colors.white10),
                     ),
-                  ),
+                    if (j.isVideo)
+                      const Align(
+                        alignment: Alignment.topRight,
+                        child: Padding(
+                          padding: EdgeInsets.all(4),
+                          child: Icon(
+                            Icons.play_circle_fill,
+                            size: 18,
+                            color: Colors.white70,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
-                const SizedBox(height: 3),
-                Text(j.prompt.isEmpty ? j.id : j.prompt,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 10, color: Colors.grey)),
-              ],
+              ),
             ),
-          );
-        },
+            const SizedBox(height: 3),
+            Text(
+              j.prompt.isEmpty ? j.id : j.prompt,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 10, color: Colors.grey),
+            ),
+          ],
+        ),
       );
+    },
+  );
 
   Widget _audioList(List<GenerateJob> list) => ListView.separated(
-        itemCount: list.length,
-        separatorBuilder: (_, _) => const Divider(height: 1),
-        itemBuilder: (_, i) {
-          final j = list[i];
-          return ListTile(
-            dense: true,
-            leading: const Icon(Icons.music_note),
-            title: Text(j.prompt.isEmpty ? j.id : j.prompt,
-                maxLines: 1, overflow: TextOverflow.ellipsis),
-            subtitle: Text(j.fileName ?? '',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 11)),
-            onTap: () => Navigator.pop(context, j),
-          );
-        },
+    itemCount: list.length,
+    separatorBuilder: (_, _) => const Divider(height: 1),
+    itemBuilder: (_, i) {
+      final j = list[i];
+      return ListTile(
+        dense: true,
+        leading: const Icon(Icons.music_note),
+        title: Text(
+          j.prompt.isEmpty ? j.id : j.prompt,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        subtitle: Text(
+          j.fileName ?? '',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 11),
+        ),
+        onTap: () => Navigator.pop(context, j),
       );
+    },
+  );
 }

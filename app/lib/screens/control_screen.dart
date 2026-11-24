@@ -10,6 +10,7 @@ import '../services/user_session.dart';
 import '../theme.dart';
 import '../widgets/sync_status_chip.dart';
 import '../l10n/app_localizations.dart';
+import '../widgets/app_toast.dart';
 
 class ControlScreen extends StatefulWidget {
   const ControlScreen({super.key});
@@ -18,7 +19,8 @@ class ControlScreen extends StatefulWidget {
   State<ControlScreen> createState() => _ControlScreenState();
 }
 
-class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserver {
+class _ControlScreenState extends State<ControlScreen>
+    with WidgetsBindingObserver {
   AppLocalizations get l10n => AppLocalizations.of(context)!;
 
   List<AutomationModel> _automations = [];
@@ -59,8 +61,13 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
     final postponedIds = prefs.getStringList(_postponedAppsKey) ?? [];
     if (mounted) {
       setState(() {
-        _completedAppIds = ids.map((e) => int.tryParse(e) ?? 0).where((e) => e > 0).toSet();
-        _postponedAppIds = postponedIds.map((e) => int.tryParse(e) ?? 0).where((e) => e > 0).toSet();
+        _completedAppIds =
+            ids.map((e) => int.tryParse(e) ?? 0).where((e) => e > 0).toSet();
+        _postponedAppIds =
+            postponedIds
+                .map((e) => int.tryParse(e) ?? 0)
+                .where((e) => e > 0)
+                .toSet();
       });
     }
   }
@@ -72,10 +79,24 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
     if (_appCategory == 'completed') {
       list = list.where((a) => _completedAppIds.contains(a.appId)).toList();
     } else if (_appCategory == 'postponed') {
-      list = list.where((a) => _postponedAppIds.contains(a.appId) && !_completedAppIds.contains(a.appId)).toList();
+      list =
+          list
+              .where(
+                (a) =>
+                    _postponedAppIds.contains(a.appId) &&
+                    !_completedAppIds.contains(a.appId),
+              )
+              .toList();
     } else {
       // in_progress: exclude both completed and postponed
-      list = list.where((a) => !_completedAppIds.contains(a.appId) && !_postponedAppIds.contains(a.appId)).toList();
+      list =
+          list
+              .where(
+                (a) =>
+                    !_completedAppIds.contains(a.appId) &&
+                    !_postponedAppIds.contains(a.appId),
+              )
+              .toList();
     }
 
     // Filter by running status
@@ -101,13 +122,18 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
   }
 
   Future<void> _loadAutomations({bool silent = false}) async {
-    if (!silent) setState(() { _loading = true; _error = null; });
+    if (!silent)
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
     final result = await ApiService.getAutomations();
     if (mounted) {
       if (result.ok) {
         var automations = result.data!;
         // Fetch per-app MCP servers for automations missing them
-        final needsMcp = automations.where((a) => a.mcpServers.isEmpty).toList();
+        final needsMcp =
+            automations.where((a) => a.mcpServers.isEmpty).toList();
         if (needsMcp.isNotEmpty) {
           final uniqueAppIds = needsMcp.map((a) => a.appId).toSet();
           final mcpFutures = <int, Future<ApiResult<List<String>>>>{};
@@ -122,12 +148,13 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
             }
           }
           if (mcpResults.isNotEmpty) {
-            automations = automations.map((a) {
-              if (a.mcpServers.isEmpty && mcpResults.containsKey(a.appId)) {
-                return a.copyWith(mcpServers: mcpResults[a.appId]);
-              }
-              return a;
-            }).toList();
+            automations =
+                automations.map((a) {
+                  if (a.mcpServers.isEmpty && mcpResults.containsKey(a.appId)) {
+                    return a.copyWith(mcpServers: mcpResults[a.appId]);
+                  }
+                  return a;
+                }).toList();
           }
         }
         setState(() {
@@ -149,17 +176,21 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
 
   Future<void> _toggleAutomation(AutomationModel auto) async {
     HapticFeedback.lightImpact();
-    final result = auto.running
-        ? await ApiService.stopAutomation(auto.appId)
-        : await ApiService.startAutomation(auto.appId);
+    final result =
+        auto.running
+            ? await ApiService.stopAutomation(auto.appId)
+            : await ApiService.startAutomation(auto.appId);
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result.ok
-              ? l10n.automationToggled(auto.appName, auto.running ? l10n.automationStateStopped : l10n.automationStateStarted)
-              : result.error ?? l10n.failed),
-          backgroundColor: result.ok ? AppColors.success : AppColors.error,
-        ),
+      AppToast.of(context).show(
+        result.ok
+            ? l10n.automationToggled(
+              auto.appName,
+              auto.running
+                  ? l10n.automationStateStopped
+                  : l10n.automationStateStarted,
+            )
+            : result.error ?? l10n.failed,
+        error: true,
       );
       if (result.ok) _loadAutomations();
     }
@@ -168,13 +199,11 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
   Future<bool> _runOnceAutomation(AutomationModel auto) async {
     final result = await ApiService.runOnceAutomation(auto.appId);
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result.ok
-              ? l10n.oneTimeRunTriggered(auto.appName)
-              : result.error ?? l10n.failedToTriggerRun),
-          backgroundColor: result.ok ? AppColors.success : AppColors.error,
-        ),
+      AppToast.of(context).show(
+        result.ok
+            ? l10n.oneTimeRunTriggered(auto.appName)
+            : result.error ?? l10n.failedToTriggerRun,
+        error: true,
       );
       if (result.ok) _loadAutomations(silent: true);
     }
@@ -184,31 +213,33 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
   Future<void> _deleteAutomation(AutomationModel auto) async {
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.bgCard,
-        title: Text(l10n.deleteAutomation),
-        content: Text(l10n.deleteAutomationConfirm(auto.appName)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(l10n.cancel),
+      builder:
+          (ctx) => AlertDialog(
+            backgroundColor: AppColors.bgCard,
+            title: Text(l10n.deleteAutomation),
+            content: Text(l10n.deleteAutomationConfirm(auto.appName)),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(l10n.cancel),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text(
+                  l10n.delete,
+                  style: TextStyle(color: AppColors.error),
+                ),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(l10n.delete, style: TextStyle(color: AppColors.error)),
-          ),
-        ],
-      ),
     );
     if (confirm != true) return;
     HapticFeedback.mediumImpact();
     final result = await ApiService.deleteAutomation(auto.appId);
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result.ok ? l10n.deleted : result.error ?? l10n.failedToDelete),
-          backgroundColor: result.ok ? AppColors.success : AppColors.error,
-        ),
+      AppToast.of(context).show(
+        result.ok ? l10n.deleted : result.error ?? l10n.failedToDelete,
+        error: true,
       );
       if (result.ok) _loadAutomations();
     }
@@ -219,35 +250,38 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
     final runningAutomations = _automations.where((a) => a.running).toList();
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.bgCard,
-        title: Text(l10n.resetServer),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(l10n.resetServerBody),
-            if (runningAutomations.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(
-                l10n.resetServerRunningNote(runningAutomations.length),
-                style: TextStyle(color: AppColors.warning, fontSize: 13),
+      builder:
+          (ctx) => AlertDialog(
+            backgroundColor: AppColors.bgCard,
+            title: Text(l10n.resetServer),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(l10n.resetServerBody),
+                if (runningAutomations.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    l10n.resetServerRunningNote(runningAutomations.length),
+                    style: TextStyle(color: AppColors.warning, fontSize: 13),
+                  ),
+                ],
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(l10n.cancel),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.warning,
+                ),
+                child: Text(l10n.reset),
               ),
             ],
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(l10n.cancel),
           ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(backgroundColor: AppColors.warning),
-            child: Text(l10n.reset),
-          ),
-        ],
-      ),
     );
     if (confirm != true || !mounted) return;
 
@@ -262,12 +296,9 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
 
       final result = await ApiService.resetServer();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(result.ok ? result.data! : result.error!),
-            backgroundColor: result.ok ? AppColors.success : AppColors.error,
-          ),
-        );
+        AppToast.of(
+          context,
+        ).show(result.ok ? result.data! : result.error!, error: true);
         if (result.ok) _loadAutomations();
       }
     } finally {
@@ -315,18 +346,27 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
             final hasError = loadError != null;
             return SingleChildScrollView(
               padding: EdgeInsets.only(
-                left: 20, right: 20, top: 20,
+                left: 20,
+                right: 20,
+                top: 20,
                 bottom: mq.viewInsets.bottom + mq.padding.bottom + 20,
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(l10n.designDocTitle(appName),
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text(
+                    l10n.designDocTitle(appName),
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   const SizedBox(height: 4),
-                  Text(l10n.designDocSubtitle,
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
+                  Text(
+                    l10n.designDocSubtitle,
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                  ),
                   const SizedBox(height: 12),
                   if (loading)
                     const Center(child: CircularProgressIndicator())
@@ -335,8 +375,10 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       child: Column(
                         children: [
-                          Text(l10n.failedToLoadWithError('$loadError'),
-                              style: TextStyle(color: AppColors.error)),
+                          Text(
+                            l10n.failedToLoadWithError('$loadError'),
+                            style: TextStyle(color: AppColors.error),
+                          ),
                           const SizedBox(height: 8),
                           TextButton.icon(
                             onPressed: () {
@@ -367,49 +409,76 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
                       alignment: Alignment.centerRight,
                       child: Text(
                         l10n.charactersCount(gddController.text.length),
-                        style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey.shade500,
+                        ),
                       ),
                     ),
                   ],
                   const SizedBox(height: 16),
                   SizedBox(
-                    width: double.infinity, height: 48,
+                    width: double.infinity,
+                    height: 48,
                     child: FilledButton.icon(
-                      onPressed: (saving || loading || hasError) ? null : () async {
-                        if (gddController.text.trim().isEmpty) {
-                          final confirm = await showDialog<bool>(
-                            context: ctx,
-                            builder: (d) => AlertDialog(
-                              title: Text(l10n.saveEmptyGddTitle),
-                              content: Text(l10n.saveEmptyGddBody),
-                              actions: [
-                                TextButton(onPressed: () => Navigator.pop(d, false), child: Text(l10n.cancel)),
-                                FilledButton(onPressed: () => Navigator.pop(d, true), child: Text(l10n.save)),
-                              ],
-                            ),
-                          );
-                          if (confirm != true) return;
-                        }
-                        setSheetState(() => saving = true);
-                        final result = await ApiService.updateGdd(
-                            appId, gddController.text);
-                        if (ctx.mounted) Navigator.pop(ctx);
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                            content: Text(result.ok ? l10n.designDocSaved : result.error ?? l10n.failed),
-                            backgroundColor: result.ok ? AppColors.success : AppColors.error));
-                        }
-                      },
-                      icon: saving
-                          ? const SizedBox(width: 18, height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2))
-                          : const Icon(Icons.save),
+                      onPressed:
+                          (saving || loading || hasError)
+                              ? null
+                              : () async {
+                                if (gddController.text.trim().isEmpty) {
+                                  final confirm = await showDialog<bool>(
+                                    context: ctx,
+                                    builder:
+                                        (d) => AlertDialog(
+                                          title: Text(l10n.saveEmptyGddTitle),
+                                          content: Text(l10n.saveEmptyGddBody),
+                                          actions: [
+                                            TextButton(
+                                              onPressed:
+                                                  () => Navigator.pop(d, false),
+                                              child: Text(l10n.cancel),
+                                            ),
+                                            FilledButton(
+                                              onPressed:
+                                                  () => Navigator.pop(d, true),
+                                              child: Text(l10n.save),
+                                            ),
+                                          ],
+                                        ),
+                                  );
+                                  if (confirm != true) return;
+                                }
+                                setSheetState(() => saving = true);
+                                final result = await ApiService.updateGdd(
+                                  appId,
+                                  gddController.text,
+                                );
+                                if (ctx.mounted) Navigator.pop(ctx);
+                                if (mounted) {
+                                  AppToast.of(context).show(
+                                    result.ok
+                                        ? l10n.designDocSaved
+                                        : result.error ?? l10n.failed,
+                                    error: true,
+                                  );
+                                }
+                              },
+                      icon:
+                          saving
+                              ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                              : const Icon(Icons.save),
                       label: Text(saving ? l10n.saving : l10n.save),
                     ),
                   ),
                 ],
-                ),
-              );
+              ),
+            );
           },
         );
       },
@@ -449,62 +518,84 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
         return StatefulBuilder(
           builder: (ctx, setSheetState) {
             final mq = MediaQuery.of(ctx);
-            final filtered = searchQuery.isEmpty
-                ? apps
-                : apps.where((a) => a.name.toLowerCase().contains(searchQuery.toLowerCase())).toList();
+            final filtered =
+                searchQuery.isEmpty
+                    ? apps
+                    : apps
+                        .where(
+                          (a) => a.name.toLowerCase().contains(
+                            searchQuery.toLowerCase(),
+                          ),
+                        )
+                        .toList();
             return SingleChildScrollView(
               padding: EdgeInsets.only(
-                left: 20, right: 20, top: 20,
+                left: 20,
+                right: 20,
+                top: 20,
                 bottom: mq.viewInsets.bottom + mq.padding.bottom + 20,
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(l10n.newAutomation,
-                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 16),
-                    // App selector with search
-                    TextField(
-                      controller: searchController,
-                      decoration: InputDecoration(
-                        hintText: selectedAppName ?? l10n.searchAppsHint,
-                        prefixIcon: const Icon(Icons.search, size: 20),
-                        suffixIcon: selectedAppId != null
-                            ? IconButton(
+                  Text(
+                    l10n.newAutomation,
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
+                  // App selector with search
+                  TextField(
+                    controller: searchController,
+                    decoration: InputDecoration(
+                      hintText: selectedAppName ?? l10n.searchAppsHint,
+                      prefixIcon: const Icon(Icons.search, size: 20),
+                      suffixIcon:
+                          selectedAppId != null
+                              ? IconButton(
                                 icon: const Icon(Icons.clear, size: 18),
-                                onPressed: () => setSheetState(() {
-                                  selectedAppId = null;
-                                  selectedAppName = null;
-                                  searchController.clear();
-                                  searchQuery = '';
-                                }),
+                                onPressed:
+                                    () => setSheetState(() {
+                                      selectedAppId = null;
+                                      selectedAppName = null;
+                                      searchController.clear();
+                                      searchQuery = '';
+                                    }),
                               )
-                            : null,
-                        isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                      onChanged: (v) => setSheetState(() {
-                        searchQuery = v;
-                        if (selectedAppId != null) {
-                          selectedAppId = null;
-                          selectedAppName = null;
-                        }
-                      }),
+                              : null,
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 12),
                     ),
-                    if (selectedAppId == null) ...[
-                      const SizedBox(height: 4),
-                      ConstrainedBox(
-                        constraints: const BoxConstraints(maxHeight: 150),
-                        child: filtered.isEmpty
-                            ? Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 12),
+                    onChanged:
+                        (v) => setSheetState(() {
+                          searchQuery = v;
+                          if (selectedAppId != null) {
+                            selectedAppId = null;
+                            selectedAppName = null;
+                          }
+                        }),
+                  ),
+                  if (selectedAppId == null) ...[
+                    const SizedBox(height: 4),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 150),
+                      child:
+                          filtered.isEmpty
+                              ? Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
                                 child: Text(
-                                  apps.isEmpty ? l10n.allAppsHaveAutomations : l10n.noAppsMatch,
-                                  style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
+                                  apps.isEmpty
+                                      ? l10n.allAppsHaveAutomations
+                                      : l10n.noAppsMatch,
+                                  style: TextStyle(
+                                    color: Colors.grey.shade500,
+                                    fontSize: 13,
+                                  ),
                                 ),
                               )
-                            : ListView.builder(
+                              : ListView.builder(
                                 shrinkWrap: true,
                                 itemCount: filtered.length,
                                 itemBuilder: (_, i) {
@@ -512,113 +603,175 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
                                   return ListTile(
                                     dense: true,
                                     visualDensity: VisualDensity.compact,
-                                    title: Text(app.name, style: const TextStyle(fontSize: 14)),
-                                    subtitle: Text(app.appType, style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
-                                    onTap: () => setSheetState(() {
-                                      selectedAppId = app.id;
-                                      selectedAppName = app.name;
-                                      searchController.clear();
-                                      searchQuery = '';
-                                    }),
+                                    title: Text(
+                                      app.name,
+                                      style: const TextStyle(fontSize: 14),
+                                    ),
+                                    subtitle: Text(
+                                      app.appType,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.grey.shade500,
+                                      ),
+                                    ),
+                                    onTap:
+                                        () => setSheetState(() {
+                                          selectedAppId = app.id;
+                                          selectedAppName = app.name;
+                                          searchController.clear();
+                                          searchQuery = '';
+                                        }),
                                   );
                                 },
                               ),
-                      ),
-                    ],
-                    const SizedBox(height: 12),
-                    Text(l10n.aiAgent, style: TextStyle(fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      children: ['claude', 'gemini', 'codex', 'local'].map((agent) {
-                        final selected = agent == aiAgent;
-                        return ChoiceChip(
-                          label: Text(agent[0].toUpperCase() + agent.substring(1)),
-                          selected: selected,
-                          selectedColor: AppColors.agentColor(agent),
-                          onSelected: (sel) {
-                            if (sel) setSheetState(() => aiAgent = agent);
-                          },
-                        );
-                      }).toList(),
                     ),
-                    const SizedBox(height: 12),
-                    Row(children: [
-                      Text(l10n.intervalMinLabel),
-                      Expanded(child: Slider(
-                        value: intervalMinutes.toDouble(), min: 5, max: 60,
-                        divisions: 11, label: '$intervalMinutes',
-                        onChanged: (v) => setSheetState(() => intervalMinutes = v.round()),
-                      )),
-                      Text('$intervalMinutes'),
-                    ]),
-                    Row(children: [
-                      Text(l10n.maxSessionMinLabel),
-                      Expanded(child: Slider(
-                        value: maxSessionMinutes.toDouble(), min: 5, max: 60,
-                        divisions: 11, label: '$maxSessionMinutes',
-                        onChanged: (v) => setSheetState(() => maxSessionMinutes = v.round()),
-                      )),
-                      Text('$maxSessionMinutes'),
-                    ]),
-                    const SizedBox(height: 12),
-                    // Full Auto toggle
-                    SwitchListTile(
-                      title: Text(l10n.fullAutoMode),
-                      subtitle: Text(fullAuto
-                          ? l10n.fullAutoModeOn
-                          : l10n.customPrompt,
-                          style: TextStyle(fontSize: 11, color: Colors.grey.shade400)),
-                      value: fullAuto,
-                      thumbColor: WidgetStateProperty.resolveWith((states) =>
-                          states.contains(WidgetState.selected) ? AppColors.accent : null),
-                      contentPadding: EdgeInsets.zero,
-                      onChanged: (v) => setSheetState(() => fullAuto = v),
-                    ),
-                    if (!fullAuto) ...[
-                      TextField(
-                        controller: promptController, maxLines: 3,
-                        decoration: InputDecoration(
-                          hintText: l10n.customAutomationPromptHint, alignLabelWithHint: true),
-                      ),
-                    ],
-                    // MCP servers are set per-app on the app detail page
-                    const SizedBox(height: 20),
-                    SizedBox(
-                      width: double.infinity, height: 48,
-                      child: FilledButton.icon(
-                        onPressed: submitting ? null : () async {
-                          if (selectedAppId == null) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(l10n.selectAnApp),
-                                backgroundColor: AppColors.warning));
-                            return;
-                          }
-                          setSheetState(() => submitting = true);
-                          final result = await ApiService.createAutomation(
-                            appId: selectedAppId!, aiAgent: aiAgent,
-                            intervalMinutes: intervalMinutes,
-                            maxSessionMinutes: maxSessionMinutes,
-                            prompt: fullAuto ? '' : promptController.text.trim(),
+                  ],
+                  const SizedBox(height: 12),
+                  Text(
+                    l10n.aiAgent,
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    children:
+                        ['claude', 'gemini', 'codex', 'local'].map((agent) {
+                          final selected = agent == aiAgent;
+                          return ChoiceChip(
+                            label: Text(
+                              agent[0].toUpperCase() + agent.substring(1),
+                            ),
+                            selected: selected,
+                            selectedColor: AppColors.agentColor(agent),
+                            onSelected: (sel) {
+                              if (sel) setSheetState(() => aiAgent = agent);
+                            },
                           );
-                          if (ctx.mounted) Navigator.pop(ctx);
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                              content: Text(result.ok ? l10n.automationCreated : result.error ?? l10n.failed),
-                              backgroundColor: result.ok ? AppColors.success : AppColors.error));
-                            if (result.ok) _loadAutomations();
-                          }
-                        },
-                        icon: submitting
-                            ? const SizedBox(width: 18, height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2))
-                            : const Icon(Icons.add),
-                        label: Text(submitting ? l10n.creating : l10n.create),
+                        }).toList(),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Text(l10n.intervalMinLabel),
+                      Expanded(
+                        child: Slider(
+                          value: intervalMinutes.toDouble(),
+                          min: 5,
+                          max: 60,
+                          divisions: 11,
+                          label: '$intervalMinutes',
+                          onChanged:
+                              (v) => setSheetState(
+                                () => intervalMinutes = v.round(),
+                              ),
+                        ),
+                      ),
+                      Text('$intervalMinutes'),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      Text(l10n.maxSessionMinLabel),
+                      Expanded(
+                        child: Slider(
+                          value: maxSessionMinutes.toDouble(),
+                          min: 5,
+                          max: 60,
+                          divisions: 11,
+                          label: '$maxSessionMinutes',
+                          onChanged:
+                              (v) => setSheetState(
+                                () => maxSessionMinutes = v.round(),
+                              ),
+                        ),
+                      ),
+                      Text('$maxSessionMinutes'),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  // Full Auto toggle
+                  SwitchListTile(
+                    title: Text(l10n.fullAutoMode),
+                    subtitle: Text(
+                      fullAuto ? l10n.fullAutoModeOn : l10n.customPrompt,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey.shade400,
+                      ),
+                    ),
+                    value: fullAuto,
+                    thumbColor: WidgetStateProperty.resolveWith(
+                      (states) =>
+                          states.contains(WidgetState.selected)
+                              ? AppColors.accent
+                              : null,
+                    ),
+                    contentPadding: EdgeInsets.zero,
+                    onChanged: (v) => setSheetState(() => fullAuto = v),
+                  ),
+                  if (!fullAuto) ...[
+                    TextField(
+                      controller: promptController,
+                      maxLines: 3,
+                      decoration: InputDecoration(
+                        hintText: l10n.customAutomationPromptHint,
+                        alignLabelWithHint: true,
                       ),
                     ),
                   ],
-                ),
-              );
+                  // MCP servers are set per-app on the app detail page
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: FilledButton.icon(
+                      onPressed:
+                          submitting
+                              ? null
+                              : () async {
+                                if (selectedAppId == null) {
+                                  AppToast.of(context).show(l10n.selectAnApp);
+                                  return;
+                                }
+                                setSheetState(() => submitting = true);
+                                final result =
+                                    await ApiService.createAutomation(
+                                      appId: selectedAppId!,
+                                      aiAgent: aiAgent,
+                                      intervalMinutes: intervalMinutes,
+                                      maxSessionMinutes: maxSessionMinutes,
+                                      prompt:
+                                          fullAuto
+                                              ? ''
+                                              : promptController.text.trim(),
+                                    );
+                                if (ctx.mounted) Navigator.pop(ctx);
+                                if (mounted) {
+                                  AppToast.of(context).show(
+                                    result.ok
+                                        ? l10n.automationCreated
+                                        : result.error ?? l10n.failed,
+                                    error: true,
+                                  );
+                                  if (result.ok) _loadAutomations();
+                                }
+                              },
+                      icon:
+                          submitting
+                              ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                              : const Icon(Icons.add),
+                      label: Text(submitting ? l10n.creating : l10n.create),
+                    ),
+                  ),
+                ],
+              ),
+            );
           },
         );
       },
@@ -650,79 +803,129 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
             final mq = MediaQuery.of(ctx);
             return SingleChildScrollView(
               padding: EdgeInsets.only(
-                left: 20, right: 20, top: 20,
+                left: 20,
+                right: 20,
+                top: 20,
                 bottom: mq.viewInsets.bottom + mq.padding.bottom + 20,
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(l10n.editTitleNamed(auto.appName),
-                      maxLines: 1, overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  Text(
+                    l10n.editTitleNamed(auto.appName),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   const SizedBox(height: 16),
-                  Text(l10n.aiAgent, style: TextStyle(fontWeight: FontWeight.w600)),
+                  Text(
+                    l10n.aiAgent,
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 8,
-                    children: ['claude', 'gemini', 'codex', 'local'].map((agent) {
-                      final selected = agent == aiAgent;
-                      return ChoiceChip(
-                        label: Text(agent[0].toUpperCase() + agent.substring(1)),
-                        selected: selected,
-                        selectedColor: AppColors.agentColor(agent),
-                        onSelected: (sel) {
-                          if (sel) setSheetState(() => aiAgent = agent);
-                        },
-                      );
-                    }).toList(),
+                    children:
+                        ['claude', 'gemini', 'codex', 'local'].map((agent) {
+                          final selected = agent == aiAgent;
+                          return ChoiceChip(
+                            label: Text(
+                              agent[0].toUpperCase() + agent.substring(1),
+                            ),
+                            selected: selected,
+                            selectedColor: AppColors.agentColor(agent),
+                            onSelected: (sel) {
+                              if (sel) setSheetState(() => aiAgent = agent);
+                            },
+                          );
+                        }).toList(),
                   ),
                   const SizedBox(height: 12),
-                  Row(children: [
-                    Text(l10n.intervalMinLabel),
-                    Expanded(child: Slider(
-                      value: intervalMinutes.toDouble(), min: 5, max: 60,
-                      divisions: 11, label: '$intervalMinutes',
-                      onChanged: (v) => setSheetState(() => intervalMinutes = v.round()),
-                    )),
-                    Text('$intervalMinutes'),
-                  ]),
-                  Row(children: [
-                    Text(l10n.maxSessionMinLabel),
-                    Expanded(child: Slider(
-                      value: maxSessionMinutes.toDouble(), min: 5, max: 60,
-                      divisions: 11, label: '$maxSessionMinutes',
-                      onChanged: (v) => setSheetState(() => maxSessionMinutes = v.round()),
-                    )),
-                    Text('$maxSessionMinutes'),
-                  ]),
+                  Row(
+                    children: [
+                      Text(l10n.intervalMinLabel),
+                      Expanded(
+                        child: Slider(
+                          value: intervalMinutes.toDouble(),
+                          min: 5,
+                          max: 60,
+                          divisions: 11,
+                          label: '$intervalMinutes',
+                          onChanged:
+                              (v) => setSheetState(
+                                () => intervalMinutes = v.round(),
+                              ),
+                        ),
+                      ),
+                      Text('$intervalMinutes'),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      Text(l10n.maxSessionMinLabel),
+                      Expanded(
+                        child: Slider(
+                          value: maxSessionMinutes.toDouble(),
+                          min: 5,
+                          max: 60,
+                          divisions: 11,
+                          label: '$maxSessionMinutes',
+                          onChanged:
+                              (v) => setSheetState(
+                                () => maxSessionMinutes = v.round(),
+                              ),
+                        ),
+                      ),
+                      Text('$maxSessionMinutes'),
+                    ],
+                  ),
                   const SizedBox(height: 8),
-                  Text(l10n.mcpConfiguredPerApp,
-                      style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                  Text(
+                    l10n.mcpConfiguredPerApp,
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                  ),
                   const SizedBox(height: 20),
                   SizedBox(
-                    width: double.infinity, height: 48,
+                    width: double.infinity,
+                    height: 48,
                     child: FilledButton.icon(
-                      onPressed: submitting ? null : () async {
-                        setSheetState(() => submitting = true);
-                        final result = await ApiService.updateAutomation(
-                          appId: auto.appId,
-                          aiAgent: aiAgent,
-                          intervalMinutes: intervalMinutes,
-                          maxSessionMinutes: maxSessionMinutes,
-                        );
-                        if (ctx.mounted) Navigator.pop(ctx);
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                            content: Text(result.ok ? l10n.automationUpdated : result.error ?? l10n.failed),
-                            backgroundColor: result.ok ? AppColors.success : AppColors.error));
-                          if (result.ok) _loadAutomations();
-                        }
-                      },
-                      icon: submitting
-                          ? const SizedBox(width: 18, height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2))
-                          : const Icon(Icons.save),
+                      onPressed:
+                          submitting
+                              ? null
+                              : () async {
+                                setSheetState(() => submitting = true);
+                                final result =
+                                    await ApiService.updateAutomation(
+                                      appId: auto.appId,
+                                      aiAgent: aiAgent,
+                                      intervalMinutes: intervalMinutes,
+                                      maxSessionMinutes: maxSessionMinutes,
+                                    );
+                                if (ctx.mounted) Navigator.pop(ctx);
+                                if (mounted) {
+                                  AppToast.of(context).show(
+                                    result.ok
+                                        ? l10n.automationUpdated
+                                        : result.error ?? l10n.failed,
+                                    error: true,
+                                  );
+                                  if (result.ok) _loadAutomations();
+                                }
+                              },
+                      icon:
+                          submitting
+                              ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                              : const Icon(Icons.save),
                       label: Text(submitting ? l10n.saving : l10n.saveChanges),
                     ),
                   ),
@@ -751,32 +954,54 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
         actions: [
           AdminOnly(
             child: IconButton(
-              icon: _resetting
-                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.restart_alt),
+              icon:
+                  _resetting
+                      ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                      : const Icon(Icons.restart_alt),
               tooltip: l10n.resetServer,
               onPressed: _resetting ? null : _resetServer,
             ),
           ),
-          IconButton(icon: const Icon(Icons.refresh), onPressed: _loadAutomations),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadAutomations,
+          ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _showCreateSheet, child: const Icon(Icons.add)),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null && _automations.isEmpty
+        onPressed: _showCreateSheet,
+        child: const Icon(Icons.add),
+      ),
+      body:
+          _loading
+              ? const Center(child: CircularProgressIndicator())
+              : _error != null && _automations.isEmpty
               ? RefreshIndicator(
-                  color: AppColors.accent,
-                  onRefresh: _loadAutomations,
-                  child: ListView(children: [
+                color: AppColors.accent,
+                onRefresh: _loadAutomations,
+                child: ListView(
+                  children: [
                     const SizedBox(height: 80),
                     Center(
                       child: Column(
                         children: [
-                          Icon(Icons.cloud_off, size: 64, color: Colors.grey.shade600),
+                          Icon(
+                            Icons.cloud_off,
+                            size: 64,
+                            color: Colors.grey.shade600,
+                          ),
                           const SizedBox(height: 16),
-                          Text(_error!, style: TextStyle(color: Colors.grey.shade400, fontSize: 16)),
+                          Text(
+                            _error!,
+                            style: TextStyle(
+                              color: Colors.grey.shade400,
+                              fontSize: 16,
+                            ),
+                          ),
                           const SizedBox(height: 16),
                           ElevatedButton.icon(
                             onPressed: _loadAutomations,
@@ -786,144 +1011,180 @@ class _ControlScreenState extends State<ControlScreen> with WidgetsBindingObserv
                         ],
                       ),
                     ),
-                  ]),
-                )
+                  ],
+                ),
+              )
               : Column(
-                  children: [
-                    if (_error != null)
-                      SyncErrorBanner(
-                        message: _error!,
-                        onRetry: () => _loadAutomations(silent: true),
-                        onDismiss: () => setState(() => _error = null),
-                      ),
-                    // App category segmented button
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-                      child: SegmentedButton<String>(
-                        segments: [
-                          ButtonSegment(
-                            value: 'in_progress',
-                            label: Text(l10n.statusInProgress),
-                            icon: Icon(Icons.code, size: 18),
-                          ),
-                          ButtonSegment(
-                            value: 'postponed',
-                            label: Text(l10n.statusPostponed),
-                            icon: Icon(Icons.pause_circle_outline, size: 18),
-                          ),
-                          ButtonSegment(
-                            value: 'completed',
-                            label: Text(l10n.statusCompleted),
-                            icon: Icon(Icons.check_circle_outline, size: 18),
-                          ),
-                        ],
-                        selected: {_appCategory},
-                        onSelectionChanged: (selection) {
-                          setState(() => _appCategory = selection.first);
-                        },
-                        style: ButtonStyle(
-                          backgroundColor: WidgetStateProperty.resolveWith((states) {
-                            if (states.contains(WidgetState.selected)) {
-                              if (_appCategory == 'completed') {
-                                return AppColors.success.withValues(alpha: 0.2);
-                              } else if (_appCategory == 'postponed') {
-                                return AppColors.warning.withValues(alpha: 0.2);
-                              }
-                              return AppColors.info.withValues(alpha: 0.2);
+                children: [
+                  if (_error != null)
+                    SyncErrorBanner(
+                      message: _error!,
+                      onRetry: () => _loadAutomations(silent: true),
+                      onDismiss: () => setState(() => _error = null),
+                    ),
+                  // App category segmented button
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                    child: SegmentedButton<String>(
+                      segments: [
+                        ButtonSegment(
+                          value: 'in_progress',
+                          label: Text(l10n.statusInProgress),
+                          icon: Icon(Icons.code, size: 18),
+                        ),
+                        ButtonSegment(
+                          value: 'postponed',
+                          label: Text(l10n.statusPostponed),
+                          icon: Icon(Icons.pause_circle_outline, size: 18),
+                        ),
+                        ButtonSegment(
+                          value: 'completed',
+                          label: Text(l10n.statusCompleted),
+                          icon: Icon(Icons.check_circle_outline, size: 18),
+                        ),
+                      ],
+                      selected: {_appCategory},
+                      onSelectionChanged: (selection) {
+                        setState(() => _appCategory = selection.first);
+                      },
+                      style: ButtonStyle(
+                        backgroundColor: WidgetStateProperty.resolveWith((
+                          states,
+                        ) {
+                          if (states.contains(WidgetState.selected)) {
+                            if (_appCategory == 'completed') {
+                              return AppColors.success.withValues(alpha: 0.2);
+                            } else if (_appCategory == 'postponed') {
+                              return AppColors.warning.withValues(alpha: 0.2);
                             }
-                            return null;
-                          }),
-                        ),
+                            return AppColors.info.withValues(alpha: 0.2);
+                          }
+                          return null;
+                        }),
                       ),
                     ),
-                    // Status filter chips
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-                      child: SizedBox(
-                        height: 36,
-                        child: ListView(
-                          scrollDirection: Axis.horizontal,
-                          children: ['all', 'running', 'stopped'].map((status) {
-                            final selected = _statusFilter == status;
-                            final color = status == 'running'
-                                ? AppColors.success
-                                : status == 'stopped'
-                                    ? Colors.grey
-                                    : AppColors.accent;
-                            return Padding(
-                              padding: const EdgeInsets.only(right: 8),
-                              child: FilterChip(
-                                label: Text(status[0].toUpperCase() + status.substring(1)),
-                                selected: selected,
-                                selectedColor: color.withValues(alpha: 0.3),
-                                checkmarkColor: color,
-                                side: BorderSide(
-                                  color: selected ? color : Colors.grey.shade700,
-                                ),
-                                onSelected: (_) {
-                                  setState(() => _statusFilter = selected ? 'all' : status);
-                                },
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ),
-                    ),
-                    // Automation list
-                    Expanded(
-                      child: RefreshIndicator(
-                        color: AppColors.accent,
-                        onRefresh: _loadAutomations,
-                        child: filtered.isEmpty
-                            ? ListView(children: [
-                                const SizedBox(height: 80),
-                                Center(
-                                  child: Column(
-                                    children: [
-                                      Icon(
-                                        _automations.isEmpty ? Icons.smart_toy_outlined : Icons.filter_alt_off,
-                                        size: 48,
-                                        color: Colors.grey.shade600,
-                                      ),
-                                      const SizedBox(height: 12),
-                                      Text(
-                                        _automations.isEmpty
-                                            ? l10n.noAutomationsYet
-                                            : l10n.noAutomationsMatchFilters,
-                                        style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
-                                      ),
-                                      const SizedBox(height: 6),
-                                      Text(
-                                        _automations.isEmpty
-                                            ? l10n.tapPlusToCreateAutomation
-                                            : l10n.tryChangingFilters,
-                                        style: TextStyle(color: Colors.grey.shade400, fontSize: 14),
-                                      ),
-                                    ],
+                  ),
+                  // Status filter chips
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+                    child: SizedBox(
+                      height: 36,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        children:
+                            ['all', 'running', 'stopped'].map((status) {
+                              final selected = _statusFilter == status;
+                              final color =
+                                  status == 'running'
+                                      ? AppColors.success
+                                      : status == 'stopped'
+                                      ? Colors.grey
+                                      : AppColors.accent;
+                              return Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: FilterChip(
+                                  label: Text(
+                                    status[0].toUpperCase() +
+                                        status.substring(1),
                                   ),
+                                  selected: selected,
+                                  selectedColor: color.withValues(alpha: 0.3),
+                                  checkmarkColor: color,
+                                  side: BorderSide(
+                                    color:
+                                        selected ? color : Colors.grey.shade700,
+                                  ),
+                                  onSelected: (_) {
+                                    setState(
+                                      () =>
+                                          _statusFilter =
+                                              selected ? 'all' : status,
+                                    );
+                                  },
                                 ),
-                              ])
-                            : ListView.builder(
-                                padding: const EdgeInsets.fromLTRB(12, 4, 12, 80),
+                              );
+                            }).toList(),
+                      ),
+                    ),
+                  ),
+                  // Automation list
+                  Expanded(
+                    child: RefreshIndicator(
+                      color: AppColors.accent,
+                      onRefresh: _loadAutomations,
+                      child:
+                          filtered.isEmpty
+                              ? ListView(
+                                children: [
+                                  const SizedBox(height: 80),
+                                  Center(
+                                    child: Column(
+                                      children: [
+                                        Icon(
+                                          _automations.isEmpty
+                                              ? Icons.smart_toy_outlined
+                                              : Icons.filter_alt_off,
+                                          size: 48,
+                                          color: Colors.grey.shade600,
+                                        ),
+                                        const SizedBox(height: 12),
+                                        Text(
+                                          _automations.isEmpty
+                                              ? l10n.noAutomationsYet
+                                              : l10n.noAutomationsMatchFilters,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          _automations.isEmpty
+                                              ? l10n.tapPlusToCreateAutomation
+                                              : l10n.tryChangingFilters,
+                                          style: TextStyle(
+                                            color: Colors.grey.shade400,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              )
+                              : ListView.builder(
+                                padding: const EdgeInsets.fromLTRB(
+                                  12,
+                                  4,
+                                  12,
+                                  80,
+                                ),
                                 itemCount: filtered.length,
                                 itemBuilder: (context, index) {
                                   final auto = filtered[index];
                                   return _AutomationCard(
                                     key: ValueKey(auto.appId),
                                     automation: auto,
-                                    agentColor: AppColors.agentColor(auto.aiAgent),
+                                    agentColor: AppColors.agentColor(
+                                      auto.aiAgent,
+                                    ),
                                     onToggle: () => _toggleAutomation(auto),
                                     onRunOnce: () => _runOnceAutomation(auto),
                                     onDelete: () => _deleteAutomation(auto),
-                                    onGdd: () => _showGddSheet(auto.appId, auto.appName),
+                                    onGdd:
+                                        () => _showGddSheet(
+                                          auto.appId,
+                                          auto.appName,
+                                        ),
                                     onEdit: () => _showEditSheet(auto),
                                   );
                                 },
                               ),
-                      ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
+              ),
     );
   }
 }
@@ -939,9 +1200,12 @@ class _AutomationCard extends StatefulWidget {
 
   const _AutomationCard({
     super.key,
-    required this.automation, required this.agentColor,
-    required this.onToggle, required this.onRunOnce,
-    required this.onDelete, required this.onGdd,
+    required this.automation,
+    required this.agentColor,
+    required this.onToggle,
+    required this.onRunOnce,
+    required this.onDelete,
+    required this.onGdd,
     required this.onEdit,
   });
 
@@ -1121,58 +1385,111 @@ class _AutomationCardState extends State<_AutomationCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(children: [
-              Container(width: 12, height: 12,
-                decoration: BoxDecoration(shape: BoxShape.circle,
-                  color: auto.running ? AppColors.success : Colors.grey)),
-              const SizedBox(width: 10),
-              Expanded(child: Text(auto.appName,
-                maxLines: 1, overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: agentColor.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(6)),
-                child: Text(auto.aiAgent.toUpperCase(),
-                  style: TextStyle(fontSize: 11, color: agentColor, fontWeight: FontWeight.w700)),
-              ),
-              if (auto.mcpServers.isNotEmpty) ...[
-                const SizedBox(width: 6),
-                Icon(Icons.hub, size: 14, color: Colors.grey.shade400),
+            Row(
+              children: [
+                Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: auto.running ? AppColors.success : Colors.grey,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    auto.appName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: agentColor.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    auto.aiAgent.toUpperCase(),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: agentColor,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                if (auto.mcpServers.isNotEmpty) ...[
+                  const SizedBox(width: 6),
+                  Icon(Icons.hub, size: 14, color: Colors.grey.shade400),
+                ],
               ],
-            ]),
+            ),
             const SizedBox(height: 8),
-            Row(children: [
-              Icon(Icons.timer, size: 14, color: Colors.grey.shade400),
-              const SizedBox(width: 4),
-              Text(l10n.everyMinutes(auto.intervalMinutes),
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
-              const SizedBox(width: 16),
-              Icon(Icons.hourglass_bottom, size: 14, color: Colors.grey.shade400),
-              const SizedBox(width: 4),
-              Text(l10n.maxMinutes(auto.maxSessionMinutes),
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
-            ]),
+            Row(
+              children: [
+                Icon(Icons.timer, size: 14, color: Colors.grey.shade400),
+                const SizedBox(width: 4),
+                Text(
+                  l10n.everyMinutes(auto.intervalMinutes),
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                ),
+                const SizedBox(width: 16),
+                Icon(
+                  Icons.hourglass_bottom,
+                  size: 14,
+                  color: Colors.grey.shade400,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  l10n.maxMinutes(auto.maxSessionMinutes),
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                ),
+              ],
+            ),
             if (auto.mcpServers.isNotEmpty) ...[
               const SizedBox(height: 6),
               Wrap(
                 spacing: 6,
-                children: auto.mcpServers.map((s) => Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.purple.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.hub, size: 11, color: Colors.purple.shade200),
-                      const SizedBox(width: 4),
-                      Text(s, style: TextStyle(fontSize: 11, color: Colors.purple.shade200)),
-                    ],
-                  ),
-                )).toList(),
+                children:
+                    auto.mcpServers
+                        .map(
+                          (s) => Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.purple.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.hub,
+                                  size: 11,
+                                  color: Colors.purple.shade200,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  s,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.purple.shade200,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                        .toList(),
               ),
             ],
             // Countdown timer row (loop mode)
@@ -1188,32 +1505,41 @@ class _AutomationCardState extends State<_AutomationCard> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(children: [
-                      Icon(
-                        isSleepPhase ? Icons.bedtime : Icons.play_circle,
-                        size: 16,
-                        color: isSleepPhase ? AppColors.info : AppColors.warning,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        phaseLabel,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: isSleepPhase ? AppColors.info : AppColors.warning,
-                          fontWeight: FontWeight.w500,
+                    Row(
+                      children: [
+                        Icon(
+                          isSleepPhase ? Icons.bedtime : Icons.play_circle,
+                          size: 16,
+                          color:
+                              isSleepPhase ? AppColors.info : AppColors.warning,
                         ),
-                      ),
-                      const Spacer(),
-                      Text(
-                        _fmt(remaining),
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          fontFamily: 'monospace',
-                          color: isSleepPhase ? AppColors.info : AppColors.warning,
+                        const SizedBox(width: 6),
+                        Text(
+                          phaseLabel,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color:
+                                isSleepPhase
+                                    ? AppColors.info
+                                    : AppColors.warning,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
-                      ),
-                    ]),
+                        const Spacer(),
+                        Text(
+                          _fmt(remaining),
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: 'monospace',
+                            color:
+                                isSleepPhase
+                                    ? AppColors.info
+                                    : AppColors.warning,
+                          ),
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 6),
                     ClipRRect(
                       borderRadius: BorderRadius.circular(3),
@@ -1221,7 +1547,8 @@ class _AutomationCardState extends State<_AutomationCard> {
                         value: phaseProgress ?? 0,
                         minHeight: 4,
                         backgroundColor: Colors.white.withValues(alpha: 0.1),
-                        color: isSleepPhase ? AppColors.info : AppColors.warning,
+                        color:
+                            isSleepPhase ? AppColors.info : AppColors.warning,
                       ),
                     ),
                   ],
@@ -1234,7 +1561,8 @@ class _AutomationCardState extends State<_AutomationCard> {
                 final elapsed = DateTime.now().difference(_oneShotStart!);
                 final sessionDur = Duration(minutes: auto.maxSessionMinutes);
                 final oneShotRemaining = sessionDur - elapsed;
-                final progress = (elapsed.inSeconds / sessionDur.inSeconds).clamp(0.0, 1.0);
+                final progress = (elapsed.inSeconds / sessionDur.inSeconds)
+                    .clamp(0.0, 1.0);
                 return Padding(
                   padding: const EdgeInsets.only(top: 10),
                   child: Container(
@@ -1246,35 +1574,43 @@ class _AutomationCardState extends State<_AutomationCard> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(children: [
-                          Icon(Icons.bolt, size: 16, color: AppColors.warning),
-                          const SizedBox(width: 6),
-                          Text(
-                            l10n.oneShotRunEndsIn,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: AppColors.warning,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          const Spacer(),
-                          Text(
-                            _fmt(oneShotRemaining),
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              fontFamily: 'monospace',
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.bolt,
+                              size: 16,
                               color: AppColors.warning,
                             ),
-                          ),
-                        ]),
+                            const SizedBox(width: 6),
+                            Text(
+                              l10n.oneShotRunEndsIn,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AppColors.warning,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const Spacer(),
+                            Text(
+                              _fmt(oneShotRemaining),
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                fontFamily: 'monospace',
+                                color: AppColors.warning,
+                              ),
+                            ),
+                          ],
+                        ),
                         const SizedBox(height: 6),
                         ClipRRect(
                           borderRadius: BorderRadius.circular(3),
                           child: LinearProgressIndicator(
                             value: progress,
                             minHeight: 4,
-                            backgroundColor: Colors.white.withValues(alpha: 0.1),
+                            backgroundColor: Colors.white.withValues(
+                              alpha: 0.1,
+                            ),
                             color: AppColors.warning,
                           ),
                         ),
@@ -1286,83 +1622,129 @@ class _AutomationCardState extends State<_AutomationCard> {
             ],
             if (auto.promptPreview.isNotEmpty) ...[
               const SizedBox(height: 8),
-              Text(auto.promptPreview, maxLines: 2,
+              Text(
+                auto.promptPreview,
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+              ),
             ],
             const SizedBox(height: 10),
-            Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-              FilledButton.icon(
-                onPressed: widget.onToggle,
-                style: FilledButton.styleFrom(
-                  backgroundColor: auto.running ? AppColors.error : AppColors.success,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8)),
-                icon: Icon(auto.running ? Icons.stop : Icons.play_arrow, size: 18),
-                label: Text(auto.running ? l10n.stop : l10n.start,
-                  style: const TextStyle(fontSize: 13)),
-              ),
-              const SizedBox(width: 4),
-              _runOnceLoading
-                  ? SizedBox(
-                      width: 20, height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.warning),
-                    )
-                  : IconButton(
-                onPressed: () async {
-                  if (_oneShotActive) {
-                    final confirm = await showDialog<bool>(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                        backgroundColor: AppColors.bgCard,
-                        title: Text(l10n.runAgainTitle),
-                        content: Text(
-                          l10n.runAgainBody,
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(ctx, false),
-                            child: Text(l10n.cancel),
-                          ),
-                          FilledButton(
-                            onPressed: () => Navigator.pop(ctx, true),
-                            style: FilledButton.styleFrom(
-                              backgroundColor: AppColors.warning),
-                            child: Text(l10n.runAnyway),
-                          ),
-                        ],
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                FilledButton.icon(
+                  onPressed: widget.onToggle,
+                  style: FilledButton.styleFrom(
+                    backgroundColor:
+                        auto.running ? AppColors.error : AppColors.success,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                  ),
+                  icon: Icon(
+                    auto.running ? Icons.stop : Icons.play_arrow,
+                    size: 18,
+                  ),
+                  label: Text(
+                    auto.running ? l10n.stop : l10n.start,
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                _runOnceLoading
+                    ? SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.warning,
                       ),
-                    );
-                    if (confirm != true) return;
-                  }
-                  HapticFeedback.lightImpact();
-                  setState(() => _runOnceLoading = true);
-                  final ok = await widget.onRunOnce();
-                  if (mounted) {
-                    setState(() => _runOnceLoading = false);
-                    if (ok) {
-                      final now = DateTime.now();
-                      setState(() {
-                        _oneShotActive = true;
-                        _oneShotStart = now;
-                      });
-                      _savePref(_oneShotKey, now);
-                      _syncTimer();
-                    }
-                  }
-                },
-                icon: Icon(Icons.bolt,
-                  color: _oneShotActive ? AppColors.warning.withValues(alpha: 0.5) : AppColors.warning),
-                iconSize: 20, tooltip: _oneShotActive ? l10n.runOnceInProgress : l10n.runOnce),
-              IconButton(onPressed: () { HapticFeedback.lightImpact(); widget.onEdit(); },
-                icon: Icon(Icons.edit_outlined, color: AppColors.accent),
-                iconSize: 20, tooltip: l10n.edit),
-              IconButton(onPressed: widget.onGdd,
-                icon: Icon(Icons.description_outlined, color: AppColors.info),
-                iconSize: 20, tooltip: l10n.designDoc),
-              IconButton(onPressed: () { HapticFeedback.mediumImpact(); widget.onDelete(); },
-                icon: Icon(Icons.delete_outline, color: AppColors.error),
-                iconSize: 20, tooltip: l10n.delete),
-            ]),
+                    )
+                    : IconButton(
+                      onPressed: () async {
+                        if (_oneShotActive) {
+                          final confirm = await showDialog<bool>(
+                            context: context,
+                            builder:
+                                (ctx) => AlertDialog(
+                                  backgroundColor: AppColors.bgCard,
+                                  title: Text(l10n.runAgainTitle),
+                                  content: Text(l10n.runAgainBody),
+                                  actions: [
+                                    TextButton(
+                                      onPressed:
+                                          () => Navigator.pop(ctx, false),
+                                      child: Text(l10n.cancel),
+                                    ),
+                                    FilledButton(
+                                      onPressed: () => Navigator.pop(ctx, true),
+                                      style: FilledButton.styleFrom(
+                                        backgroundColor: AppColors.warning,
+                                      ),
+                                      child: Text(l10n.runAnyway),
+                                    ),
+                                  ],
+                                ),
+                          );
+                          if (confirm != true) return;
+                        }
+                        HapticFeedback.lightImpact();
+                        setState(() => _runOnceLoading = true);
+                        final ok = await widget.onRunOnce();
+                        if (mounted) {
+                          setState(() => _runOnceLoading = false);
+                          if (ok) {
+                            final now = DateTime.now();
+                            setState(() {
+                              _oneShotActive = true;
+                              _oneShotStart = now;
+                            });
+                            _savePref(_oneShotKey, now);
+                            _syncTimer();
+                          }
+                        }
+                      },
+                      icon: Icon(
+                        Icons.bolt,
+                        color:
+                            _oneShotActive
+                                ? AppColors.warning.withValues(alpha: 0.5)
+                                : AppColors.warning,
+                      ),
+                      iconSize: 20,
+                      tooltip:
+                          _oneShotActive
+                              ? l10n.runOnceInProgress
+                              : l10n.runOnce,
+                    ),
+                IconButton(
+                  onPressed: () {
+                    HapticFeedback.lightImpact();
+                    widget.onEdit();
+                  },
+                  icon: Icon(Icons.edit_outlined, color: AppColors.accent),
+                  iconSize: 20,
+                  tooltip: l10n.edit,
+                ),
+                IconButton(
+                  onPressed: widget.onGdd,
+                  icon: Icon(Icons.description_outlined, color: AppColors.info),
+                  iconSize: 20,
+                  tooltip: l10n.designDoc,
+                ),
+                IconButton(
+                  onPressed: () {
+                    HapticFeedback.mediumImpact();
+                    widget.onDelete();
+                  },
+                  icon: Icon(Icons.delete_outline, color: AppColors.error),
+                  iconSize: 20,
+                  tooltip: l10n.delete,
+                ),
+              ],
+            ),
           ],
         ),
       ),

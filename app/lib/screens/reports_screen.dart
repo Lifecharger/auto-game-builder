@@ -10,6 +10,7 @@ import '../services/app_state.dart';
 import '../services/user_session.dart';
 import '../theme.dart';
 import '../l10n/app_localizations.dart';
+import '../widgets/app_toast.dart';
 
 /// In-game bug reports / suggestions. Lives in the Reports & Logs tab. Reports
 /// are pulled by the server from the game-reports worker; here they can be read,
@@ -50,83 +51,94 @@ class _ReportsScreenState extends State<ReportsScreen> {
   }
 
   Future<void> _load({bool silent = false}) async {
-    if (!silent) setState(() { _loading = true; _error = null; });
-    final result = await ApiService.getReports(status: _filter == 'all' ? null : _filter);
+    if (!silent)
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    final result = await ApiService.getReports(
+      status: _filter == 'all' ? null : _filter,
+    );
     if (!mounted) return;
     if (result.ok) {
       setState(() {
-        _reports = result.data!
-            .whereType<Map<String, dynamic>>()
-            .map(ReportModel.fromJson)
-            .toList();
+        _reports =
+            result.data!
+                .whereType<Map<String, dynamic>>()
+                .map(ReportModel.fromJson)
+                .toList();
         _loading = false;
         _error = null;
       });
     } else {
-      setState(() { _loading = false; _error = result.error; });
+      setState(() {
+        _loading = false;
+        _error = result.error;
+      });
     }
   }
 
   Future<void> _pullNow() async {
-    final messenger = ScaffoldMessenger.of(context);
+    final messenger = AppToast.of(context);
     final result = await ApiService.pullReportsNow();
     if (!mounted) return;
     if (result.ok) {
-      messenger.showSnackBar(SnackBar(
-        content: Text(result.data! > 0 ? l10n.newReportsCount(result.data!) : l10n.noNewReports),
-      ));
+      messenger.show(
+        result.data! > 0
+            ? l10n.newReportsCount(result.data!)
+            : l10n.noNewReports,
+      );
       await _load(silent: true);
     } else {
-      messenger.showSnackBar(SnackBar(content: Text(result.error ?? l10n.pullFailed)));
+      messenger.show(result.error ?? l10n.pullFailed);
     }
   }
 
   Future<void> _setStatus(ReportModel r, String status) async {
-    final messenger = ScaffoldMessenger.of(context);
+    final messenger = AppToast.of(context);
     final result = await ApiService.updateReport(r.id, {'status': status});
     if (!mounted) return;
     if (result.ok) {
       await _load(silent: true);
     } else {
-      messenger.showSnackBar(SnackBar(content: Text(result.error ?? l10n.updateFailed)));
+      messenger.show(result.error ?? l10n.updateFailed);
     }
   }
 
   Future<void> _delete(ReportModel r) async {
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l10n.deleteReportTitle),
-        content: Text(l10n.deleteReportBody),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(l10n.cancel)),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(l10n.delete),
+      builder:
+          (ctx) => AlertDialog(
+            title: Text(l10n.deleteReportTitle),
+            content: Text(l10n.deleteReportBody),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(l10n.cancel),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text(l10n.delete),
+              ),
+            ],
           ),
-        ],
-      ),
     );
     if (confirm != true || !mounted) return;
-    final messenger = ScaffoldMessenger.of(context);
+    final messenger = AppToast.of(context);
     final result = await ApiService.deleteReport(r.id);
     if (!mounted) return;
     if (result.ok) {
       await _load(silent: true);
     } else {
-      messenger.showSnackBar(SnackBar(content: Text(result.error ?? l10n.deleteFailed)));
+      messenger.show(result.error ?? l10n.deleteFailed);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        _toolbar(),
-        Expanded(child: _body()),
-      ],
-    );
+    return Column(children: [_toolbar(), Expanded(child: _body())]);
   }
 
   Widget _toolbar() {
@@ -168,20 +180,23 @@ class _ReportsScreenState extends State<ReportsScreen> {
       return _centered(Icons.error_outline, _error!, action: () => _load());
     }
     if (_reports.isEmpty) {
-      return _centered(Icons.inbox_outlined,
-          _filter == 'open' ? l10n.noOpenReports : l10n.noReportsHere);
+      return _centered(
+        Icons.inbox_outlined,
+        _filter == 'open' ? l10n.noOpenReports : l10n.noReportsHere,
+      );
     }
     return RefreshIndicator(
       onRefresh: () => _load(),
       child: ListView.builder(
         padding: const EdgeInsets.all(12),
         itemCount: _reports.length,
-        itemBuilder: (_, i) => _ReportCard(
-          report: _reports[i],
-          onClose: () => _setStatus(_reports[i], 'closed'),
-          onReopen: () => _setStatus(_reports[i], 'open'),
-          onDelete: () => _delete(_reports[i]),
-        ),
+        itemBuilder:
+            (_, i) => _ReportCard(
+              report: _reports[i],
+              onClose: () => _setStatus(_reports[i], 'closed'),
+              onReopen: () => _setStatus(_reports[i], 'open'),
+              onDelete: () => _delete(_reports[i]),
+            ),
       ),
     );
   }
@@ -217,7 +232,8 @@ class ReportCardLinks {
     return Uri(
       scheme: 'mailto',
       path: report.contactEmail,
-      query: 'subject=${Uri.encodeComponent(subject)}'
+      query:
+          'subject=${Uri.encodeComponent(subject)}'
           '&body=${Uri.encodeComponent('\n\n$quoted\n')}',
     );
   }
@@ -239,11 +255,23 @@ class _ReportCard extends StatelessWidget {
   ({IconData icon, Color color, String label}) _catOf(AppLocalizations l10n) {
     switch (report.category) {
       case 'bug':
-        return (icon: Icons.bug_report, color: AppColors.error, label: l10n.categoryBug);
+        return (
+          icon: Icons.bug_report,
+          color: AppColors.error,
+          label: l10n.categoryBug,
+        );
       case 'suggestion':
-        return (icon: Icons.lightbulb_outline, color: AppColors.warning, label: l10n.categorySuggestion);
+        return (
+          icon: Icons.lightbulb_outline,
+          color: AppColors.warning,
+          label: l10n.categorySuggestion,
+        );
       default:
-        return (icon: Icons.chat_bubble_outline, color: AppColors.info, label: l10n.categoryOther);
+        return (
+          icon: Icons.chat_bubble_outline,
+          color: AppColors.info,
+          label: l10n.categoryOther,
+        );
     }
   }
 
@@ -259,7 +287,10 @@ class _ReportCard extends StatelessWidget {
           const SizedBox(width: 4),
           Expanded(
             child: Text(
-              [if (device.isNotEmpty) device, if (os.isNotEmpty) os].join('  ·  '),
+              [
+                if (device.isNotEmpty) device,
+                if (os.isNotEmpty) os,
+              ].join('  ·  '),
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(color: Colors.grey, fontSize: 11),
             ),
@@ -291,11 +322,14 @@ class _ReportCard extends StatelessWidget {
           ),
           TextButton.icon(
             key: Key('report_reply_${report.id}'),
-            onPressed: () => launchUrl(
-              ReportCardLinks.replyUri(
-                  report, l10n.reportReplySubject(report.appLabel)),
-              mode: LaunchMode.externalApplication,
-            ),
+            onPressed:
+                () => launchUrl(
+                  ReportCardLinks.replyUri(
+                    report,
+                    l10n.reportReplySubject(report.appLabel),
+                  ),
+                  mode: LaunchMode.externalApplication,
+                ),
             icon: const Icon(Icons.reply, size: 16),
             label: Text(l10n.reportReply),
           ),
@@ -335,8 +369,14 @@ class _ReportCard extends StatelessWidget {
                 children: [
                   Icon(cat.icon, color: cat.color, size: 18),
                   const SizedBox(width: 6),
-                  Text(cat.label,
-                      style: TextStyle(color: cat.color, fontWeight: FontWeight.bold, fontSize: 12)),
+                  Text(
+                    cat.label,
+                    style: TextStyle(
+                      color: cat.color,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -346,8 +386,10 @@ class _ReportCard extends StatelessWidget {
                     ),
                   ),
                   if (_whenOf(l10n).isNotEmpty)
-                    Text(_whenOf(l10n),
-                        style: const TextStyle(color: Colors.grey, fontSize: 11)),
+                    Text(
+                      _whenOf(l10n),
+                      style: const TextStyle(color: Colors.grey, fontSize: 11),
+                    ),
                 ],
               ),
               const SizedBox(height: 8),
@@ -360,7 +402,8 @@ class _ReportCard extends StatelessWidget {
                     scrollDirection: Axis.horizontal,
                     itemCount: report.shotCount,
                     separatorBuilder: (_, _) => const SizedBox(width: 8),
-                    itemBuilder: (_, idx) => _Thumb(reportId: report.id, index: idx),
+                    itemBuilder:
+                        (_, idx) => _Thumb(reportId: report.id, index: idx),
                   ),
                 ),
               ],
@@ -372,7 +415,8 @@ class _ReportCard extends StatelessWidget {
                   Text(
                     [
                       if (report.platform.isNotEmpty) report.platform,
-                      if (report.appVersion.isNotEmpty) l10n.versionWithNumber(report.appVersion),
+                      if (report.appVersion.isNotEmpty)
+                        l10n.versionWithNumber(report.appVersion),
                     ].join(' · '),
                     style: const TextStyle(color: Colors.grey, fontSize: 11),
                   ),
@@ -391,7 +435,11 @@ class _ReportCard extends StatelessWidget {
                     ),
                   IconButton(
                     tooltip: l10n.delete,
-                    icon: const Icon(Icons.delete_outline, size: 18, color: Colors.grey),
+                    icon: const Icon(
+                      Icons.delete_outline,
+                      size: 18,
+                      color: Colors.grey,
+                    ),
                     onPressed: onDelete,
                   ),
                 ],
@@ -414,16 +462,22 @@ class _Thumb extends StatelessWidget {
     final url = ApiService.reportShotUrl(reportId, index);
     final headers = ApiService.authHeaders;
     return GestureDetector(
-      onTap: () => showDialog(
-        context: context,
-        builder: (ctx) => Dialog(
-          backgroundColor: Colors.black,
-          insetPadding: const EdgeInsets.all(12),
-          child: InteractiveViewer(
-            child: Image.network(url, headers: headers, fit: BoxFit.contain),
+      onTap:
+          () => showDialog(
+            context: context,
+            builder:
+                (ctx) => Dialog(
+                  backgroundColor: Colors.black,
+                  insetPadding: const EdgeInsets.all(12),
+                  child: InteractiveViewer(
+                    child: Image.network(
+                      url,
+                      headers: headers,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ),
           ),
-        ),
-      ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(6),
         child: Image.network(
@@ -432,12 +486,17 @@ class _Thumb extends StatelessWidget {
           width: 68,
           height: 68,
           fit: BoxFit.cover,
-          errorBuilder: (_, _, _) => Container(
-            width: 68,
-            height: 68,
-            color: Colors.black26,
-            child: const Icon(Icons.broken_image, color: Colors.grey, size: 20),
-          ),
+          errorBuilder:
+              (_, _, _) => Container(
+                width: 68,
+                height: 68,
+                color: Colors.black26,
+                child: const Icon(
+                  Icons.broken_image,
+                  color: Colors.grey,
+                  size: 20,
+                ),
+              ),
         ),
       ),
     );

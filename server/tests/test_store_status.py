@@ -108,7 +108,11 @@ def _version(vid, version, state, build_id=None, build=""):
 
 
 class FakeAsc:
-    def __init__(self, builds_resp: dict, versions: list[tuple], open_subs=None, item_status=None):
+    def __init__(self, builds_resp: dict, versions: list[tuple], open_subs=None, item_status=None,
+                 iaps=None, subs=None, product_error=None):
+        self.iaps = iaps or []
+        self.subs = subs or []
+        self.product_error = product_error
         self.builds_resp = builds_resp
         self.versions = versions
         self.open_subs = open_subs or []
@@ -125,6 +129,10 @@ class FakeAsc:
             return {"data": [v for v, _ in self.versions], "included": [i for _, inc in self.versions for i in inc]}
         if path == "reviewSubmissions":
             return {"data": self.open_subs}
+        if path.endswith("/inAppPurchasesV2"):
+            return {"data": self.iaps}
+        if path.endswith("/subscriptionGroups"):
+            return {"data": [{"id": "g1"}], "included": self.subs}
         raise AssertionError(f"unexpected GET {path}")
 
     def post(self, path, data):
@@ -137,6 +145,10 @@ class FakeAsc:
             if self.item_status:
                 raise ss.AscError(self.item_status, "already added")
             return {"data": {"id": "item-1"}}
+        if path in ("inAppPurchaseSubmissions", "subscriptionSubmissions"):
+            if self.product_error:
+                raise ss.AscError(*self.product_error)
+            return {"data": {"id": "ps-1"}}
         raise AssertionError(f"unexpected POST {path}")
 
     def patch(self, path, data):
@@ -323,6 +335,29 @@ class AppleTest(unittest.TestCase):
         ss.submit_apple_for_review(asc, "999")
         self.assertEqual(asc.writes()[-1][1], "reviewSubmissions/sub-old")
 
+    def test_submit_sends_sold_products_with_the_version(self):
+        prep = _version("v12", "1.0.12", "PREPARE_FOR_SUBMISSION", "b34", "34")
+        iaps = [{"id": "i1", "attributes": {"productId": "coins_100", "state": "READY_TO_SUBMIT"}},
+                {"id": "i2", "attributes": {"productId": "old", "state": "APPROVED"}},
+                {"id": "i3", "attributes": {"productId": "tickets_500", "state": "READY_TO_SUBMIT"}}]
+        subs = [{"type": "subscriptions", "id": "s1",
+                 "attributes": {"productId": "vip_month", "state": "READY_TO_SUBMIT"}}]
+        asc = FakeAsc(self._builds(), [prep], iaps=iaps, subs=subs)
+        res = ss.submit_apple_for_review(asc, "999", "com.lifecharger.arcadesnake")
+        w = [c[1] for c in asc.writes()]
+        self.assertEqual(w, ["reviewSubmissions", "reviewSubmissionItems", "inAppPurchaseSubmissions",
+                             "subscriptionSubmissions", "reviewSubmissions/sub-new"])
+        self.assertEqual(res["products"], ["coins_100", "vip_month"])
+
+    def test_submit_stops_when_a_product_is_refused(self):
+        prep = _version("v12", "1.0.12", "PREPARE_FOR_SUBMISSION", "b34", "34")
+        iaps = [{"id": "i1", "attributes": {"productId": "coins_100", "state": "READY_TO_SUBMIT"}}]
+        asc = FakeAsc(self._builds(), [prep], iaps=iaps, product_error=(409, "missing review screenshot"))
+        with self.assertRaises(ValueError) as cm:
+            ss.submit_apple_for_review(asc, "999")
+        self.assertIn("coins_100", str(cm.exception))
+        self.assertFalse(any(c[1] == "reviewSubmissions/sub-new" for c in asc.writes()))
+
     def test_submit_needs_attached_build(self):
         prep = _version("v12", "1.0.12", "PREPARE_FOR_SUBMISSION")
         asc = FakeAsc(self._builds(), [prep])
@@ -493,3 +528,62 @@ class ApiTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AutoAttachTest(unittest.TestCase):
+    class Asc:
+        def __init__(self, builds, versions, groups):
+            self.builds, self.versions, self.groups, self.calls = builds, versions, groups, []
+
+        def get(self, path, params=None):
+            if path == "builds":
+                return self.builds
+            if path.endswith("/appStoreVersions"):
+                return {"data": [v for v, _ in self.versions], "included": [i for _, inc in self.versions for i in inc]}
+            if path.endswith("/betaGroups"):
+                return {"data": self.groups}
+            raise AssertionError(path)
+
+        def post(self, path, data):
+            self.calls.append(("POST", path, data))
+            return {"data": {"id": "new-ver"}}
+
+        def patch(self, path, data):
+            self.calls.append(("PATCH", path, data))
+            return {}
+
+    def _builds(self, state="VALID"):
+        return {"data": [
+            {"type": "builds", "id": "b35", "attributes": {"version": "35", "processingState": state,
+             "expired": False, "uploadedDate": "2026-11-24T12:00:00Z"},
+             "relationships": {"preReleaseVersion": {"data": {"type": "preReleaseVersions", "id": "p13"}}}},
+            {"type": "builds", "id": "b34", "attributes": {"version": "34", "processingState": "VALID",
+             "expired": False, "uploadedDate": "2026-11-23T12:00:00Z"},
+             "relationships": {"preReleaseVersion": {"data": {"type": "preReleaseVersions", "id": "p12"}}}}],
+            "included": [{"type": "preReleaseVersions", "id": "p13", "attributes": {"version": "1.0.13"}},
+                         {"type": "preReleaseVersions", "id": "p12", "attributes": {"version": "1.0.12"}}]}
+
+    GROUPS = [{"id": "g1", "attributes": {"name": "Internal", "isInternalGroup": True, "hasAccessToAllBuilds": True}},
+              {"id": "g2", "attributes": {"name": "Manual", "isInternalGroup": True, "hasAccessToAllBuilds": False}}]
+
+    def test_waits_while_processing(self):
+        asc = self.Asc(self._builds("PROCESSING"), [], self.GROUPS)
+        self.assertEqual(ss.auto_attach_newest_build(asc, "999")["state"], "waiting")
+        self.assertEqual(asc.calls, [])
+
+    def test_attaches_newest_and_adds_manual_groups(self):
+        prep = _version("v12", "1.0.12", "PREPARE_FOR_SUBMISSION", "b34", "34")
+        asc = self.Asc(self._builds(), [prep], self.GROUPS)
+        res = ss.auto_attach_newest_build(asc, "999", "2026-11-24T11:00:00")
+        self.assertEqual(res["state"], "attached")
+        self.assertEqual(res["build"], "35")
+        paths = [c[1] for c in asc.calls]
+        self.assertIn("appStoreVersions/v12/relationships/build", paths)
+        self.assertIn("betaGroups/g2/relationships/builds", paths)
+        self.assertNotIn("betaGroups/g1/relationships/builds", paths)
+
+    def test_never_touches_a_version_in_review(self):
+        rev = _version("v12", "1.0.12", "WAITING_FOR_REVIEW", "b34", "34")
+        asc = self.Asc(self._builds(), [rev], self.GROUPS)
+        self.assertEqual(ss.auto_attach_newest_build(asc, "999")["state"], "skipped")
+        self.assertEqual(asc.calls, [])

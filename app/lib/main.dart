@@ -30,10 +30,11 @@ import 'screens/asset_gallery_screen.dart';
 import 'screens/asset_queue_screen.dart';
 import 'screens/asset_flow_hub.dart';
 import 'services/lifecharger_update_gate.dart';
-import 'screens/delivery_screen.dart';   // #363
-import 'screens/buckets_screen.dart';    // #381
+import 'screens/delivery_screen.dart'; // #363
+import 'screens/buckets_screen.dart'; // #381
 import 'services/lifecharger_intro.dart';
 import 'services/demo/demo_mode.dart';
+import 'widgets/app_toast.dart';
 
 /// Every `http` call of the app goes through [DemoMode.clientFactory]: the
 /// normal network client, or the in-memory demo server while demo mode runs.
@@ -43,11 +44,13 @@ Future<void> _main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // Enable edge-to-edge so Flutter properly handles system bar insets
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-    systemNavigationBarColor: Colors.transparent,
-    systemNavigationBarDividerColor: Colors.transparent,
-    statusBarColor: Colors.transparent,
-  ));
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      systemNavigationBarColor: Colors.transparent,
+      systemNavigationBarDividerColor: Colors.transparent,
+      statusBarColor: Colors.transparent,
+    ),
+  );
   // The LifeCharger intro is the first thing drawn: its gauge ring charges
   // with the start-up work below and it strikes into the app once attached.
   // The app has no sound-effects setting, so the intro's sound is always on.
@@ -125,10 +128,9 @@ class AppManagerMobile extends StatelessWidget {
     // demo and a real server.
     return ValueListenableBuilder<bool>(
       valueListenable: DemoMode.active,
-      builder: (context, demo, _) => KeyedSubtree(
-        key: ValueKey('demo-$demo'),
-        child: _app(demo),
-      ),
+      builder:
+          (context, demo, _) =>
+              KeyedSubtree(key: ValueKey('demo-$demo'), child: _app(demo)),
     );
   }
 
@@ -145,9 +147,10 @@ class AppManagerMobile extends StatelessWidget {
         return state;
       },
       child: ListenableBuilder(
-        listenable: Listenable.merge(
-          [ThemeService.instance, LocaleService.instance],
-        ),
+        listenable: Listenable.merge([
+          ThemeService.instance,
+          LocaleService.instance,
+        ]),
         builder: (context, _) {
           return MaterialApp(
             onGenerateTitle: (ctx) => AppLocalizations.of(ctx)!.appTitle,
@@ -156,9 +159,10 @@ class AppManagerMobile extends StatelessWidget {
             locale: LocaleService.instance.currentLocale,
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
-            home: !demo && AppConfig.baseUrl.isEmpty
-                ? const LoginScreen()
-                : const MainShell(),
+            home:
+                !demo && AppConfig.baseUrl.isEmpty
+                    ? const LoginScreen()
+                    : const MainShell(),
           );
         },
       ),
@@ -173,7 +177,8 @@ class MainShell extends StatefulWidget {
   State<MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends State<MainShell> with SingleTickerProviderStateMixin {
+class _MainShellState extends State<MainShell>
+    with SingleTickerProviderStateMixin {
   AppLocalizations get l10n => AppLocalizations.of(context)!;
 
   int _currentIndex = 0;
@@ -213,15 +218,15 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
     SettingsScreen(),
   ];
 
-  List<Widget> get _screens => _deliveryMode
-      ? _deliveryScreens
-      : (_assetMode ? _assetScreens : _codeScreens);
+  List<Widget> get _screens =>
+      _deliveryMode
+          ? _deliveryScreens
+          : (_assetMode ? _assetScreens : _codeScreens);
 
   /// ModeService degisince modu uygular. Sekme indeksi sifirlanir,
   /// yoksa yeni moddaki daha kisa listede tasar.
-  List<String> get _tabNames => _deliveryMode
-      ? _kDeliveryTabs
-      : (_assetMode ? _kAssetTabs : _kCodeTabs);
+  List<String> get _tabNames =>
+      _deliveryMode ? _kDeliveryTabs : (_assetMode ? _kAssetTabs : _kCodeTabs);
 
   /// Reports the tab that is on screen right now. Every tab of the mode is
   /// built inside the [IndexedStack] below, so "built" says nothing: this is
@@ -235,9 +240,7 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
 
   void _onModeChanged() {
     HapticFeedback.mediumImpact();
-    Analytics.log('feature_use', {
-      'feature': 'mode_${ModeService.mode.value}',
-    });
+    Analytics.log('feature_use', {'feature': 'mode_${ModeService.mode.value}'});
     _fadeController.reverse().then((_) {
       if (!mounted) return;
       setState(() {
@@ -291,7 +294,9 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
   void _onAppStateChanged() {
     if (!mounted) return;
     final appState = _appStateRef;
-    if (appState != null && appState.issuesRequestedAppId != null && _currentIndex != 1) {
+    if (appState != null &&
+        appState.issuesRequestedAppId != null &&
+        _currentIndex != 1) {
       _switchTab(1);
     }
   }
@@ -318,55 +323,57 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
     showDialog(
       context: context,
       barrierDismissible: true,
-      builder: (ctx) => AlertDialog(
-        icon: Icon(Icons.system_update, size: 40, color: AppColors.info),
-        title: Text(l10n.updateAvailable),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              l10n.versionWithNumber('${UpdateChecker.instance.latestVersion}'),
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+      builder:
+          (ctx) => AlertDialog(
+            icon: Icon(Icons.system_update, size: 40, color: AppColors.info),
+            title: Text(l10n.updateAvailable),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  l10n.versionWithNumber(
+                    '${UpdateChecker.instance.latestVersion}',
+                  ),
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  l10n.updateAvailableBody,
+                  style: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+                  textAlign: TextAlign.center,
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
-            Text(
-              l10n.updateAvailableBody,
-              style: TextStyle(color: Colors.grey.shade400, fontSize: 14),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(l10n.later),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text(l10n.later),
+              ),
+              FilledButton.icon(
+                onPressed: () async {
+                  Navigator.pop(ctx);
+                  final result = await UpdateChecker.instance.pull();
+                  if (mounted) {
+                    AppToast.of(context).show(result);
+                  }
+                },
+                icon: const Icon(Icons.download, size: 18),
+                label: Text(l10n.pullOnly),
+              ),
+              FilledButton.icon(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  UpdateChecker.instance.launchUpdateAndExit();
+                },
+                icon: const Icon(Icons.build, size: 18),
+                label: Text(l10n.pullAndRebuild),
+                style: FilledButton.styleFrom(backgroundColor: AppColors.info),
+              ),
+            ],
           ),
-          FilledButton.icon(
-            onPressed: () async {
-              Navigator.pop(ctx);
-              final result = await UpdateChecker.instance.pull();
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(result), duration: const Duration(seconds: 3)),
-                );
-              }
-            },
-            icon: const Icon(Icons.download, size: 18),
-            label: Text(l10n.pullOnly),
-          ),
-          FilledButton.icon(
-            onPressed: () {
-              Navigator.pop(ctx);
-              UpdateChecker.instance.launchUpdateAndExit();
-            },
-            icon: const Icon(Icons.build, size: 18),
-            label: Text(l10n.pullAndRebuild),
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.info,
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -412,176 +419,188 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
         }
         _lastBackPress = now;
         HapticFeedback.heavyImpact();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(l10n.pressBackAgainToExit),
-            duration: Duration(seconds: 2),
-          ),
-        );
+        AppToast.of(context).show(l10n.pressBackAgainToExit);
       },
       child: Scaffold(
-      body: Column(
-        children: [
-          if (demo) DemoBanner(topInset: topInset),
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            height: showOffline ? 32 + topInset : 0,
-            padding: EdgeInsets.only(top: showOffline ? topInset : 0),
-            curve: Curves.easeInOut,
-            clipBehavior: Clip.hardEdge,
-            decoration: BoxDecoration(
-              color: Colors.red.shade800,
-            ),
-            // A refused key is not an outage: the banner names it and a tap
-            // opens Settings (always the last tab), where the key is set.
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: keyRefused ? () => _switchTab(_screens.length - 1) : null,
-              child: Center(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(keyRefused ? Icons.key_off : Icons.cloud_off,
-                        color: Colors.white, size: 14),
-                    SizedBox(width: 6),
-                    Flexible(
-                      child: Text(
-                        offlineBannerText(l10n, keyRefused: keyRefused),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
+        body: Column(
+          children: [
+            if (demo) DemoBanner(topInset: topInset),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              height: showOffline ? 32 + topInset : 0,
+              padding: EdgeInsets.only(top: showOffline ? topInset : 0),
+              curve: Curves.easeInOut,
+              clipBehavior: Clip.hardEdge,
+              decoration: BoxDecoration(color: Colors.red.shade800),
+              // A refused key is not an outage: the banner names it and a tap
+              // opens Settings (always the last tab), where the key is set.
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap:
+                    keyRefused ? () => _switchTab(_screens.length - 1) : null,
+                child: Center(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        keyRefused ? Icons.key_off : Icons.cloud_off,
+                        color: Colors.white,
+                        size: 14,
                       ),
-                    ),
-                  ],
+                      SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          offlineBannerText(l10n, keyRefused: keyRefused),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-          Expanded(
-            // gorev #289: banner ust boslugu zaten yedi; sekmelerin AppBar'lari
-            // ayni boslugu ikinci kez eklemesin diye MediaQuery govde
-            // context'inden (Scaffold'un ICINDEN) yeniden kuruluyor.
-            child: Builder(
-              builder: (bodyContext) {
-                final bodyMq = MediaQuery.of(bodyContext);
-                return MediaQuery(
-                  data: showOffline || demo
-                      ? bodyMq.removePadding(removeTop: true)
-                      : bodyMq,
-                  child: FadeTransition(
-                    opacity: _fadeAnimation,
-                    child: IndexedStack(
-                      index: _currentIndex,
-                      children: _screens,
+            Expanded(
+              // gorev #289: banner ust boslugu zaten yedi; sekmelerin AppBar'lari
+              // ayni boslugu ikinci kez eklemesin diye MediaQuery govde
+              // context'inden (Scaffold'un ICINDEN) yeniden kuruluyor.
+              child: Builder(
+                builder: (bodyContext) {
+                  final bodyMq = MediaQuery.of(bodyContext);
+                  return MediaQuery(
+                    data:
+                        showOffline || demo
+                            ? bodyMq.removePadding(removeTop: true)
+                            : bodyMq,
+                    child: FadeTransition(
+                      opacity: _fadeAnimation,
+                      child: IndexedStack(
+                        index: _currentIndex,
+                        children: _screens,
+                      ),
                     ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: _switchTab,
-        type: BottomNavigationBarType.fixed,
-        items: _deliveryMode
-            ? [
-                BottomNavigationBarItem(
-                  icon: const Icon(Icons.local_shipping_outlined),
-                  label: l10n.navDelivery,
-                ),
-                BottomNavigationBarItem(
-                  icon: const Icon(Icons.inventory_2_outlined),
-                  label: l10n.navBuckets,
-                ),
-                BottomNavigationBarItem(
-                  icon: const Icon(Icons.settings),
-                  label: l10n.settings,
-                ),
-              ]
-            : _assetMode
-            ? [
-                // #352: sira = Uretim | Uretilenler | Hat | Sira | Ayarlar
-                BottomNavigationBarItem(
-                  icon: const Icon(Icons.auto_awesome),
-                  label: l10n.navGenerate,
-                ),
-                BottomNavigationBarItem(
-                  icon: const Icon(Icons.photo_library),
-                  label: l10n.navGallery,
-                ),
-                BottomNavigationBarItem(
-                  icon: const Icon(Icons.conveyor_belt),
-                  label: l10n.navFlow,
-                ),
-                BottomNavigationBarItem(
-                  // #299: butun isler tek sunucu sirasina girer - rozet
-                  // sirada kac is oldugunu gosterir (dinleyen varken 5 sn'de
-                  // bir sorulur, Asset Mod disinda ag trafigi olmaz).
-                  icon: ValueListenableBuilder<int>(
-                    valueListenable: QueueService.depth,
-                    builder: (_, derinlik, child) => Badge(
-                      isLabelVisible: derinlik > 0,
-                      label: Text('$derinlik',
-                          style: const TextStyle(fontSize: 10)),
-                      child: child,
+          ],
+        ),
+        bottomNavigationBar: BottomNavigationBar(
+          currentIndex: _currentIndex,
+          onTap: _switchTab,
+          type: BottomNavigationBarType.fixed,
+          items:
+              _deliveryMode
+                  ? [
+                    BottomNavigationBarItem(
+                      icon: const Icon(Icons.local_shipping_outlined),
+                      label: l10n.navDelivery,
                     ),
-                    child: const Icon(Icons.playlist_play),
-                  ),
-                  label: l10n.navQueue,
-                ),
-                BottomNavigationBarItem(
-                  icon: const Icon(Icons.settings),
-                  label: l10n.settings,
-                ),
-              ]
-            : [
-                BottomNavigationBarItem(
-                  icon: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      const Icon(Icons.dashboard),
-                      if (connected != null)
-                        Positioned(
-                          right: -4,
-                          top: -4,
-                          child: Container(
-                            width: 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color: connected ? AppColors.success : AppColors.error,
-                              shape: BoxShape.circle,
+                    BottomNavigationBarItem(
+                      icon: const Icon(Icons.inventory_2_outlined),
+                      label: l10n.navBuckets,
+                    ),
+                    BottomNavigationBarItem(
+                      icon: const Icon(Icons.settings),
+                      label: l10n.settings,
+                    ),
+                  ]
+                  : _assetMode
+                  ? [
+                    // #352: sira = Uretim | Uretilenler | Hat | Sira | Ayarlar
+                    BottomNavigationBarItem(
+                      icon: const Icon(Icons.auto_awesome),
+                      label: l10n.navGenerate,
+                    ),
+                    BottomNavigationBarItem(
+                      icon: const Icon(Icons.photo_library),
+                      label: l10n.navGallery,
+                    ),
+                    BottomNavigationBarItem(
+                      icon: const Icon(Icons.conveyor_belt),
+                      label: l10n.navFlow,
+                    ),
+                    BottomNavigationBarItem(
+                      // #299: butun isler tek sunucu sirasina girer - rozet
+                      // sirada kac is oldugunu gosterir (dinleyen varken 5 sn'de
+                      // bir sorulur, Asset Mod disinda ag trafigi olmaz).
+                      icon: ValueListenableBuilder<int>(
+                        valueListenable: QueueService.depth,
+                        builder:
+                            (_, derinlik, child) => Badge(
+                              isLabelVisible: derinlik > 0,
+                              label: Text(
+                                '$derinlik',
+                                style: const TextStyle(fontSize: 10),
+                              ),
+                              child: child,
                             ),
-                          ),
+                        child: const Icon(Icons.playlist_play),
+                      ),
+                      label: l10n.navQueue,
+                    ),
+                    BottomNavigationBarItem(
+                      icon: const Icon(Icons.settings),
+                      label: l10n.settings,
+                    ),
+                  ]
+                  : [
+                    BottomNavigationBarItem(
+                      icon: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          const Icon(Icons.dashboard),
+                          if (connected != null)
+                            Positioned(
+                              right: -4,
+                              top: -4,
+                              child: Container(
+                                width: 8,
+                                height: 8,
+                                decoration: BoxDecoration(
+                                  color:
+                                      connected
+                                          ? AppColors.success
+                                          : AppColors.error,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      label: l10n.dashboard,
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Badge(
+                        isLabelVisible: pendingCount > 0,
+                        label: Text(
+                          '$pendingCount',
+                          style: const TextStyle(fontSize: 10),
                         ),
-                    ],
-                  ),
-                  label: l10n.dashboard,
-                ),
-                BottomNavigationBarItem(
-                  icon: Badge(
-                    isLabelVisible: pendingCount > 0,
-                    label: Text('$pendingCount', style: const TextStyle(fontSize: 10)),
-                    child: const Icon(Icons.bug_report),
-                  ),
-                  label: l10n.issues,
-                ),
-                BottomNavigationBarItem(
-                  icon: const Icon(Icons.feedback_outlined),
-                  label: l10n.chatLogs,
-                ),
-                BottomNavigationBarItem(
-                  icon: const Icon(Icons.tune),
-                  label: l10n.control,
-                ),
-                BottomNavigationBarItem(
-                  icon: const Icon(Icons.settings),
-                  label: l10n.settings,
-                ),
-              ],
+                        child: const Icon(Icons.bug_report),
+                      ),
+                      label: l10n.issues,
+                    ),
+                    BottomNavigationBarItem(
+                      icon: const Icon(Icons.feedback_outlined),
+                      label: l10n.chatLogs,
+                    ),
+                    BottomNavigationBarItem(
+                      icon: const Icon(Icons.tune),
+                      label: l10n.control,
+                    ),
+                    BottomNavigationBarItem(
+                      icon: const Icon(Icons.settings),
+                      label: l10n.settings,
+                    ),
+                  ],
+        ),
       ),
-    ),
     );
   }
 }
@@ -609,7 +628,11 @@ class DemoBanner extends StatelessWidget {
               l10n.demoBanner,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
           TextButton(

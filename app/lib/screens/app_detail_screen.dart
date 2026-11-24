@@ -12,6 +12,7 @@ import '../theme.dart';
 import '../widgets/app_build_card.dart';
 import '../widgets/app_detail/mcp_servers_section.dart';
 import '../widgets/sync_status_chip.dart';
+import '../widgets/app_toast.dart';
 
 class AppDetailScreen extends StatefulWidget {
   final int appId;
@@ -55,14 +56,20 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
   Set<String> _appMcpServers = {};
   bool _mcpLoading = true;
 
-  static const List<String> _aiAgents = ['', 'claude', 'gemini', 'codex', 'local'];
+  static const List<String> _aiAgents = [
+    '',
+    'claude',
+    'gemini',
+    'codex',
+    'local',
+  ];
   Map<String, String> get _aiLabels => {
-        '': l10n.agentNone,
-        'claude': 'Claude',
-        'gemini': 'Gemini',
-        'codex': 'Codex',
-        'local': l10n.agentLocal,
-      };
+    '': l10n.agentNone,
+    'claude': 'Claude',
+    'gemini': 'Gemini',
+    'codex': 'Codex',
+    'local': l10n.agentLocal,
+  };
 
   @override
   void initState() {
@@ -161,8 +168,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
 
     final freshBuilds = buildsResult.data;
     if (freshBuilds != null) {
-      await cache.saveBuilds(
-          freshBuilds.map((b) => b.toJson()).toList());
+      await cache.saveBuilds(freshBuilds.map((b) => b.toJson()).toList());
     }
     if (gddResult.ok) {
       await cache.setGdd(widget.appId, gddResult.data ?? '');
@@ -232,26 +238,17 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
 
   Future<void> _saveStrategy(String strategy) async {
     if (_app == null) return;
-    final result = await ApiService.updateApp(
-      _app!.id,
-      {'fix_strategy': strategy},
-    );
+    final result = await ApiService.updateApp(_app!.id, {
+      'fix_strategy': strategy,
+    });
     if (mounted) {
       if (result.ok) {
         setState(() => _selectedStrategy = strategy);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(l10n.aiAgentUpdated),
-            backgroundColor: AppColors.success,
-          ),
-        );
+        AppToast.of(context).show(l10n.aiAgentUpdated);
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(result.error ?? l10n.failedToUpdateAiAgent),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        AppToast.of(
+          context,
+        ).show(result.error ?? l10n.failedToUpdateAiAgent, error: true);
       }
     }
   }
@@ -276,7 +273,9 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
             final mq = MediaQuery.of(ctx);
             return Padding(
               padding: EdgeInsets.only(
-                left: 20, right: 20, top: 20,
+                left: 20,
+                right: 20,
+                top: 20,
                 bottom: mq.viewInsets.bottom + mq.padding.bottom + 20,
               ),
               child: SingleChildScrollView(
@@ -284,29 +283,73 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(l10n.quickIssue, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                    Text(
+                      l10n.quickIssue,
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     const SizedBox(height: 16),
-                    TextField(controller: titleController, textInputAction: TextInputAction.next, decoration: InputDecoration(hintText: l10n.issueTitleHint, prefixIcon: Icon(Icons.title))),
+                    TextField(
+                      controller: titleController,
+                      textInputAction: TextInputAction.next,
+                      decoration: InputDecoration(
+                        hintText: l10n.issueTitleHint,
+                        prefixIcon: Icon(Icons.title),
+                      ),
+                    ),
                     const SizedBox(height: 12),
-                    TextField(controller: descController, maxLines: 3, textInputAction: TextInputAction.newline, decoration: InputDecoration(hintText: l10n.descriptionHint)),
+                    TextField(
+                      controller: descController,
+                      maxLines: 3,
+                      textInputAction: TextInputAction.newline,
+                      decoration: InputDecoration(
+                        hintText: l10n.descriptionHint,
+                      ),
+                    ),
                     const SizedBox(height: 20),
                     SizedBox(
-                      width: double.infinity, height: 48,
+                      width: double.infinity,
+                      height: 48,
                       child: FilledButton.icon(
-                        onPressed: submitting ? null : () async {
-                          final title = titleController.text.trim();
-                          if (title.isEmpty) return;
-                          setSheetState(() => submitting = true);
-                          final result = await ApiService.createAppTask(appId: widget.appId, title: title, description: descController.text.trim());
-                          if (ctx.mounted) Navigator.pop(ctx);
-                          if (mounted) {
-                            if (result.ok) HapticFeedback.lightImpact();
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result.ok ? l10n.issueCreated : result.error ?? l10n.failed), backgroundColor: result.ok ? AppColors.success : AppColors.error));
-                            if (result.ok) _loadData();
-                          }
-                        },
-                        icon: submitting ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.send),
-                        label: Text(submitting ? l10n.creating : l10n.createIssue),
+                        onPressed:
+                            submitting
+                                ? null
+                                : () async {
+                                  final title = titleController.text.trim();
+                                  if (title.isEmpty) return;
+                                  setSheetState(() => submitting = true);
+                                  final result = await ApiService.createAppTask(
+                                    appId: widget.appId,
+                                    title: title,
+                                    description: descController.text.trim(),
+                                  );
+                                  if (ctx.mounted) Navigator.pop(ctx);
+                                  if (mounted) {
+                                    if (result.ok) HapticFeedback.lightImpact();
+                                    AppToast.of(context).show(
+                                      result.ok
+                                          ? l10n.issueCreated
+                                          : result.error ?? l10n.failed,
+                                      error: true,
+                                    );
+                                    if (result.ok) _loadData();
+                                  }
+                                },
+                        icon:
+                            submitting
+                                ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                                : const Icon(Icons.send),
+                        label: Text(
+                          submitting ? l10n.creating : l10n.createIssue,
+                        ),
                       ),
                     ),
                   ],
@@ -331,7 +374,10 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(_app?.name ?? l10n.appDetail),
-            SyncStatusChip(lastSyncedAt: _lastSyncedAt, failed: _loadError != null),
+            SyncStatusChip(
+              lastSyncedAt: _lastSyncedAt,
+              failed: _loadError != null,
+            ),
           ],
         ),
       ),
@@ -339,85 +385,93 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
         onPressed: () => _showQuickIssueSheet(),
         child: const Icon(Icons.add),
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _app == null
+      body:
+          _loading
+              ? const Center(child: CircularProgressIndicator())
+              : _app == null
               ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.cloud_off, size: 64, color: Colors.grey.shade600),
-                      const SizedBox(height: 16),
-                      Text(
-                        _loadError ?? l10n.failedToLoadApp,
-                        style: TextStyle(color: Colors.grey.shade400, fontSize: 16),
-                        textAlign: TextAlign.center,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.cloud_off,
+                      size: 64,
+                      color: Colors.grey.shade600,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      _loadError ?? l10n.failedToLoadApp,
+                      style: TextStyle(
+                        color: Colors.grey.shade400,
+                        fontSize: 16,
                       ),
-                      const SizedBox(height: 16),
-                      ElevatedButton.icon(
-                        onPressed: _loadData,
-                        icon: const Icon(Icons.refresh),
-                        label: Text(l10n.retry),
-                      ),
-                    ],
-                  ),
-                )
-              : RefreshIndicator(
-                  color: AppColors.accent,
-                  onRefresh: _loadData,
-                  child: ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: [
-                      if (_loadError != null)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: SyncErrorBanner(
-                            message: _loadError!,
-                            onRetry: _loadData,
-                            onDismiss: () => setState(() => _loadError = null),
-                          ),
-                        ),
-                      _buildInfoCard(),
-                      const SizedBox(height: 16),
-                      if (_app!.appType.toLowerCase() == 'flutter' ||
-                          _app!.appType.toLowerCase() == 'godot' ||
-                          _app!.appType.toLowerCase() == 'unity' ||
-                          _app!.appType.toLowerCase() == 'phaser')
-                        AppBuildCard(
-                          appId: widget.appId,
-                          appType: _app!.appType,
-                          initialDeployStatus: _deployStatus,
-                          onDataReload: _loadData,
-                        ),
-                      if (_app!.appType.toLowerCase() == 'python')
-                        _buildPythonCard(),
-                      if (_app!.appType.toLowerCase() == 'web')
-                        _buildWebDeployCard(),
-                      const SizedBox(height: 16),
-                      _buildAiAgentCard(),
-                      const SizedBox(height: 16),
-                      McpServersSection(
-                        appId: widget.appId,
-                        initialEnabled: _appMcpServers,
-                        initialPresets: _mcpLoading ? null : _mcpPresets,
-                        onChanged: (enabled) {
-                          setState(() => _appMcpServers = enabled);
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      _buildInstructionCard(),
-                      const SizedBox(height: 16),
-                      _buildInstructionCard(agents: true),
-                      const SizedBox(height: 16),
-                      _buildGddCard(),
-                      const SizedBox(height: 16),
-                      _buildArtBibleCard(),
-                      const SizedBox(height: 16),
-                      _buildBuildsSection(),
-                      const SizedBox(height: 80),
-                    ],
-                  ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: _loadData,
+                      icon: const Icon(Icons.refresh),
+                      label: Text(l10n.retry),
+                    ),
+                  ],
                 ),
+              )
+              : RefreshIndicator(
+                color: AppColors.accent,
+                onRefresh: _loadData,
+                child: ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    if (_loadError != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: SyncErrorBanner(
+                          message: _loadError!,
+                          onRetry: _loadData,
+                          onDismiss: () => setState(() => _loadError = null),
+                        ),
+                      ),
+                    _buildInfoCard(),
+                    const SizedBox(height: 16),
+                    if (_app!.appType.toLowerCase() == 'flutter' ||
+                        _app!.appType.toLowerCase() == 'godot' ||
+                        _app!.appType.toLowerCase() == 'unity' ||
+                        _app!.appType.toLowerCase() == 'phaser')
+                      AppBuildCard(
+                        appId: widget.appId,
+                        appType: _app!.appType,
+                        initialDeployStatus: _deployStatus,
+                        onDataReload: _loadData,
+                      ),
+                    if (_app!.appType.toLowerCase() == 'python')
+                      _buildPythonCard(),
+                    if (_app!.appType.toLowerCase() == 'web')
+                      _buildWebDeployCard(),
+                    const SizedBox(height: 16),
+                    _buildAiAgentCard(),
+                    const SizedBox(height: 16),
+                    McpServersSection(
+                      appId: widget.appId,
+                      initialEnabled: _appMcpServers,
+                      initialPresets: _mcpLoading ? null : _mcpPresets,
+                      onChanged: (enabled) {
+                        setState(() => _appMcpServers = enabled);
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    _buildInstructionCard(),
+                    const SizedBox(height: 16),
+                    _buildInstructionCard(agents: true),
+                    const SizedBox(height: 16),
+                    _buildGddCard(),
+                    const SizedBox(height: 16),
+                    _buildArtBibleCard(),
+                    const SizedBox(height: 16),
+                    _buildBuildsSection(),
+                    const SizedBox(height: 80),
+                  ],
+                ),
+              ),
     );
   }
 
@@ -435,7 +489,13 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                   children: [
                     Icon(Icons.terminal, color: AppColors.accent),
                     SizedBox(width: 8),
-                    Text('Python', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    Text(
+                      'Python',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ],
                 ),
                 Row(
@@ -480,7 +540,13 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                   children: [
                     Icon(Icons.web, color: AppColors.accent),
                     SizedBox(width: 8),
-                    Text(l10n.webDeploy, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    Text(
+                      l10n.webDeploy,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ],
                 ),
                 Row(
@@ -524,14 +590,14 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
     if (!result.ok || data == null) {
       message = result.error ?? l10n.engineDetectionFailed;
     } else if (data['changed'] == true) {
-      message = l10n.engineChanged('${data['previous']}', '${data['app_type']}');
+      message = l10n.engineChanged(
+        '${data['previous']}',
+        '${data['app_type']}',
+      );
     } else {
       message = l10n.engineConfirmed('${data['app_type']}');
     }
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(message),
-      backgroundColor: result.ok ? AppColors.success : AppColors.error,
-    ));
+    AppToast.of(context).show(message, error: true);
     if (result.ok && data?['changed'] == true) _loadData();
   }
 
@@ -547,10 +613,14 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
   Future<void> _triggerServerAction(String action) async {
     final result = await ApiService.sendDeathpinDirective(action, 'normal');
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(result.ok ? l10n.actionTriggered('${action[0].toUpperCase()}${action.substring(1)}') : result.error ?? l10n.failedToTrigger(action)),
-        backgroundColor: result.ok ? AppColors.success : AppColors.error,
-      ));
+      AppToast.of(context).show(
+        result.ok
+            ? l10n.actionTriggered(
+              '${action[0].toUpperCase()}${action.substring(1)}',
+            )
+            : result.error ?? l10n.failedToTrigger(action),
+        error: true,
+      );
     }
   }
 
@@ -596,7 +666,11 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
               spacing: 8,
               runSpacing: 8,
               children: [
-                _infoChip(l10n.version, l10n.versionWithNumber(app.currentVersion), AppColors.info),
+                _infoChip(
+                  l10n.version,
+                  l10n.versionWithNumber(app.currentVersion),
+                  AppColors.info,
+                ),
                 Tooltip(
                   message: l10n.tapToRedetectEngine,
                   child: InkWell(
@@ -622,23 +696,27 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                 if (app.appType.toLowerCase() == 'flutter') ...[
                   _infoChip(
                     l10n.publish,
-                    app.publishStatus.isNotEmpty ? app.publishStatus : l10n.notAvailableShort,
+                    app.publishStatus.isNotEmpty
+                        ? app.publishStatus
+                        : l10n.notAvailableShort,
                     app.publishStatus == 'published'
                         ? AppColors.success
                         : Colors.grey,
                   ),
                   const SizedBox(width: 8),
                 ],
-                Builder(builder: (_) {
-                  final counts = app.taskStatus;
-                  final openCount =
-                      (counts['pending'] ?? 0) + (counts['in_progress'] ?? 0);
-                  return _infoChip(
-                    l10n.issues,
-                    l10n.openCountLabel(openCount),
-                    openCount > 0 ? AppColors.accent : AppColors.success,
-                  );
-                }),
+                Builder(
+                  builder: (_) {
+                    final counts = app.taskStatus;
+                    final openCount =
+                        (counts['pending'] ?? 0) + (counts['in_progress'] ?? 0);
+                    return _infoChip(
+                      l10n.issues,
+                      l10n.openCountLabel(openCount),
+                      openCount > 0 ? AppColors.accent : AppColors.success,
+                    );
+                  },
+                ),
               ],
             ),
             const Divider(height: 24),
@@ -678,29 +756,70 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
   Widget _buildLinksRow(AppModel app) {
     // Auto-generate Play Store & Console URLs from package_name if not set
     final pkg = app.packageName;
-    final playStore = app.playStoreUrl.isNotEmpty
-        ? app.playStoreUrl
-        : (pkg.isNotEmpty ? 'https://play.google.com/store/apps/details?id=$pkg' : '');
-    final console = app.consoleUrl.isNotEmpty
-        ? app.consoleUrl
-        : '';
+    final playStore =
+        app.playStoreUrl.isNotEmpty
+            ? app.playStoreUrl
+            : (pkg.isNotEmpty
+                ? 'https://play.google.com/store/apps/details?id=$pkg'
+                : '');
+    final console = app.consoleUrl.isNotEmpty ? app.consoleUrl : '';
     final appleId = app.appleAppId;
-    final appStore = app.appStoreUrl.isNotEmpty
-        ? app.appStoreUrl
-        : (appleId.isNotEmpty ? 'https://apps.apple.com/app/id$appleId' : '');
-    final testFlight = appleId.isNotEmpty
-        ? 'https://appstoreconnect.apple.com/apps/$appleId/testflight/ios'
-        : '';
+    final appStore =
+        app.appStoreUrl.isNotEmpty
+            ? app.appStoreUrl
+            : (appleId.isNotEmpty
+                ? 'https://apps.apple.com/app/id$appleId'
+                : '');
+    final testFlight =
+        appleId.isNotEmpty
+            ? 'https://appstoreconnect.apple.com/apps/$appleId/testflight/ios'
+            : '';
 
     final links = <_LinkInfo>[
-      _LinkInfo(Icons.code, 'GitHub', app.githubUrl, 'github_url', 'https://github.com/user/repo'),
-      _LinkInfo(Icons.store, 'Play Store', playStore, 'play_store_url', 'https://play.google.com/store/apps/details?id=...'),
-      _LinkInfo(Icons.admin_panel_settings, l10n.console, console, 'console_url', 'https://play.google.com/console/...'),
+      _LinkInfo(
+        Icons.code,
+        'GitHub',
+        app.githubUrl,
+        'github_url',
+        'https://github.com/user/repo',
+      ),
+      _LinkInfo(
+        Icons.store,
+        'Play Store',
+        playStore,
+        'play_store_url',
+        'https://play.google.com/store/apps/details?id=...',
+      ),
+      _LinkInfo(
+        Icons.admin_panel_settings,
+        l10n.console,
+        console,
+        'console_url',
+        'https://play.google.com/console/...',
+      ),
       if (app.appType == 'flutter' || appleId.isNotEmpty) ...[
-        _LinkInfo(Icons.apple, 'App Store', appStore, 'app_store_url', 'https://apps.apple.com/app/id...'),
-        _LinkInfo(Icons.flight_takeoff, 'TestFlight', testFlight, 'apple_app_id', 'Apple App ID (e.g. 6837796130)'),
+        _LinkInfo(
+          Icons.apple,
+          'App Store',
+          appStore,
+          'app_store_url',
+          'https://apps.apple.com/app/id...',
+        ),
+        _LinkInfo(
+          Icons.flight_takeoff,
+          'TestFlight',
+          testFlight,
+          'apple_app_id',
+          'Apple App ID (e.g. 6837796130)',
+        ),
       ],
-      _LinkInfo(Icons.language, l10n.website, app.websiteUrl, 'website_url', 'https://example.com'),
+      _LinkInfo(
+        Icons.language,
+        l10n.website,
+        app.websiteUrl,
+        'website_url',
+        'https://example.com',
+      ),
     ];
 
     final hasAnyLink = links.any((l) => l.value.isNotEmpty);
@@ -712,62 +831,113 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
           children: [
             Icon(Icons.link, size: 16, color: Colors.grey.shade500),
             const SizedBox(width: 6),
-            Text(l10n.links, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey.shade400)),
+            Text(
+              l10n.links,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade400,
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 10),
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: links.map((link) {
-            final hasUrl = link.value.isNotEmpty;
-            return Material(
-              color: hasUrl ? AppColors.accent.withValues(alpha: 0.15) : AppColors.bgDark,
-              borderRadius: BorderRadius.circular(8),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(8),
-                onTap: hasUrl
-                    ? () => _openUrl(link.value)
-                    : () => _showEditFieldSheet(link.label, link.value, link.field, link.hint),
-                onLongPress: () => _showEditFieldSheet(link.label, link.value, link.field, link.hint),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
+          children:
+              links.map((link) {
+                final hasUrl = link.value.isNotEmpty;
+                return Material(
+                  color:
+                      hasUrl
+                          ? AppColors.accent.withValues(alpha: 0.15)
+                          : AppColors.bgDark,
+                  borderRadius: BorderRadius.circular(8),
+                  child: InkWell(
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: hasUrl ? AppColors.accent.withValues(alpha: 0.4) : Colors.grey.shade700,
+                    onTap:
+                        hasUrl
+                            ? () => _openUrl(link.value)
+                            : () => _showEditFieldSheet(
+                              link.label,
+                              link.value,
+                              link.field,
+                              link.hint,
+                            ),
+                    onLongPress:
+                        () => _showEditFieldSheet(
+                          link.label,
+                          link.value,
+                          link.field,
+                          link.hint,
+                        ),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color:
+                              hasUrl
+                                  ? AppColors.accent.withValues(alpha: 0.4)
+                                  : Colors.grey.shade700,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            link.icon,
+                            size: 16,
+                            color:
+                                hasUrl
+                                    ? AppColors.accent
+                                    : Colors.grey.shade600,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            link.label,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color:
+                                  hasUrl
+                                      ? AppColors.accent
+                                      : Colors.grey.shade600,
+                            ),
+                          ),
+                          if (!hasUrl) ...[
+                            const SizedBox(width: 4),
+                            Icon(
+                              Icons.add,
+                              size: 14,
+                              color: Colors.grey.shade600,
+                            ),
+                          ],
+                        ],
+                      ),
                     ),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(link.icon, size: 16,
-                          color: hasUrl ? AppColors.accent : Colors.grey.shade600),
-                      const SizedBox(width: 6),
-                      Text(link.label, style: TextStyle(fontSize: 13,
-                          color: hasUrl ? AppColors.accent : Colors.grey.shade600)),
-                      if (!hasUrl) ...[
-                        const SizedBox(width: 4),
-                        Icon(Icons.add, size: 14, color: Colors.grey.shade600),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-            );
-          }).toList(),
+                );
+              }).toList(),
         ),
         if (!hasAnyLink)
           Padding(
             padding: const EdgeInsets.only(top: 6),
-            child: Text(l10n.tapToAddLongPressToEdit,
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+            child: Text(
+              l10n.tapToAddLongPressToEdit,
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+            ),
           )
         else
           Padding(
             padding: const EdgeInsets.only(top: 6),
-            child: Text(l10n.tapToOpenLongPressToEdit,
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+            child: Text(
+              l10n.tapToOpenLongPressToEdit,
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+            ),
           ),
       ],
     );
@@ -780,18 +950,17 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
       uri = Uri.parse('https://$url');
     }
     try {
-      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      final launched = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
       if (!launched && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.couldNotOpenLink), backgroundColor: AppColors.error),
-        );
+        AppToast.of(context).show(l10n.couldNotOpenLink, error: true);
       }
     } catch (e) {
       debugPrint('Failed to launch URL: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.couldNotOpenLink), backgroundColor: AppColors.error),
-        );
+        AppToast.of(context).show(l10n.couldNotOpenLink, error: true);
       }
     }
   }
@@ -806,17 +975,14 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
     return InkWell(
       borderRadius: BorderRadius.circular(8),
       onTap: () => _showEditFieldSheet(label, value, field, hint),
-      onLongPress: value.isNotEmpty ? () {
-        Clipboard.setData(ClipboardData(text: value));
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(l10n.copiedToClipboardNamed(label)),
-            duration: const Duration(seconds: 2),
-            backgroundColor: AppColors.info,
-          ),
-        );
-        HapticFeedback.lightImpact();
-      } : null,
+      onLongPress:
+          value.isNotEmpty
+              ? () {
+                Clipboard.setData(ClipboardData(text: value));
+                AppToast.of(context).show(l10n.copiedToClipboardNamed(label));
+                HapticFeedback.lightImpact();
+              }
+              : null,
       child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 48),
         child: Padding(
@@ -825,14 +991,21 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
             children: [
               Icon(icon, size: 18, color: Colors.grey.shade500),
               const SizedBox(width: 10),
-              Text('$label: ', style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
+              Text(
+                '$label: ',
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+              ),
               Expanded(
                 child: Text(
                   value.isNotEmpty ? value : l10n.notSet,
                   style: TextStyle(
                     fontSize: 13,
-                    color: value.isNotEmpty ? Colors.grey.shade200 : Colors.grey.shade600,
-                    fontStyle: value.isEmpty ? FontStyle.italic : FontStyle.normal,
+                    color:
+                        value.isNotEmpty
+                            ? Colors.grey.shade200
+                            : Colors.grey.shade600,
+                    fontStyle:
+                        value.isEmpty ? FontStyle.italic : FontStyle.normal,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -846,7 +1019,12 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
     );
   }
 
-  void _showEditFieldSheet(String label, String currentValue, String field, String hint) {
+  void _showEditFieldSheet(
+    String label,
+    String currentValue,
+    String field,
+    String hint,
+  ) {
     final controller = TextEditingController(text: currentValue);
     bool saving = false;
 
@@ -863,14 +1041,22 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
             final mq = MediaQuery.of(ctx);
             return Padding(
               padding: EdgeInsets.only(
-                left: 20, right: 20, top: 20,
+                left: 20,
+                right: 20,
+                top: 20,
                 bottom: mq.viewInsets.bottom + mq.padding.bottom + 20,
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(l10n.editNamed(label), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text(
+                    l10n.editNamed(label),
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   const SizedBox(height: 16),
                   TextField(
                     controller: controller,
@@ -879,28 +1065,37 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                   ),
                   const SizedBox(height: 16),
                   SizedBox(
-                    width: double.infinity, height: 48,
+                    width: double.infinity,
+                    height: 48,
                     child: FilledButton(
-                      onPressed: saving ? null : () async {
-                        final newValue = controller.text.trim();
-                        if (newValue == currentValue) {
-                          Navigator.pop(ctx);
-                          return;
-                        }
-                        setSheetState(() => saving = true);
-                        final result = await ApiService.updateApp(widget.appId, {field: newValue});
-                        if (ctx.mounted) Navigator.pop(ctx);
-                        if (mounted) {
-                          if (result.ok) _loadData();
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                            content: Text(result.ok ? l10n.updatedNamed(label) : result.error ?? l10n.failedToUpdate),
-                            backgroundColor: result.ok ? AppColors.success : AppColors.error,
-                          ));
-                        }
-                      },
-                      child: Text(saving
-                          ? l10n.saving
-                          : AppLocalizations.of(ctx)!.save),
+                      onPressed:
+                          saving
+                              ? null
+                              : () async {
+                                final newValue = controller.text.trim();
+                                if (newValue == currentValue) {
+                                  Navigator.pop(ctx);
+                                  return;
+                                }
+                                setSheetState(() => saving = true);
+                                final result = await ApiService.updateApp(
+                                  widget.appId,
+                                  {field: newValue},
+                                );
+                                if (ctx.mounted) Navigator.pop(ctx);
+                                if (mounted) {
+                                  if (result.ok) _loadData();
+                                  AppToast.of(context).show(
+                                    result.ok
+                                        ? l10n.updatedNamed(label)
+                                        : result.error ?? l10n.failedToUpdate,
+                                    error: true,
+                                  );
+                                }
+                              },
+                      child: Text(
+                        saving ? l10n.saving : AppLocalizations.of(ctx)!.save,
+                      ),
                     ),
                   ),
                 ],
@@ -953,27 +1148,25 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                 const SizedBox(width: 8),
                 Text(
                   l10n.aiAgent,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ],
             ),
             const SizedBox(height: 12),
             SegmentedButton<String>(
-              segments: _aiAgents.map((agent) {
-                return ButtonSegment<String>(
-                  value: agent,
-                  label: Text(
-                    _aiLabels[agent] ?? agent,
-                    maxLines: 1,
-                    overflow: TextOverflow.fade,
-                    softWrap: false,
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                );
-              }).toList(),
+              segments:
+                  _aiAgents.map((agent) {
+                    return ButtonSegment<String>(
+                      value: agent,
+                      label: Text(
+                        _aiLabels[agent] ?? agent,
+                        maxLines: 1,
+                        overflow: TextOverflow.fade,
+                        softWrap: false,
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    );
+                  }).toList(),
               selected: {_selectedStrategy},
               onSelectionChanged: (set) => _saveStrategy(set.first),
               showSelectedIcon: false,
@@ -998,7 +1191,10 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
   }
 
   Future<void> _retryClaudeMd() async {
-    setState(() { _claudeMdLoading = true; _claudeMdError = null; });
+    setState(() {
+      _claudeMdLoading = true;
+      _claudeMdError = null;
+    });
     final result = await ApiService.getClaudeMd(widget.appId);
     if (result.ok) {
       await CacheService.instance.setClaudeMd(widget.appId, result.data ?? '');
@@ -1017,7 +1213,10 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
   }
 
   Future<void> _retryAgentsMd() async {
-    setState(() { _agentsMdLoading = true; _agentsMdError = null; });
+    setState(() {
+      _agentsMdLoading = true;
+      _agentsMdError = null;
+    });
     final result = await ApiService.getAgentsMd(widget.appId);
     if (result.ok) {
       await CacheService.instance.setAgentsMd(widget.appId, result.data ?? '');
@@ -1036,7 +1235,10 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
   }
 
   Future<void> _retryGdd() async {
-    setState(() { _gddLoading = true; _gddError = null; });
+    setState(() {
+      _gddLoading = true;
+      _gddError = null;
+    });
     final result = await ApiService.getGdd(widget.appId);
     if (result.ok) {
       await CacheService.instance.setGdd(widget.appId, result.data ?? '');
@@ -1055,7 +1257,10 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
   }
 
   Future<void> _retryArtBible() async {
-    setState(() { _artBibleLoading = true; _artBibleError = null; });
+    setState(() {
+      _artBibleLoading = true;
+      _artBibleError = null;
+    });
     final result = await ApiService.getArtBible(widget.appId);
     if (result.ok) {
       await CacheService.instance.setArtBible(widget.appId, result.data ?? '');
@@ -1097,30 +1302,37 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                     filename,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                 ),
                 if (enhancing)
                   Padding(
                     padding: const EdgeInsets.only(right: 8),
                     child: SizedBox(
-                      width: 16, height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.warning),
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.warning,
+                      ),
                     ),
                   ),
                 if (!hasError && hasContent && !enhancing)
                   IconButton(
                     tooltip: l10n.enhance,
-                    onPressed: () => _fireAndForgetEnhance(type: agents ? 'agents-md' : 'claude-md'),
+                    onPressed:
+                        () => _fireAndForgetEnhance(
+                          type: agents ? 'agents-md' : 'claude-md',
+                        ),
                     icon: const Icon(Icons.auto_awesome, size: 20),
                   ),
                 if (!hasError)
                   IconButton(
                     tooltip: hasContent ? l10n.edit : l10n.add,
-                    onPressed: loading || enhancing ? null : () => _showInstructionSheet(agents: agents),
+                    onPressed:
+                        loading || enhancing
+                            ? null
+                            : () => _showInstructionSheet(agents: agents),
                     icon: Icon(hasContent ? Icons.edit : Icons.add, size: 20),
                   ),
                 if (hasError)
@@ -1179,18 +1391,29 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
             final mq = MediaQuery.of(ctx);
             return SingleChildScrollView(
               padding: EdgeInsets.only(
-                left: 20, right: 20, top: 20,
+                left: 20,
+                right: 20,
+                top: 20,
                 bottom: mq.viewInsets.bottom + mq.padding.bottom + 20,
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(agents ? l10n.agentsMdTitle(_app?.name ?? l10n.appFallback) : l10n.claudeMdTitle(_app?.name ?? l10n.appFallback),
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text(
+                    agents
+                        ? l10n.agentsMdTitle(_app?.name ?? l10n.appFallback)
+                        : l10n.claudeMdTitle(_app?.name ?? l10n.appFallback),
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   const SizedBox(height: 4),
-                  Text(l10n.claudeMdSubtitle,
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
+                  Text(
+                    l10n.claudeMdSubtitle,
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                  ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: controller,
@@ -1202,55 +1425,85 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                   ),
                   const SizedBox(height: 16),
                   SizedBox(
-                    width: double.infinity, height: 48,
+                    width: double.infinity,
+                    height: 48,
                     child: FilledButton.icon(
-                      onPressed: saving ? null : () async {
-                        final text = controller.text.trim();
-                        if (text.isEmpty) {
-                          ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-                            content: Text(agents ? l10n.cannotSaveEmptyAgentsMd : l10n.cannotSaveEmptyClaudeMd),
-                            backgroundColor: AppColors.error,
-                          ));
-                          return;
-                        }
-                        setSheetState(() => saving = true);
-                        final savedText = controller.text;
-                        final result = agents
-                            ? await ApiService.updateAgentsMd(widget.appId, savedText)
-                            : await ApiService.updateClaudeMd(widget.appId, savedText);
-                        if (result.ok) {
-                          if (agents) {
-                            await CacheService.instance.setAgentsMd(widget.appId, savedText);
-                          } else {
-                            await CacheService.instance.setClaudeMd(widget.appId, savedText);
-                          }
-                        }
-                        if (ctx.mounted) {
-                          if (result.ok) {
-                            Navigator.pop(ctx);
-                          } else {
-                            setSheetState(() => saving = false);
-                          }
-                        }
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                            content: Text(result.ok ? (agents ? l10n.agentsMdSaved : l10n.claudeMdSaved) : result.error ?? l10n.failed),
-                            backgroundColor: result.ok ? AppColors.success : AppColors.error));
-                          if (result.ok) {
-                            setState(() {
-                              if (agents) {
-                                _agentsMdContent = savedText;
-                              } else {
-                                _claudeMdContent = savedText;
-                              }
-                            });
-                          }
-                        }
-                      },
-                      icon: saving
-                          ? const SizedBox(width: 18, height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2))
-                          : const Icon(Icons.save),
+                      onPressed:
+                          saving
+                              ? null
+                              : () async {
+                                final text = controller.text.trim();
+                                if (text.isEmpty) {
+                                  AppToast.of(ctx).show(
+                                    agents
+                                        ? l10n.cannotSaveEmptyAgentsMd
+                                        : l10n.cannotSaveEmptyClaudeMd,
+                                    error: true,
+                                  );
+                                  return;
+                                }
+                                setSheetState(() => saving = true);
+                                final savedText = controller.text;
+                                final result =
+                                    agents
+                                        ? await ApiService.updateAgentsMd(
+                                          widget.appId,
+                                          savedText,
+                                        )
+                                        : await ApiService.updateClaudeMd(
+                                          widget.appId,
+                                          savedText,
+                                        );
+                                if (result.ok) {
+                                  if (agents) {
+                                    await CacheService.instance.setAgentsMd(
+                                      widget.appId,
+                                      savedText,
+                                    );
+                                  } else {
+                                    await CacheService.instance.setClaudeMd(
+                                      widget.appId,
+                                      savedText,
+                                    );
+                                  }
+                                }
+                                if (ctx.mounted) {
+                                  if (result.ok) {
+                                    Navigator.pop(ctx);
+                                  } else {
+                                    setSheetState(() => saving = false);
+                                  }
+                                }
+                                if (mounted) {
+                                  AppToast.of(context).show(
+                                    result.ok
+                                        ? (agents
+                                            ? l10n.agentsMdSaved
+                                            : l10n.claudeMdSaved)
+                                        : result.error ?? l10n.failed,
+                                    error: true,
+                                  );
+                                  if (result.ok) {
+                                    setState(() {
+                                      if (agents) {
+                                        _agentsMdContent = savedText;
+                                      } else {
+                                        _claudeMdContent = savedText;
+                                      }
+                                    });
+                                  }
+                                }
+                              },
+                      icon:
+                          saving
+                              ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                              : const Icon(Icons.save),
                       label: Text(saving ? l10n.saving : l10n.save),
                     ),
                   ),
@@ -1285,18 +1538,19 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                     l10n.designDocument,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                 ),
                 if (_gddEnhancing)
                   Padding(
                     padding: const EdgeInsets.only(right: 8),
                     child: SizedBox(
-                      width: 16, height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.warning),
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.warning,
+                      ),
                     ),
                   ),
                 if (!hasError && hasContent && !_gddEnhancing)
@@ -1349,7 +1603,9 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
   }
 
   void _showGddSheet() {
-    final gddController = TextEditingController(text: _gddContent?.trim() ?? '');
+    final gddController = TextEditingController(
+      text: _gddContent?.trim() ?? '',
+    );
     bool saving = false;
 
     showModalBottomSheet(
@@ -1367,18 +1623,27 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
             final mq = MediaQuery.of(ctx);
             return SingleChildScrollView(
               padding: EdgeInsets.only(
-                left: 20, right: 20, top: 20,
+                left: 20,
+                right: 20,
+                top: 20,
                 bottom: mq.viewInsets.bottom + mq.padding.bottom + 20,
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(l10n.designDocTitle(_app?.name ?? l10n.appFallback),
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text(
+                    l10n.designDocTitle(_app?.name ?? l10n.appFallback),
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   const SizedBox(height: 4),
-                  Text(l10n.designDocSubtitle,
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
+                  Text(
+                    l10n.designDocSubtitle,
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                  ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: gddController,
@@ -1390,38 +1655,57 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                   ),
                   const SizedBox(height: 16),
                   SizedBox(
-                    width: double.infinity, height: 48,
+                    width: double.infinity,
+                    height: 48,
                     child: FilledButton.icon(
-                      onPressed: saving ? null : () async {
-                        final text = gddController.text.trim();
-                        if (text.isEmpty) {
-                          ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-                            content: Text(l10n.cannotSaveEmptyDesignDoc),
-                            backgroundColor: AppColors.error,
-                          ));
-                          return;
-                        }
-                        setSheetState(() => saving = true);
-                        final result = await ApiService.updateGdd(
-                            widget.appId, gddController.text);
-                        if (result.ok) {
-                          await CacheService.instance
-                              .setGdd(widget.appId, gddController.text);
-                        }
-                        if (ctx.mounted) Navigator.pop(ctx);
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                            content: Text(result.ok ? l10n.designDocSaved : result.error ?? l10n.failed),
-                            backgroundColor: result.ok ? AppColors.success : AppColors.error));
-                          if (result.ok) {
-                            setState(() => _gddContent = gddController.text);
-                          }
-                        }
-                      },
-                      icon: saving
-                          ? const SizedBox(width: 18, height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2))
-                          : const Icon(Icons.save),
+                      onPressed:
+                          saving
+                              ? null
+                              : () async {
+                                final text = gddController.text.trim();
+                                if (text.isEmpty) {
+                                  AppToast.of(ctx).show(
+                                    l10n.cannotSaveEmptyDesignDoc,
+                                    error: true,
+                                  );
+                                  return;
+                                }
+                                setSheetState(() => saving = true);
+                                final result = await ApiService.updateGdd(
+                                  widget.appId,
+                                  gddController.text,
+                                );
+                                if (result.ok) {
+                                  await CacheService.instance.setGdd(
+                                    widget.appId,
+                                    gddController.text,
+                                  );
+                                }
+                                if (ctx.mounted) Navigator.pop(ctx);
+                                if (mounted) {
+                                  AppToast.of(context).show(
+                                    result.ok
+                                        ? l10n.designDocSaved
+                                        : result.error ?? l10n.failed,
+                                    error: true,
+                                  );
+                                  if (result.ok) {
+                                    setState(
+                                      () => _gddContent = gddController.text,
+                                    );
+                                  }
+                                }
+                              },
+                      icon:
+                          saving
+                              ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                              : const Icon(Icons.save),
                       label: Text(saving ? l10n.saving : l10n.save),
                     ),
                   ),
@@ -1435,7 +1719,8 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
   }
 
   Widget _buildArtBibleCard() {
-    final hasContent = _artBibleContent != null && _artBibleContent!.trim().isNotEmpty;
+    final hasContent =
+        _artBibleContent != null && _artBibleContent!.trim().isNotEmpty;
     final hasError = _artBibleError != null;
     return Card(
       child: Padding(
@@ -1452,18 +1737,19 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                     l10n.artBible,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                 ),
                 if (_artBibleEnhancing)
                   Padding(
                     padding: const EdgeInsets.only(right: 8),
                     child: SizedBox(
-                      width: 16, height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.warning),
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.warning,
+                      ),
                     ),
                   ),
                 if (!hasError && hasContent && !_artBibleEnhancing)
@@ -1516,7 +1802,9 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
   }
 
   void _showArtBibleSheet() {
-    final controller = TextEditingController(text: _artBibleContent?.trim() ?? '');
+    final controller = TextEditingController(
+      text: _artBibleContent?.trim() ?? '',
+    );
     bool saving = false;
 
     showModalBottomSheet(
@@ -1534,18 +1822,27 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
             final mq = MediaQuery.of(ctx);
             return SingleChildScrollView(
               padding: EdgeInsets.only(
-                left: 20, right: 20, top: 20,
+                left: 20,
+                right: 20,
+                top: 20,
                 bottom: mq.viewInsets.bottom + mq.padding.bottom + 20,
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(l10n.artBibleTitle(_app?.name ?? l10n.appFallback),
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text(
+                    l10n.artBibleTitle(_app?.name ?? l10n.appFallback),
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   const SizedBox(height: 4),
-                  Text(l10n.artBibleSubtitle,
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
+                  Text(
+                    l10n.artBibleSubtitle,
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                  ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: controller,
@@ -1557,38 +1854,57 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                   ),
                   const SizedBox(height: 16),
                   SizedBox(
-                    width: double.infinity, height: 48,
+                    width: double.infinity,
+                    height: 48,
                     child: FilledButton.icon(
-                      onPressed: saving ? null : () async {
-                        final text = controller.text.trim();
-                        if (text.isEmpty) {
-                          ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-                            content: Text(l10n.cannotSaveEmptyArtBible),
-                            backgroundColor: AppColors.error,
-                          ));
-                          return;
-                        }
-                        setSheetState(() => saving = true);
-                        final result = await ApiService.updateArtBible(
-                            widget.appId, controller.text);
-                        if (result.ok) {
-                          await CacheService.instance
-                              .setArtBible(widget.appId, controller.text);
-                        }
-                        if (ctx.mounted) Navigator.pop(ctx);
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                            content: Text(result.ok ? l10n.artBibleSaved : result.error ?? l10n.failed),
-                            backgroundColor: result.ok ? AppColors.success : AppColors.error));
-                          if (result.ok) {
-                            setState(() => _artBibleContent = controller.text);
-                          }
-                        }
-                      },
-                      icon: saving
-                          ? const SizedBox(width: 18, height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2))
-                          : const Icon(Icons.save),
+                      onPressed:
+                          saving
+                              ? null
+                              : () async {
+                                final text = controller.text.trim();
+                                if (text.isEmpty) {
+                                  AppToast.of(ctx).show(
+                                    l10n.cannotSaveEmptyArtBible,
+                                    error: true,
+                                  );
+                                  return;
+                                }
+                                setSheetState(() => saving = true);
+                                final result = await ApiService.updateArtBible(
+                                  widget.appId,
+                                  controller.text,
+                                );
+                                if (result.ok) {
+                                  await CacheService.instance.setArtBible(
+                                    widget.appId,
+                                    controller.text,
+                                  );
+                                }
+                                if (ctx.mounted) Navigator.pop(ctx);
+                                if (mounted) {
+                                  AppToast.of(context).show(
+                                    result.ok
+                                        ? l10n.artBibleSaved
+                                        : result.error ?? l10n.failed,
+                                    error: true,
+                                  );
+                                  if (result.ok) {
+                                    setState(
+                                      () => _artBibleContent = controller.text,
+                                    );
+                                  }
+                                }
+                              },
+                      icon:
+                          saving
+                              ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                              : const Icon(Icons.save),
                       label: Text(saving ? l10n.saving : l10n.save),
                     ),
                   ),
@@ -1631,33 +1947,43 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
 
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (d) => AlertDialog(
-        icon: const Icon(Icons.auto_awesome, color: Colors.amber),
-        title: Text(l10n.enhanceConfirmTitle(label)),
-        content: Text(l10n.enhanceConfirmBody),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(d, false),
-              child: Text(AppLocalizations.of(d)!.cancel)),
-          FilledButton(onPressed: () => Navigator.pop(d, true), child: Text(l10n.enhance)),
-        ],
-      ),
+      builder:
+          (d) => AlertDialog(
+            icon: const Icon(Icons.auto_awesome, color: Colors.amber),
+            title: Text(l10n.enhanceConfirmTitle(label)),
+            content: Text(l10n.enhanceConfirmBody),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(d, false),
+                child: Text(AppLocalizations.of(d)!.cancel),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(d, true),
+                child: Text(l10n.enhance),
+              ),
+            ],
+          ),
     );
     if (confirm != true || !mounted) return;
 
     setState(() {
       switch (type) {
-        case 'gdd': _gddEnhancing = true; break;
-        case 'agents-md': _agentsMdEnhancing = true; break;
-        case 'claude-md': _claudeMdEnhancing = true; break;
-        case 'art-bible': _artBibleEnhancing = true; break;
+        case 'gdd':
+          _gddEnhancing = true;
+          break;
+        case 'agents-md':
+          _agentsMdEnhancing = true;
+          break;
+        case 'claude-md':
+          _claudeMdEnhancing = true;
+          break;
+        case 'art-bible':
+          _artBibleEnhancing = true;
+          break;
       }
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(l10n.enhanceStarted(label)),
-      backgroundColor: AppColors.info,
-    ));
+    AppToast.of(context).show(l10n.enhanceStarted(label));
 
     final Future<ApiResult<bool>> future;
     switch (type) {
@@ -1677,44 +2003,58 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
         return;
     }
 
-    future.then((result) {
-      if (!mounted) return;
-      if (!result.ok) {
-        setState(() {
-          _clearEnhancingFlag(type);
+    future
+        .then((result) {
+          if (!mounted) return;
+          if (!result.ok) {
+            setState(() {
+              _clearEnhancingFlag(type);
+            });
+            AppToast.of(
+              context,
+            ).show(l10n.failedToStartWithError('${result.error}'), error: true);
+            return;
+          }
+          _pollEnhanceStatus(type, label);
+        })
+        .catchError((e) {
+          if (!mounted) return;
+          setState(() {
+            _clearEnhancingFlag(type);
+          });
+          AppToast.of(context).show(l10n.enhanceError(label, e), error: true);
         });
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(l10n.failedToStartWithError('${result.error}')),
-          backgroundColor: AppColors.error,
-        ));
-        return;
-      }
-      _pollEnhanceStatus(type, label);
-    }).catchError((e) {
-      if (!mounted) return;
-      setState(() { _clearEnhancingFlag(type); });
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(l10n.enhanceError(label, e)),
-        backgroundColor: AppColors.error,
-      ));
-    });
   }
 
   void _clearEnhancingFlag(String type) {
     switch (type) {
-      case 'gdd': _gddEnhancing = false; break;
-      case 'agents-md': _agentsMdEnhancing = false; break;
-      case 'claude-md': _claudeMdEnhancing = false; break;
-      case 'art-bible': _artBibleEnhancing = false; break;
+      case 'gdd':
+        _gddEnhancing = false;
+        break;
+      case 'agents-md':
+        _agentsMdEnhancing = false;
+        break;
+      case 'claude-md':
+        _claudeMdEnhancing = false;
+        break;
+      case 'art-bible':
+        _artBibleEnhancing = false;
+        break;
     }
   }
 
   void _pollEnhanceStatus(String type, String label) {
     _enhanceTimer?.cancel();
     _enhanceTimer = Timer.periodic(const Duration(seconds: 10), (timer) async {
-      if (!mounted) { timer.cancel(); return; }
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
       final result = await ApiService.getEnhanceStatus(widget.appId);
-      if (!mounted) { timer.cancel(); return; }
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
       if (!result.ok) return;
       final status = result.data!['status'] as String? ?? 'idle';
       if (status == 'running') return;
@@ -1725,25 +2065,37 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
           case 'gdd':
             refreshed = await ApiService.getGdd(widget.appId);
             if (refreshed.ok) {
-              await CacheService.instance.setGdd(widget.appId, refreshed.data ?? '');
+              await CacheService.instance.setGdd(
+                widget.appId,
+                refreshed.data ?? '',
+              );
             }
             break;
           case 'agents-md':
             refreshed = await ApiService.getAgentsMd(widget.appId);
             if (refreshed.ok) {
-              await CacheService.instance.setAgentsMd(widget.appId, refreshed.data ?? '');
+              await CacheService.instance.setAgentsMd(
+                widget.appId,
+                refreshed.data ?? '',
+              );
             }
             break;
           case 'claude-md':
             refreshed = await ApiService.getClaudeMd(widget.appId);
             if (refreshed.ok) {
-              await CacheService.instance.setClaudeMd(widget.appId, refreshed.data ?? '');
+              await CacheService.instance.setClaudeMd(
+                widget.appId,
+                refreshed.data ?? '',
+              );
             }
             break;
           case 'art-bible':
             refreshed = await ApiService.getArtBible(widget.appId);
             if (refreshed.ok) {
-              await CacheService.instance.setArtBible(widget.appId, refreshed.data ?? '');
+              await CacheService.instance.setArtBible(
+                widget.appId,
+                refreshed.data ?? '',
+              );
             }
             break;
           default:
@@ -1754,25 +2106,30 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
           _clearEnhancingFlag(type);
           if (refreshed.ok) {
             switch (type) {
-              case 'gdd': _gddContent = refreshed.data; break;
-              case 'agents-md': _agentsMdContent = refreshed.data; break;
-              case 'claude-md': _claudeMdContent = refreshed.data; break;
-              case 'art-bible': _artBibleContent = refreshed.data; break;
+              case 'gdd':
+                _gddContent = refreshed.data;
+                break;
+              case 'agents-md':
+                _agentsMdContent = refreshed.data;
+                break;
+              case 'claude-md':
+                _claudeMdContent = refreshed.data;
+                break;
+              case 'art-bible':
+                _artBibleContent = refreshed.data;
+                break;
             }
           }
         });
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(l10n.enhanceSucceeded(label)),
-          backgroundColor: AppColors.success,
-        ));
+        AppToast.of(context).show(l10n.enhanceSucceeded(label));
       } else {
-        final error = result.data?['error'] as String? ?? l10n.enhancementFailed;
+        final error =
+            result.data?['error'] as String? ?? l10n.enhancementFailed;
         if (!mounted) return;
-        setState(() { _clearEnhancingFlag(type); });
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(error),
-          backgroundColor: AppColors.error,
-        ));
+        setState(() {
+          _clearEnhancingFlag(type);
+        });
+        AppToast.of(context).show(error, error: true);
       }
     });
   }
@@ -1793,7 +2150,11 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
               child: Center(
                 child: Column(
                   children: [
-                    Icon(Icons.build_circle_outlined, size: 32, color: Colors.grey.shade600),
+                    Icon(
+                      Icons.build_circle_outlined,
+                      size: 32,
+                      color: Colors.grey.shade600,
+                    ),
                     const SizedBox(height: 8),
                     Text(
                       l10n.noBuildsYet,
@@ -1802,7 +2163,10 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                     const SizedBox(height: 4),
                     Text(
                       l10n.startBuildFromCardAbove,
-                      style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 12,
+                      ),
                     ),
                   ],
                 ),
@@ -1810,37 +2174,43 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
             ),
           )
         else
-          ..._builds.take(5).map((build) => Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ListTile(
-                  leading: Icon(
-                    build.status == 'success'
-                        ? Icons.check_circle
-                        : build.status == 'failed'
-                            ? Icons.error
-                            : Icons.hourglass_top,
-                    color: build.status == 'success'
-                        ? AppColors.success
-                        : build.status == 'failed'
-                            ? AppColors.error
-                            : AppColors.warning,
-                  ),
-                  title: Text(l10n.buildListTitle(build.version, build.buildType)),
-                  subtitle: Text(
-                    build.startedBy.isEmpty
-                        ? build.startedAt
-                        : '${build.startedAt}\n${l10n.buildStartedBy(build.startedBy)}',
-                    style: TextStyle(
-                      color: Colors.grey.shade500,
-                      fontSize: 12,
+          ..._builds
+              .take(5)
+              .map(
+                (build) => Card(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: ListTile(
+                    leading: Icon(
+                      build.status == 'success'
+                          ? Icons.check_circle
+                          : build.status == 'failed'
+                          ? Icons.error
+                          : Icons.hourglass_top,
+                      color:
+                          build.status == 'success'
+                              ? AppColors.success
+                              : build.status == 'failed'
+                              ? AppColors.error
+                              : AppColors.warning,
+                    ),
+                    title: Text(
+                      l10n.buildListTitle(build.version, build.buildType),
+                    ),
+                    subtitle: Text(
+                      build.startedBy.isEmpty
+                          ? build.startedAt
+                          : '${build.startedAt}\n${l10n.buildStartedBy(build.startedBy)}',
+                      style: TextStyle(
+                        color: Colors.grey.shade500,
+                        fontSize: 12,
+                      ),
                     ),
                   ),
                 ),
-              )),
+              ),
       ],
     );
   }
-
 }
 
 class _LinkInfo {
@@ -1885,7 +2255,10 @@ class _DirectiveHistorySheetState extends State<_DirectiveHistorySheet> {
           children: [
             Padding(
               padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: Text(l10n.directiveHistory, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              child: Text(
+                l10n.directiveHistory,
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
             ),
             Expanded(
               child: FutureBuilder<ApiResult<List<dynamic>>>(
@@ -1897,37 +2270,48 @@ class _DirectiveHistorySheetState extends State<_DirectiveHistorySheet> {
                   final result = snap.data!;
                   if (!result.ok) {
                     return Center(
-                      child: Text(result.error ?? l10n.couldNotLoadDirectives,
-                          style: TextStyle(color: AppColors.error)),
+                      child: Text(
+                        result.error ?? l10n.couldNotLoadDirectives,
+                        style: TextStyle(color: AppColors.error),
+                      ),
                     );
                   }
-                  final items = (result.data ?? const [])
-                      .whereType<Map>()
-                      .toList()
-                      .reversed
-                      .take(_maxShown)
-                      .toList();
+                  final items =
+                      (result.data ?? const [])
+                          .whereType<Map>()
+                          .toList()
+                          .reversed
+                          .take(_maxShown)
+                          .toList();
                   if (items.isEmpty) {
                     return Center(
-                      child: Text(l10n.noDirectivesYet,
-                          style: TextStyle(color: Colors.grey.shade500)),
+                      child: Text(
+                        l10n.noDirectivesYet,
+                        style: TextStyle(color: Colors.grey.shade500),
+                      ),
                     );
                   }
                   return ListView.separated(
                     itemCount: items.length,
-                    separatorBuilder: (_, _) => Divider(height: 1, color: Colors.grey.shade800),
+                    separatorBuilder:
+                        (_, _) =>
+                            Divider(height: 1, color: Colors.grey.shade800),
                     itemBuilder: (context, i) {
                       final d = items[i];
                       final read = d['read'] == true;
                       final target = (d['target_app'] ?? '').toString();
-                      var when = (d['created_at'] ?? '').toString().replaceFirst('T', ' ');
-                      if (when.length > _timestampLength) when = when.substring(0, _timestampLength);
+                      var when = (d['created_at'] ?? '')
+                          .toString()
+                          .replaceFirst('T', ' ');
+                      if (when.length > _timestampLength)
+                        when = when.substring(0, _timestampLength);
                       return ListTile(
                         dense: true,
                         leading: Icon(
                           read ? Icons.done_all : Icons.schedule,
                           size: 20,
-                          color: read ? AppColors.success : Colors.grey.shade500,
+                          color:
+                              read ? AppColors.success : Colors.grey.shade500,
                         ),
                         title: Text((d['message'] ?? '').toString()),
                         subtitle: Text(
@@ -1936,7 +2320,10 @@ class _DirectiveHistorySheetState extends State<_DirectiveHistorySheet> {
                             (d['priority'] ?? 'normal').toString(),
                             if (target.isNotEmpty) target,
                           ].join(' / '),
-                          style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey.shade500,
+                          ),
                         ),
                       );
                     },

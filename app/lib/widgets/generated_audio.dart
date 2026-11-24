@@ -9,6 +9,7 @@ import '../l10n/app_localizations.dart';
 import '../services/api_service.dart';
 import '../services/generate_service.dart';
 import '../services/usage_events.dart';
+import 'app_toast.dart';
 
 /// Download authenticated audio only when requested, then open its player.
 class GeneratedAudio extends StatefulWidget {
@@ -26,15 +27,21 @@ class _GeneratedAudioState extends State<GeneratedAudio> {
     setState(() => _loading = true);
     try {
       final job = widget.job;
-      final response = await http.get(Uri.parse(job.fileUrl),
-          headers: GenerateService.authHeaders).timeout(const Duration(minutes: 2));
+      final response = await http
+          .get(Uri.parse(job.fileUrl), headers: GenerateService.authHeaders)
+          .timeout(const Duration(minutes: 2));
       if (response.statusCode != 200) {
-        throw Exception(ApiService.messageForCause(
+        throw Exception(
+          ApiService.messageForCause(
             Usage.causeOfStatus(response.statusCode),
-            status: response.statusCode));
+            status: response.statusCode,
+          ),
+        );
       }
       final dir = await getTemporaryDirectory();
-      final folder = await Directory('${dir.path}/generated_audio').create(recursive: true);
+      final folder = await Directory(
+        '${dir.path}/generated_audio',
+      ).create(recursive: true);
       final ext = job.fileName!.split('.').last.toLowerCase();
       final safeId = job.id.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
       final file = File('${folder.path}/$safeId.$ext');
@@ -44,8 +51,7 @@ class _GeneratedAudioState extends State<GeneratedAudio> {
       if (result.type != ResultType.done) throw Exception(result.message);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(e.toString().replaceFirst('Exception: ', ''))));
+        AppToast.of(context).show(e.toString().replaceFirst('Exception: ', ''));
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -56,23 +62,31 @@ class _GeneratedAudioState extends State<GeneratedAudio> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.music_note, size: 72, color: Colors.white70),
-            const SizedBox(height: 16),
-            Text(widget.job.fileName ?? l10n.audioLabel, maxLines: 2, overflow: TextOverflow.ellipsis),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: _loading ? null : _open,
-              icon: _loading
-                  ? const SizedBox(width: 18, height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.play_arrow),
-              label: Text(_loading ? l10n.audioDownloading : l10n.audioOpen),
-            ),
-          ],
-        ),
-      );
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.music_note, size: 72, color: Colors.white70),
+          const SizedBox(height: 16),
+          Text(
+            widget.job.fileName ?? l10n.audioLabel,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            onPressed: _loading ? null : _open,
+            icon:
+                _loading
+                    ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                    : const Icon(Icons.play_arrow),
+            label: Text(_loading ? l10n.audioDownloading : l10n.audioOpen),
+          ),
+        ],
+      ),
+    );
   }
 }

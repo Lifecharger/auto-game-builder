@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../theme.dart';
 import '../../l10n/app_localizations.dart';
+import '../app_toast.dart';
 
 /// Editor card for the desktop server's `settings.json` file.
 ///
@@ -67,33 +68,23 @@ class _ServerConfigSectionState extends State<ServerConfigSection> {
       await File(path).writeAsString(encoder.convert(settings));
       if (!mounted) return;
       setState(() => _editing = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(l10n.settingsSavedRestart),
-          backgroundColor: AppColors.success,
-        ),
-      );
+      AppToast.of(context).show(l10n.settingsSavedRestart);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(l10n.failedToSave(e)),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      AppToast.of(context).show(l10n.failedToSave(e), error: true);
     }
   }
 
   Map<String, String> get _sectionLabels => {
-        'paths': l10n.sectionPaths,
-        'ai_agents': l10n.sectionAiAgents,
-        'engines': l10n.sectionGameEngines,
-        'system': l10n.sectionSystemTools,
-        'cloudflare': 'Cloudflare',
-        'developer': l10n.developer,
-        'server': l10n.server,
-        'services': l10n.sectionServices,
-      };
+    'paths': l10n.sectionPaths,
+    'ai_agents': l10n.sectionAiAgents,
+    'engines': l10n.sectionGameEngines,
+    'system': l10n.sectionSystemTools,
+    'cloudflare': 'Cloudflare',
+    'developer': l10n.developer,
+    'server': l10n.server,
+    'services': l10n.sectionServices,
+  };
 
   static const Map<String, IconData> _fieldIcons = {
     'projects_root': Icons.folder,
@@ -130,8 +121,12 @@ class _ServerConfigSectionState extends State<ServerConfigSection> {
       controller.text = value.toString();
     }
     final icon = _fieldIcons[key] ?? Icons.settings;
-    final label = key.replaceAll('_', ' ').replaceAllMapped(
-        RegExp(r'(^|\s)(\w)'), (m) => '${m[1]}${m[2]!.toUpperCase()}');
+    final label = key
+        .replaceAll('_', ' ')
+        .replaceAllMapped(
+          RegExp(r'(^|\s)(\w)'),
+          (m) => '${m[1]}${m[2]!.toUpperCase()}',
+        );
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -166,14 +161,17 @@ class _ServerConfigSectionState extends State<ServerConfigSection> {
                 children: [
                   Icon(Icons.settings_applications, color: AppColors.warning),
                   SizedBox(width: 8),
-                  Text(l10n.serverConfiguration,
-                      style: TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.bold)),
+                  Text(
+                    l10n.serverConfiguration,
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
                 ],
               ),
               const SizedBox(height: 12),
-              Text(l10n.settingsJsonNotFound,
-                  style: TextStyle(color: Colors.grey.shade500)),
+              Text(
+                l10n.settingsJsonNotFound,
+                style: TextStyle(color: Colors.grey.shade500),
+              ),
             ],
           ),
         ),
@@ -185,18 +183,20 @@ class _ServerConfigSectionState extends State<ServerConfigSection> {
       final sectionData = settings[sectionKey];
       if (sectionData is! Map<String, dynamic> || sectionData.isEmpty) continue;
 
-      sections.add(Padding(
-        padding: const EdgeInsets.only(top: 12, bottom: 4),
-        child: Text(
-          _sectionLabels[sectionKey]!,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: AppColors.accent,
-            letterSpacing: 1,
+      sections.add(
+        Padding(
+          padding: const EdgeInsets.only(top: 12, bottom: 4),
+          child: Text(
+            _sectionLabels[sectionKey]!,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: AppColors.accent,
+              letterSpacing: 1,
+            ),
           ),
         ),
-      ));
+      );
 
       for (final entry in sectionData.entries) {
         sections.add(_buildField(sectionKey, entry.key, entry.value));
@@ -213,9 +213,10 @@ class _ServerConfigSectionState extends State<ServerConfigSection> {
               children: [
                 Icon(Icons.settings_applications, color: AppColors.warning),
                 SizedBox(width: 8),
-                Text(l10n.serverConfiguration,
-                    style: TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.bold)),
+                Text(
+                  l10n.serverConfiguration,
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
               ],
             ),
             const SizedBox(height: 4),

@@ -7,6 +7,7 @@ import '../l10n/app_localizations.dart';
 import '../services/delivery_service.dart';
 import '../services/mode_service.dart';
 import '../theme.dart';
+import '../widgets/app_toast.dart';
 
 /// #363 Delivery Mod: uygulamalara NE sunulacaginin ac/kapa anahtarlari.
 ///
@@ -34,6 +35,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   /// Duzenlenen kopyalar - kaydedene kadar sunucuya gitmez.
   DeliveryRuleSet _def = DeliveryRuleSet();
   final Map<String, DeliveryRuleSet> _apps = {};
+
   /// '' = varsayilan, aksi halde paket adi.
   String _sel = '';
   bool _dirty = false;
@@ -47,8 +49,16 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   Timer? _normTimer;
 
   /// Havuz -> engel listesi adi (worker bu adlari bekler).
-  static const _grupListe = {'jigsaw': 'collections', 'cards': 'decks', 'events': 'hostLevels'};
-  static const _ogeListe = {'jigsaw': 'pictures', 'cards': 'cards', 'events': 'hostLevels'};
+  static const _grupListe = {
+    'jigsaw': 'collections',
+    'cards': 'decks',
+    'events': 'hostLevels',
+  };
+  static const _ogeListe = {
+    'jigsaw': 'pictures',
+    'cards': 'cards',
+    'events': 'hostLevels',
+  };
 
   @override
   void dispose() {
@@ -77,7 +87,9 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
         _def = o.defaultRules.copy();
         _apps
           ..clear()
-          ..addEntries(o.appRules.entries.map((e) => MapEntry(e.key, e.value.copy())));
+          ..addEntries(
+            o.appRules.entries.map((e) => MapEntry(e.key, e.value.copy())),
+          );
         _block = (o.block ?? DeliveryBlock()).copy();
         _katalog = const [];
         _katalogYuklendi = false;
@@ -95,19 +107,18 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   }
 
   String get _havuzAdi => switch (_pool) {
-        'jigsaw' => 'Jigsaw',
-        'cards' => l10n.kindCard,
-        'events' => l10n.deliveryEvent,
-        _ => _pool,
-      };
+    'jigsaw' => 'Jigsaw',
+    'cards' => l10n.kindCard,
+    'events' => l10n.deliveryEvent,
+    _ => _pool,
+  };
 
   DeliveryRuleSet get _cur => _sel.isEmpty ? _def : (_apps[_sel] ?? _def);
   bool get _custom => _sel.isEmpty || _apps.containsKey(_sel);
 
   void _snack(String m) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(m), duration: const Duration(seconds: 3)));
+    AppToast.of(context).show(m);
   }
 
   Future<void> _save() async {
@@ -134,40 +145,57 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
     final c = TextEditingController();
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l10n.deliveryReindexTitle),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(l10n.deliveryReindexBody,
-                style: const TextStyle(fontSize: 12)),
-            const SizedBox(height: 8),
-            TextField(
-              controller: c,
-              decoration: InputDecoration(
-                  isDense: true,
-                  border: const OutlineInputBorder(),
-                  labelText: l10n.deliveryReindexNames),
+      builder:
+          (ctx) => AlertDialog(
+            title: Text(l10n.deliveryReindexTitle),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  l10n.deliveryReindexBody,
+                  style: const TextStyle(fontSize: 12),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: c,
+                  decoration: InputDecoration(
+                    isDense: true,
+                    border: const OutlineInputBorder(),
+                    labelText: l10n.deliveryReindexNames,
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(l10n.cancel)),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(l10n.deliveryReindexAction)),
-        ],
-      ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(l10n.cancel),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text(l10n.deliveryReindexAction),
+              ),
+            ],
+          ),
     );
     if (ok != true || !mounted) return;
-    final adlar = c.text.split(',').map((x) => x.trim()).where((x) => x.isNotEmpty).toList();
+    final adlar =
+        c.text
+            .split(',')
+            .map((x) => x.trim())
+            .where((x) => x.isNotEmpty)
+            .toList();
     setState(() => _saving = true);
     try {
       final r = await DeliveryService.reindex(names: adlar, all: adlar.isEmpty);
       if (!mounted) return;
       final eksik = (r['missing'] as List? ?? const []).length;
-      _snack(eksik > 0
-          ? l10n.deliveryReindexedMissing('${r['reindexed']}', eksik)
-          : l10n.deliveryReindexed('${r['reindexed']}'));
+      _snack(
+        eksik > 0
+            ? l10n.deliveryReindexedMissing('${r['reindexed']}', eksik)
+            : l10n.deliveryReindexed('${r['reindexed']}'),
+      );
       await _load();
     } catch (e) {
       if (mounted) _snack(e.toString().replaceFirst('Exception: ', ''));
@@ -223,7 +251,9 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
     const ad = {'jigsaw': 'gallery-hot', 'cards': 'cards', 'events': 'events'};
     try {
       await DeliveryService.normalizeRun(ad[_pool]!, dryRun: dryRun);
-      _snack(dryRun ? l10n.deliveryDryRunStarted : l10n.deliveryNormalizeStarted);
+      _snack(
+        dryRun ? l10n.deliveryDryRunStarted : l10n.deliveryNormalizeStarted,
+      );
       await _normYenile();
     } catch (e) {
       _snack(e.toString().replaceFirst('Exception: ', ''));
@@ -264,89 +294,108 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   // ------------------------------------------------------------ gorunum
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(
-          title: DropdownButton<String>(
-            value: _pool,
-            items: [
-              DropdownMenuItem(value: 'jigsaw', child: Text(l10n.deliveryPoolJigsaw)),
-              DropdownMenuItem(value: 'cards', child: Text(l10n.deliveryPoolCards)),
-              DropdownMenuItem(value: 'events', child: Text(l10n.deliveryPoolEvents)),
-            ],
-            onChanged: _loading || _saving ? null : (value) async {
-              if (value == null || value == _pool) return;
-              if (_dirty) {
-                _snack(l10n.deliverySaveBeforeSwitch);
-                return;
-              }
-              setState(() { _pool = value; _sel = ''; });
-              await _load();
-            },
+    appBar: AppBar(
+      title: DropdownButton<String>(
+        value: _pool,
+        items: [
+          DropdownMenuItem(
+            value: 'jigsaw',
+            child: Text(l10n.deliveryPoolJigsaw),
           ),
-          actions: [
-            IconButton(
-                icon: const Icon(Icons.code),
-                tooltip: l10n.assetCodeMode,
-                onPressed: () => ModeService.setMode(ModeService.code)),
-            IconButton(
-                icon: const Icon(Icons.auto_awesome),
-                tooltip: l10n.assetModeTooltip,
-                onPressed: () => ModeService.setMode(ModeService.asset)),
-            IconButton(
-                icon: const Icon(Icons.refresh), tooltip: l10n.refresh, onPressed: _load),
-            // #363b: bucket'ta EXIF degistiyse worker KV'sini yeniden oku
-            IconButton(
-                icon: const Icon(Icons.manage_search),
-                tooltip: l10n.deliveryReindexTooltip,
-                onPressed: _saving || _pool != 'jigsaw' ? null : _reindex),
-          ],
+          DropdownMenuItem(value: 'cards', child: Text(l10n.deliveryPoolCards)),
+          DropdownMenuItem(
+            value: 'events',
+            child: Text(l10n.deliveryPoolEvents),
+          ),
+        ],
+        onChanged:
+            _loading || _saving
+                ? null
+                : (value) async {
+                  if (value == null || value == _pool) return;
+                  if (_dirty) {
+                    _snack(l10n.deliverySaveBeforeSwitch);
+                    return;
+                  }
+                  setState(() {
+                    _pool = value;
+                    _sel = '';
+                  });
+                  await _load();
+                },
+      ),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.code),
+          tooltip: l10n.assetCodeMode,
+          onPressed: () => ModeService.setMode(ModeService.code),
         ),
-        body: _loading
+        IconButton(
+          icon: const Icon(Icons.auto_awesome),
+          tooltip: l10n.assetModeTooltip,
+          onPressed: () => ModeService.setMode(ModeService.asset),
+        ),
+        IconButton(
+          icon: const Icon(Icons.refresh),
+          tooltip: l10n.refresh,
+          onPressed: _load,
+        ),
+        // #363b: bucket'ta EXIF degistiyse worker KV'sini yeniden oku
+        IconButton(
+          icon: const Icon(Icons.manage_search),
+          tooltip: l10n.deliveryReindexTooltip,
+          onPressed: _saving || _pool != 'jigsaw' ? null : _reindex,
+        ),
+      ],
+    ),
+    body:
+        _loading
             ? const Center(child: CircularProgressIndicator())
             : _error != null
-                ? Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(_error!, textAlign: TextAlign.center),
-                          const SizedBox(height: 12),
-                          FilledButton(onPressed: _load, child: Text(l10n.retry)),
-                        ],
-                      ),
-                    ),
-                  )
-                : Column(
+            ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(_error!, textAlign: TextAlign.center),
+                    const SizedBox(height: 12),
+                    FilledButton(onPressed: _load, child: Text(l10n.retry)),
+                  ],
+                ),
+              ),
+            )
+            : Column(
+              children: [
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
                     children: [
-                      Expanded(
-                        child: ListView(
-                          padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-                          children: [
-                            _ozet(),
-                            const SizedBox(height: 10),
-                            _normalizeKarti(),
-                            const SizedBox(height: 10),
-                            _uygulamalar(),
-                            const SizedBox(height: 10),
-                            _engelKarti(),
-                            const SizedBox(height: 10),
-                            _kuralBasligi(),
-                            if (_custom) ...[
-                              _onAyarlar(),
-                              if (_pool == 'cards') ...[
-                                const SizedBox(height: 6),
-                                _kapsam(),
-                              ],
-                              const SizedBox(height: 6),
-                              for (final f in _o!.order) _alan(f),
-                            ],
-                          ],
-                        ),
-                      ),
-                      _kaydetCubugu(),
+                      _ozet(),
+                      const SizedBox(height: 10),
+                      _normalizeKarti(),
+                      const SizedBox(height: 10),
+                      _uygulamalar(),
+                      const SizedBox(height: 10),
+                      _engelKarti(),
+                      const SizedBox(height: 10),
+                      _kuralBasligi(),
+                      if (_custom) ...[
+                        _onAyarlar(),
+                        if (_pool == 'cards') ...[
+                          const SizedBox(height: 6),
+                          _kapsam(),
+                        ],
+                        const SizedBox(height: 6),
+                        for (final f in _o!.order) _alan(f),
+                      ],
                     ],
                   ),
-      );
+                ),
+                _kaydetCubugu(),
+              ],
+            ),
+  );
 
   Widget _ozet() {
     final o = _o!;
@@ -356,15 +405,29 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(l10n.deliverySummaryLine(_havuzAdi, o.total, o.tagged, o.untagged),
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+            Text(
+              l10n.deliverySummaryLine(
+                _havuzAdi,
+                o.total,
+                o.tagged,
+                o.untagged,
+              ),
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 4),
-            Text(l10n.deliveryLastRule(_zaman(o.updated),
-                    '${o.defaultServed ?? '-'}', '${o.defaultTotal ?? '-'}'),
-                style: const TextStyle(fontSize: 11, color: Colors.grey)),
+            Text(
+              l10n.deliveryLastRule(
+                _zaman(o.updated),
+                '${o.defaultServed ?? '-'}',
+                '${o.defaultTotal ?? '-'}',
+              ),
+              style: const TextStyle(fontSize: 11, color: Colors.grey),
+            ),
             const SizedBox(height: 4),
-            Text(l10n.deliveryIntro,
-                style: const TextStyle(fontSize: 11, color: Colors.grey)),
+            Text(
+              l10n.deliveryIntro,
+              style: const TextStyle(fontSize: 11, color: Colors.grey),
+            ),
           ],
         ),
       ),
@@ -384,39 +447,60 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
             Row(
               children: [
                 Expanded(
-                  child: Text(l10n.deliveryNormalizeTitle,
-                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                  child: Text(
+                    l10n.deliveryNormalizeTitle,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
                 if (n != null && n.running)
                   TextButton.icon(
-                      onPressed: () => _normDurdur(n.opId),
-                      icon: const Icon(Icons.stop, size: 16),
-                      label: Text(l10n.stop))
+                    onPressed: () => _normDurdur(n.opId),
+                    icon: const Icon(Icons.stop, size: 16),
+                    label: Text(l10n.stop),
+                  )
                 else ...[
                   TextButton(
-                      onPressed: _saving ? null : () => _normBaslat(dryRun: true),
-                      child: Text(l10n.deliveryDryRun)),
+                    onPressed: _saving ? null : () => _normBaslat(dryRun: true),
+                    child: Text(l10n.deliveryDryRun),
+                  ),
                   FilledButton.icon(
-                      onPressed: _saving ? null : () => _normBaslat(dryRun: false),
-                      icon: const Icon(Icons.auto_fix_high, size: 16),
-                      label: Text(l10n.run)),
+                    onPressed:
+                        _saving ? null : () => _normBaslat(dryRun: false),
+                    icon: const Icon(Icons.auto_fix_high, size: 16),
+                    label: Text(l10n.run),
+                  ),
                 ],
               ],
             ),
             if (n == null)
-              Text(l10n.deliveryNormalizeNoStatus,
-                  style: const TextStyle(fontSize: 11, color: Colors.orange))
+              Text(
+                l10n.deliveryNormalizeNoStatus,
+                style: const TextStyle(fontSize: 11, color: Colors.orange),
+              )
             else ...[
-              Text(l10n.deliveryIndex(n.index), style: const TextStyle(fontSize: 11, color: Colors.grey)),
+              Text(
+                l10n.deliveryIndex(n.index),
+                style: const TextStyle(fontSize: 11, color: Colors.grey),
+              ),
               if (n.running) ...[
                 const SizedBox(height: 6),
                 LinearProgressIndicator(
-                    value: n.total > 0 ? n.done / n.total : null, minHeight: 4),
+                  value: n.total > 0 ? n.done / n.total : null,
+                  minHeight: 4,
+                ),
                 const SizedBox(height: 4),
-                Text('${n.done}/${n.total} · ${n.message}',
-                    style: const TextStyle(fontSize: 11)),
+                Text(
+                  '${n.done}/${n.total} · ${n.message}',
+                  style: const TextStyle(fontSize: 11),
+                ),
               ] else
-                Text(l10n.deliveryLastRun(n.summary), style: const TextStyle(fontSize: 11)),
+                Text(
+                  l10n.deliveryLastRun(n.summary),
+                  style: const TextStyle(fontSize: 11),
+                ),
             ],
           ],
         ),
@@ -440,29 +524,47 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
             Row(
               children: [
                 Expanded(
-                  child: Text(l10n.deliveryBlockTitle(kapsam),
-                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                  child: Text(
+                    l10n.deliveryBlockTitle(kapsam),
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
                 if (adet > 0)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
-                        color: AppColors.error.withValues(alpha: 0.18),
-                        borderRadius: BorderRadius.circular(10)),
-                    child: Text(l10n.blockedCountLabel(adet),
-                        style: TextStyle(fontSize: 10, color: AppColors.error)),
+                      color: AppColors.error.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      l10n.blockedCountLabel(adet),
+                      style: TextStyle(fontSize: 10, color: AppColors.error),
+                    ),
                   ),
                 if (!_katalogYuklendi)
-                  TextButton(onPressed: _katalogYukle, child: Text(l10n.deliveryOpenList)),
+                  TextButton(
+                    onPressed: _katalogYukle,
+                    child: Text(l10n.deliveryOpenList),
+                  ),
               ],
             ),
-            Text(l10n.deliveryBlockIntro,
-                style: const TextStyle(fontSize: 11, color: Colors.grey)),
+            Text(
+              l10n.deliveryBlockIntro,
+              style: const TextStyle(fontSize: 11, color: Colors.grey),
+            ),
             if (_katalogYuklendi && _katalog.isEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 6),
-                child: Text(l10n.deliveryBlockEmpty,
-                    style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                child: Text(
+                  l10n.deliveryBlockEmpty,
+                  style: const TextStyle(fontSize: 11, color: Colors.grey),
+                ),
               ),
             for (final g in _katalog) _engelGrubu(g, grupListe, ogeListe),
           ],
@@ -477,27 +579,32 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
       key: PageStorageKey('engel-$_pool-${g.id}'),
       dense: true,
       leading: _kapak(g.cover),
-      title: Text(g.name, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+      title: Text(
+        g.name,
+        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+      ),
       subtitle: Text(
-          grupEngel
-              ? l10n.deliveryGroupSubtitleBlocked(g.count, g.tagged)
-              : l10n.deliveryGroupSubtitle(g.count, g.tagged),
-          style: TextStyle(fontSize: 10, color: grupEngel ? AppColors.error : Colors.grey)),
+        grupEngel
+            ? l10n.deliveryGroupSubtitleBlocked(g.count, g.tagged)
+            : l10n.deliveryGroupSubtitle(g.count, g.tagged),
+        style: TextStyle(
+          fontSize: 10,
+          color: grupEngel ? AppColors.error : Colors.grey,
+        ),
+      ),
       trailing: Switch(
         value: !grupEngel,
-        onChanged: (acik) => setState(() {
-          _block.toggle(_sel, grupListe, g.id.toLowerCase(), !acik);
-          _dirty = true;
-        }),
+        onChanged:
+            (acik) => setState(() {
+              _block.toggle(_sel, grupListe, g.id.toLowerCase(), !acik);
+              _dirty = true;
+            }),
       ),
       children: [
         Wrap(
           spacing: 4,
           runSpacing: 4,
-          children: [
-            for (final e in g.images)
-              _engelOgesi(g, e, ogeListe),
-          ],
+          children: [for (final e in g.images) _engelOgesi(g, e, ogeListe)],
         ),
       ],
     );
@@ -505,20 +612,32 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
 
   /// Tek oge: engel kimligi havuza gore kurulur - resim `<koleksiyon>/<dosya>`,
   /// kart `<deste>_<rank>` (katalog zaten kart id'sini verir), host seviyesi `<n>`.
-  Widget _engelOgesi(DeliveryCatalogItem g, DeliveryCatalogEntry e, String ogeListe) {
-    final id = _pool == 'jigsaw' ? '${g.id.toLowerCase()}/${e.id.toLowerCase()}' : e.id.toLowerCase();
+  Widget _engelOgesi(
+    DeliveryCatalogItem g,
+    DeliveryCatalogEntry e,
+    String ogeListe,
+  ) {
+    final id =
+        _pool == 'jigsaw'
+            ? '${g.id.toLowerCase()}/${e.id.toLowerCase()}'
+            : e.id.toLowerCase();
     final engelli = _block.isBlocked(_sel, ogeListe, id);
     return InkWell(
-      onTap: () => setState(() {
-        _block.toggle(_sel, ogeListe, id, !engelli);
-        _dirty = true;
-      }),
+      onTap:
+          () => setState(() {
+            _block.toggle(_sel, ogeListe, id, !engelli);
+            _dirty = true;
+          }),
       child: Container(
         width: 64,
         padding: const EdgeInsets.all(2),
         decoration: BoxDecoration(
-            border: Border.all(color: engelli ? AppColors.error : Colors.transparent, width: 2),
-            borderRadius: BorderRadius.circular(6)),
+          border: Border.all(
+            color: engelli ? AppColors.error : Colors.transparent,
+            width: 2,
+          ),
+          borderRadius: BorderRadius.circular(6),
+        ),
         child: Column(
           children: [
             Stack(
@@ -526,18 +645,28 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
                 _kapak(e.cover, size: 56),
                 if (engelli)
                   Positioned(
-                      right: 0,
-                      top: 0,
-                      child: Icon(Icons.block, size: 16, color: AppColors.error)),
+                    right: 0,
+                    top: 0,
+                    child: Icon(Icons.block, size: 16, color: AppColors.error),
+                  ),
                 if (!e.tagged)
                   const Positioned(
-                      left: 0, bottom: 0, child: Icon(Icons.label_off, size: 14, color: Colors.orange)),
+                    left: 0,
+                    bottom: 0,
+                    child: Icon(
+                      Icons.label_off,
+                      size: 14,
+                      color: Colors.orange,
+                    ),
+                  ),
               ],
             ),
-            Text(e.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 9)),
+            Text(
+              e.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 9),
+            ),
           ],
         ),
       ),
@@ -547,22 +676,35 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   Widget _kapak(String? url, {double size = 36}) {
     if (url == null || url.isEmpty) {
       return Container(
-          width: size,
-          height: size,
-          color: Colors.black26,
-          child: const Icon(Icons.image_not_supported, size: 14, color: Colors.grey));
+        width: size,
+        height: size,
+        color: Colors.black26,
+        child: const Icon(
+          Icons.image_not_supported,
+          size: 14,
+          color: Colors.grey,
+        ),
+      );
     }
     return ClipRRect(
       borderRadius: BorderRadius.circular(4),
-      child: Image.network(url,
-          width: size,
-          height: size,
-          fit: BoxFit.cover,
-          errorBuilder: (_, _, _) => Container(
+      child: Image.network(
+        url,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        errorBuilder:
+            (_, _, _) => Container(
               width: size,
               height: size,
               color: Colors.black26,
-              child: const Icon(Icons.broken_image, size: 14, color: Colors.grey))),
+              child: const Icon(
+                Icons.broken_image,
+                size: 14,
+                color: Colors.grey,
+              ),
+            ),
+      ),
     );
   }
 
@@ -571,26 +713,36 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(l10n.deliveryAppsHint,
-            style: const TextStyle(fontSize: 11, color: Colors.grey)),
+        Text(
+          l10n.deliveryAppsHint,
+          style: const TextStyle(fontSize: 11, color: Colors.grey),
+        ),
         const SizedBox(height: 4),
         Wrap(
           spacing: 6,
           runSpacing: 4,
           children: [
             ChoiceChip(
-              label: Text(l10n.deliveryDefaultChip('${o.defaultServed ?? '-'}', '${o.defaultTotal ?? '-'}'),
-                  style: const TextStyle(fontSize: 11)),
+              label: Text(
+                l10n.deliveryDefaultChip(
+                  '${o.defaultServed ?? '-'}',
+                  '${o.defaultTotal ?? '-'}',
+                ),
+                style: const TextStyle(fontSize: 11),
+              ),
               selected: _sel.isEmpty,
               onSelected: (_) => setState(() => _sel = ''),
             ),
             for (final a in o.apps)
               ChoiceChip(
-                avatar: a.custom
-                    ? const Icon(Icons.tune, size: 14)
-                    : const Icon(Icons.link, size: 14, color: Colors.grey),
-                label: Text('${a.name}  ${a.served ?? '-'}/${a.total ?? '-'}',
-                    style: const TextStyle(fontSize: 11)),
+                avatar:
+                    a.custom
+                        ? const Icon(Icons.tune, size: 14)
+                        : const Icon(Icons.link, size: 14, color: Colors.grey),
+                label: Text(
+                  '${a.name}  ${a.served ?? '-'}/${a.total ?? '-'}',
+                  style: const TextStyle(fontSize: 11),
+                ),
                 selected: _sel == a.package,
                 onSelected: (_) => setState(() => _sel = a.package),
               ),
@@ -602,27 +754,40 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
 
   Widget _kuralBasligi() {
     if (_sel.isEmpty) {
-      return Text(l10n.deliveryDefaultRuleTitle,
-          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold));
+      return Text(
+        l10n.deliveryDefaultRuleTitle,
+        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+      );
     }
-    final ad = _o!.apps.where((a) => a.package == _sel).map((a) => a.name).firstOrNull ?? _sel;
+    final ad =
+        _o!.apps
+            .where((a) => a.package == _sel)
+            .map((a) => a.name)
+            .firstOrNull ??
+        _sel;
     return SwitchListTile(
       dense: true,
       contentPadding: EdgeInsets.zero,
       value: _apps.containsKey(_sel),
-      title: Text(l10n.deliveryCustomRuleTitle(ad), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-      subtitle: Text(_apps.containsKey(_sel)
-          ? l10n.deliveryCustomRuleOn
-          : l10n.deliveryCustomRuleOff,
-          style: const TextStyle(fontSize: 11, color: Colors.grey)),
-      onChanged: (v) => setState(() {
-        if (v) {
-          _apps[_sel] = _def.copy();
-        } else {
-          _apps.remove(_sel);
-        }
-        _dirty = true;
-      }),
+      title: Text(
+        l10n.deliveryCustomRuleTitle(ad),
+        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+      ),
+      subtitle: Text(
+        _apps.containsKey(_sel)
+            ? l10n.deliveryCustomRuleOn
+            : l10n.deliveryCustomRuleOff,
+        style: const TextStyle(fontSize: 11, color: Colors.grey),
+      ),
+      onChanged:
+          (v) => setState(() {
+            if (v) {
+              _apps[_sel] = _def.copy();
+            } else {
+              _apps.remove(_sel);
+            }
+            _dirty = true;
+          }),
     );
   }
 
@@ -646,21 +811,26 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
               dense: true,
               contentPadding: EdgeInsets.zero,
               value: rs.scopeOnly,
-              title: Text(l10n.deliveryScopeTitle, style: const TextStyle(fontSize: 13)),
+              title: Text(
+                l10n.deliveryScopeTitle,
+                style: const TextStyle(fontSize: 13),
+              ),
               subtitle: Text(
-                  rs.scopeOnly
-                      ? l10n.deliveryScopeOn(secili, o.collections.length)
-                      : l10n.deliveryScopeOff,
-                  style: const TextStyle(fontSize: 11, color: Colors.grey)),
-              onChanged: (v) => setState(() {
-                rs.scopeOnly = v;
-                // Acilirken bugunku katalog yakalanir: mevcut desteler kalir,
-                // bundan SONRA yayinlananlar disarida kalir.
-                if (v && rs.collections.isEmpty) {
-                  rs.collections.addAll(o.collections.map((c) => c.id));
-                }
-                _dirty = true;
-              }),
+                rs.scopeOnly
+                    ? l10n.deliveryScopeOn(secili, o.collections.length)
+                    : l10n.deliveryScopeOff,
+                style: const TextStyle(fontSize: 11, color: Colors.grey),
+              ),
+              onChanged:
+                  (v) => setState(() {
+                    rs.scopeOnly = v;
+                    // Acilirken bugunku katalog yakalanir: mevcut desteler kalir,
+                    // bundan SONRA yayinlananlar disarida kalir.
+                    if (v && rs.collections.isEmpty) {
+                      rs.collections.addAll(o.collections.map((c) => c.id));
+                    }
+                    _dirty = true;
+                  }),
             ),
             if (rs.scopeOnly)
               Wrap(
@@ -669,24 +839,30 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
                 children: [
                   for (final c in o.collections)
                     FilterChip(
-                      label: Text('${c.name} (${c.cards})', style: const TextStyle(fontSize: 11)),
+                      label: Text(
+                        '${c.name} (${c.cards})',
+                        style: const TextStyle(fontSize: 11),
+                      ),
                       selected: rs.collections.contains(c.id),
-                      onSelected: (on) => setState(() {
-                        if (on) {
-                          rs.collections.add(c.id);
-                        } else {
-                          rs.collections.remove(c.id);
-                        }
-                        _dirty = true;
-                      }),
+                      onSelected:
+                          (on) => setState(() {
+                            if (on) {
+                              rs.collections.add(c.id);
+                            } else {
+                              rs.collections.remove(c.id);
+                            }
+                            _dirty = true;
+                          }),
                     ),
                 ],
               ),
             if (rs.scopeOnly && rs.collections.isEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 4),
-                child: Text(l10n.deliveryScopeNone,
-                    style: const TextStyle(fontSize: 11, color: Colors.orange)),
+                child: Text(
+                  l10n.deliveryScopeNone,
+                  style: const TextStyle(fontSize: 11, color: Colors.orange),
+                ),
               ),
           ],
         ),
@@ -706,30 +882,45 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
               dense: true,
               contentPadding: EdgeInsets.zero,
               value: rs.enabled,
-              title: Text(l10n.deliveryRulesEnabled, style: const TextStyle(fontSize: 13)),
-              subtitle: Text(l10n.deliveryRulesEnabledHint,
-                  style: const TextStyle(fontSize: 11, color: Colors.grey)),
-              onChanged: (v) => setState(() {
-                rs.enabled = v;
-                _dirty = true;
-              }),
+              title: Text(
+                l10n.deliveryRulesEnabled,
+                style: const TextStyle(fontSize: 13),
+              ),
+              subtitle: Text(
+                l10n.deliveryRulesEnabledHint,
+                style: const TextStyle(fontSize: 11, color: Colors.grey),
+              ),
+              onChanged:
+                  (v) => setState(() {
+                    rs.enabled = v;
+                    _dirty = true;
+                  }),
             ),
             SwitchListTile(
               dense: true,
               contentPadding: EdgeInsets.zero,
               value: rs.untagged,
-              title: Text(l10n.deliveryServeUntagged, style: const TextStyle(fontSize: 13)),
-              subtitle: Text(l10n.deliveryUntaggedCount(o.untagged),
-                  style: const TextStyle(fontSize: 11, color: Colors.grey)),
-              onChanged: (v) => setState(() {
-                rs.untagged = v;
-                _dirty = true;
-              }),
+              title: Text(
+                l10n.deliveryServeUntagged,
+                style: const TextStyle(fontSize: 13),
+              ),
+              subtitle: Text(
+                l10n.deliveryUntaggedCount(o.untagged),
+                style: const TextStyle(fontSize: 11, color: Colors.grey),
+              ),
+              onChanged:
+                  (v) => setState(() {
+                    rs.untagged = v;
+                    _dirty = true;
+                  }),
             ),
             const Divider(height: 8),
             Row(
               children: [
-                Text(l10n.deliveryQuick, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                Text(
+                  l10n.deliveryQuick,
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Wrap(
@@ -738,10 +929,18 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
                     children: [
                       for (final e in o.presets.entries)
                         ActionChip(
-                          label: Text(e.value, style: const TextStyle(fontSize: 11)),
-                          avatar: e.key == 'siki'
-                              ? Icon(Icons.shield, size: 14, color: AppColors.error)
-                              : null,
+                          label: Text(
+                            e.value,
+                            style: const TextStyle(fontSize: 11),
+                          ),
+                          avatar:
+                              e.key == 'siki'
+                                  ? Icon(
+                                    Icons.shield,
+                                    size: 14,
+                                    color: AppColors.error,
+                                  )
+                                  : null,
                           onPressed: () => _preset(e.key),
                         ),
                     ],
@@ -761,7 +960,8 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
     final degerler = o.fields[f] ?? const <String, int>{};
     if (degerler.isEmpty) return const SizedBox.shrink();
     final kapali = rs.offCount(f);
-    final sirali = degerler.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    final sirali =
+        degerler.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
     return Card(
       margin: const EdgeInsets.only(bottom: 6),
       child: ExpansionTile(
@@ -772,22 +972,32 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
         title: Row(
           children: [
             Expanded(
-              child: Text(o.labels[f] ?? f,
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+              child: Text(
+                o.labels[f] ?? f,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
             if (kapali > 0)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                    color: AppColors.error.withValues(alpha: 0.18),
-                    borderRadius: BorderRadius.circular(10)),
-                child: Text(l10n.deliveryOffCount(kapali),
-                    style: TextStyle(fontSize: 10, color: AppColors.error)),
+                  color: AppColors.error.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  l10n.deliveryOffCount(kapali),
+                  style: TextStyle(fontSize: 10, color: AppColors.error),
+                ),
               ),
           ],
         ),
-        subtitle: Text(l10n.deliveryFieldSubtitle(f, degerler.length),
-            style: const TextStyle(fontSize: 10, color: Colors.grey)),
+        subtitle: Text(
+          l10n.deliveryFieldSubtitle(f, degerler.length),
+          style: const TextStyle(fontSize: 10, color: Colors.grey),
+        ),
         childrenPadding: const EdgeInsets.only(bottom: 6),
         children: [
           for (final e in sirali)
@@ -797,12 +1007,15 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
               contentPadding: const EdgeInsets.symmetric(horizontal: 12),
               value: rs.isOn(f, e.key),
               title: Text(e.key, style: const TextStyle(fontSize: 12)),
-              secondary: Text('${e.value}',
-                  style: const TextStyle(fontSize: 11, color: Colors.grey)),
-              onChanged: (v) => setState(() {
-                rs.setOn(f, e.key, v);
-                _dirty = true;
-              }),
+              secondary: Text(
+                '${e.value}',
+                style: const TextStyle(fontSize: 11, color: Colors.grey),
+              ),
+              onChanged:
+                  (v) => setState(() {
+                    rs.setOn(f, e.key, v);
+                    _dirty = true;
+                  }),
             ),
         ],
       ),
@@ -810,27 +1023,34 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   }
 
   Widget _kaydetCubugu() => SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                    _dirty ? l10n.deliveryUnsaved : l10n.deliveryInSync,
-                    style: TextStyle(
-                        fontSize: 11, color: _dirty ? AppColors.error : Colors.grey)),
+    top: false,
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              _dirty ? l10n.deliveryUnsaved : l10n.deliveryInSync,
+              style: TextStyle(
+                fontSize: 11,
+                color: _dirty ? AppColors.error : Colors.grey,
               ),
-              FilledButton.icon(
-                onPressed: _saving || !_dirty ? null : _save,
-                icon: _saving
-                    ? const SizedBox(
-                        width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Icon(Icons.publish, size: 16),
-                label: Text(l10n.deliverySavePublish),
-              ),
-            ],
+            ),
           ),
-        ),
-      );
+          FilledButton.icon(
+            onPressed: _saving || !_dirty ? null : _save,
+            icon:
+                _saving
+                    ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                    : const Icon(Icons.publish, size: 16),
+            label: Text(l10n.deliverySavePublish),
+          ),
+        ],
+      ),
+    ),
+  );
 }

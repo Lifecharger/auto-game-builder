@@ -473,7 +473,54 @@ def attach_apple_build(asc, apple_app_id: str, build_id: Optional[str] = None) -
             "build_id": chosen["build_id"], "version_id": version_id, "created_version": created}
 
 
-def submit_apple_for_review(asc, apple_app_id: str) -> dict:
+# Products that exist on App Store Connect (mirrored from Play) but that the
+# game does not sell any more. They must never go to App Review: a reviewer
+# who cannot find them in the app rejects the whole submission.
+APPLE_UNSOLD_PRODUCTS: dict[str, set[str]] = {
+    "com.lifecharger.arcadesnake": {"tickets_500", "tickets_2000", "tickets_5000", "tickets_12000"},
+    "com.lifecharger.hotcollector": {"skip_4h", "skip_12h", "skip_24h"},
+}
+
+
+def submit_apple_products(asc, apple_app_id: str, exclude: Optional[set] = None) -> list[str]:
+    """Queue every in-app purchase and subscription that is READY_TO_SUBMIT
+    (and sold by the game) for review together with the app version.
+
+    A product that has never been approved only reaches players if it is
+    reviewed with an app version, so this runs inside the version's review
+    submission, before it is marked submitted. Any refusal raises, so the
+    version is never sent without its products."""
+    exclude = exclude or set()
+    sent: list[str] = []
+    failed: list[str] = []
+    iaps = asc.get(f"apps/{apple_app_id}/inAppPurchasesV2", params={
+        "limit": 200, "fields[inAppPurchases]": "productId,state"}).get("data", []) or []
+    groups = asc.get(f"apps/{apple_app_id}/subscriptionGroups", params={
+        "include": "subscriptions", "limit": 50,
+        "fields[subscriptions]": "productId,state"}).get("included", []) or []
+    todo = [("inAppPurchaseSubmissions", "inAppPurchaseV2", "inAppPurchases", i) for i in iaps]
+    todo += [("subscriptionSubmissions", "subscription", "subscriptions", g) for g in groups
+             if g.get("type") == "subscriptions"]
+    for endpoint, rel, rtype, item in todo:
+        attrs = item.get("attributes") or {}
+        pid = attrs.get("productId", item.get("id"))
+        if attrs.get("state") != "READY_TO_SUBMIT" or pid in exclude:
+            continue
+        try:
+            asc.post(endpoint, {"data": {"type": endpoint, "relationships": {
+                rel: {"data": {"type": rtype, "id": item["id"]}}}}})
+            sent.append(pid)
+        except AscError as e:
+            if e.status == 409 and "already" in str(e).lower():
+                sent.append(pid)  # queued by an earlier attempt
+            else:
+                failed.append(f"{pid}: {e}")
+    if failed:
+        raise ValueError("App Store refused these products, nothing was submitted: " + " | ".join(failed))
+    return sent
+
+
+def submit_apple_for_review(asc, apple_app_id: str, bundle_id: str = "") -> dict:
     """Submit the editable App Store version (with its build) for App Review.
 
     Called ONLY from the explicit submit-for-review action.
@@ -512,11 +559,56 @@ def submit_apple_for_review(asc, apple_app_id: str) -> dict:
             raise
         logger.warning("store_status: version %s already in review submission %s: %s",
                        editable["version_id"], sub_id, e)
+    products = submit_apple_products(asc, apple_app_id, APPLE_UNSOLD_PRODUCTS.get(bundle_id, set()))
     asc.patch(f"reviewSubmissions/{sub_id}", {"data": {
         "type": "reviewSubmissions", "id": sub_id, "attributes": {"submitted": True},
     }})
     return {"version": editable["version"], "build": editable["build"],
-            "version_id": editable["version_id"], "submission_id": sub_id}
+            "version_id": editable["version_id"], "submission_id": sub_id,
+            "products": products}
+
+
+def auto_attach_newest_build(asc, apple_app_id: str, uploaded_after: str = "") -> dict:
+    """One pass of the after-upload step.
+
+    Returns {"state": "waiting"} while Apple is still processing the newest
+    build, {"state": "skipped", "why": ...} when nothing should change, or
+    {"state": "attached", ...attach result, "groups": [...]} once the newest
+    VALID build is on the editable App Store version and in every TestFlight
+    group that does not receive new builds by itself.
+    """
+    builds = fetch_apple_builds(asc, apple_app_id)
+    if not builds:
+        return {"state": "skipped", "why": "no builds"}
+    newest = max(builds, key=lambda b: b.get("uploaded_at") or "")
+    if uploaded_after and (newest.get("uploaded_at") or "") < uploaded_after:
+        return {"state": "waiting"}  # our upload is not listed yet
+    if newest["processing"] in ("PROCESSING", ""):
+        return {"state": "waiting"}
+    if newest["processing"] != "VALID" or newest["expired"]:
+        return {"state": "skipped", "why": f"build {newest['build']} is {newest['processing']}"}
+    versions = fetch_apple_versions(asc, apple_app_id)
+    if any(v["state"] in APPLE_REVIEW_STATES for v in versions):
+        return {"state": "skipped", "why": "a version is in review"}
+    editable = next((v for v in versions if v["state"] in APPLE_EDITABLE_STATES), None)
+    if editable and editable.get("build") == newest["build"] and editable.get("version") == newest["version"]:
+        res = {"version": newest["version"], "build": newest["build"], "build_id": newest["build_id"],
+               "version_id": editable["version_id"], "created_version": False, "already": True}
+    else:
+        res = attach_apple_build(asc, apple_app_id, newest["build_id"])
+    groups = []
+    for g in asc.get(f"apps/{apple_app_id}/betaGroups", params={
+            "fields[betaGroups]": "name,isInternalGroup,hasAccessToAllBuilds", "limit": 50}).get("data", []) or []:
+        a = g.get("attributes") or {}
+        if a.get("isInternalGroup") and a.get("hasAccessToAllBuilds"):
+            continue  # Apple adds every build to it already
+        try:
+            asc.post(f"betaGroups/{g['id']}/relationships/builds",
+                     {"data": [{"type": "builds", "id": newest["build_id"]}]})
+            groups.append(a.get("name", g["id"]))
+        except AscError as e:
+            groups.append(f"{a.get('name', g['id'])}: {e}")
+    return {"state": "attached", **res, "groups": groups}
 
 
 # ── Service: persistence, pacing, scheduling ────────────────────────────
@@ -714,6 +806,43 @@ class StoreStatusService:
             self.schedule(app_id, "play", AFTER_DEPLOY_PLAY_DELAY_S)
         if target in ("ios", "dual"):
             self.schedule(app_id, "apple", AFTER_DEPLOY_APPLE_DELAY_S)
+            self.auto_attach_after_upload(app_id)
+
+    def auto_attach_after_upload(self, app_id: int, every_s: int = 300, tries: int = 24,
+                                 uploaded_after: Optional[str] = None):
+        """After an iOS upload: wait for Apple to process the build, then put
+        it on the App Store version (never submits) and in the TestFlight
+        groups that do not get new builds by themselves."""
+        from datetime import datetime, timezone, timedelta
+        since = uploaded_after or (datetime.now(timezone.utc) - timedelta(minutes=30)).strftime("%Y-%m-%dT%H:%M:%S")
+
+        def run():
+            for _ in range(tries):
+                if self._stop.wait(every_s):
+                    return
+                app = self.db.get_app(app_id)
+                if app is None:
+                    return
+                try:
+                    asc = self._asc_factory()
+                    res = auto_attach_newest_build(asc, self._apple_app_id(app, asc), since)
+                except Exception as e:
+                    self._record(app, "apple", "auto_attach", None, "testflight", "app_store", error=str(e))
+                    return
+                if res["state"] == "waiting":
+                    continue
+                if res["state"] == "skipped":
+                    logger.info("store_status: auto attach skipped for app %s: %s", app_id, res.get("why"))
+                    return
+                self._record(app, "apple", "auto_attach", None, "testflight", "app_store",
+                             version=res["version"], build_ref=res["build"])
+                logger.info("store_status: auto attached %s (%s) for app %s, groups %s",
+                            res["version"], res["build"], app_id, res.get("groups"))
+                self.refresh_app(app, force=True, stores=("apple",))
+                return
+            logger.warning("store_status: auto attach gave up for app %s (build never processed)", app_id)
+
+        threading.Thread(target=run, daemon=True, name=f"auto-attach-{app_id}").start()
 
     def start_periodic(self, apps_provider: Callable[[], list]):
         def loop():
@@ -783,7 +912,7 @@ class StoreStatusService:
     def submit_apple(self, app, user) -> dict:
         try:
             asc = self._asc_factory()
-            res = submit_apple_for_review(asc, self._apple_app_id(app, asc))
+            res = submit_apple_for_review(asc, self._apple_app_id(app, asc), app.package_name or "")
         except Exception as e:
             self._record(app, "apple", "submit_for_review", user, "app_store", "review", error=str(e))
             raise

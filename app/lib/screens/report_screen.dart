@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import '../services/report_service.dart';
 import '../theme.dart';
 import '../l10n/app_localizations.dart';
+import '../widgets/app_toast.dart';
 
 /// "Report a bug / suggestion" screen. Opened from Settings. Lets the user pick
 /// a category, write a message, attach up to 3 screenshots, and send it to the
@@ -36,10 +37,10 @@ class _ReportScreenState extends State<ReportScreen> {
   AppLocalizations get l10n => AppLocalizations.of(context)!;
 
   List<_Category> get _categories => [
-        _Category('bug', l10n.categoryBug, Icons.bug_report_outlined),
-        _Category('suggestion', l10n.categorySuggestion, Icons.lightbulb_outline),
-        _Category('other', l10n.categoryOther, Icons.chat_bubble_outline),
-      ];
+    _Category('bug', l10n.categoryBug, Icons.bug_report_outlined),
+    _Category('suggestion', l10n.categorySuggestion, Icons.lightbulb_outline),
+    _Category('other', l10n.categoryOther, Icons.chat_bubble_outline),
+  ];
 
   final _controller = TextEditingController();
 
@@ -90,7 +91,7 @@ class _ReportScreenState extends State<ReportScreen> {
   }
 
   void _snack(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    AppToast.of(context).show(msg);
   }
 
   /// False only when something that is not an address was typed; an
@@ -98,44 +99,37 @@ class _ReportScreenState extends State<ReportScreen> {
   bool get _emailOk => ReportService.cleanEmail(_emailController.text) != null;
 
   bool get _canSubmit =>
-      !_sending &&
-      _consent &&
-      _emailOk &&
-      _controller.text.trim().isNotEmpty;
+      !_sending && _consent && _emailOk && _controller.text.trim().isNotEmpty;
 
   Future<void> _submit() async {
     if (!_canSubmit) return;
     setState(() => _sending = true);
-    final messenger = ScaffoldMessenger.of(context);
+    final messenger = AppToast.of(context);
     final navigator = Navigator.of(context);
 
     final error = await ReportService.submit(
       category: _category,
       message: _controller.text,
       contactEmail: _emailController.text,
-      shots: _shots
-          .map((s) => ReportShot(
-                bytes: s.bytes,
-                filename: s.filename,
-                contentType: s.contentType,
-              ))
-          .toList(),
+      shots:
+          _shots
+              .map(
+                (s) => ReportShot(
+                  bytes: s.bytes,
+                  filename: s.filename,
+                  contentType: s.contentType,
+                ),
+              )
+              .toList(),
     );
 
     if (!mounted) return;
     setState(() => _sending = false);
     if (error == null) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(l10n.reportSentThanks),
-          backgroundColor: AppColors.success,
-        ),
-      );
+      messenger.show(l10n.reportSentThanks);
       navigator.pop();
     } else {
-      messenger.showSnackBar(
-        SnackBar(content: Text(error), backgroundColor: AppColors.error),
-      );
+      messenger.show(error, error: true);
     }
   }
 
@@ -157,15 +151,17 @@ class _ReportScreenState extends State<ReportScreen> {
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 8,
-                    children: _categories.map((c) {
-                      final selected = _category == c.value;
-                      return ChoiceChip(
-                        label: Text(c.label),
-                        avatar: Icon(c.icon, size: 18),
-                        selected: selected,
-                        onSelected: (_) => setState(() => _category = c.value),
-                      );
-                    }).toList(),
+                    children:
+                        _categories.map((c) {
+                          final selected = _category == c.value;
+                          return ChoiceChip(
+                            label: Text(c.label),
+                            avatar: Icon(c.icon, size: 18),
+                            selected: selected,
+                            onSelected:
+                                (_) => setState(() => _category = c.value),
+                          );
+                        }).toList(),
                   ),
                   const SizedBox(height: 16),
                   _label(l10n.tellUsMore),
@@ -219,13 +215,14 @@ class _ReportScreenState extends State<ReportScreen> {
             height: 52,
             child: FilledButton.icon(
               onPressed: _canSubmit ? _submit : null,
-              icon: _sending
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.send),
+              icon:
+                  _sending
+                      ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                      : const Icon(Icons.send),
               label: Text(_sending ? l10n.sending : l10n.sendReport),
               style: FilledButton.styleFrom(backgroundColor: AppColors.accent),
             ),
@@ -246,8 +243,12 @@ class _ReportScreenState extends State<ReportScreen> {
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: Image.memory(_shots[i].bytes,
-                      width: 64, height: 64, fit: BoxFit.cover),
+                  child: Image.memory(
+                    _shots[i].bytes,
+                    width: 64,
+                    height: 64,
+                    fit: BoxFit.cover,
+                  ),
                 ),
                 Positioned(
                   top: -10,

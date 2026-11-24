@@ -9,9 +9,10 @@ import '../services/mode_service.dart';
 import '../theme.dart';
 import '../widgets/bottom_inset.dart';
 import '../widgets/network_video.dart';
-import '../widgets/equip_panel.dart';           // #331
+import '../widgets/app_toast.dart';
+import '../widgets/equip_panel.dart'; // #331
 import '../widgets/outfit_extract_dialog.dart'; // #329
-import '../widgets/flow_kind_switch.dart' show kindSwitchBottom;  // #353
+import '../widgets/flow_kind_switch.dart' show kindSwitchBottom; // #353
 
 /// Asset Mod - Karakter hatti (#306, design/karakter_hatti_v2.md).
 ///
@@ -72,15 +73,17 @@ class _CharacterFlowScreenState extends State<CharacterFlowScreen> {
   }
 
   Future<void> _open(CharacterItem c) async {
-    await Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => CharacterDetailPage(name: c.name, dirs: _dirs),
-    ));
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => CharacterDetailPage(name: c.name, dirs: _dirs),
+      ),
+    );
     _load();
   }
 
   void _snack(String m) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+    AppToast.of(context).show(m);
   }
 
   /// #306: "+ Yeni karakter" - isim + sinif + kimlik promptu. Sunucu otomatik
@@ -90,10 +93,11 @@ class _CharacterFlowScreenState extends State<CharacterFlowScreen> {
     if (sonuc == null) return;
     try {
       await CharacterFlowService.create(
-          name: sonuc.name,
-          klass: sonuc.klass,
-          prompt: sonuc.prompt,
-          kind: sonuc.kind);            // #314
+        name: sonuc.name,
+        klass: sonuc.klass,
+        prompt: sonuc.prompt,
+        kind: sonuc.kind,
+      ); // #314
       // #306: base secimi kullanicida - burada yalniz aday uretilir.
       _snack('Base adayi siraya eklendi - aday gelince "Base yap" de');
     } catch (e) {
@@ -104,82 +108,96 @@ class _CharacterFlowScreenState extends State<CharacterFlowScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(
-          title: const Text('Karakter hatti'),
-          // #353: hat anahtari app bar'in altinda tam genislikte.
-          bottom: kindSwitchBottom(widget.kindSwitch),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.code),
-              tooltip: 'Code Mod',
-              onPressed: () => ModeService.set(false),
-            ),
-            IconButton(
-                icon: const Icon(Icons.refresh), tooltip: 'Yenile', onPressed: _load),
-          ],
+    appBar: AppBar(
+      title: const Text('Karakter hatti'),
+      // #353: hat anahtari app bar'in altinda tam genislikte.
+      bottom: kindSwitchBottom(widget.kindSwitch),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.code),
+          tooltip: 'Code Mod',
+          onPressed: () => ModeService.set(false),
         ),
-        // #306: karakter artik Uretilenler'e bagli degil - buradan da acilir.
-        floatingActionButton: FloatingActionButton.extended(
-          onPressed: _newCharacter,
-          icon: const Icon(Icons.person_add_alt),
-          label: const Text('Yeni karakter'),
+        IconButton(
+          icon: const Icon(Icons.refresh),
+          tooltip: 'Yenile',
+          onPressed: _load,
         ),
-        body: _loading
+      ],
+    ),
+    // #306: karakter artik Uretilenler'e bagli degil - buradan da acilir.
+    floatingActionButton: FloatingActionButton.extended(
+      onPressed: _newCharacter,
+      icon: const Icon(Icons.person_add_alt),
+      label: const Text('Yeni karakter'),
+    ),
+    body:
+        _loading
             ? const Center(child: CircularProgressIndicator())
             : _error != null
-                ? errorView(_error!, _load)
-                : _items.isEmpty
-                    ? const Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(28),
-                          child: Text(
-                            'Henuz karakter yok.\n\n"+ Yeni karakter" ile isim, sinif ve '
-                            'kimlik cumlesi ver - 1 base adayi uretilir, "Base yap" '
-                            'dedigin anda portre, hikaye ve yonler kendiliginden '
-                            'kosar.\n\nYa da "Uretilenler" ekraninda Karakter '
-                            'Modu\'nda bir isi secip "Karakter yap" de - o gorsel '
-                            'dogrudan base olur.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(color: Colors.grey),
-                          ),
-                        ),
-                      )
-                    : RefreshIndicator(
-                        onRefresh: _load,
-                        child: ListView.separated(
-                          padding: bottomSafePadding(context,
-                              left: 12, top: 12, right: 12, bottom: 88),
-                          itemCount: _items.length,
-                          separatorBuilder: (_, _) => const SizedBox(height: 10),
-                          itemBuilder: (_, i) => _card(_items[i]),
-                        ),
-                      ),
-      );
+            ? errorView(_error!, _load)
+            : _items.isEmpty
+            ? const Center(
+              child: Padding(
+                padding: EdgeInsets.all(28),
+                child: Text(
+                  'Henuz karakter yok.\n\n"+ Yeni karakter" ile isim, sinif ve '
+                  'kimlik cumlesi ver - 1 base adayi uretilir, "Base yap" '
+                  'dedigin anda portre, hikaye ve yonler kendiliginden '
+                  'kosar.\n\nYa da "Uretilenler" ekraninda Karakter '
+                  'Modu\'nda bir isi secip "Karakter yap" de - o gorsel '
+                  'dogrudan base olur.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+            )
+            : RefreshIndicator(
+              onRefresh: _load,
+              child: ListView.separated(
+                padding: bottomSafePadding(
+                  context,
+                  left: 12,
+                  top: 12,
+                  right: 12,
+                  bottom: 88,
+                ),
+                itemCount: _items.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 10),
+                itemBuilder: (_, i) => _card(_items[i]),
+              ),
+            ),
+  );
 
   /// Basili tutma: karakteri komple siler (geri alinamaz).
   Future<void> _deleteCharacter(CharacterItem c) async {
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('${c.name} silinsin mi?'),
-        content: const Text('Karakter klasoru, adaylari, yonleri, skinleri ve '
-            'butun animasyonlari silinir. GERI ALINAMAZ.'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Vazgec')),
-          FilledButton(
-              onPressed: () => Navigator.pop(ctx, true), child: const Text('Sil')),
-        ],
-      ),
+      builder:
+          (ctx) => AlertDialog(
+            title: Text('${c.name} silinsin mi?'),
+            content: const Text(
+              'Karakter klasoru, adaylari, yonleri, skinleri ve '
+              'butun animasyonlari silinir. GERI ALINAMAZ.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Vazgec'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Sil'),
+              ),
+            ],
+          ),
     );
     if (ok != true) return;
     try {
       await CharacterFlowService.removeCharacter(c.name);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(e.toString().replaceFirst('Exception: ', ''))));
+        AppToast.of(context).show(e.toString().replaceFirst('Exception: ', ''));
       }
     }
     _load();
@@ -209,21 +227,30 @@ class _CharacterFlowScreenState extends State<CharacterFlowScreen> {
                 child: SizedBox(
                   width: 66,
                   height: 117,
-                  child: c.southThumb.isEmpty
-                      ? Container(
-                          color: Colors.white10,
-                          child: const Icon(Icons.person_outline, color: Colors.grey))
-                      : ColoredBox(
-                          color: Colors.black26,
-                          child: Image.network(
-                            CharacterFlowService.thumbUrl(c.name, c.southThumb,
-                                v: c.rev, size: 300),
-                            headers: CharacterFlowService.authHeaders,
-                            fit: BoxFit.contain,
-                            errorBuilder: (_, _, _) =>
-                                Container(color: Colors.white10),
+                  child:
+                      c.southThumb.isEmpty
+                          ? Container(
+                            color: Colors.white10,
+                            child: const Icon(
+                              Icons.person_outline,
+                              color: Colors.grey,
+                            ),
+                          )
+                          : ColoredBox(
+                            color: Colors.black26,
+                            child: Image.network(
+                              CharacterFlowService.thumbUrl(
+                                c.name,
+                                c.southThumb,
+                                v: c.rev,
+                                size: 300,
+                              ),
+                              headers: CharacterFlowService.authHeaders,
+                              fit: BoxFit.contain,
+                              errorBuilder:
+                                  (_, _, _) => Container(color: Colors.white10),
+                            ),
                           ),
-                        ),
                 ),
               ),
               const SizedBox(width: 10),
@@ -235,20 +262,26 @@ class _CharacterFlowScreenState extends State<CharacterFlowScreen> {
                     Row(
                       children: [
                         Expanded(
-                          child: Text(c.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                  fontSize: 16, fontWeight: FontWeight.bold)),
+                          child: Text(
+                            c.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ),
                         const SizedBox(width: 6),
                         kindBadge(c.kind),
                       ],
                     ),
-                    Text(c.klass.isEmpty ? '-' : c.klass,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                    Text(
+                      c.klass.isEmpty ? '-' : c.klass,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
                     const SizedBox(height: 6),
                     dirCompass(
                       _dirs,
@@ -268,9 +301,13 @@ class _CharacterFlowScreenState extends State<CharacterFlowScreen> {
                           'sprite $ok/$total',
                           'aday ${c.candidateCount}',
                         ])
-                          Text(t,
-                              style: const TextStyle(
-                                  fontSize: 11, color: Colors.grey)),
+                          Text(
+                            t,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey,
+                            ),
+                          ),
                       ],
                     ),
                     // #306: otomatik hat kosuyorsa kartta ilerleme cubugu.
@@ -279,13 +316,13 @@ class _CharacterFlowScreenState extends State<CharacterFlowScreen> {
                       LinearProgressIndicator(value: p.progress, minHeight: 3),
                       const SizedBox(height: 2),
                       Text(
-                          p.step.isEmpty
-                              ? 'pipeline calisiyor (${p.done}/${p.total})'
-                              : '${p.step} (${p.done}/${p.total})',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              fontSize: 10, color: AppColors.accent)),
+                        p.step.isEmpty
+                            ? 'pipeline calisiyor (${p.done}/${p.total})'
+                            : '${p.step} (${p.done}/${p.total})',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 10, color: AppColors.accent),
+                      ),
                     ],
                   ],
                 ),
@@ -302,23 +339,20 @@ class _CharacterFlowScreenState extends State<CharacterFlowScreen> {
 // ---------------------------------------------------------------- ortak
 
 /// #306: "Yeni karakter" penceresinin sonucu. #314: `kind` = karakter turu.
-typedef CharacterCreateResult = ({
-  String name,
-  String klass,
-  String prompt,
-  String kind,
-});
+typedef CharacterCreateResult =
+    ({String name, String klass, String prompt, String kind});
 
 /// #314: tur ikonlari - liste karti, detay basligi ve pencere segmentleri.
 IconData kindIcon(String kind) => switch (kind) {
-      'male' => Icons.man,
-      'animal' => Icons.pets,
-      'machine' => Icons.smart_toy,
-      _ => Icons.woman,
-    };
+  'male' => Icons.man,
+  'animal' => Icons.pets,
+  'machine' => Icons.smart_toy,
+  _ => Icons.woman,
+};
 
 /// #314: kucuk tur rozeti (ikon + ad) - karakter kartinda ve detay basliginda.
-Widget kindBadge(String kind, {double size = 13, bool label = true}) => Container(
+Widget kindBadge(String kind, {double size = 13, bool label = true}) =>
+    Container(
       padding: EdgeInsets.symmetric(horizontal: label ? 5 : 3, vertical: 1),
       decoration: BoxDecoration(
         color: Colors.white10,
@@ -330,8 +364,10 @@ Widget kindBadge(String kind, {double size = 13, bool label = true}) => Containe
           Icon(kindIcon(kind), size: size, color: AppColors.accent),
           if (label) ...[
             const SizedBox(width: 3),
-            Text(CharacterFlowService.kindLabel(kind),
-                style: TextStyle(fontSize: size - 3, color: AppColors.accent)),
+            Text(
+              CharacterFlowService.kindLabel(kind),
+              style: TextStyle(fontSize: size - 3, color: AppColors.accent),
+            ),
           ],
         ],
       ),
@@ -344,59 +380,65 @@ Widget kindSelector({
   required String value,
   required ValueChanged<String> onChanged,
   List<Map<String, String>> kinds = CharacterFlowService.characterKinds,
-}) =>
-    LayoutBuilder(
-      builder: (_, cons) {
-        // Etiketli segment ~86px (ikon + ad + ic bosluk); sigmiyorsa ikon-only.
-        final dar = cons.maxWidth < 86.0 * kinds.length;
-        return SizedBox(
-          width: double.infinity,
-          child: SegmentedButton<String>(
-            segments: [
-              for (final k in kinds)
-                ButtonSegment(
-                  value: '${k['id']}',
-                  icon: Icon(kindIcon('${k['id']}'), size: 16),
-                  label: dar
+}) => LayoutBuilder(
+  builder: (_, cons) {
+    // Etiketli segment ~86px (ikon + ad + ic bosluk); sigmiyorsa ikon-only.
+    final dar = cons.maxWidth < 86.0 * kinds.length;
+    return SizedBox(
+      width: double.infinity,
+      child: SegmentedButton<String>(
+        segments: [
+          for (final k in kinds)
+            ButtonSegment(
+              value: '${k['id']}',
+              icon: Icon(kindIcon('${k['id']}'), size: 16),
+              label:
+                  dar
                       ? null
-                      : Text('${k['label']}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 11)),
-                  tooltip: '${k['label']}',
-                ),
-            ],
-            selected: {value},
-            showSelectedIcon: false,
-            style: const ButtonStyle(
-              visualDensity: VisualDensity.compact,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      : Text(
+                        '${k['label']}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 11),
+                      ),
+              tooltip: '${k['label']}',
             ),
-            onSelectionChanged: (v) => onChanged(v.first),
-          ),
-        );
-      },
+        ],
+        selected: {value},
+        showSelectedIcon: false,
+        style: const ButtonStyle(
+          visualDensity: VisualDensity.compact,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+        onSelectionChanged: (v) => onChanged(v.first),
+      ),
     );
+  },
+);
 
 /// #314: turun kimlik cumlesi ipucu (dokuman §3c ozneleri).
 String _kindPromptHint(String kind) => switch (kind) {
-      'male' => 'orn. kisa siyah sacli, sakalli, atletik savasci adam',
-      'animal' => 'orn. a golden retriever dog, short golden fur',
-      'machine' => 'orn. a bipedal combat robot, matte white panels, blue optics',
-      _ => 'orn. gumus sacli, yesil gozlu, atletik savasci kadin',
-    };
+  'male' => 'orn. kisa siyah sacli, sakalli, atletik savasci adam',
+  'animal' => 'orn. a golden retriever dog, short golden fur',
+  'machine' => 'orn. a bipedal combat robot, matte white panels, blue optics',
+  _ => 'orn. gumus sacli, yesil gozlu, atletik savasci kadin',
+};
 
 /// #314: turun notr base aciklamasi (dokuman §3c "base notr set" satiri).
 String _kindBaseNote(String kind) => switch (kind) {
-      'male' => 'Base notr sette, siyah boxer + ciplak govde seviyesindedir; '
-          'kiyafet 3. sekmedeki skinlerle verilir.',
-      'animal' => 'Base giysisizdir: dogal tuy/deri, dogal durus. Tasma, kosum, '
-          'pelerin gibi parcalar 3. sekmedeki skinlerle verilir.',
-      'machine' => 'Base ciplak govde/sasidir: ek zirh ve boya yok. Zirh plakasi, '
-          'boya kiti, silah montaji 3. sekmedeki skinlerle verilir.',
-      _ => 'Base her zaman notr set + bikini/ic camasiri seviyesindedir; '
-          'kiyafet 3. sekmedeki skinlerle verilir.',
-    };
+  'male' =>
+    'Base notr sette, siyah boxer + ciplak govde seviyesindedir; '
+        'kiyafet 3. sekmedeki skinlerle verilir.',
+  'animal' =>
+    'Base giysisizdir: dogal tuy/deri, dogal durus. Tasma, kosum, '
+        'pelerin gibi parcalar 3. sekmedeki skinlerle verilir.',
+  'machine' =>
+    'Base ciplak govde/sasidir: ek zirh ve boya yok. Zirh plakasi, '
+        'boya kiti, silah montaji 3. sekmedeki skinlerle verilir.',
+  _ =>
+    'Base her zaman notr set + bikini/ic camasiri seviyesindedir; '
+        'kiyafet 3. sekmedeki skinlerle verilir.',
+};
 
 /// #306: isim + sinif + kimlik promptu soran ortak pencere. Hem Karakter
 /// hattindaki "+ Yeni karakter" hem Uretilenler'deki "Karakter yap" kullanir
@@ -407,9 +449,10 @@ Future<CharacterCreateResult?> characterCreateDialog(
   BuildContext context, {
   String baslik = 'Yeni karakter',
   // #306: base'i KULLANICI secer - prompt yalniz 1 aday kuyruga koyar.
-  String aciklama = 'Kimlik cumlesi verilince 1 base adayi kuyruga girer; '
-      'otomatik secilmez. Adayi "Base yap" ile sectiginde portre, hikaye ve '
-      '7 yon kendiliginden uretilir.',
+  String aciklama =
+      'Kimlik cumlesi verilince 1 base adayi kuyruga girer; '
+          'otomatik secilmez. Adayi "Base yap" ile sectiginde portre, hikaye ve '
+          '7 yon kendiliginden uretilir.',
   bool promptGerekli = true,
 }) async {
   // #314: insan turlerinin sinif kaynagi profil dosyasi; hayvan/makine
@@ -419,124 +462,149 @@ Future<CharacterCreateResult?> characterCreateDialog(
   final ad = TextEditingController();
   final prompt = TextEditingController();
   var tur = 'female';
-  List<String> siniflarOf(String k) => CharacterFlowService.isHumanKind(k)
-      ? insanSiniflar
-      : CharacterFlowService.classesFor(k);
+  List<String> siniflarOf(String k) =>
+      CharacterFlowService.isHumanKind(k)
+          ? insanSiniflar
+          : CharacterFlowService.classesFor(k);
   var siniflar = siniflarOf(tur);
   var sinif = siniflar.isNotEmpty ? siniflar.first : '';
   final sonuc = await showDialog<CharacterCreateResult>(
     context: context,
-    builder: (c) => StatefulBuilder(
-      builder: (c2, setS) => AlertDialog(
-        // Isim alani otomatik odakli: klavye acilinca icerik tasmasin (#289).
-        scrollable: true,
-        title: Text(baslik),
-        content: SizedBox(
-          width: 460,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(aciklama,
-                  style: const TextStyle(fontSize: 12, color: Colors.grey)),
-              const SizedBox(height: 12),
-              // #314: ONCE tur - sinif listesi, kimlik ipucu ve base notu
-              // buna baglidir.
-              const Text('Tur',
-                  style: TextStyle(fontSize: 12, color: Colors.grey)),
-              const SizedBox(height: 4),
-              kindSelector(
-                value: tur,
-                onChanged: (v) => setS(() {
-                  tur = v;
-                  // Tur degisince sinif listesi de degisir - eski deger yeni
-                  // listede yoksa ilk siniftan devam edilir.
-                  siniflar = siniflarOf(tur);
-                  if (!siniflar.contains(sinif)) {
-                    sinif = siniflar.isNotEmpty ? siniflar.first : '';
-                  }
-                }),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: ad,
-                autofocus: true,
-                decoration: const InputDecoration(
-                  labelText: 'Isim',
-                  hintText: 'orn. Freya',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 10),
-              if (siniflar.isEmpty)
-                TextField(
-                  // #314: tur degisince serbest metin alani sifirdan kurulur.
-                  key: ValueKey('sinif-serbest-$tur'),
-                  onChanged: (v) => sinif = v,
-                  decoration: const InputDecoration(
-                    labelText: 'Sinif',
-                    hintText: 'warrior',
-                    border: OutlineInputBorder(),
+    builder:
+        (c) => StatefulBuilder(
+          builder:
+              (c2, setS) => AlertDialog(
+                // Isim alani otomatik odakli: klavye acilinca icerik tasmasin (#289).
+                scrollable: true,
+                title: Text(baslik),
+                content: SizedBox(
+                  width: 460,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        aciklama,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      // #314: ONCE tur - sinif listesi, kimlik ipucu ve base notu
+                      // buna baglidir.
+                      const Text(
+                        'Tur',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                      const SizedBox(height: 4),
+                      kindSelector(
+                        value: tur,
+                        onChanged:
+                            (v) => setS(() {
+                              tur = v;
+                              // Tur degisince sinif listesi de degisir - eski deger yeni
+                              // listede yoksa ilk siniftan devam edilir.
+                              siniflar = siniflarOf(tur);
+                              if (!siniflar.contains(sinif)) {
+                                sinif =
+                                    siniflar.isNotEmpty ? siniflar.first : '';
+                              }
+                            }),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: ad,
+                        autofocus: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Isim',
+                          hintText: 'orn. Freya',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      if (siniflar.isEmpty)
+                        TextField(
+                          // #314: tur degisince serbest metin alani sifirdan kurulur.
+                          key: ValueKey('sinif-serbest-$tur'),
+                          onChanged: (v) => sinif = v,
+                          decoration: const InputDecoration(
+                            labelText: 'Sinif',
+                            hintText: 'warrior',
+                            border: OutlineInputBorder(),
+                          ),
+                        )
+                      else
+                        DropdownButtonFormField<String>(
+                          // #314: tur degisince liste degisir - FormField initialValue'yu
+                          // yeniden okumaz, alan sifirdan kurulmali (#313 ile ayni tuzak).
+                          key: ValueKey('sinif-$tur'),
+                          initialValue: sinif,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Sinif',
+                            border: OutlineInputBorder(),
+                          ),
+                          items:
+                              siniflar
+                                  .map(
+                                    (e) => DropdownMenuItem(
+                                      value: e,
+                                      child: Text(e),
+                                    ),
+                                  )
+                                  .toList(),
+                          onChanged: (v) => setS(() => sinif = v ?? sinif),
+                        ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: prompt,
+                        maxLines: 4,
+                        decoration: InputDecoration(
+                          labelText:
+                              promptGerekli
+                                  ? 'Kimlik cumlesi'
+                                  : 'Kimlik cumlesi (istege bagli)',
+                          // #314: ipucu ture gore.
+                          hintText: _kindPromptHint(tur),
+                          border: const OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      // #314: notr base aciklamasi da ture gore.
+                      Text(
+                        _kindBaseNote(tur),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ],
                   ),
-                )
-              else
-                DropdownButtonFormField<String>(
-                  // #314: tur degisince liste degisir - FormField initialValue'yu
-                  // yeniden okumaz, alan sifirdan kurulmali (#313 ile ayni tuzak).
-                  key: ValueKey('sinif-$tur'),
-                  initialValue: sinif,
-                  isExpanded: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Sinif',
-                    border: OutlineInputBorder(),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(c),
+                    child: const Text('Vazgec'),
                   ),
-                  items: siniflar
-                      .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                      .toList(),
-                  onChanged: (v) => setS(() => sinif = v ?? sinif),
-                ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: prompt,
-                maxLines: 4,
-                decoration: InputDecoration(
-                  labelText: promptGerekli
-                      ? 'Kimlik cumlesi'
-                      : 'Kimlik cumlesi (istege bagli)',
-                  // #314: ipucu ture gore.
-                  hintText: _kindPromptHint(tur),
-                  border: const OutlineInputBorder(),
-                ),
+                  FilledButton(
+                    onPressed:
+                        () => Navigator.pop(c, (
+                          name: ad.text.trim(),
+                          klass: sinif.trim(),
+                          prompt: prompt.text.trim(),
+                          kind: tur, // #314
+                        )),
+                    child: const Text('Olustur'),
+                  ),
+                ],
               ),
-              const SizedBox(height: 6),
-              // #314: notr base aciklamasi da ture gore.
-              Text(_kindBaseNote(tur),
-                  style: const TextStyle(fontSize: 11, color: Colors.grey)),
-            ],
-          ),
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Vazgec')),
-          FilledButton(
-            onPressed: () => Navigator.pop(
-                c,
-                (
-                  name: ad.text.trim(),
-                  klass: sinif.trim(),
-                  prompt: prompt.text.trim(),
-                  kind: tur,                      // #314
-                )),
-            child: const Text('Olustur'),
-          ),
-        ],
-      ),
-    ),
   );
   if (sonuc == null || sonuc.name.isEmpty) return null;
   if (promptGerekli && sonuc.prompt.isEmpty) {
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Kimlik cumlesi bos olamaz')));
+      AppToast.of(context).show('Kimlik cumlesi bos olamaz');
     }
     return null;
   }
@@ -548,9 +616,9 @@ Future<CharacterCreateResult?> characterCreateDialog(
 /// gozden kaybolmasin.
 // #301: gercek pusula dizilimi - North ustte, South (kameraya bakan) altta.
 const _compassGrid = [
-  ['back_left', 'back', 'back_right'],      // NW  N  NE
-  ['left', '', 'right'],                    // W   -  E
-  ['front_left', 'front', 'front_right'],   // SW  S  SE
+  ['back_left', 'back', 'back_right'], // NW  N  NE
+  ['left', '', 'right'], // W   -  E
+  ['front_left', 'front', 'front_right'], // SW  S  SE
 ];
 
 Widget dirCompass(
@@ -567,17 +635,25 @@ Widget dirCompass(
     for (final id in row) {
       final d = byId[id];
       if (id.isEmpty || d == null) {
-        cells.add(Expanded(
+        cells.add(
+          Expanded(
             child: Padding(
-          padding: EdgeInsets.all(spacing / 2),
-          child: center != null && id.isEmpty ? center : const SizedBox.shrink(),
-        )));
+              padding: EdgeInsets.all(spacing / 2),
+              child:
+                  center != null && id.isEmpty
+                      ? center
+                      : const SizedBox.shrink(),
+            ),
+          ),
+        );
         continue;
       }
       used.add(id);
-      cells.add(Expanded(
-        child: Padding(padding: EdgeInsets.all(spacing / 2), child: cell(d)),
-      ));
+      cells.add(
+        Expanded(
+          child: Padding(padding: EdgeInsets.all(spacing / 2), child: cell(d)),
+        ),
+      );
     }
     // stretch DEGIL: pusula ListView icinde durur, sinirsiz yukseklikte
     // stretch sonsuz kisit hatasi verir.
@@ -612,38 +688,45 @@ Widget dirCompass(
 
 /// Karakter kartindaki kucuk yon rozeti - dolu = o yon secilmis.
 Widget dirBadge(CharacterDir d, bool on) => Container(
-      alignment: Alignment.center,
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      decoration: BoxDecoration(
-        color: on ? AppColors.accent : Colors.white10,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(d.short,
-          style: TextStyle(
-              fontSize: 9,
-              fontWeight: FontWeight.bold,
-              color: on ? Colors.white : Colors.grey)),
-    );
+  alignment: Alignment.center,
+  padding: const EdgeInsets.symmetric(vertical: 3),
+  decoration: BoxDecoration(
+    color: on ? AppColors.accent : Colors.white10,
+    borderRadius: BorderRadius.circular(4),
+  ),
+  child: Text(
+    d.short,
+    style: TextStyle(
+      fontSize: 9,
+      fontWeight: FontWeight.bold,
+      color: on ? Colors.white : Colors.grey,
+    ),
+  ),
+);
 
 Widget errorView(String message, VoidCallback retry) => Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.error_outline, color: AppColors.error, size: 36),
-            const SizedBox(height: 10),
-            Text(message, textAlign: TextAlign.center),
-            const SizedBox(height: 12),
-            FilledButton(onPressed: retry, child: const Text('Tekrar dene')),
-          ],
-        ),
-      ),
-    );
+  child: Padding(
+    padding: const EdgeInsets.all(24),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.error_outline, color: AppColors.error, size: 36),
+        const SizedBox(height: 10),
+        Text(message, textAlign: TextAlign.center),
+        const SizedBox(height: 12),
+        FilledButton(onPressed: retry, child: const Text('Tekrar dene')),
+      ],
+    ),
+  ),
+);
 
 /// Yastiklama secici - yok / %10 / %20 / %30 (`animate.padding`).
 class PaddingPicker extends StatelessWidget {
-  const PaddingPicker({super.key, required this.value, required this.onChanged});
+  const PaddingPicker({
+    super.key,
+    required this.value,
+    required this.onChanged,
+  });
 
   final double value;
   final ValueChanged<double> onChanged;
@@ -656,34 +739,41 @@ class PaddingPicker extends StatelessWidget {
   ];
 
   static String labelOf(double v) =>
-      secenekler.firstWhere((e) => (e.$1 - v).abs() < 0.001,
-          orElse: () => secenekler.first).$2;
+      secenekler
+          .firstWhere(
+            (e) => (e.$1 - v).abs() < 0.001,
+            orElse: () => secenekler.first,
+          )
+          .$2;
 
   @override
   Widget build(BuildContext context) => Row(
-        children: [
-          const Text('Yastiklama',
-              style: TextStyle(fontSize: 12, color: Colors.grey)),
-          const SizedBox(width: 8),
-          Expanded(
-            child: SegmentedButton<double>(
-              segments: [
-                for (final s in secenekler)
-                  ButtonSegment(
-                      value: s.$1,
-                      label: Text(s.$2, style: const TextStyle(fontSize: 11))),
-              ],
-              selected: {value},
-              showSelectedIcon: false,
-              style: const ButtonStyle(
-                visualDensity: VisualDensity.compact,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    children: [
+      const Text(
+        'Yastiklama',
+        style: TextStyle(fontSize: 12, color: Colors.grey),
+      ),
+      const SizedBox(width: 8),
+      Expanded(
+        child: SegmentedButton<double>(
+          segments: [
+            for (final s in secenekler)
+              ButtonSegment(
+                value: s.$1,
+                label: Text(s.$2, style: const TextStyle(fontSize: 11)),
               ),
-              onSelectionChanged: (v) => onChanged(v.first),
-            ),
+          ],
+          selected: {value},
+          showSelectedIcon: false,
+          style: const ButtonStyle(
+            visualDensity: VisualDensity.compact,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
-        ],
-      );
+          onSelectionChanged: (v) => onChanged(v.first),
+        ),
+      ),
+    ],
+  );
 }
 
 /// Pusula izgarasindaki tek kucuk resim: gorsel + kabul/ret rozeti + altinda
@@ -711,8 +801,10 @@ class _ThumbCell extends StatelessWidget {
   final String label;
   final String? url;
   final bool accepted;
+
   /// #300: kabul edilmemis ama adayi olan hucrede "N aday" rozeti.
   final String? badge;
+
   /// #300: aday onizlemesi soluk cizilir - kabul edilmisle karismasin.
   final bool dimmed;
   final double width;
@@ -721,6 +813,7 @@ class _ThumbCell extends StatelessWidget {
   final VoidCallback onLongPress;
   final VoidCallback? onAnim;
   final VoidCallback? onMixamo;
+
   /// #306: ✎ Duzenle - kisa duzeltme cumlesiyle kabul edilen gorseli degistirir.
   final VoidCallback? onEdit;
   final VoidCallback onRefresh;
@@ -728,117 +821,136 @@ class _ThumbCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SizedBox(
-        width: width,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // rev4: tek dokunus = aday secici / animasyon, basili tutma = buyuk.
-            GestureDetector(
-              onTap: onTap,
-              onLongPress: onLongPress,
-              child: Container(
-                height: thumbHeight,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                      color: accepted ? Colors.green.shade600 : Colors.white24,
-                      width: accepted ? 2 : 1),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(7),
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      const ColoredBox(color: Colors.black26),
-                      if (url != null)
-                        // #292: cover kirpiyordu - contain, tam boy kare butun
-                        // gorunur (kenarlarda koyu serit kalir).
-                        Opacity(
-                          opacity: dimmed ? 0.55 : 1,
-                          child: Image.network(
-                            url!,
-                            headers: CharacterFlowService.authHeaders,
-                            fit: BoxFit.contain,
-                            errorBuilder: (_, _, _) => Container(
-                              color: Colors.white10,
-                              alignment: Alignment.center,
-                              child: const Icon(Icons.image_not_supported_outlined,
-                                  size: 22, color: Colors.grey),
-                            ),
-                          ),
-                        )
-                      else
-                        Container(
-                          color: Colors.white10,
-                          alignment: Alignment.center,
-                          child: const Icon(Icons.add_photo_alternate_outlined,
-                              size: 22, color: Colors.grey),
-                        ),
-                      Positioned(
-                        right: 2,
-                        top: 2,
-                        child: Icon(
-                          accepted ? Icons.check_circle : Icons.cancel_outlined,
-                          size: 14,
-                          color: accepted ? Colors.green : Colors.white38,
-                        ),
-                      ),
-                      if (badge != null)
-                        // #300: aday sayisi - dokununca secici acilir.
-                        Positioned(
-                          left: 3,
-                          top: 3,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 5, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: Colors.orange.shade800,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(badge!,
-                                style: const TextStyle(
-                                    fontSize: 9, color: Colors.white)),
-                          ),
-                        ),
-                      Positioned(
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        child: Container(
-                          color: Colors.black54,
-                          // #292: hucreler buyudu, etiket de okunur olsun.
-                          child: Text(label,
-                              textAlign: TextAlign.center,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                  fontSize: 10, color: Colors.white)),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+    width: width,
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // rev4: tek dokunus = aday secici / animasyon, basili tutma = buyuk.
+        GestureDetector(
+          onTap: onTap,
+          onLongPress: onLongPress,
+          child: Container(
+            height: thumbHeight,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: accepted ? Colors.green.shade600 : Colors.white24,
+                width: accepted ? 2 : 1,
               ),
             ),
-            // #292: Row tasabiliyordu - Wrap hucreye sigmayinca alt satira sarar.
-            Wrap(
-              alignment: WrapAlignment.center,
-              children: [
-                if (onAnim != null)
-                  _ico(Icons.movie_filter_outlined, 'Anim uret (AI i2v)', onAnim!),
-                if (onMixamo != null)
-                  _ico(Icons.accessibility_new, 'Mixamo ile uret', onMixamo!),
-                if (onEdit != null)
-                  _ico(Icons.edit_outlined, 'Duzenle (prompt ile)', onEdit!),
-                _ico(Icons.refresh, 'Bunu yeniden uret', onRefresh),
-                _ico(Icons.delete_outline, 'Sil', onDelete, color: AppColors.error),
-              ],
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(7),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  const ColoredBox(color: Colors.black26),
+                  if (url != null)
+                    // #292: cover kirpiyordu - contain, tam boy kare butun
+                    // gorunur (kenarlarda koyu serit kalir).
+                    Opacity(
+                      opacity: dimmed ? 0.55 : 1,
+                      child: Image.network(
+                        url!,
+                        headers: CharacterFlowService.authHeaders,
+                        fit: BoxFit.contain,
+                        errorBuilder:
+                            (_, _, _) => Container(
+                              color: Colors.white10,
+                              alignment: Alignment.center,
+                              child: const Icon(
+                                Icons.image_not_supported_outlined,
+                                size: 22,
+                                color: Colors.grey,
+                              ),
+                            ),
+                      ),
+                    )
+                  else
+                    Container(
+                      color: Colors.white10,
+                      alignment: Alignment.center,
+                      child: const Icon(
+                        Icons.add_photo_alternate_outlined,
+                        size: 22,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  Positioned(
+                    right: 2,
+                    top: 2,
+                    child: Icon(
+                      accepted ? Icons.check_circle : Icons.cancel_outlined,
+                      size: 14,
+                      color: accepted ? Colors.green : Colors.white38,
+                    ),
+                  ),
+                  if (badge != null)
+                    // #300: aday sayisi - dokununca secici acilir.
+                    Positioned(
+                      left: 3,
+                      top: 3,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 5,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.shade800,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          badge!,
+                          style: const TextStyle(
+                            fontSize: 9,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      color: Colors.black54,
+                      // #292: hucreler buyudu, etiket de okunur olsun.
+                      child: Text(
+                        label,
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
+          ),
+        ),
+        // #292: Row tasabiliyordu - Wrap hucreye sigmayinca alt satira sarar.
+        Wrap(
+          alignment: WrapAlignment.center,
+          children: [
+            if (onAnim != null)
+              _ico(Icons.movie_filter_outlined, 'Anim uret (AI i2v)', onAnim!),
+            if (onMixamo != null)
+              _ico(Icons.accessibility_new, 'Mixamo ile uret', onMixamo!),
+            if (onEdit != null)
+              _ico(Icons.edit_outlined, 'Duzenle (prompt ile)', onEdit!),
+            _ico(Icons.refresh, 'Bunu yeniden uret', onRefresh),
+            _ico(Icons.delete_outline, 'Sil', onDelete, color: AppColors.error),
           ],
         ),
-      );
+      ],
+    ),
+  );
 
-  Widget _ico(IconData i, String t, VoidCallback f, {Color? color}) => IconButton(
+  Widget _ico(IconData i, String t, VoidCallback f, {Color? color}) =>
+      IconButton(
         tooltip: t,
         onPressed: f,
         icon: Icon(i, color: color),
@@ -853,27 +965,28 @@ class _ThumbCell extends StatelessWidget {
 void showBigImage(BuildContext context, String url, String baslik) {
   showDialog<void>(
     context: context,
-    builder: (_) => Dialog(
-      insetPadding: const EdgeInsets.all(12),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Flexible(
-            child: InteractiveViewer(
-              child: Image.network(
-                url,
-                headers: CharacterFlowService.authHeaders,
-                errorBuilder: (_, _, _) => const SizedBox(height: 120),
+    builder:
+        (_) => Dialog(
+          insetPadding: const EdgeInsets.all(12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: InteractiveViewer(
+                  child: Image.network(
+                    url,
+                    headers: CharacterFlowService.authHeaders,
+                    errorBuilder: (_, _, _) => const SizedBox(height: 120),
+                  ),
+                ),
               ),
-            ),
+              Padding(
+                padding: const EdgeInsets.all(8),
+                child: Text(baslik, style: const TextStyle(fontSize: 12)),
+              ),
+            ],
           ),
-          Padding(
-            padding: const EdgeInsets.all(8),
-            child: Text(baslik, style: const TextStyle(fontSize: 12)),
-          ),
-        ],
-      ),
-    ),
+        ),
   );
 }
 
@@ -884,40 +997,47 @@ Future<String?> editPromptDialog(BuildContext context, String baslik) async {
   final ctl = TextEditingController();
   final ok = await showDialog<bool>(
     context: context,
-    builder: (c) => AlertDialog(
-      scrollable: true,
-      title: Text('Duzenle - $baslik'),
-      content: SizedBox(
-        width: 460,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            TextField(
-              controller: ctl,
-              autofocus: true,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'Duzeltme cumlesi',
-                hintText: 'orn. sacini kisalt / kilici sol eline al',
-                border: OutlineInputBorder(),
-              ),
+    builder:
+        (c) => AlertDialog(
+          scrollable: true,
+          title: Text('Duzenle - $baslik'),
+          content: SizedBox(
+            width: 460,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: ctl,
+                  autofocus: true,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Duzeltme cumlesi',
+                    hintText: 'orn. sacini kisalt / kilici sol eline al',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Kabul edilen gorsel bu cumleyle duzenlenir; kimlik, poz ve fon '
+                  'korunur. Yeni gorsel otomatik kabul edilir, eskisi aday olarak '
+                  'kalir - begenmezsen aday seciciden geri alabilirsin.',
+                  style: TextStyle(fontSize: 11, color: Colors.grey),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            const Text(
-                'Kabul edilen gorsel bu cumleyle duzenlenir; kimlik, poz ve fon '
-                'korunur. Yeni gorsel otomatik kabul edilir, eskisi aday olarak '
-                'kalir - begenmezsen aday seciciden geri alabilirsin.',
-                style: TextStyle(fontSize: 11, color: Colors.grey)),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(c, false),
+              child: const Text('Vazgec'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(c, true),
+              child: const Text('Duzenle'),
+            ),
           ],
         ),
-      ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Vazgec')),
-        FilledButton(
-            onPressed: () => Navigator.pop(c, true), child: const Text('Duzenle')),
-      ],
-    ),
   );
   if (ok != true) return null;
   final t = ctl.text.trim();
@@ -928,7 +1048,11 @@ Future<String?> editPromptDialog(BuildContext context, String baslik) async {
 
 /// Tek karakterin uc asamali detayi: 1 Karakter / 2 Yon / 3 Skinler (#306).
 class CharacterDetailPage extends StatefulWidget {
-  const CharacterDetailPage({super.key, required this.name, required this.dirs});
+  const CharacterDetailPage({
+    super.key,
+    required this.name,
+    required this.dirs,
+  });
 
   final String name;
   final List<CharacterDir> dirs;
@@ -959,6 +1083,7 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
 
   // 1 Karakter
   String? _candidate;
+
   /// #299: card.md icin bekleyen Ollama onerileri - pop-up yerine liste.
   List<CardProposal> _proposals = [];
 
@@ -969,9 +1094,11 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
 
   // 3 Skinler (#306)
   List<SkinItem> _skins = [];
+
   /// #306: kiyafet kutuphanesi - karakterden bagimsiz, her acilista tazelenir.
   List<OutfitItem> _outfits = [];
   bool _outfitsLoading = true;
+
   /// #313: serit kategori cipi - bos = "Hepsi".
   String _outfitCat = '';
 
@@ -992,9 +1119,10 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
 
   /// #313: secili kategoriye gore suzulmus kiyafet seridi. Sunucu `?category=`
   /// suzmesini desteklemese de burada tekrar suzulur.
-  List<OutfitItem> get _visibleOutfits => _outfitCat.isEmpty
-      ? _kindOutfits
-      : _kindOutfits.where((o) => o.category == _outfitCat).toList();
+  List<OutfitItem> get _visibleOutfits =>
+      _outfitCat.isEmpty
+          ? _kindOutfits
+          : _kindOutfits.where((o) => o.category == _outfitCat).toList();
 
   /// #313: slug -> kiyafet (skin satirinda parca adlarini yazmak icin).
   OutfitItem? _outfitOf(String slug) {
@@ -1037,7 +1165,8 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
       setState(() {
         _item = it;
         _loading = false;
-        if (_candidate != null && !(it?.candidates.contains(_candidate) ?? false)) {
+        if (_candidate != null &&
+            !(it?.candidates.contains(_candidate) ?? false)) {
           _candidate = null;
         }
       });
@@ -1096,9 +1225,10 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
       // #331: base secici icin karakter listesi (ayni turdekiler).
       List<CharacterItem> chars = _chars;
       try {
-        chars = (await CharacterFlowService.list())
-            .where((c) => c.kind == _kind)
-            .toList();
+        chars =
+            (await CharacterFlowService.list())
+                .where((c) => c.kind == _kind)
+                .toList();
       } catch (_) {}
       if (!mounted) return;
       setState(() {
@@ -1151,9 +1281,11 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
         if (!o.running) {
           t.cancel();
           _watchedOp = '';
-          _snack(o.status == 'error'
-              ? 'Islem hatasi: ${o.message}'
-              : '${o.ok} tamam${o.failed > 0 ? ", ${o.failed} hata" : ""}');
+          _snack(
+            o.status == 'error'
+                ? 'Islem hatasi: ${o.message}'
+                : '${o.ok} tamam${o.failed > 0 ? ", ${o.failed} hata" : ""}',
+          );
           _load();
         } else if (tick % 10 == 0) {
           _load();
@@ -1171,18 +1303,24 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
 
   void _snack(String m) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+    AppToast.of(context).show(m);
   }
 
   /// #299: is artik tek sunucu sirasina girer. Kullanici bu ekranda beklemek
   /// zorunda degil - snack Sira sekmesine yollar, ust cubuk yine doner.
-  Future<void> _run(String ad, Future<String> Function() f, {int adet = 0}) async {
+  Future<void> _run(
+    String ad,
+    Future<String> Function() f, {
+    int adet = 0,
+  }) async {
     try {
       final op = await f();
       _watch(op);
-      _snack(adet > 0
-          ? '$ad siraya eklendi ($adet is) - Sira sekmesinden izle'
-          : '$ad siraya eklendi - Sira sekmesinden izle');
+      _snack(
+        adet > 0
+            ? '$ad siraya eklendi ($adet is) - Sira sekmesinden izle'
+            : '$ad siraya eklendi - Sira sekmesinden izle',
+      );
     } catch (e) {
       _snack(e.toString().replaceFirst('Exception: ', ''));
     }
@@ -1191,17 +1329,21 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
   Future<bool> _confirm(String baslik, String metin) async =>
       await showDialog<bool>(
         context: context,
-        builder: (c) => AlertDialog(
-          title: Text(baslik),
-          content: Text(metin),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(c, false),
-                child: const Text('Vazgec')),
-            FilledButton(
-                onPressed: () => Navigator.pop(c, true), child: const Text('Sil')),
-          ],
-        ),
+        builder:
+            (c) => AlertDialog(
+              title: Text(baslik),
+              content: Text(metin),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(c, false),
+                  child: const Text('Vazgec'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(c, true),
+                  child: const Text('Sil'),
+                ),
+              ],
+            ),
       ) ??
       false;
 
@@ -1214,99 +1356,119 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
         title: Row(
           children: [
             Flexible(
-                child: Text(_name,
-                    maxLines: 1, overflow: TextOverflow.ellipsis)),
+              child: Text(_name, maxLines: 1, overflow: TextOverflow.ellipsis),
+            ),
             const SizedBox(width: 8),
             kindBadge(_kind),
           ],
         ),
         actions: [
           IconButton(
-              icon: const Icon(Icons.refresh), tooltip: 'Yenile', onPressed: _load),
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Yenile',
+            onPressed: _load,
+          ),
           // #306: portre / hikaye / yon adimlarini elle yeniden kosturma.
           PopupMenuButton<String>(
             tooltip: 'Pipeline',
-            onSelected: (v) => _run(
-                'Pipeline',
-                () => CharacterFlowService.pipelineRebuild(_name,
-                    steps: v == 'all' ? const [] : [v]),
-                adet: v == 'all' ? 9 : 1),
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'all', child: Text('Pipeline yeniden kos')),
-              PopupMenuItem(value: 'portrait', child: Text('Yalniz portre')),
-              PopupMenuItem(value: 'story', child: Text('Yalniz hikaye')),
-              PopupMenuItem(value: 'dirs', child: Text('Yalniz yonler')),
-            ],
+            onSelected:
+                (v) => _run(
+                  'Pipeline',
+                  () => CharacterFlowService.pipelineRebuild(
+                    _name,
+                    steps: v == 'all' ? const [] : [v],
+                  ),
+                  adet: v == 'all' ? 9 : 1,
+                ),
+            itemBuilder:
+                (_) => const [
+                  PopupMenuItem(
+                    value: 'all',
+                    child: Text('Pipeline yeniden kos'),
+                  ),
+                  PopupMenuItem(
+                    value: 'portrait',
+                    child: Text('Yalniz portre'),
+                  ),
+                  PopupMenuItem(value: 'story', child: Text('Yalniz hikaye')),
+                  PopupMenuItem(value: 'dirs', child: Text('Yalniz yonler')),
+                ],
           ),
         ],
         // #330: 4 sekme - Gardirop ayri; skin Gardirop'tan uretilir.
-        bottom: TabBar(controller: _tabs, tabs: const [
-          Tab(text: '1 Karakter'),
-          Tab(text: '2 Yon'),
-          Tab(text: '3 Gardirop'),
-          Tab(text: '4 Skinler'),
-        ]),
+        bottom: TabBar(
+          controller: _tabs,
+          tabs: const [
+            Tab(text: '1 Karakter'),
+            Tab(text: '2 Yon'),
+            Tab(text: '3 Gardirop'),
+            Tab(text: '4 Skinler'),
+          ],
+        ),
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
+      body:
+          _loading
+              ? const Center(child: CircularProgressIndicator())
+              : _error != null
               ? errorView(_error!, _load)
               : it == null
-                  ? errorView('Karakter bulunamadi', _load)
-                  : Column(
+              ? errorView('Karakter bulunamadi', _load)
+              : Column(
+                children: [
+                  if (_op != null && _op!.running) _opBar(),
+                  Expanded(
+                    child: TabBarView(
+                      controller: _tabs,
                       children: [
-                        if (_op != null && _op!.running) _opBar(),
-                        Expanded(
-                          child: TabBarView(
-                            controller: _tabs,
-                            children: [
-                              _tabKarakter(it),
-                              _tabYon(it),
-                              _tabGardirop(it),      // #330/#331
-                              _tabSkinler(it),
-                            ],
-                          ),
-                        ),
+                        _tabKarakter(it),
+                        _tabYon(it),
+                        _tabGardirop(it), // #330/#331
+                        _tabSkinler(it),
                       ],
                     ),
+                  ),
+                ],
+              ),
     );
   }
 
   Widget _opBar() => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              _op!.message.isEmpty
-                  ? '${_op!.kind}: ${_op!.done}/${_op!.total}'
-                  : _op!.message,
-              style: const TextStyle(fontSize: 11, color: Colors.grey),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 4),
-            LinearProgressIndicator(value: _op!.progress),
-          ],
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          _op!.message.isEmpty
+              ? '${_op!.kind}: ${_op!.done}/${_op!.total}'
+              : _op!.message,
+          style: const TextStyle(fontSize: 11, color: Colors.grey),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
         ),
-      );
+        const SizedBox(height: 4),
+        LinearProgressIndicator(value: _op!.progress),
+      ],
+    ),
+  );
 
   Widget _countSlider(String etiket) => Row(
-        children: [
-          Text('$etiket: $_dirCount',
-              style: const TextStyle(fontSize: 12, color: Colors.grey)),
-          Expanded(
-            child: Slider(
-              value: _dirCount.toDouble(),
-              min: 1,
-              max: 6,
-              divisions: 5,
-              label: '$_dirCount',
-              onChanged: (v) => setState(() => _dirCount = v.round()),
-            ),
-          ),
-        ],
-      );
+    children: [
+      Text(
+        '$etiket: $_dirCount',
+        style: const TextStyle(fontSize: 12, color: Colors.grey),
+      ),
+      Expanded(
+        child: Slider(
+          value: _dirCount.toDouble(),
+          min: 1,
+          max: 6,
+          divisions: 5,
+          label: '$_dirCount',
+          onChanged: (v) => setState(() => _dirCount = v.round()),
+        ),
+      ),
+    ],
+  );
 
   // ------------------------------------------------------- 1 Karakter
   Widget _tabKarakter(CharacterItem it) {
@@ -1314,8 +1476,13 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
     final p = it.pipeline;
     return ListView(
       // Tam ekran route, alt cubuk yok: sistem gezinme cubugunu ekle (#289).
-      padding: bottomSafePadding(context,
-          left: 12, top: 12, right: 12, bottom: 12),
+      padding: bottomSafePadding(
+        context,
+        left: 12,
+        top: 12,
+        right: 12,
+        bottom: 12,
+      ),
       children: [
         // #306: solda KARE vesikalik portre, sagda base (South) 9:16.
         Row(
@@ -1325,30 +1492,49 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
             Expanded(
               // #309: portre kabul edilmemisse en yeni aday soluk + rozet,
               // dokunma aday secicisini acar (asagi kaydirmak gerekmesin).
-              child: _imageBox('Portre', it.portraitThumb, 1,
-                  previewRel: it.portraits.isEmpty ? '' : it.portraits.last,
-                  badge: (it.portraitThumb.isEmpty && it.portraits.isNotEmpty)
-                      ? '${it.portraits.length} aday - sec'
-                      : '',
-                  onTap: (it.portraitThumb.isEmpty && it.portraits.isNotEmpty)
-                      ? () => _portraitPicker(it)
-                      : null,
-                  onEdit: () => _edit('portrait', 'Portre'),
-                  onRefresh: () => _run(
+              child: _imageBox(
+                'Portre',
+                it.portraitThumb,
+                1,
+                previewRel: it.portraits.isEmpty ? '' : it.portraits.last,
+                badge:
+                    (it.portraitThumb.isEmpty && it.portraits.isNotEmpty)
+                        ? '${it.portraits.length} aday - sec'
+                        : '',
+                onTap:
+                    (it.portraitThumb.isEmpty && it.portraits.isNotEmpty)
+                        ? () => _portraitPicker(it)
+                        : null,
+                onEdit: () => _edit('portrait', 'Portre'),
+                onRefresh:
+                    () => _run(
                       'Portre uretimi',
-                      () =>
-                          CharacterFlowService.portrait(name: _name, n: _dirCount),
-                      adet: _dirCount)),
+                      () => CharacterFlowService.portrait(
+                        name: _name,
+                        n: _dirCount,
+                      ),
+                      adet: _dirCount,
+                    ),
+              ),
             ),
             const SizedBox(width: 10),
             Expanded(
-              child: _imageBox('Base (S)', it.southThumb, 9 / 16,
-                  onEdit: () => _edit('base', 'Base'),
-                  onRefresh: () => _run(
+              child: _imageBox(
+                'Base (S)',
+                it.southThumb,
+                9 / 16,
+                onEdit: () => _edit('base', 'Base'),
+                onRefresh:
+                    () => _run(
                       'Base adayi',
                       () => CharacterFlowService.dirs(
-                          name: _name, dirs: const ['base'], n: _dirCount),
-                      adet: _dirCount)),
+                        name: _name,
+                        dirs: const ['base'],
+                        n: _dirCount,
+                      ),
+                      adet: _dirCount,
+                    ),
+              ),
             ),
           ],
         ),
@@ -1356,36 +1542,48 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
         Row(
           children: [
             Expanded(
-              child: Text(it.klass.isEmpty ? 'sinif yok' : it.klass,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 13)),
+              child: Text(
+                it.klass.isEmpty ? 'sinif yok' : it.klass,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 13),
+              ),
             ),
-            Text('${it.candidateCount} aday',
-                style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            Text(
+              '${it.candidateCount} aday',
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            ),
           ],
         ),
         // #306: otomatik hattin ilerleme cubugu (character.json.pipeline).
         if (p.running) ...[
           const SizedBox(height: 10),
           Text(
-              p.step.isEmpty
-                  ? 'Pipeline calisiyor (${p.done}/${p.total})'
-                  : 'Pipeline: ${p.step} (${p.done}/${p.total})',
-              style: TextStyle(fontSize: 12, color: AppColors.accent)),
+            p.step.isEmpty
+                ? 'Pipeline calisiyor (${p.done}/${p.total})'
+                : 'Pipeline: ${p.step} (${p.done}/${p.total})',
+            style: TextStyle(fontSize: 12, color: AppColors.accent),
+          ),
           const SizedBox(height: 4),
           LinearProgressIndicator(value: p.progress),
         ] else if (p.status == 'error') ...[
           const SizedBox(height: 10),
-          Text('Pipeline hatasi: ${p.step}',
-              style: TextStyle(fontSize: 12, color: AppColors.error)),
+          Text(
+            'Pipeline hatasi: ${p.step}',
+            style: TextStyle(fontSize: 12, color: AppColors.error),
+          ),
         ],
         const SizedBox(height: 12),
         _countSlider('Aday'),
         // ------------------------------------------------ base adaylari
-        const Text('Base adaylari - birini sec, "Base yap" de',
-            style: TextStyle(
-                fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+        const Text(
+          'Base adaylari - birini sec, "Base yap" de',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: Colors.grey,
+          ),
+        ),
         const SizedBox(height: 8),
         if (adaylar.isEmpty)
           Text(
@@ -1430,14 +1628,22 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
             const SizedBox(width: 10),
             Expanded(
               child: OutlinedButton.icon(
-                onPressed: () => _run(
-                    'Base adayi',
-                    () => CharacterFlowService.dirs(
-                        name: _name, dirs: const ['base'], n: _dirCount),
-                    adet: _dirCount),
+                onPressed:
+                    () => _run(
+                      'Base adayi',
+                      () => CharacterFlowService.dirs(
+                        name: _name,
+                        dirs: const ['base'],
+                        n: _dirCount,
+                      ),
+                      adet: _dirCount,
+                    ),
                 icon: const Icon(Icons.person_outline, size: 18),
-                label: Text('Base adayi uret ($_dirCount)',
-                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                label: Text(
+                  'Base adayi uret ($_dirCount)',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ),
           ],
@@ -1477,9 +1683,10 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
         const SizedBox(height: 4),
         // #299: oneri artik pop-up degil - asagidaki listeye duser.
         const Text(
-            'Zenginlestirme yerel Ollama ile calisir; oneriler asagida '
-            'listelenir, birini kabul edince kart degisir.',
-            style: TextStyle(fontSize: 11, color: Colors.grey)),
+          'Zenginlestirme yerel Ollama ile calisir; oneriler asagida '
+          'listelenir, birini kabul edince kart degisir.',
+          style: TextStyle(fontSize: 11, color: Colors.grey),
+        ),
         const SizedBox(height: 12),
         _proposalsSection(),
         // #295: yastiklama secici burada YOK - asil yeri skin animasyon
@@ -1492,90 +1699,102 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
   /// Ollama onerileri listesi. Her oneri acilir bir kart: baslikta tarih,
   /// model ve hikayenin ilk satiri; icinde tam metin + Kabul et / Sil.
   Widget _proposalsSection() => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-              _proposals.isEmpty
-                  ? 'Hikaye onerileri'
-                  : 'Hikaye onerileri (${_proposals.length})',
-              style: const TextStyle(
-                  fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
-          const SizedBox(height: 6),
-          if (_proposals.isEmpty)
-            const Text('Oneri yok - Hikayeyi zenginlestir ile 2 oneri uretilir.',
-                style: TextStyle(fontSize: 12, color: Colors.grey))
-          else
-            for (final p in _proposals) ...[
-              _proposalCard(p),
-              const SizedBox(height: 8),
-            ],
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        _proposals.isEmpty
+            ? 'Hikaye onerileri'
+            : 'Hikaye onerileri (${_proposals.length})',
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+          color: Colors.grey,
+        ),
+      ),
+      const SizedBox(height: 6),
+      if (_proposals.isEmpty)
+        const Text(
+          'Oneri yok - Hikayeyi zenginlestir ile 2 oneri uretilir.',
+          style: TextStyle(fontSize: 12, color: Colors.grey),
+        )
+      else
+        for (final p in _proposals) ...[
+          _proposalCard(p),
+          const SizedBox(height: 8),
         ],
-      );
+    ],
+  );
 
   Widget _proposalCard(CardProposal p) => Card(
-        margin: EdgeInsets.zero,
-        child: ExpansionTile(
-          tilePadding: const EdgeInsets.symmetric(horizontal: 12),
-          childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-          title: Text(p.headline,
-              maxLines: 2,
+    margin: EdgeInsets.zero,
+    child: ExpansionTile(
+      tilePadding: const EdgeInsets.symmetric(horizontal: 12),
+      childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+      title: Text(
+        p.headline,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontSize: 13),
+      ),
+      subtitle: Row(
+        children: [
+          Expanded(
+            child: Text(
+              '${p.whenLabel}${p.model.isEmpty ? "" : "  -  ${p.model}"}',
+              maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 13)),
-          subtitle: Row(
-            children: [
-              Expanded(
-                child: Text(
-                    '${p.whenLabel}${p.model.isEmpty ? "" : "  -  ${p.model}"}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 11, color: Colors.grey)),
-              ),
-              if (p.accepted)
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.green.withValues(alpha: 0.18),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: const Text('Kabul edildi',
-                      style: TextStyle(fontSize: 10, color: Colors.green)),
-                ),
-            ],
+              style: const TextStyle(fontSize: 11, color: Colors.grey),
+            ),
           ),
+          if (p.accepted)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.green.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Text(
+                'Kabul edildi',
+                style: TextStyle(fontSize: 10, color: Colors.green),
+              ),
+            ),
+        ],
+      ),
+      children: [
+        SelectableText(p.card, style: const TextStyle(fontSize: 12)),
+        const SizedBox(height: 10),
+        Row(
           children: [
-            SelectableText(p.card, style: const TextStyle(fontSize: 12)),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: p.accepted ? null : () => _acceptProposal(p),
-                    icon: const Icon(Icons.check, size: 18),
-                    label: const Text('Kabul et'),
-                  ),
+            Expanded(
+              child: FilledButton.icon(
+                onPressed: p.accepted ? null : () => _acceptProposal(p),
+                icon: const Icon(Icons.check, size: 18),
+                label: const Text('Kabul et'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () => _deleteProposal(p),
+                icon: Icon(
+                  Icons.delete_outline,
+                  size: 18,
+                  color: AppColors.error,
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => _deleteProposal(p),
-                    icon: Icon(Icons.delete_outline,
-                        size: 18, color: AppColors.error),
-                    label: Text('Sil',
-                        style: TextStyle(color: AppColors.error)),
-                  ),
-                ),
-              ],
+                label: Text('Sil', style: TextStyle(color: AppColors.error)),
+              ),
             ),
           ],
         ),
-      );
+      ],
+    ),
+  );
 
   Future<void> _acceptProposal(CardProposal p) async {
     try {
       await CharacterFlowService.acceptProposal(_name, p.id);
       _snack('Kart kaydedildi');
-      await _load();          // karakter + oneri listesi tazelenir
+      await _load(); // karakter + oneri listesi tazelenir
     } catch (e) {
       _snack(e.toString().replaceFirst('Exception: ', ''));
     }
@@ -1594,50 +1813,59 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
   Future<void> _portraitPicker(CharacterItem it) async {
     await showModalBottomSheet<void>(
       context: context,
-      builder: (c) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Portre adaylari - dokunarak kabul et',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              SizedBox(
-                height: 150,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: it.portraits.length,
-                  separatorBuilder: (_, _) => const SizedBox(width: 8),
-                  itemBuilder: (_, i) => GestureDetector(
-                    onTap: () {
-                      Navigator.pop(c);
-                      _pickFile(it.portraits[i], 'portrait', 'Portre secildi');
-                    },
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: SizedBox(
-                        width: 150,
-                        child: ColoredBox(
-                          color: Colors.black26,
-                          child: Image.network(
-                            _thumb(it.portraits[i], size: 400),
-                            headers: CharacterFlowService.authHeaders,
-                            fit: BoxFit.contain,
-                            errorBuilder: (_, _, _) =>
-                                Container(color: Colors.white10),
+      builder:
+          (c) => SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Portre adaylari - dokunarak kabul et',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 150,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: it.portraits.length,
+                      separatorBuilder: (_, _) => const SizedBox(width: 8),
+                      itemBuilder:
+                          (_, i) => GestureDetector(
+                            onTap: () {
+                              Navigator.pop(c);
+                              _pickFile(
+                                it.portraits[i],
+                                'portrait',
+                                'Portre secildi',
+                              );
+                            },
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: SizedBox(
+                                width: 150,
+                                child: ColoredBox(
+                                  color: Colors.black26,
+                                  child: Image.network(
+                                    _thumb(it.portraits[i], size: 400),
+                                    headers: CharacterFlowService.authHeaders,
+                                    fit: BoxFit.contain,
+                                    errorBuilder:
+                                        (_, _, _) =>
+                                            Container(color: Colors.white10),
+                                  ),
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
                     ),
                   ),
-                ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
-      ),
     );
   }
 
@@ -1647,18 +1875,21 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
     if (rel == null) return;
     final ok = await showDialog<bool>(
       context: context,
-      builder: (c) => AlertDialog(
-        title: const Text('Adayi sil'),
-        content: Text('${rel.split('/').last} silinsin mi?'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(c, false),
-              child: const Text('Vazgec')),
-          FilledButton(
-              onPressed: () => Navigator.pop(c, true),
-              child: const Text('Sil')),
-        ],
-      ),
+      builder:
+          (c) => AlertDialog(
+            title: const Text('Adayi sil'),
+            content: Text('${rel.split('/').last} silinsin mi?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(c, false),
+                child: const Text('Vazgec'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(c, true),
+                child: const Text('Sil'),
+              ),
+            ],
+          ),
     );
     if (ok != true) return;
     try {
@@ -1672,46 +1903,64 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
   }
 
   Widget _portraitRow(CharacterItem it) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Row(
         children: [
-          Row(
-            children: [
-              const Expanded(
-                child: Text('Portre adaylari',
-                    style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey)),
+          const Expanded(
+            child: Text(
+              'Portre adaylari',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey,
               ),
-              // #294: dugme dar ekranda satiri tasirmasin.
-              Flexible(
-                child: OutlinedButton.icon(
-                  onPressed: () => _run(
-                      'Portre uretimi',
-                      () => CharacterFlowService.portrait(name: _name, n: _dirCount),
-                      adet: _dirCount),
-                  icon: const Icon(Icons.face_retouching_natural, size: 18),
-                  label: Text('Portre uret ($_dirCount)',
-                      maxLines: 1, overflow: TextOverflow.ellipsis),
-                ),
-              ),
-            ],
+            ),
           ),
-          const SizedBox(height: 6),
-          if (it.portraits.isEmpty)
-            const Text('Portre adayi yok.',
-                style: TextStyle(fontSize: 12, color: Colors.grey))
-          else
-            // #306: portre KARE - aday seridi de 1:1 + contain.
-            SizedBox(
-              height: 104,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: it.portraits.length,
-                separatorBuilder: (_, _) => const SizedBox(width: 8),
-                itemBuilder: (_, i) => GestureDetector(
-                  onTap: () =>
-                      _pickFile(it.portraits[i], 'portrait', 'Portre secildi'),
+          // #294: dugme dar ekranda satiri tasirmasin.
+          Flexible(
+            child: OutlinedButton.icon(
+              onPressed:
+                  () => _run(
+                    'Portre uretimi',
+                    () => CharacterFlowService.portrait(
+                      name: _name,
+                      n: _dirCount,
+                    ),
+                    adet: _dirCount,
+                  ),
+              icon: const Icon(Icons.face_retouching_natural, size: 18),
+              label: Text(
+                'Portre uret ($_dirCount)',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 6),
+      if (it.portraits.isEmpty)
+        const Text(
+          'Portre adayi yok.',
+          style: TextStyle(fontSize: 12, color: Colors.grey),
+        )
+      else
+        // #306: portre KARE - aday seridi de 1:1 + contain.
+        SizedBox(
+          height: 104,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: it.portraits.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 8),
+            itemBuilder:
+                (_, i) => GestureDetector(
+                  onTap:
+                      () => _pickFile(
+                        it.portraits[i],
+                        'portrait',
+                        'Portre secildi',
+                      ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(8),
                     child: SizedBox(
@@ -1722,116 +1971,128 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
                           _thumb(it.portraits[i], size: 400),
                           headers: CharacterFlowService.authHeaders,
                           fit: BoxFit.contain,
-                          errorBuilder: (_, _, _) =>
-                              Container(color: Colors.white10),
+                          errorBuilder:
+                              (_, _, _) => Container(color: Colors.white10),
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            ),
-        ],
-      );
+          ),
+        ),
+    ],
+  );
 
   /// #306: kutu satirdaki payini kaplar; en/boy disaridan gelir (portre 1:1,
   /// base 9:16). Gorsel `contain` cizilir - kafa/ayak kirpilmaz. Altinda
   /// ✎ Duzenle / ↻ Yeniden uret ikonlari durur (ince ayar).
-  Widget _imageBox(String baslik, String rel, double oran,
-          {VoidCallback? onEdit,
-          VoidCallback? onRefresh,
-          String previewRel = '',
-          String badge = '',
-          VoidCallback? onTap}) =>
-      Column(
-        children: [
-          GestureDetector(
-            onTap: onTap ?? (rel.isEmpty ? null : () => _big(baslik, rel)),
-            onLongPress: rel.isEmpty ? null : () => _big(baslik, rel),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: AspectRatio(
-                aspectRatio: oran,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    if (rel.isEmpty && previewRel.isEmpty)
-                      Container(
-                          color: Colors.white10,
-                          alignment: Alignment.center,
-                          child: const Text('yok',
-                              style: TextStyle(fontSize: 12, color: Colors.grey)))
-                    else
-                      ColoredBox(
-                        color: Colors.black26,
-                        // #309: kabul edilmemis aday soluk gosterilir.
-                        child: Opacity(
-                          opacity: rel.isEmpty ? 0.55 : 1,
-                          child: Image.network(
-                            _thumb(rel.isEmpty ? previewRel : rel, size: 600),
-                            headers: CharacterFlowService.authHeaders,
-                            fit: BoxFit.contain,
-                            errorBuilder: (_, _, _) =>
-                                Container(color: Colors.white10),
-                          ),
+  Widget _imageBox(
+    String baslik,
+    String rel,
+    double oran, {
+    VoidCallback? onEdit,
+    VoidCallback? onRefresh,
+    String previewRel = '',
+    String badge = '',
+    VoidCallback? onTap,
+  }) => Column(
+    children: [
+      GestureDetector(
+        onTap: onTap ?? (rel.isEmpty ? null : () => _big(baslik, rel)),
+        onLongPress: rel.isEmpty ? null : () => _big(baslik, rel),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: AspectRatio(
+            aspectRatio: oran,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                if (rel.isEmpty && previewRel.isEmpty)
+                  Container(
+                    color: Colors.white10,
+                    alignment: Alignment.center,
+                    child: const Text(
+                      'yok',
+                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                  )
+                else
+                  ColoredBox(
+                    color: Colors.black26,
+                    // #309: kabul edilmemis aday soluk gosterilir.
+                    child: Opacity(
+                      opacity: rel.isEmpty ? 0.55 : 1,
+                      child: Image.network(
+                        _thumb(rel.isEmpty ? previewRel : rel, size: 600),
+                        headers: CharacterFlowService.authHeaders,
+                        fit: BoxFit.contain,
+                        errorBuilder:
+                            (_, _, _) => Container(color: Colors.white10),
+                      ),
+                    ),
+                  ),
+                if (badge.isNotEmpty)
+                  Positioned(
+                    left: 4,
+                    top: 4,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade800,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        badge,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: Colors.white,
                         ),
                       ),
-                    if (badge.isNotEmpty)
-                      Positioned(
-                        left: 4,
-                        top: 4,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: Colors.orange.shade800,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(badge,
-                              style: const TextStyle(
-                                  fontSize: 10, color: Colors.white)),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
+                    ),
+                  ),
+              ],
             ),
           ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Flexible(
-                child: Text(baslik,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 11, color: Colors.grey)),
-              ),
-              if (onEdit != null)
-                IconButton(
-                  tooltip: 'Duzenle (prompt ile)',
-                  onPressed: onEdit,
-                  icon: const Icon(Icons.edit_outlined),
-                  iconSize: 18,
-                  padding: EdgeInsets.zero,
-                  visualDensity: VisualDensity.compact,
-                  constraints:
-                      const BoxConstraints.tightFor(width: 28, height: 28),
-                ),
-              if (onRefresh != null)
-                IconButton(
-                  tooltip: 'Yeniden uret',
-                  onPressed: onRefresh,
-                  icon: const Icon(Icons.refresh),
-                  iconSize: 18,
-                  padding: EdgeInsets.zero,
-                  visualDensity: VisualDensity.compact,
-                  constraints:
-                      const BoxConstraints.tightFor(width: 28, height: 28),
-                ),
-            ],
+        ),
+      ),
+      Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Flexible(
+            child: Text(
+              baslik,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 11, color: Colors.grey),
+            ),
           ),
+          if (onEdit != null)
+            IconButton(
+              tooltip: 'Duzenle (prompt ile)',
+              onPressed: onEdit,
+              icon: const Icon(Icons.edit_outlined),
+              iconSize: 18,
+              padding: EdgeInsets.zero,
+              visualDensity: VisualDensity.compact,
+              constraints: const BoxConstraints.tightFor(width: 28, height: 28),
+            ),
+          if (onRefresh != null)
+            IconButton(
+              tooltip: 'Yeniden uret',
+              onPressed: onRefresh,
+              icon: const Icon(Icons.refresh),
+              iconSize: 18,
+              padding: EdgeInsets.zero,
+              visualDensity: VisualDensity.compact,
+              constraints: const BoxConstraints.tightFor(width: 28, height: 28),
+            ),
         ],
-      );
+      ),
+    ],
+  );
 
   Widget _candidateTile(String rel) {
     final on = _candidate == rel;
@@ -1841,8 +2102,10 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(10),
-          border:
-              Border.all(color: on ? AppColors.accent : Colors.transparent, width: 3),
+          border: Border.all(
+            color: on ? AppColors.accent : Colors.transparent,
+            width: 3,
+          ),
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(8),
@@ -1865,9 +2128,10 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                      fontSize: 9,
-                      color: Colors.white,
-                      shadows: [Shadow(blurRadius: 3, color: Colors.black)]),
+                    fontSize: 9,
+                    color: Colors.white,
+                    shadows: [Shadow(blurRadius: 3, color: Colors.black)],
+                  ),
                 ),
               ),
             ],
@@ -1882,15 +2146,22 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
   Future<void> _pickBase() async {
     final f = _candidate;
     if (f == null) return;
-    await _pickFile(f, 'base', 'Base secildi - portre, hikaye ve yonler yenileniyor');
+    await _pickFile(
+      f,
+      'base',
+      'Base secildi - portre, hikaye ve yonler yenileniyor',
+    );
   }
 
   Future<void> _pickFile(String rel, String kind, String mesaj) async {
     try {
-      final op =
-          await CharacterFlowService.pick(name: _name, file: rel, kind: kind);
+      final op = await CharacterFlowService.pick(
+        name: _name,
+        file: rel,
+        kind: kind,
+      );
       _snack(mesaj);
-      if (op.isNotEmpty) _watch(op);   // #306: pick op dondurur
+      if (op.isNotEmpty) _watch(op); // #306: pick op dondurur
       _load();
     } catch (e) {
       _snack(e.toString().replaceFirst('Exception: ', ''));
@@ -1914,40 +2185,49 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
   Future<void> _edit(String target, String baslik) async {
     final p = await editPromptDialog(context, baslik);
     if (p == null) return;
-    await _run('$baslik duzenleme',
-        () => CharacterFlowService.edit(name: _name, target: target, prompt: p),
-        adet: 1);
+    await _run(
+      '$baslik duzenleme',
+      () => CharacterFlowService.edit(name: _name, target: target, prompt: p),
+      adet: 1,
+    );
   }
 
   /// #299: 2 oneri uretir. Pop-up YOKTUR - is sunucu sirasina girer, op
   /// cubugu ustte doner, biten oneriler asagidaki listeye duser.
-  Future<void> _enrichCard() =>
-      _run('Hikaye onerisi', () => CharacterFlowService.enrichCard(_name, n: 2),
-          adet: 2);
+  Future<void> _enrichCard() => _run(
+    'Hikaye onerisi',
+    () => CharacterFlowService.enrichCard(_name, n: 2),
+    adet: 2,
+  );
 
   Future<void> _cardDialog(String baslik, String metin) async {
     final ctl = TextEditingController(text: metin);
     final yeni = await showDialog<String>(
       context: context,
-      builder: (c) => AlertDialog(
-        // 16 satirlik metin kutusu klavye acikken sigmiyordu (gorev #289).
-        scrollable: true,
-        title: Text(baslik),
-        content: SizedBox(
-          width: 520,
-          child: TextField(
-            controller: ctl,
-            maxLines: 16,
-            decoration: const InputDecoration(border: OutlineInputBorder()),
+      builder:
+          (c) => AlertDialog(
+            // 16 satirlik metin kutusu klavye acikken sigmiyordu (gorev #289).
+            scrollable: true,
+            title: Text(baslik),
+            content: SizedBox(
+              width: 520,
+              child: TextField(
+                controller: ctl,
+                maxLines: 16,
+                decoration: const InputDecoration(border: OutlineInputBorder()),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(c),
+                child: const Text('Vazgec'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(c, ctl.text),
+                child: const Text('Kaydet'),
+              ),
+            ],
           ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Vazgec')),
-          FilledButton(
-              onPressed: () => Navigator.pop(c, ctl.text),
-              child: const Text('Kaydet')),
-        ],
-      ),
     );
     if (yeni == null) return;
     try {
@@ -1966,24 +2246,34 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
     final eksik = _dirs.where((d) => it.dirs[d.id] != true).toList();
     return ListView(
       // Tam ekran route, alt cubuk yok: sistem gezinme cubugunu ekle (#289).
-      padding: bottomSafePadding(context,
-          left: 12, top: 12, right: 12, bottom: 12),
+      padding: bottomSafePadding(
+        context,
+        left: 12,
+        top: 12,
+        right: 12,
+        bottom: 12,
+      ),
       children: [
         _countSlider('Aday'),
         FilledButton.icon(
-          onPressed: eksik.isEmpty
-              ? null
-              : () => _run(
-                  'Yon uretimi',
-                  () => CharacterFlowService.dirs(
+          onPressed:
+              eksik.isEmpty
+                  ? null
+                  : () => _run(
+                    'Yon uretimi',
+                    () => CharacterFlowService.dirs(
                       name: _name,
                       dirs: eksik.map((d) => d.id).toList(),
-                      n: _dirCount),
-                  adet: eksik.length * _dirCount),
+                      n: _dirCount,
+                    ),
+                    adet: eksik.length * _dirCount,
+                  ),
           icon: const Icon(Icons.blur_circular, size: 18),
-          label: Text(eksik.isEmpty
-              ? 'Butun yonler secili'
-              : 'Eksikleri uret (${eksik.length} yon x $_dirCount)'),
+          label: Text(
+            eksik.isEmpty
+                ? 'Butun yonler secili'
+                : 'Eksikleri uret (${eksik.length} yon x $_dirCount)',
+          ),
           style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(44)),
         ),
         const SizedBox(height: 10),
@@ -2028,11 +2318,13 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
         kullanilan.add(id);
         hucreler.add(_dirCell(it, d, cellW));
       }
-      satirlar.add(Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: hucreler,
-      ));
+      satirlar.add(
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: hucreler,
+        ),
+      );
     }
     // Tanimadigimiz bir yon gelirse izgaranin altina sarar - kaybolmasin.
     final ekstra = _dirs.where((d) => !kullanilan.contains(d.id)).toList();
@@ -2057,16 +2349,22 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
     final adaylar = it.dirCandidates[d.id] ?? const <String>[];
     // #300: kabul edilmemis yonde EN YENI aday soluk gosterilir + "N aday"
     // rozeti; dokunma aday secicisini acar.
-    final String? url = kabul
-        ? _thumb(it.dirFiles[d.id] ?? CharacterFlowService.baseDirRel(d.id),
-            size: 600)
-        : (adaylar.isEmpty ? null : _thumb(adaylar.last, size: 600));
+    final String? url =
+        kabul
+            ? _thumb(
+              it.dirFiles[d.id] ?? CharacterFlowService.baseDirRel(d.id),
+              size: 600,
+            )
+            : (adaylar.isEmpty ? null : _thumb(adaylar.last, size: 600));
     return _ThumbCell(
       label: d.label,
       url: url,
       accepted: kabul,
       dimmed: !kabul && adaylar.isNotEmpty,
-      badge: (!kabul && adaylar.isNotEmpty) ? '${adaylar.length} aday - sec' : null,
+      badge:
+          (!kabul && adaylar.isNotEmpty)
+              ? '${adaylar.length} aday - sec'
+              : null,
       width: cellW,
       thumbHeight: cellW * 16 / 9,
       // #306: bu sekmede animasyon yok - onAnim/onMixamo verilmez.
@@ -2074,13 +2372,19 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
       onLongPress: () => _dirBig(it, d),
       // #306 ince ayar: S (South) base'in kendisidir, hedefi `base` olur.
       onEdit: () => _edit(d.id == 'front' ? 'base' : 'dir:${d.id}', d.label),
-      onRefresh: d.id == 'front'
-          ? () => _snack('S (South) base\'in kendisidir - 1. sekmeden secilir')
-          : () => _run(
-              '${d.label} uretimi',
-              () => CharacterFlowService.dirs(
-                  name: _name, dirs: [d.id], n: _dirCount),
-              adet: _dirCount),
+      onRefresh:
+          d.id == 'front'
+              ? () =>
+                  _snack('S (South) base\'in kendisidir - 1. sekmeden secilir')
+              : () => _run(
+                '${d.label} uretimi',
+                () => CharacterFlowService.dirs(
+                  name: _name,
+                  dirs: [d.id],
+                  n: _dirCount,
+                ),
+                adet: _dirCount,
+              ),
       onDelete: () => _deleteDir(d.id, d.label),
     );
   }
@@ -2101,87 +2405,108 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (c) => SafeArea(
-        // 240px onizleme + 150px aday seridi yatay ekranda tasiyordu (#289).
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('${d.label}  (${d.azimuth} derece)',
-                    style:
-                        const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                if (kabul)
-                  // #292: onizleme de kirpilmasin - contain.
-                  SizedBox(
-                    height: 300,
-                    width: double.infinity,
-                    child: Image.network(
-                      _file(it.dirFiles[d.id] ??
-                          CharacterFlowService.baseDirRel(d.id)),
-                      headers: CharacterFlowService.authHeaders,
-                      fit: BoxFit.contain,
-                      errorBuilder: (_, _, _) => const SizedBox(height: 120),
-                    ),
-                  ),
-                const SizedBox(height: 8),
-                if (d.id == 'front')
-                  const Text(
-                      'S (South) base\'in kendisidir - 1. sekmeden secilir.',
-                      style: TextStyle(fontSize: 12, color: Colors.grey))
-                else if (adaylar.isEmpty)
-                  const Text('Aday yok - yenile ikonuyla uret.',
-                      style: TextStyle(fontSize: 12, color: Colors.grey))
-                else ...[
-                  const Text('Adaylar - dokunarak kabul et',
-                      style: TextStyle(fontSize: 12, color: Colors.grey)),
-                  const SizedBox(height: 6),
-                  // #292: aday seridi 9:16 + contain.
-                  SizedBox(
-                    height: 176,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: adaylar.length,
-                      separatorBuilder: (_, _) => const SizedBox(width: 8),
-                      itemBuilder: (_, i) => GestureDetector(
-                        onTap: () {
-                          Navigator.pop(c);
-                          _pickFile(adaylar[i], 'dir:${d.id}',
-                              '${d.label} kabul edildi');
-                        },
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: SizedBox(
-                            width: 99,
-                            child: ColoredBox(
-                              color: Colors.black26,
-                              child: Image.network(
-                                _thumb(adaylar[i], size: 400),
-                                headers: CharacterFlowService.authHeaders,
-                                fit: BoxFit.contain,
-                                errorBuilder: (_, _, _) =>
-                                    Container(color: Colors.white10),
-                              ),
-                            ),
-                          ),
-                        ),
+      builder:
+          (c) => SafeArea(
+            // 240px onizleme + 150px aday seridi yatay ekranda tasiyordu (#289).
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${d.label}  (${d.azimuth} derece)',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                  ),
-                ],
-              ],
+                    const SizedBox(height: 8),
+                    if (kabul)
+                      // #292: onizleme de kirpilmasin - contain.
+                      SizedBox(
+                        height: 300,
+                        width: double.infinity,
+                        child: Image.network(
+                          _file(
+                            it.dirFiles[d.id] ??
+                                CharacterFlowService.baseDirRel(d.id),
+                          ),
+                          headers: CharacterFlowService.authHeaders,
+                          fit: BoxFit.contain,
+                          errorBuilder:
+                              (_, _, _) => const SizedBox(height: 120),
+                        ),
+                      ),
+                    const SizedBox(height: 8),
+                    if (d.id == 'front')
+                      const Text(
+                        'S (South) base\'in kendisidir - 1. sekmeden secilir.',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      )
+                    else if (adaylar.isEmpty)
+                      const Text(
+                        'Aday yok - yenile ikonuyla uret.',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      )
+                    else ...[
+                      const Text(
+                        'Adaylar - dokunarak kabul et',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                      const SizedBox(height: 6),
+                      // #292: aday seridi 9:16 + contain.
+                      SizedBox(
+                        height: 176,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: adaylar.length,
+                          separatorBuilder: (_, _) => const SizedBox(width: 8),
+                          itemBuilder:
+                              (_, i) => GestureDetector(
+                                onTap: () {
+                                  Navigator.pop(c);
+                                  _pickFile(
+                                    adaylar[i],
+                                    'dir:${d.id}',
+                                    '${d.label} kabul edildi',
+                                  );
+                                },
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: SizedBox(
+                                    width: 99,
+                                    child: ColoredBox(
+                                      color: Colors.black26,
+                                      child: Image.network(
+                                        _thumb(adaylar[i], size: 400),
+                                        headers:
+                                            CharacterFlowService.authHeaders,
+                                        fit: BoxFit.contain,
+                                        errorBuilder:
+                                            (_, _, _) => Container(
+                                              color: Colors.white10,
+                                            ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
             ),
           ),
-        ),
-      ),
     );
   }
 
   Future<void> _deleteDir(String dir, String ad) async {
-    if (!await _confirm('$ad sil', '$ad gorseli silinecek. Adaylar kalir.')) return;
+    if (!await _confirm('$ad sil', '$ad gorseli silinecek. Adaylar kalir.'))
+      return;
     try {
       await CharacterFlowService.deleteDir(name: _name, dir: dir);
       _snack('$ad silindi');
@@ -2199,18 +2524,26 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
   Widget _tabSkinler(CharacterItem it) {
     final skinler = _skinList;
     return ListView(
-      padding: bottomSafePadding(context,
-          left: 12, top: 12, right: 12, bottom: 12),
+      padding: bottomSafePadding(
+        context,
+        left: 12,
+        top: 12,
+        right: 12,
+        bottom: 12,
+      ),
       children: [
         const Text(
-            'Base + skinler. Yeni skin 3 Gardirop sekmesinden uretilir '
-            '(yalniz South); yonler skinin sayfasindaki "Eksikleri uret" ile '
-            'South\'tan uretilir. Animasyon skin ustunde yapilir.',
-            style: TextStyle(fontSize: 11, color: Colors.grey)),
+          'Base + skinler. Yeni skin 3 Gardirop sekmesinden uretilir '
+          '(yalniz South); yonler skinin sayfasindaki "Eksikleri uret" ile '
+          'South\'tan uretilir. Animasyon skin ustunde yapilir.',
+          style: TextStyle(fontSize: 11, color: Colors.grey),
+        ),
         const SizedBox(height: 12),
         if (skinler.isEmpty)
-          const Text('Skin yok.',
-              style: TextStyle(fontSize: 12, color: Colors.grey))
+          const Text(
+            'Skin yok.',
+            style: TextStyle(fontSize: 12, color: Colors.grey),
+          )
         else
           for (final s in skinler) ...[
             _skinCard(it, s),
@@ -2226,33 +2559,48 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
   Widget _tabGardirop(CharacterItem it) {
     final hazir = _kindOutfits;
     final hedef = _chars.where((c) => c.name == _equipTarget).firstOrNull;
-    final baseUrl = hedef == null
-        ? (it.southThumb.isEmpty ? '' : _thumb(it.southThumb, size: 300))
-        : (hedef.southThumb.isEmpty
-            ? ''
-            : CharacterFlowService.thumbUrl(hedef.name, hedef.southThumb,
-                size: 300, v: hedef.rev));
+    final baseUrl =
+        hedef == null
+            ? (it.southThumb.isEmpty ? '' : _thumb(it.southThumb, size: 300))
+            : (hedef.southThumb.isEmpty
+                ? ''
+                : CharacterFlowService.thumbUrl(
+                  hedef.name,
+                  hedef.southThumb,
+                  size: 300,
+                  v: hedef.rev,
+                ));
     final n = (_equip.set.isEmpty ? 0 : 1) + _equip.pieces.length;
     return ListView(
-      padding: bottomSafePadding(context,
-          left: 12, top: 12, right: 12, bottom: 12),
+      padding: bottomSafePadding(
+        context,
+        left: 12,
+        top: 12,
+        right: 12,
+        bottom: 12,
+      ),
       children: [
         Row(
           children: [
             Expanded(
               child: Text(
-                  'Giydirme - ${CharacterFlowService.kindLabel(_kind)}',
-                  style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey)),
+                'Giydirme - ${CharacterFlowService.kindLabel(_kind)}',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey,
+                ),
+              ),
             ),
             Flexible(
               child: OutlinedButton.icon(
                 onPressed: _newOutfit,
                 icon: const Icon(Icons.add_photo_alternate_outlined, size: 18),
-                label: const Text('+ Kiyafet uret',
-                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                label: const Text(
+                  '+ Kiyafet uret',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ),
           ],
@@ -2261,9 +2609,7 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
         EquipPanel(
           outfits: hazir,
           selection: _equip,
-          characters: _chars.isEmpty
-              ? [if (_item != null) _item!]
-              : _chars,
+          characters: _chars.isEmpty ? [if (_item != null) _item!] : _chars,
           selectedName: _equipTarget.isEmpty ? _name : _equipTarget,
           onCharacter: (v) => setState(() => _equipTarget = v),
           baseThumbUrl: baseUrl,
@@ -2277,10 +2623,14 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
               child: FilledButton.icon(
                 onPressed: _equip.isEmpty ? null : _makeSkinFromEquip,
                 icon: const Icon(Icons.checkroom, size: 18),
-                label: Text(n == 0 ? 'Skin uret (South)' : 'Skin uret (South, $n is)',
-                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                label: Text(
+                  n == 0 ? 'Skin uret (South)' : 'Skin uret (South, $n is)',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
                 style: FilledButton.styleFrom(
-                    minimumSize: const Size.fromHeight(44)),
+                  minimumSize: const Size.fromHeight(44),
+                ),
               ),
             ),
             const SizedBox(width: 8),
@@ -2289,48 +2639,66 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
               child: OutlinedButton.icon(
                 onPressed: _extractFromWardrobe,
                 icon: const Icon(Icons.content_cut, size: 16),
-                label: const Text('Kiyafet cikar',
-                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                label: const Text(
+                  'Kiyafet cikar',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
                 style: OutlinedButton.styleFrom(
-                    minimumSize: const Size.fromHeight(44)),
+                  minimumSize: const Size.fromHeight(44),
+                ),
               ),
             ),
           ],
         ),
         const SizedBox(height: 4),
         Text(
-            'Yuvaya dokun: kiyafet sec - basili tut: buyut. Skin uret = secili '
-            'base + giyilenlerle yeni skinin South\'u (yalniz South; yonler '
-            'skin sayfasindan). Skin, base secicideki karakterin olur.',
-            style: const TextStyle(fontSize: 11, color: Colors.grey)),
+          'Yuvaya dokun: kiyafet sec - basili tut: buyut. Skin uret = secili '
+          'base + giyilenlerle yeni skinin South\'u (yalniz South; yonler '
+          'skin sayfasindan). Skin, base secicideki karakterin olur.',
+          style: const TextStyle(fontSize: 11, color: Colors.grey),
+        ),
         const SizedBox(height: 12),
-        Text('Gardirop - ${hazir.length} kiyafet',
-            style: const TextStyle(
-                fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+        Text(
+          'Gardirop - ${hazir.length} kiyafet',
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: Colors.grey,
+          ),
+        ),
         const SizedBox(height: 4),
         _outfitCategoryChips(),
         const SizedBox(height: 4),
         if (_outfitsLoading && _outfits.isEmpty)
           const SizedBox(
-              height: 40, child: Center(child: CircularProgressIndicator()))
+            height: 40,
+            child: Center(child: CircularProgressIndicator()),
+          )
         else if (hazir.isEmpty)
           Text(
-              'Bu turde (${CharacterFlowService.kindLabel(_kind)}) kiyafet '
-              'yok - "+ Kiyafet uret" ya da "Kiyafet cikar".',
-              style: const TextStyle(fontSize: 12, color: Colors.grey))
+            'Bu turde (${CharacterFlowService.kindLabel(_kind)}) kiyafet '
+            'yok - "+ Kiyafet uret" ya da "Kiyafet cikar".',
+            style: const TextStyle(fontSize: 12, color: Colors.grey),
+          )
         else if (_visibleOutfits.isEmpty)
           Text(
-              '"${CharacterFlowService.categoryLabel(_outfitCat)}" '
-              'kategorisinde kiyafet yok.',
-              style: const TextStyle(fontSize: 12, color: Colors.grey))
+            '"${CharacterFlowService.categoryLabel(_outfitCat)}" '
+            'kategorisinde kiyafet yok.',
+            style: const TextStyle(fontSize: 12, color: Colors.grey),
+          )
         else
           OutfitCatalogGrid(
             outfits: _visibleOutfits,
             shrinkWrap: true,
             selected: (o) => _equip.of(o.category).contains(o.slug),
-            onTap: (o) => o.ready
-                ? _outfitMenu(o)
-                : _snack('Kiyafet henuz hazir degil - kuyrukta ya da uretim basarisiz'),
+            onTap:
+                (o) =>
+                    o.ready
+                        ? _outfitMenu(o)
+                        : _snack(
+                          'Kiyafet henuz hazir degil - kuyrukta ya da uretim basarisiz',
+                        ),
             onLongPress: (o) => showOutfitPreview(context, o),
           ),
       ],
@@ -2347,46 +2715,53 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
     final ad = TextEditingController();
     final ok = await showDialog<bool>(
       context: context,
-      builder: (c) => AlertDialog(
-        title: Text('$hedef icin skin uret'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            TextField(
-              controller: ad,
-              autofocus: true,
-              decoration: const InputDecoration(
-                  labelText: 'Skin adi (bos: setten / parcalardan turetilir)',
-                  hintText: 'orn. Kirmizi savasci'),
+      builder:
+          (c) => AlertDialog(
+            title: Text('$hedef icin skin uret'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: ad,
+                  autofocus: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Skin adi (bos: setten / parcalardan turetilir)',
+                    hintText: 'orn. Kirmizi savasci',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'base + ${[if (_equip.set.isNotEmpty) 'set ${_outfitOf(_equip.set)?.name ?? _equip.set}', for (final p in _equip.pieces) _outfitOf(p)?.name ?? p].join(" + ")}',
+                  style: const TextStyle(fontSize: 11, color: Colors.grey),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            Text(
-                'base + ${[
-                  if (_equip.set.isNotEmpty) 'set ${_outfitOf(_equip.set)?.name ?? _equip.set}',
-                  for (final p in _equip.pieces) _outfitOf(p)?.name ?? p,
-                ].join(" + ")}',
-                style: const TextStyle(fontSize: 11, color: Colors.grey)),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Vazgec')),
-          FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Uret')),
-        ],
-      ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(c, false),
+                child: const Text('Vazgec'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(c, true),
+                child: const Text('Uret'),
+              ),
+            ],
+          ),
     );
     if (ok != true || !mounted) return;
     final n = (_equip.set.isEmpty ? 0 : 1) + _equip.pieces.length;
     await _run(
-        '${ad.text.trim().isEmpty ? "Skin" : ad.text.trim()} ($hedef, South)',
-        () async => (await CharacterFlowService.skinCreate(
-              hedef,
-              skinName: ad.text.trim(),
-              outfit: _equip.set,
-              pieces: _equip.pieces,
-            ))
-                .op,
-        adet: n);
+      '${ad.text.trim().isEmpty ? "Skin" : ad.text.trim()} ($hedef, South)',
+      () async =>
+          (await CharacterFlowService.skinCreate(
+            hedef,
+            skinName: ad.text.trim(),
+            outfit: _equip.set,
+            pieces: _equip.pieces,
+          )).op,
+      adet: n,
+    );
     if (hedef != _name) {
       _snack('Skin $hedef karakterine yaziliyor - onun sayfasinda gorunur');
     }
@@ -2399,21 +2774,26 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
     final secim = await showOutfitExtractDialog(context, kind: _kind);
     if (secim == null || !mounted) return;
     await _run(
-        '${secim.name} cikarma',
-        () => CharacterFlowService.outfitExtract(
-            name: secim.name,
-            category: secim.category,
-            kind: secim.kind,
-            jobId: j.id,
-            note: secim.note),
-        adet: 1);
+      '${secim.name} cikarma',
+      () => CharacterFlowService.outfitExtract(
+        name: secim.name,
+        category: secim.category,
+        kind: secim.kind,
+        jobId: j.id,
+        note: secim.note,
+      ),
+      adet: 1,
+    );
   }
 
   Widget _skinCard(CharacterItem it, SkinItem s) {
     final (animOk, animTotal) = s.animProgress;
-    final rel = s.south.isNotEmpty
-        ? s.south
-        : (s.isBase ? it.southThumb : CharacterFlowService.skinDirRel(s.slug, 'front'));
+    final rel =
+        s.south.isNotEmpty
+            ? s.south
+            : (s.isBase
+                ? it.southThumb
+                : CharacterFlowService.skinDirRel(s.slug, 'front'));
     final rev = s.rev > 0 ? s.rev : it.rev;
     return Card(
       margin: EdgeInsets.zero,
@@ -2431,22 +2811,30 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
                 child: SizedBox(
                   width: 66,
                   height: 117,
-                  child: rel.isEmpty
-                      ? Container(
-                          color: Colors.white10,
-                          child:
-                              const Icon(Icons.checkroom, color: Colors.grey))
-                      : ColoredBox(
-                          color: Colors.black26,
-                          child: Image.network(
-                            CharacterFlowService.thumbUrl(_name, rel,
-                                size: 300, v: rev),
-                            headers: CharacterFlowService.authHeaders,
-                            fit: BoxFit.contain,
-                            errorBuilder: (_, _, _) =>
-                                Container(color: Colors.white10),
+                  child:
+                      rel.isEmpty
+                          ? Container(
+                            color: Colors.white10,
+                            child: const Icon(
+                              Icons.checkroom,
+                              color: Colors.grey,
+                            ),
+                          )
+                          : ColoredBox(
+                            color: Colors.black26,
+                            child: Image.network(
+                              CharacterFlowService.thumbUrl(
+                                _name,
+                                rel,
+                                size: 300,
+                                v: rev,
+                              ),
+                              headers: CharacterFlowService.authHeaders,
+                              fit: BoxFit.contain,
+                              errorBuilder:
+                                  (_, _, _) => Container(color: Colors.white10),
+                            ),
                           ),
-                        ),
                 ),
               ),
               const SizedBox(width: 10),
@@ -2454,27 +2842,33 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(s.isBase ? 'Base' : s.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.bold)),
                     Text(
-                        s.isBase
-                            ? 'notr set - bikini / ic camasiri'
-                            : (s.prompt.isNotEmpty
-                                ? s.prompt
-                                : 'kiyafet: ${s.outfitSlug.isEmpty ? s.slug : s.outfitSlug}'),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                      s.isBase ? 'Base' : s.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      s.isBase
+                          ? 'notr set - bikini / ic camasiri'
+                          : (s.prompt.isNotEmpty
+                              ? s.prompt
+                              : 'kiyafet: ${s.outfitSlug.isEmpty ? s.slug : s.outfitSlug}'),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 11, color: Colors.grey),
+                    ),
                     // #313: parca kombinasyonundan uretilmis skinde parcalar.
                     if (s.pieces.isNotEmpty)
-                      Text(_piecesLabel(s.pieces),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              fontSize: 11, color: AppColors.accent)),
+                      Text(
+                        _piecesLabel(s.pieces),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 11, color: AppColors.accent),
+                      ),
                     const SizedBox(height: 6),
                     dirCompass(
                       _dirs,
@@ -2491,9 +2885,13 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
                           'klip ${s.clipCount}',
                           'anim $animOk/$animTotal',
                         ])
-                          Text(t,
-                              style: const TextStyle(
-                                  fontSize: 11, color: Colors.grey)),
+                          Text(
+                            t,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey,
+                            ),
+                          ),
                       ],
                     ),
                   ],
@@ -2508,18 +2906,21 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
   }
 
   Future<void> _openSkin(SkinItem s) async {
-    await Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => SkinDetailPage(
-        name: _name,
-        initial: s,
-        dirs: _dirs,
-        kind: _kind,                         // #334
-        padding: _item?.padding ?? 0,
-        // #314: hayvan/makine turunde `mixamo` yoktur - manken/Mixamo
-        // dugmeleri ve paneli gizlenir, i2v kalir.
-        animModes: _item?.animModes ?? const ['i2v', 'mixamo'],
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder:
+            (_) => SkinDetailPage(
+              name: _name,
+              initial: s,
+              dirs: _dirs,
+              kind: _kind, // #334
+              padding: _item?.padding ?? 0,
+              // #314: hayvan/makine turunde `mixamo` yoktur - manken/Mixamo
+              // dugmeleri ve paneli gizlenir, i2v kalir.
+              animModes: _item?.animModes ?? const ['i2v', 'mixamo'],
+            ),
       ),
-    ));
+    );
     _load();
   }
 
@@ -2527,81 +2928,91 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
   /// Kiyafet seridi: karakterden BAGIMSIZ kutuphane. Dokunma = o kiyafetten
   /// skin uret; basili tutma = skin uret / duzenle / sil menusu.
   Widget _outfitCategoryChips() => SizedBox(
-        height: 34,
-        child: ListView(
-          scrollDirection: Axis.horizontal,
-          children: [
-            for (final k in [
-              const {'id': '', 'label': 'Hepsi'},
-              ...CharacterFlowService.defaultOutfitCategories,
-            ])
-              Padding(
-                padding: const EdgeInsets.only(right: 6),
-                child: ChoiceChip(
-                  label: Text('${k['label']}',
-                      style: const TextStyle(fontSize: 11)),
-                  visualDensity: VisualDensity.compact,
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  selected: _outfitCat == k['id'],
-                  onSelected: (_) =>
-                      setState(() => _outfitCat = '${k['id']}'),
-                ),
+    height: 34,
+    child: ListView(
+      scrollDirection: Axis.horizontal,
+      children: [
+        for (final k in [
+          const {'id': '', 'label': 'Hepsi'},
+          ...CharacterFlowService.defaultOutfitCategories,
+        ])
+          Padding(
+            padding: const EdgeInsets.only(right: 6),
+            child: ChoiceChip(
+              label: Text(
+                '${k['label']}',
+                style: const TextStyle(fontSize: 11),
               ),
-          ],
-        ),
-      );
+              visualDensity: VisualDensity.compact,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              selected: _outfitCat == k['id'],
+              onSelected: (_) => setState(() => _outfitCat = '${k['id']}'),
+            ),
+          ),
+      ],
+    ),
+  );
 
   /// Basili tutma menusu - skin uret / duzenle / sil.
   Future<void> _outfitMenu(OutfitItem o) async {
     final secim = await showModalBottomSheet<String>(
       context: context,
-      builder: (c) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              title: Text(o.name),
-              subtitle: Text(o.prompt.isEmpty ? o.slug : o.prompt,
-                  maxLines: 3, style: const TextStyle(fontSize: 11)),
+      builder:
+          (c) => SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  title: Text(o.name),
+                  subtitle: Text(
+                    o.prompt.isEmpty ? o.slug : o.prompt,
+                    maxLines: 3,
+                    style: const TextStyle(fontSize: 11),
+                  ),
+                ),
+                const Divider(height: 1),
+                // #331: giydirme yuvasina tak / cikar.
+                ListTile(
+                  leading: Icon(
+                    _equip.of(o.category).contains(o.slug)
+                        ? Icons.remove_circle_outline
+                        : Icons.add_circle_outline,
+                  ),
+                  title: Text(
+                    _equip.of(o.category).contains(o.slug)
+                        ? 'Yuvadan cikar (${CharacterFlowService.categoryLabel(o.category)})'
+                        : 'Giydir - ${CharacterFlowService.categoryLabel(o.category)} yuvasi',
+                  ),
+                  onTap: () => Navigator.pop(c, 'equip'),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.zoom_in),
+                  title: const Text('Buyut'),
+                  onTap: () => Navigator.pop(c, 'preview'),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.checkroom),
+                  // #313: set = dogrudan skin, parca = birlestirici.
+                  title: Text(
+                    o.category == 'set'
+                        ? 'Bu setten skin uret (South)'
+                        : 'Bu parcayla skin uret (birlestirici)',
+                  ),
+                  onTap: () => Navigator.pop(c, 'skin'),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.edit_outlined),
+                  title: const Text('Duzenle (prompt ile)'),
+                  onTap: () => Navigator.pop(c, 'edit'),
+                ),
+                ListTile(
+                  leading: Icon(Icons.delete_outline, color: AppColors.error),
+                  title: Text('Sil', style: TextStyle(color: AppColors.error)),
+                  onTap: () => Navigator.pop(c, 'delete'),
+                ),
+              ],
             ),
-            const Divider(height: 1),
-            // #331: giydirme yuvasina tak / cikar.
-            ListTile(
-              leading: Icon(
-                  _equip.of(o.category).contains(o.slug)
-                      ? Icons.remove_circle_outline
-                      : Icons.add_circle_outline),
-              title: Text(_equip.of(o.category).contains(o.slug)
-                  ? 'Yuvadan cikar (${CharacterFlowService.categoryLabel(o.category)})'
-                  : 'Giydir - ${CharacterFlowService.categoryLabel(o.category)} yuvasi'),
-              onTap: () => Navigator.pop(c, 'equip'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.zoom_in),
-              title: const Text('Buyut'),
-              onTap: () => Navigator.pop(c, 'preview'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.checkroom),
-              // #313: set = dogrudan skin, parca = birlestirici.
-              title: Text(o.category == 'set'
-                  ? 'Bu setten skin uret (South)'
-                  : 'Bu parcayla skin uret (birlestirici)'),
-              onTap: () => Navigator.pop(c, 'skin'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.edit_outlined),
-              title: const Text('Duzenle (prompt ile)'),
-              onTap: () => Navigator.pop(c, 'edit'),
-            ),
-            ListTile(
-              leading: Icon(Icons.delete_outline, color: AppColors.error),
-              title: Text('Sil', style: TextStyle(color: AppColors.error)),
-              onTap: () => Navigator.pop(c, 'delete'),
-            ),
-          ],
-        ),
-      ),
+          ),
     );
     if (secim == 'equip') {
       setState(() => _equip.toggle(o.category, o.slug));
@@ -2636,7 +3047,7 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
     var hot = false;
     var sablon = '';
     var kategori = _outfitCat.isEmpty ? 'set' : _outfitCat;
-    var tur = _kind;                    // #314: varsayilan karakterin turu
+    var tur = _kind; // #314: varsayilan karakterin turu
     // #314: pencerede tur degistirilebildigi icin sablonlar TUM turler icin
     // cekilir (`kind: ''` = hepsi) ve asagida tur + kategoriye gore suzulur.
     final veri = await CharacterFlowService.outfitTemplates(kind: '');
@@ -2645,9 +3056,8 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
     final sablonlar = veri.templates;
     // #314: sunucu tur listesi bos ya da karakterin turunu icermiyorsa sabit
     // listeye duseriz - SegmentedButton secili degeri segmentlerde arar.
-    final turler = veri.kinds.isEmpty
-        ? CharacterFlowService.characterKinds
-        : veri.kinds;
+    final turler =
+        veri.kinds.isEmpty ? CharacterFlowService.characterKinds : veri.kinds;
     if (!turler.any((k) => k['id'] == tur)) {
       tur = '${turler.first['id']}';
     }
@@ -2662,176 +3072,205 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
     };
     final ok = await showDialog<bool>(
       context: context,
-      builder: (c) => StatefulBuilder(
-        builder: (c, setLocal) {
-          // #313: sablon listesi secili kategoriye gore suzulur (kategorisi
-          // olmayan eski sablonlar serviste `set` sayilir).
-          // #314: TUR de suzer - turu olmayan eski sablonlar `female` sayilir.
-          final suzulmus = sablonlar
-              .where((t) => t['category'] == kategori && t['kind'] == tur)
-              .toList();
-          // #314: Hot yalniz insan turlerinin giysi kategorilerinde.
-          final hotAcik = CharacterFlowService.hotAllowed(tur, kategori);
-          if (!hotAcik && hot) hot = false;
-          return AlertDialog(
-            scrollable: true,
-            title: const Text('Kiyafet uret'),
-            content: SizedBox(
-              width: 460,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                      'Kiyafet karakterden bagimsizdir: duz gri fonda urun '
-                      'karesi olarak uretilir ve AYNI TURDEKI butun '
-                      'karakterlerde tekrar kullanilir.',
-                      style: TextStyle(fontSize: 12, color: Colors.grey)),
-                  const SizedBox(height: 12),
-                  // #314: ONCE tur - sablon listesi ve Hot buna da bagli.
-                  const Text('Tur',
-                      style: TextStyle(fontSize: 12, color: Colors.grey)),
-                  const SizedBox(height: 4),
-                  kindSelector(
-                    kinds: turler,
-                    value: tur,
-                    onChanged: (v) => setLocal(() {
-                      tur = v;
-                      // tur degisince eski sablon gecersiz olur.
-                      sablon = '';
-                    }),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                      tur == _kind
-                          ? 'Bu karakterin turu - serit ve skin birlestirici '
-                              'yalniz bu turdeki kiyafetleri gosterir.'
-                          : 'DIKKAT: farkli tur - uretilen kiyafet bu '
-                              'karakterin seridinde gorunmez, '
-                              '${CharacterFlowService.kindLabel(tur)} '
-                              'karakterlerde kullanilir.',
-                      style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                  const SizedBox(height: 10),
-                  // #313: sonra kategori - sablon listesi ve Hot buna bagli.
-                  DropdownButtonFormField<String>(
-                    initialValue: kategori,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Kategori',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: [
-                      for (final k in kategoriler)
-                        DropdownMenuItem(
-                          value: k['id'],
-                          child: Text('${k['label']}',
-                              overflow: TextOverflow.ellipsis),
-                        ),
-                    ],
-                    onChanged: (x) => setLocal(() {
-                      kategori = x ?? 'set';
-                      // kategori degisince eski sablon gecersiz olur.
-                      sablon = '';
-                    }),
-                  ),
-                  const SizedBox(height: 10),
-                  if (suzulmus.isNotEmpty) ...[
-                    // #312: sablon secilince ad ve prompt bos birakilabilir;
-                    // yazilan prompt sablonun arkasina eklenir.
-                    DropdownButtonFormField<String>(
-                      // #313: kategori degisince sablon alani SIFIRDAN kurulur
-                      // (FormField initialValue'yu yeniden okumaz - eski deger
-                      // yeni listede yoksa assert atardi).
-                      // #314: tur de anahtara girer - tur degisince liste degisir.
-                      key: ValueKey('sablon-$tur-$kategori'),
-                      initialValue: sablon,
-                      isExpanded: true,
-                      decoration: const InputDecoration(
-                        labelText: 'Sablon',
-                        border: OutlineInputBorder(),
+      builder:
+          (c) => StatefulBuilder(
+            builder: (c, setLocal) {
+              // #313: sablon listesi secili kategoriye gore suzulur (kategorisi
+              // olmayan eski sablonlar serviste `set` sayilir).
+              // #314: TUR de suzer - turu olmayan eski sablonlar `female` sayilir.
+              final suzulmus =
+                  sablonlar
+                      .where(
+                        (t) => t['category'] == kategori && t['kind'] == tur,
+                      )
+                      .toList();
+              // #314: Hot yalniz insan turlerinin giysi kategorilerinde.
+              final hotAcik = CharacterFlowService.hotAllowed(tur, kategori);
+              if (!hotAcik && hot) hot = false;
+              return AlertDialog(
+                scrollable: true,
+                title: const Text('Kiyafet uret'),
+                content: SizedBox(
+                  width: 460,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Kiyafet karakterden bagimsizdir: duz gri fonda urun '
+                        'karesi olarak uretilir ve AYNI TURDEKI butun '
+                        'karakterlerde tekrar kullanilir.',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
                       ),
-                      items: [
-                        const DropdownMenuItem(
-                            value: '',
-                            child: Text('(sablon yok - serbest prompt)')),
-                        for (final t in suzulmus)
-                          DropdownMenuItem(
-                            value: t['id'],
-                            child: Text(
-                                (t['group'] ?? '').isEmpty
-                                    ? '${t['label']}'
-                                    : '${grupAd[t['group']] ?? t['group']} - ${t['label']}',
-                                overflow: TextOverflow.ellipsis),
+                      const SizedBox(height: 12),
+                      // #314: ONCE tur - sablon listesi ve Hot buna da bagli.
+                      const Text(
+                        'Tur',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                      const SizedBox(height: 4),
+                      kindSelector(
+                        kinds: turler,
+                        value: tur,
+                        onChanged:
+                            (v) => setLocal(() {
+                              tur = v;
+                              // tur degisince eski sablon gecersiz olur.
+                              sablon = '';
+                            }),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        tur == _kind
+                            ? 'Bu karakterin turu - serit ve skin birlestirici '
+                                'yalniz bu turdeki kiyafetleri gosterir.'
+                            : 'DIKKAT: farkli tur - uretilen kiyafet bu '
+                                'karakterin seridinde gorunmez, '
+                                '${CharacterFlowService.kindLabel(tur)} '
+                                'karakterlerde kullanilir.',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      // #313: sonra kategori - sablon listesi ve Hot buna bagli.
+                      DropdownButtonFormField<String>(
+                        initialValue: kategori,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Kategori',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: [
+                          for (final k in kategoriler)
+                            DropdownMenuItem(
+                              value: k['id'],
+                              child: Text(
+                                '${k['label']}',
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                        ],
+                        onChanged:
+                            (x) => setLocal(() {
+                              kategori = x ?? 'set';
+                              // kategori degisince eski sablon gecersiz olur.
+                              sablon = '';
+                            }),
+                      ),
+                      const SizedBox(height: 10),
+                      if (suzulmus.isNotEmpty) ...[
+                        // #312: sablon secilince ad ve prompt bos birakilabilir;
+                        // yazilan prompt sablonun arkasina eklenir.
+                        DropdownButtonFormField<String>(
+                          // #313: kategori degisince sablon alani SIFIRDAN kurulur
+                          // (FormField initialValue'yu yeniden okumaz - eski deger
+                          // yeni listede yoksa assert atardi).
+                          // #314: tur de anahtara girer - tur degisince liste degisir.
+                          key: ValueKey('sablon-$tur-$kategori'),
+                          initialValue: sablon,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Sablon',
+                            border: OutlineInputBorder(),
                           ),
+                          items: [
+                            const DropdownMenuItem(
+                              value: '',
+                              child: Text('(sablon yok - serbest prompt)'),
+                            ),
+                            for (final t in suzulmus)
+                              DropdownMenuItem(
+                                value: t['id'],
+                                child: Text(
+                                  (t['group'] ?? '').isEmpty
+                                      ? '${t['label']}'
+                                      : '${grupAd[t['group']] ?? t['group']} - ${t['label']}',
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                          ],
+                          onChanged: (x) => setLocal(() => sablon = x ?? ''),
+                        ),
+                        const SizedBox(height: 10),
                       ],
-                      onChanged: (x) => setLocal(() => sablon = x ?? ''),
-                    ),
-                    const SizedBox(height: 10),
-                  ],
-                  TextField(
-                    controller: ad,
-                    decoration: const InputDecoration(
-                      labelText: 'Kiyafet adi (sablon secildiyse bos kalabilir)',
-                      hintText: 'orn. Sovalye zirhi',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: prompt,
-                    maxLines: 4,
-                    decoration: const InputDecoration(
-                      labelText: 'Kiyafet promptu / ek (sablona eklenir)',
-                      hintText:
-                          'orn. polished steel plate armor with a red tabard',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  // #312: Normal | Hot. #313: Hot yalniz giysi kategorilerinde
-                  // (set/ust/alt/ayakkabi/corap/sapka) anlamlidir.
-                  SegmentedButton<bool>(
-                    segments: [
-                      const ButtonSegment(value: false, label: Text('Normal')),
-                      ButtonSegment(
-                          value: true,
-                          label: const Text('Hot'),
-                          enabled: hotAcik,
-                          icon: const Icon(Icons.local_fire_department,
-                              size: 16)),
+                      TextField(
+                        controller: ad,
+                        decoration: const InputDecoration(
+                          labelText:
+                              'Kiyafet adi (sablon secildiyse bos kalabilir)',
+                          hintText: 'orn. Sovalye zirhi',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: prompt,
+                        maxLines: 4,
+                        decoration: const InputDecoration(
+                          labelText: 'Kiyafet promptu / ek (sablona eklenir)',
+                          hintText:
+                              'orn. polished steel plate armor with a red tabard',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      // #312: Normal | Hot. #313: Hot yalniz giysi kategorilerinde
+                      // (set/ust/alt/ayakkabi/corap/sapka) anlamlidir.
+                      SegmentedButton<bool>(
+                        segments: [
+                          const ButtonSegment(
+                            value: false,
+                            label: Text('Normal'),
+                          ),
+                          ButtonSegment(
+                            value: true,
+                            label: const Text('Hot'),
+                            enabled: hotAcik,
+                            icon: const Icon(
+                              Icons.local_fire_department,
+                              size: 16,
+                            ),
+                          ),
+                        ],
+                        selected: {hot},
+                        showSelectedIcon: false,
+                        onSelectionChanged:
+                            (sel) => setLocal(() => hot = sel.first),
+                      ),
+                      Text(
+                        hotAcik
+                            ? 'Hot: acik, vucudu saran, derin yaka / yuksek '
+                                'yirtmac sablonu prompta eklenir (yetiskin '
+                                'kiyafeti).'
+                            // #314: hayvan/makine turlerinde Hot hic acilmaz.
+                            : CharacterFlowService.isHumanKind(tur)
+                            ? 'Hot yalniz giysi kategorilerinde kullanilir '
+                                '(set, ust, alt, ayakkabi, corap, sapka).'
+                            : 'Hot yalniz Kadin/Erkek giysilerinde '
+                                'kullanilir.',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey,
+                        ),
+                      ),
                     ],
-                    selected: {hot},
-                    showSelectedIcon: false,
-                    onSelectionChanged: (sel) =>
-                        setLocal(() => hot = sel.first),
                   ),
-                  Text(
-                      hotAcik
-                          ? 'Hot: acik, vucudu saran, derin yaka / yuksek '
-                              'yirtmac sablonu prompta eklenir (yetiskin '
-                              'kiyafeti).'
-                          // #314: hayvan/makine turlerinde Hot hic acilmaz.
-                          : CharacterFlowService.isHumanKind(tur)
-                              ? 'Hot yalniz giysi kategorilerinde kullanilir '
-                                  '(set, ust, alt, ayakkabi, corap, sapka).'
-                              : 'Hot yalniz Kadin/Erkek giysilerinde '
-                                  'kullanilir.',
-                      style:
-                          const TextStyle(fontSize: 11, color: Colors.grey)),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(c, false),
+                    child: const Text('Vazgec'),
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(c, true),
+                    child: const Text('Uret'),
+                  ),
                 ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                  onPressed: () => Navigator.pop(c, false),
-                  child: const Text('Vazgec')),
-              FilledButton(
-                  onPressed: () => Navigator.pop(c, true),
-                  child: const Text('Uret')),
-            ],
-          );
-        },
-      ),
+              );
+            },
+          ),
     );
     if (ok != true) return;
     // #312: sablon secildiyse ad/prompt bos kalabilir.
@@ -2841,27 +3280,34 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
       return;
     }
     await _run(
-        'Kiyafet uretimi',
-        () => CharacterFlowService.outfitCreate(
-            ad.text.trim(), prompt.text.trim(),
-            style: hot ? 'hot' : '',
-            template: sablon,
-            category: kategori,
-            kind: tur),                 // #314
-        adet: 1);
+      'Kiyafet uretimi',
+      () => CharacterFlowService.outfitCreate(
+        ad.text.trim(),
+        prompt.text.trim(),
+        style: hot ? 'hot' : '',
+        template: sablon,
+        category: kategori,
+        kind: tur,
+      ), // #314
+      adet: 1,
+    );
   }
 
   Future<void> _editOutfit(OutfitItem o) async {
     final p = await editPromptDialog(context, o.name);
     if (p == null) return;
-    await _run('${o.name} duzenleme',
-        () => CharacterFlowService.outfitEdit(o.slug, p),
-        adet: 1);
+    await _run(
+      '${o.name} duzenleme',
+      () => CharacterFlowService.outfitEdit(o.slug, p),
+      adet: 1,
+    );
   }
 
   Future<void> _deleteOutfit(OutfitItem o) async {
-    if (!await _confirm('${o.name} sil',
-        'Kiyafet kutuphaneden silinir. Uretilmis skinler durur.')) {
+    if (!await _confirm(
+      '${o.name} sil',
+      'Kiyafet kutuphaneden silinir. Uretilmis skinler durur.',
+    )) {
       return;
     }
     try {
@@ -2880,38 +3326,47 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
     // #314: ve yalniz karakterin TURUNDEKI kiyafetler.
     final hazir = _kindOutfits.where((o) => o.ready).toList();
     if (hazir.isEmpty) {
-      _snack('Bu turde (${CharacterFlowService.kindLabel(_kind)}) hazir '
-          'kiyafet yok - once "+ Kiyafet uret"');
+      _snack(
+        'Bu turde (${CharacterFlowService.kindLabel(_kind)}) hazir '
+        'kiyafet yok - once "+ Kiyafet uret"',
+      );
       return;
     }
     final sonuc = await Navigator.of(context).push<SkinComposeResult>(
       MaterialPageRoute(
-        builder: (_) => SkinComposerPage(
-            outfits: hazir, preselect: preselect, kind: _kind),   // #314
+        builder:
+            (_) => SkinComposerPage(
+              outfits: hazir,
+              preselect: preselect,
+              kind: _kind,
+            ), // #314
       ),
     );
     if (sonuc == null || !mounted) return;
     // Ayni slug'tan ikinci skin olmaz - sunucu slug'i ad/set/parcadan turetir,
     // burada yalnizca belirgin cakismayi onceden yakalariz.
-    final beklenen = sonuc.skinName.trim().isNotEmpty
-        ? sonuc.skinName.trim().toLowerCase()
-        : sonuc.outfit;
+    final beklenen =
+        sonuc.skinName.trim().isNotEmpty
+            ? sonuc.skinName.trim().toLowerCase()
+            : sonuc.outfit;
     if (beklenen.isNotEmpty &&
-        _skinList.any((s) =>
-            s.slug == beklenen || s.name.toLowerCase() == beklenen)) {
+        _skinList.any(
+          (s) => s.slug == beklenen || s.name.toLowerCase() == beklenen,
+        )) {
       _snack('Bu adda skin zaten var - yeniden uretmek icin once sil');
       return;
     }
     await _run(
-        sonuc.skinName.trim().isEmpty ? 'Skin' : '${sonuc.skinName.trim()} skini',
-        () async => (await CharacterFlowService.skinCreate(
-              _name,
-              skinName: sonuc.skinName.trim(),
-              outfit: sonuc.outfit,
-              pieces: sonuc.pieces,
-            ))
-                .op,
-        adet: sonuc.jobs);
+      sonuc.skinName.trim().isEmpty ? 'Skin' : '${sonuc.skinName.trim()} skini',
+      () async =>
+          (await CharacterFlowService.skinCreate(
+            _name,
+            skinName: sonuc.skinName.trim(),
+            outfit: sonuc.outfit,
+            pieces: sonuc.pieces,
+          )).op,
+      adet: sonuc.jobs,
+    );
   }
 
   /// Skin uret = SET kiyafet + bu karakterin base'i (South + 7 yon otomatik).
@@ -2925,9 +3380,12 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
     }
     // #329: skin olusturma yalniz South'u uretir (1 adim); yonler skin
     // sayfasindaki "Eksikleri uret" ile South'tan uretilir.
-    await _run('${o.name} skini (South)',
-        () async => (await CharacterFlowService.skinCreate(_name, outfit: o.slug)).op,
-        adet: 1);
+    await _run(
+      '${o.name} skini (South)',
+      () async =>
+          (await CharacterFlowService.skinCreate(_name, outfit: o.slug)).op,
+      adet: 1,
+    );
   }
 
   Future<void> _deleteSkin(SkinItem s) async {
@@ -2935,8 +3393,10 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
       _snack('Base silinemez');
       return;
     }
-    if (!await _confirm('${s.name} sil',
-        'Skinin yonleri ve animasyonlari silinir. GERI ALINAMAZ.')) {
+    if (!await _confirm(
+      '${s.name} sil',
+      'Skinin yonleri ve animasyonlari silinir. GERI ALINAMAZ.',
+    )) {
       return;
     }
     try {
@@ -2955,8 +3415,8 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
 /// (giydirme sirasiyla). `jobs` = kuyruga girecek is sayisi.
 class SkinComposeResult {
   final String skinName;
-  final String outfit;              // set slug'i ('' = set yok)
-  final List<String> pieces;        // kategori sirasiyla parca slug'lari
+  final String outfit; // set slug'i ('' = set yok)
+  final List<String> pieces; // kategori sirasiyla parca slug'lari
   const SkinComposeResult({
     this.skinName = '',
     this.outfit = '',
@@ -2972,11 +3432,12 @@ class SkinComposeResult {
 /// secim, aksesuar/silah coklu. Uretim burada BASLATILMAZ - secim geri dondurulur,
 /// isi karakter detayi kuyruga verir.
 class SkinComposerPage extends StatefulWidget {
-  const SkinComposerPage(
-      {super.key,
-      required this.outfits,
-      this.preselect,
-      this.kind = 'female'});
+  const SkinComposerPage({
+    super.key,
+    required this.outfits,
+    this.preselect,
+    this.kind = 'female',
+  });
 
   /// Yalniz HAZIR kiyafetler (png cikmis) - kuyruktaki kiyafet giydirilemez.
   /// #314: liste zaten karakterin turune gore suzulmus gelir.
@@ -2994,8 +3455,8 @@ class SkinComposerPage extends StatefulWidget {
 
 class _SkinComposerPageState extends State<SkinComposerPage> {
   final _ad = TextEditingController();
-  String _set = '';                            // set slug'i
-  final Map<String, String> _tek = {};         // kategori -> tek slug
+  String _set = ''; // set slug'i
+  final Map<String, String> _tek = {}; // kategori -> tek slug
   final Map<String, List<String>> _coklu = {}; // kategori -> slug listesi
 
   @override
@@ -3005,7 +3466,9 @@ class _SkinComposerPageState extends State<SkinComposerPage> {
     if (p == null) return;
     if (p.category == 'set') {
       _set = p.slug;
-    } else if (CharacterFlowService.singlePieceCategories.contains(p.category)) {
+    } else if (CharacterFlowService.singlePieceCategories.contains(
+      p.category,
+    )) {
       _tek[p.category] = p.slug;
     } else if (CharacterFlowService.multiPieceCategories.contains(p.category)) {
       _coklu[p.category] = [p.slug];
@@ -3030,11 +3493,11 @@ class _SkinComposerPageState extends State<SkinComposerPage> {
 
   /// Giydirme sirasiyla parca slug'lari (sunucu da bu sirayi uygular).
   List<String> get _pieces => [
-        for (final c in CharacterFlowService.singlePieceCategories)
-          if ((_tek[c] ?? '').isNotEmpty) _tek[c]!,
-        for (final c in CharacterFlowService.multiPieceCategories)
-          ...(_coklu[c] ?? const <String>[]),
-      ];
+    for (final c in CharacterFlowService.singlePieceCategories)
+      if ((_tek[c] ?? '').isNotEmpty) _tek[c]!,
+    for (final c in CharacterFlowService.multiPieceCategories)
+      ...(_coklu[c] ?? const <String>[]),
+  ];
 
   /// Ozet satiri - "base + set X + tisort + etek + kilic".
   String get _summary {
@@ -3043,14 +3506,16 @@ class _SkinComposerPageState extends State<SkinComposerPage> {
     for (final s in _pieces) {
       parcalar.add(_find(s)?.name ?? s);
     }
-    return parcalar.isEmpty ? 'base (parca secilmedi)' : 'base + ${parcalar.join(" + ")}';
+    return parcalar.isEmpty
+        ? 'base (parca secilmedi)'
+        : 'base + ${parcalar.join(" + ")}';
   }
 
-  int get _jobs => (_set.isEmpty ? 0 : 1) + _pieces.length;   // #329
+  int get _jobs => (_set.isEmpty ? 0 : 1) + _pieces.length; // #329
 
   void _snack(String m) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+    AppToast.of(context).show(m);
   }
 
   @override
@@ -3075,16 +3540,18 @@ class _SkinComposerPageState extends State<SkinComposerPage> {
                 TextField(
                   controller: _ad,
                   decoration: const InputDecoration(
-                    labelText: 'Skin adi (bos ise setten / parcalardan turetilir)',
+                    labelText:
+                        'Skin adi (bos ise setten / parcalardan turetilir)',
                     hintText: 'orn. Yaz kombini',
                     border: OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 6),
                 const Text(
-                    'Base uzerine once set, sonra parcalar sirayla giydirilir; '
-                    'her adim bir is (yalniz South; yonler skin sayfasindan).',
-                    style: TextStyle(fontSize: 11, color: Colors.grey)),
+                  'Base uzerine once set, sonra parcalar sirayla giydirilir; '
+                  'her adim bir is (yalniz South; yonler skin sayfasindan).',
+                  style: TextStyle(fontSize: 11, color: Colors.grey),
+                ),
                 const SizedBox(height: 10),
                 _setRow(),
                 for (final c in CharacterFlowService.singlePieceCategories)
@@ -3098,23 +3565,31 @@ class _SkinComposerPageState extends State<SkinComposerPage> {
           Container(
             width: double.infinity,
             color: AppColors.bgCard,
-            padding: bottomSafePadding(context,
-                left: 12, top: 10, right: 12, bottom: 10),
+            padding: bottomSafePadding(
+              context,
+              left: 12,
+              top: 10,
+              right: 12,
+              bottom: 10,
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(_summary,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 12)),
+                Text(
+                  _summary,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 12),
+                ),
                 const SizedBox(height: 8),
                 FilledButton.icon(
                   onPressed: _submit,
                   icon: const Icon(Icons.checkroom, size: 18),
                   label: Text('Uret ($_jobs is)'),
                   style: FilledButton.styleFrom(
-                      minimumSize: const Size.fromHeight(46)),
+                    minimumSize: const Size.fromHeight(46),
+                  ),
                 ),
               ],
             ),
@@ -3156,18 +3631,21 @@ class _SkinComposerPageState extends State<SkinComposerPage> {
     return _strip(
       baslik: multi ? '$etiket (coklu secim)' : '$etiket (tek secim)',
       list: list,
-      secili: (o) => multi
-          ? (_coklu[cat] ?? const <String>[]).contains(o.slug)
-          : _tek[cat] == o.slug,
-      onTap: (o) => setState(() {
-        if (multi) {
-          final l = List<String>.from(_coklu[cat] ?? const <String>[]);
-          l.contains(o.slug) ? l.remove(o.slug) : l.add(o.slug);
-          _coklu[cat] = l;
-        } else {
-          _tek[cat] = _tek[cat] == o.slug ? '' : o.slug;
-        }
-      }),
+      secili:
+          (o) =>
+              multi
+                  ? (_coklu[cat] ?? const <String>[]).contains(o.slug)
+                  : _tek[cat] == o.slug,
+      onTap:
+          (o) => setState(() {
+            if (multi) {
+              final l = List<String>.from(_coklu[cat] ?? const <String>[]);
+              l.contains(o.slug) ? l.remove(o.slug) : l.add(o.slug);
+              _coklu[cat] = l;
+            } else {
+              _tek[cat] = _tek[cat] == o.slug ? '' : o.slug;
+            }
+          }),
     );
   }
 
@@ -3177,85 +3655,95 @@ class _SkinComposerPageState extends State<SkinComposerPage> {
     required List<OutfitItem> list,
     required bool Function(OutfitItem) secili,
     required void Function(OutfitItem) onTap,
-  }) =>
-      Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(baslik,
-                style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey)),
-            const SizedBox(height: 4),
-            if (list.isEmpty)
-              const Text('(bu kategoride kiyafet yok)',
-                  style: TextStyle(fontSize: 11, color: Colors.grey))
-            else
-              SizedBox(
-                height: 158,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: list.length,
-                  separatorBuilder: (_, _) => const SizedBox(width: 8),
-                  itemBuilder: (_, i) {
-                    final o = list[i];
-                    final on = secili(o);
-                    return GestureDetector(
-                      onTap: () => onTap(o),
-                      child: SizedBox(
-                        width: 78,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 78,
-                              height: 132,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                    color: on
-                                        ? AppColors.success
-                                        : Colors.white24,
-                                    width: on ? 2.5 : 1),
+  }) => Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          baslik,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: Colors.grey,
+          ),
+        ),
+        const SizedBox(height: 4),
+        if (list.isEmpty)
+          const Text(
+            '(bu kategoride kiyafet yok)',
+            style: TextStyle(fontSize: 11, color: Colors.grey),
+          )
+        else
+          SizedBox(
+            height: 158,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: list.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
+              itemBuilder: (_, i) {
+                final o = list[i];
+                final on = secili(o);
+                return GestureDetector(
+                  onTap: () => onTap(o),
+                  child: SizedBox(
+                    width: 78,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 78,
+                          height: 132,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: on ? AppColors.success : Colors.white24,
+                              width: on ? 2.5 : 1,
+                            ),
+                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child: ColoredBox(
+                            color: Colors.black26,
+                            child: Image.network(
+                              CharacterFlowService.outfitThumbUrl(
+                                o.slug,
+                                size: 300,
                               ),
-                              clipBehavior: Clip.antiAlias,
-                              child: ColoredBox(
-                                color: Colors.black26,
-                                child: Image.network(
-                                  CharacterFlowService.outfitThumbUrl(o.slug,
-                                      size: 300),
-                                  headers: CharacterFlowService.authHeaders,
-                                  fit: BoxFit.contain,
-                                  errorBuilder: (_, _, _) => Container(
+                              headers: CharacterFlowService.authHeaders,
+                              fit: BoxFit.contain,
+                              errorBuilder:
+                                  (_, _, _) => Container(
                                     color: Colors.white10,
                                     alignment: Alignment.center,
-                                    child: const Icon(Icons.checkroom,
-                                        size: 20, color: Colors.grey),
+                                    child: const Icon(
+                                      Icons.checkroom,
+                                      size: 20,
+                                      color: Colors.grey,
+                                    ),
                                   ),
-                                ),
-                              ),
                             ),
-                            Text(o.name,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                    fontSize: 10,
-                                    color:
-                                        on ? AppColors.success : Colors.grey)),
-                          ],
+                          ),
                         ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-          ],
-        ),
-      );
+                        Text(
+                          o.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: on ? AppColors.success : Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+      ],
+    ),
+  );
 }
-
 
 // ----------------------------------------------------------- skin detayi
 
@@ -3274,11 +3762,14 @@ class SkinDetailPage extends StatefulWidget {
   });
 
   final String name;
+
   /// Liste satirindan gelen skin - sunucu `/skins` vermese de ekran cizilir.
   final SkinItem initial;
+
   /// #334: karakterin turu - "South'u duzenle" kiyafet secicisi buna suzulur.
   final String kind;
   final List<CharacterDir> dirs;
+
   /// character.json'daki yastiklama varsayilani (#295).
   final double padding;
 
@@ -3308,10 +3799,11 @@ class _SkinDetailPageState extends State<SkinDetailPage>
 
   // Animasyon
   String? _animDir;
-  String _animMode = 'i2v';           // i2v (saf AI) | mixamo (manken)
+  String _animMode = 'i2v'; // i2v (saf AI) | mixamo (manken)
   List<CharacterClip> _clips = [];
   bool _clipsLoading = false;
   int _animCount = 1;
+
   /// #295: yastiklama (0 / 0.1 / 0.2 / 0.3) - karakter basina kalicidir.
   late double _padding = widget.padding;
   final _i2vPrompt = TextEditingController();
@@ -3328,8 +3820,10 @@ class _SkinDetailPageState extends State<SkinDetailPage>
 
   String get _name => widget.name;
   List<CharacterDir> get _dirs => widget.dirs;
+
   /// #314: manken/Mixamo yolu bu karakterde acik mi (hayvan/makine: hayir).
   bool get _mixamoOn => widget.animModes.contains('mixamo');
+
   /// Servise gonderilen skin degeri - base icin BOS.
   String get _skinArg => _skin.animSkin;
   int get _rev => _skin.rev;
@@ -3367,7 +3861,7 @@ class _SkinDetailPageState extends State<SkinDetailPage>
       });
     } catch (_) {
       if (!mounted) return;
-      setState(() => _loading = false);   // eski sunucu - gelen skin kullanilir
+      setState(() => _loading = false); // eski sunucu - gelen skin kullanilir
     }
     if (_animDir != null) await _loadClips(_animDir!);
   }
@@ -3375,8 +3869,7 @@ class _SkinDetailPageState extends State<SkinDetailPage>
   Future<void> _loadClips(String dir) async {
     setState(() => _clipsLoading = true);
     try {
-      final c =
-          await CharacterFlowService.animsOf(_name, dir, skin: _skinArg);
+      final c = await CharacterFlowService.animsOf(_name, dir, skin: _skinArg);
       if (!mounted) return;
       setState(() {
         _clips = c;
@@ -3406,11 +3899,13 @@ class _SkinDetailPageState extends State<SkinDetailPage>
         tick++;
         if (!o.running) {
           t.cancel();
-          _snack(o.status == 'error'
-              ? 'Islem hatasi: ${o.message}'
-              : o.status == 'cancelled'
-                  ? 'Islem iptal edildi'
-                  : '${o.ok} tamam${o.failed > 0 ? ", ${o.failed} hata" : ""}');
+          _snack(
+            o.status == 'error'
+                ? 'Islem hatasi: ${o.message}'
+                : o.status == 'cancelled'
+                ? 'Islem iptal edildi'
+                : '${o.ok} tamam${o.failed > 0 ? ", ${o.failed} hata" : ""}',
+          );
           _load();
         } else if (tick % 10 == 0) {
           _load();
@@ -3427,16 +3922,22 @@ class _SkinDetailPageState extends State<SkinDetailPage>
 
   void _snack(String m) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+    AppToast.of(context).show(m);
   }
 
-  Future<void> _run(String ad, Future<String> Function() f, {int adet = 0}) async {
+  Future<void> _run(
+    String ad,
+    Future<String> Function() f, {
+    int adet = 0,
+  }) async {
     try {
       final op = await f();
       _watch(op);
-      _snack(adet > 0
-          ? '$ad siraya eklendi ($adet is) - Sira sekmesinden izle'
-          : '$ad siraya eklendi - Sira sekmesinden izle');
+      _snack(
+        adet > 0
+            ? '$ad siraya eklendi ($adet is) - Sira sekmesinden izle'
+            : '$ad siraya eklendi - Sira sekmesinden izle',
+      );
     } catch (e) {
       _snack(e.toString().replaceFirst('Exception: ', ''));
     }
@@ -3445,87 +3946,105 @@ class _SkinDetailPageState extends State<SkinDetailPage>
   Future<bool> _confirm(String baslik, String metin) async =>
       await showDialog<bool>(
         context: context,
-        builder: (c) => AlertDialog(
-          title: Text(baslik),
-          content: Text(metin),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(c, false),
-                child: const Text('Vazgec')),
-            FilledButton(
-                onPressed: () => Navigator.pop(c, true), child: const Text('Sil')),
-          ],
-        ),
+        builder:
+            (c) => AlertDialog(
+              title: Text(baslik),
+              content: Text(metin),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(c, false),
+                  child: const Text('Vazgec'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(c, true),
+                  child: const Text('Sil'),
+                ),
+              ],
+            ),
       ) ??
       false;
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(
-          title: Text('$_name - ${_skin.isBase ? "Base" : _skin.name}'),
-          actions: [
-            IconButton(
-                icon: const Icon(Icons.refresh),
-                tooltip: 'Yenile',
-                onPressed: _load),
-          ],
-          bottom: TabBar(controller: _tabs, tabs: const [
-            Tab(text: 'Yonler'),
-            Tab(text: 'Animasyon'),
-          ]),
+    appBar: AppBar(
+      title: Text('$_name - ${_skin.isBase ? "Base" : _skin.name}'),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.refresh),
+          tooltip: 'Yenile',
+          onPressed: _load,
         ),
-        body: _loading
+      ],
+      bottom: TabBar(
+        controller: _tabs,
+        tabs: const [Tab(text: 'Yonler'), Tab(text: 'Animasyon')],
+      ),
+    ),
+    body:
+        _loading
             ? const Center(child: CircularProgressIndicator())
             : Column(
-                children: [
-                  if (_op != null && _op!.running) _opBar(),
-                  Expanded(
-                    child: TabBarView(
-                      controller: _tabs,
-                      children: [_tabYonler(), _tabAnimasyon()],
-                    ),
+              children: [
+                if (_op != null && _op!.running) _opBar(),
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabs,
+                    children: [_tabYonler(), _tabAnimasyon()],
                   ),
-                ],
-              ),
-      );
+                ),
+              ],
+            ),
+  );
 
   Widget _opBar() => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              _op!.message.isEmpty
-                  ? '${_op!.kind}: ${_op!.done}/${_op!.total}'
-                  : _op!.message,
-              style: const TextStyle(fontSize: 11, color: Colors.grey),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 4),
-            LinearProgressIndicator(value: _op!.progress),
-          ],
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          _op!.message.isEmpty
+              ? '${_op!.kind}: ${_op!.done}/${_op!.total}'
+              : _op!.message,
+          style: const TextStyle(fontSize: 11, color: Colors.grey),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
         ),
-      );
+        const SizedBox(height: 4),
+        LinearProgressIndicator(value: _op!.progress),
+      ],
+    ),
+  );
 
   // ------------------------------------------------------------ Yonler
   /// Yon uretimi: base skininde `/dirs`, diger skinlerde `/skins/dirs`
   /// (giydirme). Ikisi de op doner.
-  Future<String> _genDirs(List<String> ids) => _skin.isBase
-      ? CharacterFlowService.dirs(name: _name, dirs: ids, n: _dirCount)
-      : CharacterFlowService.skinDirs(
-          name: _name, skin: _skin.slug, dirs: ids, n: _dirCount);
+  Future<String> _genDirs(List<String> ids) =>
+      _skin.isBase
+          ? CharacterFlowService.dirs(name: _name, dirs: ids, n: _dirCount)
+          : CharacterFlowService.skinDirs(
+            name: _name,
+            skin: _skin.slug,
+            dirs: ids,
+            n: _dirCount,
+          );
 
   Widget _tabYonler() {
     final eksik = _dirs.where((d) => _skin.dirs[d.id] != true).toList();
     return ListView(
-      padding: bottomSafePadding(context,
-          left: 12, top: 12, right: 12, bottom: 12),
+      padding: bottomSafePadding(
+        context,
+        left: 12,
+        top: 12,
+        right: 12,
+        bottom: 12,
+      ),
       children: [
         Row(
           children: [
-            Text('Aday: $_dirCount',
-                style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            Text(
+              'Aday: $_dirCount',
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            ),
             Expanded(
               child: Slider(
                 value: _dirCount.toDouble(),
@@ -3539,15 +4058,20 @@ class _SkinDetailPageState extends State<SkinDetailPage>
           ],
         ),
         FilledButton.icon(
-          onPressed: eksik.isEmpty
-              ? null
-              : () => _run('Yon uretimi',
-                  () => _genDirs(eksik.map((d) => d.id).toList()),
-                  adet: eksik.length * _dirCount),
+          onPressed:
+              eksik.isEmpty
+                  ? null
+                  : () => _run(
+                    'Yon uretimi',
+                    () => _genDirs(eksik.map((d) => d.id).toList()),
+                    adet: eksik.length * _dirCount,
+                  ),
           icon: const Icon(Icons.blur_circular, size: 18),
-          label: Text(eksik.isEmpty
-              ? 'Butun yonler hazir'
-              : 'Eksikleri uret (${eksik.length} yon x $_dirCount)'),
+          label: Text(
+            eksik.isEmpty
+                ? 'Butun yonler hazir'
+                : 'Eksikleri uret (${eksik.length} yon x $_dirCount)',
+          ),
           style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(44)),
         ),
         const SizedBox(height: 10),
@@ -3562,11 +4086,14 @@ class _SkinDetailPageState extends State<SkinDetailPage>
         // #334: South'u daha da duzenle - metin (tek gorsel) ya da metin +
         // kiyafet (South + kiyafet iki gorselli giydirme). Eski South aday kalir.
         FilledButton.tonalIcon(
-          onPressed: _skin.dirs['front'] == true || _skin.isBase
-              ? _editSouthFurther
-              : null,
+          onPressed:
+              _skin.dirs['front'] == true || _skin.isBase
+                  ? _editSouthFurther
+                  : null,
           icon: const Icon(Icons.auto_fix_high, size: 18),
-          label: const Text("South'u daha da duzenle (metin / metin + kiyafet)"),
+          label: const Text(
+            "South'u daha da duzenle (metin / metin + kiyafet)",
+          ),
           style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(44)),
         ),
         const SizedBox(height: 12),
@@ -3598,11 +4125,13 @@ class _SkinDetailPageState extends State<SkinDetailPage>
         kullanilan.add(id);
         hucreler.add(_dirCell(d, cellW));
       }
-      satirlar.add(Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: hucreler,
-      ));
+      satirlar.add(
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: hucreler,
+        ),
+      );
     }
     final ekstra = _dirs.where((d) => !kullanilan.contains(d.id)).toList();
     return Column(
@@ -3624,34 +4153,46 @@ class _SkinDetailPageState extends State<SkinDetailPage>
   Widget _dirCell(CharacterDir d, double cellW) {
     final kabul = _skin.dirs[d.id] == true;
     final adaylar = _skin.dirCandidates[d.id] ?? const <String>[];
-    final rel = _skin.dirFiles[d.id] ??
-        CharacterFlowService.dirRel(_skin.slug, d.id);
-    final String? url = kabul
-        ? _thumb(rel, size: 600)
-        : (adaylar.isEmpty ? null : _thumb(adaylar.last, size: 600));
+    final rel =
+        _skin.dirFiles[d.id] ?? CharacterFlowService.dirRel(_skin.slug, d.id);
+    final String? url =
+        kabul
+            ? _thumb(rel, size: 600)
+            : (adaylar.isEmpty ? null : _thumb(adaylar.last, size: 600));
     return _ThumbCell(
       label: d.label,
       url: url,
       accepted: kabul,
       dimmed: !kabul && adaylar.isNotEmpty,
-      badge: (!kabul && adaylar.isNotEmpty) ? '${adaylar.length} aday - sec' : null,
+      badge:
+          (!kabul && adaylar.isNotEmpty)
+              ? '${adaylar.length} aday - sec'
+              : null,
       width: cellW,
       thumbHeight: cellW * 16 / 9,
-      onTap: () => (kabul || adaylar.isEmpty)
-          ? _openAnim(d.id, _animMode)
-          : _dirSheet(d),
+      onTap:
+          () =>
+              (kabul || adaylar.isEmpty)
+                  ? _openAnim(d.id, _animMode)
+                  : _dirSheet(d),
       onLongPress: () => _dirSheet(d),
       onAnim: () => _openAnim(d.id, 'i2v'),
       // #314: hayvan/makine turunde Mixamo ikonu hic cizilmez.
       onMixamo: _mixamoOn ? () => _openAnim(d.id, 'mixamo') : null,
       // #306 ince ayar: base skininde S = base'in kendisi.
-      onEdit: () => _edit(
-          _skin.isBase
-              ? (d.id == 'front' ? 'base' : 'dir:${d.id}')
-              : 'skin:${_skin.slug}:${d.id}',
-          d.label),
-      onRefresh: () => _run('${d.label} uretimi', () => _genDirs([d.id]),
-          adet: _dirCount),
+      onEdit:
+          () => _edit(
+            _skin.isBase
+                ? (d.id == 'front' ? 'base' : 'dir:${d.id}')
+                : 'skin:${_skin.slug}:${d.id}',
+            d.label,
+          ),
+      onRefresh:
+          () => _run(
+            '${d.label} uretimi',
+            () => _genDirs([d.id]),
+            adet: _dirCount,
+          ),
       onDelete: () => _deleteDir(d),
     );
   }
@@ -3661,9 +4202,11 @@ class _SkinDetailPageState extends State<SkinDetailPage>
   Future<void> _edit(String target, String baslik) async {
     final p = await editPromptDialog(context, baslik);
     if (p == null) return;
-    await _run('$baslik duzenleme',
-        () => CharacterFlowService.edit(name: _name, target: target, prompt: p),
-        adet: 1);
+    await _run(
+      '$baslik duzenleme',
+      () => CharacterFlowService.edit(name: _name, target: target, prompt: p),
+      adet: 1,
+    );
   }
 
   /// #334: South'u daha da duzenle - cumle + istege bagli kiyafet.
@@ -3673,95 +4216,151 @@ class _SkinDetailPageState extends State<SkinDetailPage>
     List<OutfitItem>? katalog;
     final ok = await showDialog<bool>(
       context: context,
-      builder: (c) => StatefulBuilder(
-        builder: (c, setLocal) => AlertDialog(
-          scrollable: true,
-          title: Text("South'u duzenle - ${_skin.isBase ? 'Base' : _skin.name}"),
-          content: SizedBox(
-            width: 460,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                TextField(
-                  controller: prompt,
-                  autofocus: true,
-                  maxLines: 3,
-                  decoration: const InputDecoration(
-                      labelText: 'Duzeltme cumlesi',
-                      hintText: "orn. 'ceketi kirmizi yap', 'etegi kisalt'"),
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    if (kiyafet != null) outfitThumb(kiyafet!, width: 44, height: 74),
-                    if (kiyafet != null) const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                          kiyafet == null
-                              ? 'Kiyafet yok - yalniz metin duzeltmesi'
-                              : '${kiyafet!.name} (${CharacterFlowService.categoryLabel(kiyafet!.category)}) '
-                                  '- South + kiyafet, iki gorselli giydirme',
-                          style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                    ),
-                    TextButton(
-                      onPressed: _skin.isBase
-                          ? null
-                          : () async {
-                              katalog ??= (await CharacterFlowService.outfits(kind: widget.kind))
-                                  .where((o) => o.ready && o.kind == widget.kind)
-                                  .toList();
-                              if (!c.mounted) return;
-                              final secim = await showModalBottomSheet<OutfitItem>(
-                                context: c,
-                                isScrollControlled: true,
-                                builder: (cc) => SafeArea(
-                                  child: SizedBox(
-                                    height: MediaQuery.of(cc).size.height * 0.7,
-                                    child: Column(
-                                      children: [
-                                        const ListTile(title: Text('Kiyafet sec (istege bagli)')),
-                                        const Divider(height: 1),
-                                        Expanded(
-                                          child: OutfitCatalogGrid(
-                                            outfits: katalog!,
-                                            selected: (o) => o.slug == kiyafet?.slug,
-                                            onTap: (o) => Navigator.pop(cc, o),
-                                            onLongPress: (o) => showOutfitPreview(cc, o),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
+      builder:
+          (c) => StatefulBuilder(
+            builder:
+                (c, setLocal) => AlertDialog(
+                  scrollable: true,
+                  title: Text(
+                    "South'u duzenle - ${_skin.isBase ? 'Base' : _skin.name}",
+                  ),
+                  content: SizedBox(
+                    width: 460,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        TextField(
+                          controller: prompt,
+                          autofocus: true,
+                          maxLines: 3,
+                          decoration: const InputDecoration(
+                            labelText: 'Duzeltme cumlesi',
+                            hintText:
+                                "orn. 'ceketi kirmizi yap', 'etegi kisalt'",
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            if (kiyafet != null)
+                              outfitThumb(kiyafet!, width: 44, height: 74),
+                            if (kiyafet != null) const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                kiyafet == null
+                                    ? 'Kiyafet yok - yalniz metin duzeltmesi'
+                                    : '${kiyafet!.name} (${CharacterFlowService.categoryLabel(kiyafet!.category)}) '
+                                        '- South + kiyafet, iki gorselli giydirme',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey,
                                 ),
-                              );
-                              if (secim != null) setLocal(() => kiyafet = secim);
-                            },
-                      child: Text(kiyafet == null ? 'Kiyafet ekle' : 'Degistir'),
+                              ),
+                            ),
+                            TextButton(
+                              onPressed:
+                                  _skin.isBase
+                                      ? null
+                                      : () async {
+                                        katalog ??=
+                                            (await CharacterFlowService.outfits(
+                                                  kind: widget.kind,
+                                                ))
+                                                .where(
+                                                  (o) =>
+                                                      o.ready &&
+                                                      o.kind == widget.kind,
+                                                )
+                                                .toList();
+                                        if (!c.mounted) return;
+                                        final secim = await showModalBottomSheet<
+                                          OutfitItem
+                                        >(
+                                          context: c,
+                                          isScrollControlled: true,
+                                          builder:
+                                              (cc) => SafeArea(
+                                                child: SizedBox(
+                                                  height:
+                                                      MediaQuery.of(
+                                                        cc,
+                                                      ).size.height *
+                                                      0.7,
+                                                  child: Column(
+                                                    children: [
+                                                      const ListTile(
+                                                        title: Text(
+                                                          'Kiyafet sec (istege bagli)',
+                                                        ),
+                                                      ),
+                                                      const Divider(height: 1),
+                                                      Expanded(
+                                                        child: OutfitCatalogGrid(
+                                                          outfits: katalog!,
+                                                          selected:
+                                                              (o) =>
+                                                                  o.slug ==
+                                                                  kiyafet?.slug,
+                                                          onTap:
+                                                              (o) =>
+                                                                  Navigator.pop(
+                                                                    cc,
+                                                                    o,
+                                                                  ),
+                                                          onLongPress:
+                                                              (o) =>
+                                                                  showOutfitPreview(
+                                                                    cc,
+                                                                    o,
+                                                                  ),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                        );
+                                        if (secim != null)
+                                          setLocal(() => kiyafet = secim);
+                                      },
+                              child: Text(
+                                kiyafet == null ? 'Kiyafet ekle' : 'Degistir',
+                              ),
+                            ),
+                            if (kiyafet != null)
+                              IconButton(
+                                icon: const Icon(Icons.close, size: 18),
+                                onPressed: () => setLocal(() => kiyafet = null),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _skin.isBase
+                              ? "Base skininde yalniz metin duzeltmesi; kiyafet icin Gardirop'tan yeni skin uret."
+                              : 'Sonuc otomatik kabul edilir, eski South aday olarak saklanir. '
+                                  "Yonler South'tan yeniden uretilmeli.",
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ],
                     ),
-                    if (kiyafet != null)
-                      IconButton(
-                        icon: const Icon(Icons.close, size: 18),
-                        onPressed: () => setLocal(() => kiyafet = null),
-                      ),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(c, false),
+                      child: const Text('Vazgec'),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(c, true),
+                      child: const Text('Duzenle'),
+                    ),
                   ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                    _skin.isBase
-                        ? "Base skininde yalniz metin duzeltmesi; kiyafet icin Gardirop'tan yeni skin uret."
-                        : 'Sonuc otomatik kabul edilir, eski South aday olarak saklanir. '
-                            "Yonler South'tan yeniden uretilmeli.",
-                    style: const TextStyle(fontSize: 11, color: Colors.grey)),
-              ],
-            ),
           ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Vazgec')),
-            FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Duzenle')),
-          ],
-        ),
-      ),
     );
     if (ok != true || !mounted) return;
     final p = prompt.text.trim();
@@ -3770,13 +4369,15 @@ class _SkinDetailPageState extends State<SkinDetailPage>
       return;
     }
     await _run(
-        "${_skin.isBase ? 'Base' : _skin.name} South duzenleme",
-        () => CharacterFlowService.skinEditSouth(
-            name: _name,
-            skin: _skin.isBase ? '' : _skin.slug,
-            prompt: p,
-            outfit: kiyafet?.slug ?? ''),
-        adet: 1);
+      "${_skin.isBase ? 'Base' : _skin.name} South duzenleme",
+      () => CharacterFlowService.skinEditSouth(
+        name: _name,
+        skin: _skin.isBase ? '' : _skin.slug,
+        prompt: p,
+        outfit: kiyafet?.slug ?? '',
+      ),
+      adet: 1,
+    );
   }
 
   /// Yonun buyuk onizlemesi + adaylari. Kabul kind'i skine gore degisir:
@@ -3790,80 +4391,101 @@ class _SkinDetailPageState extends State<SkinDetailPage>
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (c) => SafeArea(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('${d.label}  (${d.azimuth} derece)',
-                    style:
-                        const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                if (kabul)
-                  SizedBox(
-                    height: 300,
-                    width: double.infinity,
-                    child: Image.network(
-                      _file(rel),
-                      headers: CharacterFlowService.authHeaders,
-                      fit: BoxFit.contain,
-                      errorBuilder: (_, _, _) => const SizedBox(height: 120),
-                    ),
-                  ),
-                const SizedBox(height: 8),
-                if (adaylar.isEmpty)
-                  const Text('Aday yok - yenile ikonuyla uret.',
-                      style: TextStyle(fontSize: 12, color: Colors.grey))
-                else ...[
-                  const Text('Adaylar - dokunarak kabul et',
-                      style: TextStyle(fontSize: 12, color: Colors.grey)),
-                  const SizedBox(height: 6),
-                  SizedBox(
-                    height: 176,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: adaylar.length,
-                      separatorBuilder: (_, _) => const SizedBox(width: 8),
-                      itemBuilder: (_, i) => GestureDetector(
-                        onTap: () {
-                          Navigator.pop(c);
-                          _pickFile(adaylar[i], kind, '${d.label} kabul edildi');
-                        },
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: SizedBox(
-                            width: 99,
-                            child: ColoredBox(
-                              color: Colors.black26,
-                              child: Image.network(
-                                _thumb(adaylar[i], size: 400),
-                                headers: CharacterFlowService.authHeaders,
-                                fit: BoxFit.contain,
-                                errorBuilder: (_, _, _) =>
-                                    Container(color: Colors.white10),
-                              ),
-                            ),
-                          ),
-                        ),
+      builder:
+          (c) => SafeArea(
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${d.label}  (${d.azimuth} derece)',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                  ),
-                ],
-              ],
+                    const SizedBox(height: 8),
+                    if (kabul)
+                      SizedBox(
+                        height: 300,
+                        width: double.infinity,
+                        child: Image.network(
+                          _file(rel),
+                          headers: CharacterFlowService.authHeaders,
+                          fit: BoxFit.contain,
+                          errorBuilder:
+                              (_, _, _) => const SizedBox(height: 120),
+                        ),
+                      ),
+                    const SizedBox(height: 8),
+                    if (adaylar.isEmpty)
+                      const Text(
+                        'Aday yok - yenile ikonuyla uret.',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      )
+                    else ...[
+                      const Text(
+                        'Adaylar - dokunarak kabul et',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                      const SizedBox(height: 6),
+                      SizedBox(
+                        height: 176,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: adaylar.length,
+                          separatorBuilder: (_, _) => const SizedBox(width: 8),
+                          itemBuilder:
+                              (_, i) => GestureDetector(
+                                onTap: () {
+                                  Navigator.pop(c);
+                                  _pickFile(
+                                    adaylar[i],
+                                    kind,
+                                    '${d.label} kabul edildi',
+                                  );
+                                },
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: SizedBox(
+                                    width: 99,
+                                    child: ColoredBox(
+                                      color: Colors.black26,
+                                      child: Image.network(
+                                        _thumb(adaylar[i], size: 400),
+                                        headers:
+                                            CharacterFlowService.authHeaders,
+                                        fit: BoxFit.contain,
+                                        errorBuilder:
+                                            (_, _, _) => Container(
+                                              color: Colors.white10,
+                                            ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
             ),
           ),
-        ),
-      ),
     );
   }
 
   Future<void> _pickFile(String rel, String kind, String mesaj) async {
     try {
-      final op =
-          await CharacterFlowService.pick(name: _name, file: rel, kind: kind);
+      final op = await CharacterFlowService.pick(
+        name: _name,
+        file: rel,
+        kind: kind,
+      );
       _snack(mesaj);
       if (op.isNotEmpty) _watch(op);
       _load();
@@ -3874,12 +4496,17 @@ class _SkinDetailPageState extends State<SkinDetailPage>
 
   Future<void> _deleteDir(CharacterDir d) async {
     if (!await _confirm(
-        '${d.label} sil', '${d.label} gorseli silinecek. Adaylar kalir.')) {
+      '${d.label} sil',
+      '${d.label} gorseli silinecek. Adaylar kalir.',
+    )) {
       return;
     }
     try {
       await CharacterFlowService.deleteDir(
-          name: _name, dir: d.id, skin: _skinArg);
+        name: _name,
+        dir: d.id,
+        skin: _skinArg,
+      );
       _snack('${d.label} silindi');
       _load();
     } catch (e) {
@@ -3906,14 +4533,23 @@ class _SkinDetailPageState extends State<SkinDetailPage>
   Widget _tabAnimasyon() {
     final dir = _animDir;
     return ListView(
-      padding: bottomSafePadding(context,
-          left: 12, top: 10, right: 12, bottom: 24),
+      padding: bottomSafePadding(
+        context,
+        left: 12,
+        top: 10,
+        right: 12,
+        bottom: 24,
+      ),
       children: [
         dirCompass(
           _dirs,
           spacing: 5,
           center: const Center(
-              child: Text('yon', style: TextStyle(fontSize: 10, color: Colors.grey))),
+            child: Text(
+              'yon',
+              style: TextStyle(fontSize: 10, color: Colors.grey),
+            ),
+          ),
           cell: _animDirButton,
         ),
         const SizedBox(height: 10),
@@ -3939,8 +4575,10 @@ class _SkinDetailPageState extends State<SkinDetailPage>
           Row(
             children: [
               Expanded(
-                child: Text('${_clips.length} klip - $dir',
-                    style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                child: Text(
+                  '${_clips.length} klip - $dir',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
               ),
               TextButton.icon(
                 onPressed: _clipSetSheet,
@@ -3957,8 +4595,11 @@ class _SkinDetailPageState extends State<SkinDetailPage>
           else if (_clips.isEmpty)
             const Padding(
               padding: EdgeInsets.all(20),
-              child: Text('Bu yonde henuz animasyon yok.',
-                  textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
+              child: Text(
+                'Bu yonde henuz animasyon yok.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey),
+              ),
             )
           else
             for (final c in _clips) ...[
@@ -3972,26 +4613,30 @@ class _SkinDetailPageState extends State<SkinDetailPage>
 
   /// #314: kip anahtari yalniz manken/Mixamo acikken cizilir; hayvan/makinede
   /// yerine kisa bir aciklama satiri durur (yol tek: i2v).
-  Widget _modeSwitch() => _mixamoOn
-      ? SegmentedButton<String>(
-          segments: const [
-            ButtonSegment(
+  Widget _modeSwitch() =>
+      _mixamoOn
+          ? SegmentedButton<String>(
+            segments: const [
+              ButtonSegment(
                 value: 'i2v',
                 icon: Icon(Icons.movie_filter_outlined, size: 16),
-                label: Text('AI i2v')),
-            ButtonSegment(
+                label: Text('AI i2v'),
+              ),
+              ButtonSegment(
                 value: 'mixamo',
                 icon: Icon(Icons.accessibility_new, size: 16),
-                label: Text('Mixamo')),
-          ],
-          selected: {_animMode},
-          showSelectedIcon: false,
-          onSelectionChanged: (v) => setState(() => _animMode = v.first),
-        )
-      : const Text(
-          'Bu turde animasyon yalniz AI i2v ile uretilir - manken/Mixamo '
-          'insansi iskelet ister.',
-          style: TextStyle(fontSize: 11, color: Colors.grey));
+                label: Text('Mixamo'),
+              ),
+            ],
+            selected: {_animMode},
+            showSelectedIcon: false,
+            onSelectionChanged: (v) => setState(() => _animMode = v.first),
+          )
+          : const Text(
+            'Bu turde animasyon yalniz AI i2v ile uretilir - manken/Mixamo '
+            'insansi iskelet ister.',
+            style: TextStyle(fontSize: 11, color: Colors.grey),
+          );
 
   /// #295: yastiklama secici + aciklama. Asil yeri burasi: uretimden HEMEN
   /// once sorulur. Deger karakter basinadir (`character.json`) ve
@@ -4002,13 +4647,15 @@ class _SkinDetailPageState extends State<SkinDetailPage>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         PaddingPicker(
-            value: _padding,
-            onChanged: (v) {
-              onChanged(v);
-              // #295: secim karakter basina kalici (character.json).
-              CharacterFlowService.savePadding(_name, v).catchError(
-                  (e) => _snack(e.toString().replaceFirst('Exception: ', '')));
-            }),
+          value: _padding,
+          onChanged: (v) {
+            onChanged(v);
+            // #295: secim karakter basina kalici (character.json).
+            CharacterFlowService.savePadding(_name, v).catchError(
+              (e) => _snack(e.toString().replaceFirst('Exception: ', '')),
+            );
+          },
+        ),
         Text(
           'Yastiklama referans gorseli kuculterek kadraj payi birakir; '
           'butun klipler icin ayni kalmali.'
@@ -4020,228 +4667,264 @@ class _SkinDetailPageState extends State<SkinDetailPage>
   }
 
   Widget _countSlider() => Row(
-        children: [
-          Text('Surum: $_animCount',
-              style: const TextStyle(fontSize: 12, color: Colors.grey)),
-          Expanded(
-            child: Slider(
-              value: _animCount.toDouble(),
-              min: 1,
-              max: 6,
-              divisions: 5,
-              label: '$_animCount',
-              onChanged: (v) => setState(() => _animCount = v.round()),
-            ),
-          ),
-        ],
-      );
+    children: [
+      Text(
+        'Surum: $_animCount',
+        style: const TextStyle(fontSize: 12, color: Colors.grey),
+      ),
+      Expanded(
+        child: Slider(
+          value: _animCount.toDouble(),
+          min: 1,
+          max: 6,
+          divisions: 5,
+          label: '$_animCount',
+          onChanged: (v) => setState(() => _animCount = v.round()),
+        ),
+      ),
+    ],
+  );
 
   /// Saf AI yolu: kullanicinin yazdigi hareket cumlesi + kipin video sablonu.
   Widget _i2vPanel(String dir) => Card(
-        margin: EdgeInsets.zero,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-          child: Column(
+    margin: EdgeInsets.zero,
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Hareket - saf AI (i2v)',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Hareket - saf AI (i2v)',
-                  style: TextStyle(
-                      fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
-              const SizedBox(height: 8),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _i2vPrompt,
-                      maxLines: 3,
-                      decoration: const InputDecoration(
-                        labelText: 'Ne yapsin',
-                        hintText: 'orn. tekme  ->  degnek tam tarife cevirir',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
+              Expanded(
+                child: TextField(
+                  controller: _i2vPrompt,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Ne yapsin',
+                    hintText: 'orn. tekme  ->  degnek tam tarife cevirir',
+                    border: OutlineInputBorder(),
                   ),
-                  _wandButton(dir, 'i2v'),
-                ],
-              ),
-              const Text(
-                  'Degnek kisa istegi karakterin sinifina/silahina gore tam '
-                  'hareket tarifine cevirir; metin duzenlenebilir.',
-                  style: TextStyle(fontSize: 11, color: Colors.grey)),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _i2vClip,
-                decoration: const InputDecoration(
-                  labelText: 'Klip adi (bos birakilirsa prompttan turetilir)',
-                  border: OutlineInputBorder(),
                 ),
               ),
-              const SizedBox(height: 8),
-              // #295: yastiklama uretim dugmesinin hemen ustunde sorulur.
-              _paddingRow((v) => setState(() => _padding = v)),
-              _countSlider(),
-              FilledButton.icon(
-                onPressed: () {
-                  if (_i2vPrompt.text.trim().isEmpty) {
-                    _snack('Hareket cumlesi bos olamaz');
-                    return;
-                  }
-                  _run(
-                      'i2v animasyonu',
-                      () => CharacterFlowService.animate(
-                            name: _name,
-                            dir: dir,
-                            skin: _skinArg,          // #306
-                            mode: 'i2v',
-                            prompt: _i2vPrompt.text.trim(),
-                            clip: _i2vClip.text.trim(),
-                            n: _animCount,
-                            padding: _padding,
-                          ),
-                      adet: _animCount);
-                },
-                icon: const Icon(Icons.movie_filter_outlined, size: 18),
-                label: Text('Uret ($_animCount surum)'),
-                style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(44)),
-              ),
+              _wandButton(dir, 'i2v'),
             ],
           ),
-        ),
-      );
+          const Text(
+            'Degnek kisa istegi karakterin sinifina/silahina gore tam '
+            'hareket tarifine cevirir; metin duzenlenebilir.',
+            style: TextStyle(fontSize: 11, color: Colors.grey),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _i2vClip,
+            decoration: const InputDecoration(
+              labelText: 'Klip adi (bos birakilirsa prompttan turetilir)',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 8),
+          // #295: yastiklama uretim dugmesinin hemen ustunde sorulur.
+          _paddingRow((v) => setState(() => _padding = v)),
+          _countSlider(),
+          FilledButton.icon(
+            onPressed: () {
+              if (_i2vPrompt.text.trim().isEmpty) {
+                _snack('Hareket cumlesi bos olamaz');
+                return;
+              }
+              _run(
+                'i2v animasyonu',
+                () => CharacterFlowService.animate(
+                  name: _name,
+                  dir: dir,
+                  skin: _skinArg, // #306
+                  mode: 'i2v',
+                  prompt: _i2vPrompt.text.trim(),
+                  clip: _i2vClip.text.trim(),
+                  n: _animCount,
+                  padding: _padding,
+                ),
+                adet: _animCount,
+              );
+            },
+            icon: const Icon(Icons.movie_filter_outlined, size: 18),
+            label: Text('Uret ($_animCount surum)'),
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(44),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 
   /// Mixamo yolu: arsivden klip secmek ZORUNLU (Blender manken -> Wan Animate 2).
   Widget _mixamoPanel(String dir) => Card(
-        margin: EdgeInsets.zero,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    margin: EdgeInsets.zero,
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Mixamo arsivi - 1975 FBX',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
             children: [
-              const Text('Mixamo arsivi - 1975 FBX',
-                  style: TextStyle(
-                      fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _mixWish,
-                      decoration: const InputDecoration(
-                        labelText: 'Kisa istek (Ollama)',
-                        hintText: 'orn. tekme, zafer, olum',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                  ),
-                  _wandButton(dir, 'mixamo'),
-                ],
-              ),
-              if (_mixSuggest.isNotEmpty) ...[
-                const SizedBox(height: 6),
-                const Text('Ollama onerileri',
-                    style: TextStyle(
-                        fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 200),
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: _mixSuggest.length,
-                    itemBuilder: (_, i) {
-                      final m = _mixSuggest[i];
-                      final on = _mixSel.contains(m.fbx);
-                      return CheckboxListTile(
-                        dense: true,
-                        value: on,
-                        contentPadding: EdgeInsets.zero,
-                        title: Text(m.name, style: const TextStyle(fontSize: 13)),
-                        subtitle: Text(m.why.isEmpty ? m.fbx : m.why,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 10)),
-                        onChanged: (_) => setState(
-                            () => on ? _mixSel.remove(m.fbx) : _mixSel.add(m.fbx)),
-                      );
-                    },
+              Expanded(
+                child: TextField(
+                  controller: _mixWish,
+                  decoration: const InputDecoration(
+                    labelText: 'Kisa istek (Ollama)',
+                    hintText: 'orn. tekme, zafer, olum',
+                    border: OutlineInputBorder(),
                   ),
                 ),
-              ],
-              const SizedBox(height: 8),
-              TextField(
-                controller: _mixQuery,
-                textInputAction: TextInputAction.search,
-                decoration: InputDecoration(
-                  labelText: 'Ara',
-                  hintText: 'orn. great sword slash',
-                  border: const OutlineInputBorder(),
-                  suffixIcon: IconButton(
-                    icon: _mixBusy
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Icon(Icons.search),
-                    onPressed: _searchMixamo,
-                  ),
-                ),
-                onSubmitted: (_) => _searchMixamo(),
               ),
-              const SizedBox(height: 8),
-              if (_mixResults.isEmpty)
-                const Text('Arama yap ve klip sec.',
-                    style: TextStyle(fontSize: 12, color: Colors.grey))
-              else
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 260),
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: _mixResults.length,
-                    itemBuilder: (_, i) {
-                      final m = _mixResults[i];
-                      final on = _mixSel.contains(m.fbx);
-                      return CheckboxListTile(
-                        dense: true,
-                        value: on,
-                        contentPadding: EdgeInsets.zero,
-                        title: Text(m.name, style: const TextStyle(fontSize: 13)),
-                        subtitle: Text(
-                            m.hash.isEmpty ? m.fbx : '${m.hash}  -  ${m.fbx}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 10)),
-                        onChanged: (_) => setState(
-                            () => on ? _mixSel.remove(m.fbx) : _mixSel.add(m.fbx)),
-                      );
-                    },
-                  ),
-                ),
-              const SizedBox(height: 8),
-              // #295: yastiklama uretim dugmesinin hemen ustunde sorulur.
-              _paddingRow((v) => setState(() => _padding = v)),
-              _countSlider(),
-              FilledButton.icon(
-                onPressed: _mixSel.isEmpty
-                    ? null
-                    : () => _run(
-                        'Mixamo animasyonu',
-                        () => CharacterFlowService.animate(
-                              name: _name,
-                              dir: dir,
-                              skin: _skinArg,        // #306
-                              mode: 'mixamo',
-                              clips: _mixSel.toList(),
-                              n: _animCount,
-                              padding: _padding,
-                            ),
-                        adet: _mixSel.length * _animCount),
-                icon: const Icon(Icons.accessibility_new, size: 18),
-                label: Text('Uret (${_mixSel.length} klip x $_animCount)'),
-                style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(44)),
-              ),
+              _wandButton(dir, 'mixamo'),
             ],
           ),
-        ),
-      );
+          if (_mixSuggest.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            const Text(
+              'Ollama onerileri',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey,
+              ),
+            ),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 200),
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: _mixSuggest.length,
+                itemBuilder: (_, i) {
+                  final m = _mixSuggest[i];
+                  final on = _mixSel.contains(m.fbx);
+                  return CheckboxListTile(
+                    dense: true,
+                    value: on,
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(m.name, style: const TextStyle(fontSize: 13)),
+                    subtitle: Text(
+                      m.why.isEmpty ? m.fbx : m.why,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 10),
+                    ),
+                    onChanged:
+                        (_) => setState(
+                          () => on ? _mixSel.remove(m.fbx) : _mixSel.add(m.fbx),
+                        ),
+                  );
+                },
+              ),
+            ),
+          ],
+          const SizedBox(height: 8),
+          TextField(
+            controller: _mixQuery,
+            textInputAction: TextInputAction.search,
+            decoration: InputDecoration(
+              labelText: 'Ara',
+              hintText: 'orn. great sword slash',
+              border: const OutlineInputBorder(),
+              suffixIcon: IconButton(
+                icon:
+                    _mixBusy
+                        ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                        : const Icon(Icons.search),
+                onPressed: _searchMixamo,
+              ),
+            ),
+            onSubmitted: (_) => _searchMixamo(),
+          ),
+          const SizedBox(height: 8),
+          if (_mixResults.isEmpty)
+            const Text(
+              'Arama yap ve klip sec.',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            )
+          else
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 260),
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: _mixResults.length,
+                itemBuilder: (_, i) {
+                  final m = _mixResults[i];
+                  final on = _mixSel.contains(m.fbx);
+                  return CheckboxListTile(
+                    dense: true,
+                    value: on,
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(m.name, style: const TextStyle(fontSize: 13)),
+                    subtitle: Text(
+                      m.hash.isEmpty ? m.fbx : '${m.hash}  -  ${m.fbx}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 10),
+                    ),
+                    onChanged:
+                        (_) => setState(
+                          () => on ? _mixSel.remove(m.fbx) : _mixSel.add(m.fbx),
+                        ),
+                  );
+                },
+              ),
+            ),
+          const SizedBox(height: 8),
+          // #295: yastiklama uretim dugmesinin hemen ustunde sorulur.
+          _paddingRow((v) => setState(() => _padding = v)),
+          _countSlider(),
+          FilledButton.icon(
+            onPressed:
+                _mixSel.isEmpty
+                    ? null
+                    : () => _run(
+                      'Mixamo animasyonu',
+                      () => CharacterFlowService.animate(
+                        name: _name,
+                        dir: dir,
+                        skin: _skinArg, // #306
+                        mode: 'mixamo',
+                        clips: _mixSel.toList(),
+                        n: _animCount,
+                        padding: _padding,
+                      ),
+                      adet: _mixSel.length * _animCount,
+                    ),
+            icon: const Icon(Icons.accessibility_new, size: 18),
+            label: Text('Uret (${_mixSel.length} klip x $_animCount)'),
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(44),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 
   /// rev8: kisa istegi Ollama ile genisletir. 503 = Ollama kapali -> dugme
   /// pasiflesir, duz akis calismaya devam eder.
@@ -4254,7 +4937,12 @@ class _SkinDetailPageState extends State<SkinDetailPage>
     setState(() => _wandBusy = true);
     try {
       final r = await CharacterFlowService.expandPrompt(
-          name: _name, dir: dir, text: istek, mode: mode, skin: _skinArg);
+        name: _name,
+        dir: dir,
+        text: istek,
+        mode: mode,
+        skin: _skinArg,
+      );
       if (!mounted) return;
       setState(() {
         _wandBusy = false;
@@ -4282,13 +4970,17 @@ class _SkinDetailPageState extends State<SkinDetailPage>
 
   /// Sihirli degnek dugmesi - Ollama kapaliysa pasif, ipucu metni degisir.
   Widget _wandButton(String dir, String mode) => IconButton(
-        tooltip: _ollamaOff ? 'Ollama kapali' : 'Ollama ile genislet',
-        onPressed: (_ollamaOff || _wandBusy) ? null : () => _wand(dir, mode),
-        icon: _wandBusy
+    tooltip: _ollamaOff ? 'Ollama kapali' : 'Ollama ile genislet',
+    onPressed: (_ollamaOff || _wandBusy) ? null : () => _wand(dir, mode),
+    icon:
+        _wandBusy
             ? const SizedBox(
-                width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
             : const Icon(Icons.auto_fix_high),
-      );
+  );
 
   Future<void> _searchMixamo() async {
     final q = _mixQuery.text.trim();
@@ -4336,16 +5028,23 @@ class _SkinDetailPageState extends State<SkinDetailPage>
           mainAxisSize: MainAxisSize.min,
           children: [
             // #294: dar sutunda yazi tasmasin.
-            Text(d.short,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                    color: on ? Colors.white : Colors.white70)),
-            Text('$ok/$total',
-                style: TextStyle(
-                    fontSize: 10, color: on ? Colors.white70 : Colors.grey)),
+            Text(
+              d.short,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: on ? Colors.white : Colors.white70,
+              ),
+            ),
+            Text(
+              '$ok/$total',
+              style: TextStyle(
+                fontSize: 10,
+                color: on ? Colors.white70 : Colors.grey,
+              ),
+            ),
           ],
         ),
       ),
@@ -4370,10 +5069,12 @@ class _SkinDetailPageState extends State<SkinDetailPage>
               children: [
                 Expanded(
                   flex: 3,
-                  child: Text(c.clip,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.bold)),
+                  child: Text(
+                    c.clip,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
                 ),
                 Flexible(
                   flex: 2,
@@ -4399,22 +5100,25 @@ class _SkinDetailPageState extends State<SkinDetailPage>
                   color: Colors.black,
                   height: 168,
                   width: 168,
-                  child: c.hasSprite
-                      ? Image.network(
-                          _file(c.webpRel(dir, skin: _skinArg)),
-                          headers: CharacterFlowService.authHeaders,
-                          fit: BoxFit.contain,
-                          errorBuilder: (_, _, _) => _noSprite(),
-                        )
-                      : kabul.isEmpty
+                  child:
+                      c.hasSprite
+                          ? Image.network(
+                            _file(c.webpRel(dir, skin: _skinArg)),
+                            headers: CharacterFlowService.authHeaders,
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, _, _) => _noSprite(),
+                          )
+                          : kabul.isEmpty
                           ? _noSprite()
                           : Image.network(
-                              _thumb(c.acceptedRel(dir, skin: _skinArg),
-                                  size: 400),
-                              headers: CharacterFlowService.authHeaders,
-                              fit: BoxFit.contain,
-                              errorBuilder: (_, _, _) => _noSprite(),
+                            _thumb(
+                              c.acceptedRel(dir, skin: _skinArg),
+                              size: 400,
                             ),
+                            headers: CharacterFlowService.authHeaders,
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, _, _) => _noSprite(),
+                          ),
                 ),
               ),
             ),
@@ -4424,10 +5128,13 @@ class _SkinDetailPageState extends State<SkinDetailPage>
               runSpacing: 4,
               children: [
                 OutlinedButton.icon(
-                  onPressed: kabul.isEmpty
-                      ? null
-                      : () => _playVideo(c.acceptedRel(dir, skin: _skinArg),
-                          '$dir / ${c.clip} / $kabul'),
+                  onPressed:
+                      kabul.isEmpty
+                          ? null
+                          : () => _playVideo(
+                            c.acceptedRel(dir, skin: _skinArg),
+                            '$dir / ${c.clip} / $kabul',
+                          ),
                   icon: const Icon(Icons.play_arrow, size: 18),
                   label: const Text('Videoyu izle'),
                 ),
@@ -4438,18 +5145,22 @@ class _SkinDetailPageState extends State<SkinDetailPage>
                 ),
                 c.hasSprite
                     ? OutlinedButton.icon(
-                        onPressed: kabul.isEmpty ? null : () => _sprite(dir, c.clip),
-                        icon: const Icon(Icons.refresh, size: 18),
-                        label: const Text('Sprite yeniden'),
-                      )
+                      onPressed:
+                          kabul.isEmpty ? null : () => _sprite(dir, c.clip),
+                      icon: const Icon(Icons.refresh, size: 18),
+                      label: const Text('Sprite yeniden'),
+                    )
                     : FilledButton.icon(
-                        onPressed: kabul.isEmpty ? null : () => _sprite(dir, c.clip),
-                        icon: const Icon(Icons.grid_on, size: 18),
-                        label: const Text('Sprite cikar'),
-                      ),
+                      onPressed:
+                          kabul.isEmpty ? null : () => _sprite(dir, c.clip),
+                      icon: const Icon(Icons.grid_on, size: 18),
+                      label: const Text('Sprite cikar'),
+                    ),
                 OutlinedButton.icon(
                   onPressed: () => _deleteClip(dir, c),
-                  style: OutlinedButton.styleFrom(foregroundColor: AppColors.error),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.error,
+                  ),
                   icon: const Icon(Icons.delete_outline, size: 18),
                   label: const Text('Sil'),
                 ),
@@ -4462,21 +5173,28 @@ class _SkinDetailPageState extends State<SkinDetailPage>
   }
 
   Widget _noSprite() => Container(
-        color: Colors.white10,
-        alignment: Alignment.center,
-        child: const Padding(
-          padding: EdgeInsets.all(8),
-          child: Text('sprite yok',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 11, color: Colors.grey)),
-        ),
-      );
+    color: Colors.white10,
+    alignment: Alignment.center,
+    child: const Padding(
+      padding: EdgeInsets.all(8),
+      child: Text(
+        'sprite yok',
+        textAlign: TextAlign.center,
+        style: TextStyle(fontSize: 11, color: Colors.grey),
+      ),
+    ),
+  );
 
   void _sprite(String dir, String clip) => _run(
-      'Sprite',
-      () => CharacterFlowService.sprites(
-          name: _name, dir: dir, clips: [clip], skin: _skinArg),
-      adet: 1);
+    'Sprite',
+    () => CharacterFlowService.sprites(
+      name: _name,
+      dir: dir,
+      clips: [clip],
+      skin: _skinArg,
+    ),
+    adet: 1,
+  );
 
   /// Videoyu oynatir - yol sunucudan gelen rel'dir (istemci yol uydurmaz).
   void _playVideo(String rel, String baslik) {
@@ -4486,26 +5204,29 @@ class _SkinDetailPageState extends State<SkinDetailPage>
     }
     showDialog<void>(
       context: context,
-      builder: (_) => Dialog(
-        insetPadding: const EdgeInsets.all(12),
-        backgroundColor: Colors.black,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Flexible(
-              child: NetworkVideo(
-                url: _file(rel),
-                headers: CharacterFlowService.authHeaders,
-              ),
+      builder:
+          (_) => Dialog(
+            insetPadding: const EdgeInsets.all(12),
+            backgroundColor: Colors.black,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: NetworkVideo(
+                    url: _file(rel),
+                    headers: CharacterFlowService.authHeaders,
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Text(
+                    baslik,
+                    style: const TextStyle(fontSize: 12, color: Colors.white70),
+                  ),
+                ),
+              ],
             ),
-            Padding(
-              padding: const EdgeInsets.all(8),
-              child: Text(baslik,
-                  style: const TextStyle(fontSize: 12, color: Colors.white70)),
-            ),
-          ],
-        ),
-      ),
+          ),
     );
   }
 
@@ -4515,142 +5236,197 @@ class _SkinDetailPageState extends State<SkinDetailPage>
       context: context,
       isScrollControlled: true,
       // #295: yastiklama secici sayfada oldugu icin StatefulBuilder gerekli.
-      builder: (sheet) => StatefulBuilder(
-        builder: (_, setS) => SafeArea(
-          // Liste + "+ Uret" dugmesi yatay ekranda tasiyordu (gorev #289).
-          child: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('$dir / ${c.clip}',
-                      style: const TextStyle(
-                          fontSize: 15, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  if (c.versions.isEmpty)
-                    const Text('Surum yok.',
-                        style: TextStyle(fontSize: 12, color: Colors.grey))
-                  else
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxHeight: 320),
-                      child: ListView(
-                        shrinkWrap: true,
+      builder:
+          (sheet) => StatefulBuilder(
+            builder:
+                (_, setS) => SafeArea(
+                  // Liste + "+ Uret" dugmesi yatay ekranda tasiyordu (gorev #289).
+                  child: SingleChildScrollView(
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          for (final v in c.versions)
-                            ListTile(
-                              dense: true,
-                              contentPadding: EdgeInsets.zero,
-                              leading: Icon(
-                                  c.accepted == v.v
-                                      ? Icons.check_circle
-                                      : Icons.radio_button_unchecked,
-                                  color: c.accepted == v.v
-                                      ? Colors.green
-                                      : Colors.grey),
-                              title: Text(v.v,
-                                  maxLines: 1, overflow: TextOverflow.ellipsis),
-                              subtitle: Text(
-                                  '${v.hasWan ? "wan" : "yalniz manken"}'
-                                  '${v.seed == null ? "" : "  -  seed ${v.seed}"}',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontSize: 11)),
-                              // #294: uc dugme dar ekranda ListTile'i tasiriyordu.
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
+                          Text(
+                            '$dir / ${c.clip}',
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          if (c.versions.isEmpty)
+                            const Text(
+                              'Surum yok.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey,
+                              ),
+                            )
+                          else
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(maxHeight: 320),
+                              child: ListView(
+                                shrinkWrap: true,
                                 children: [
-                                  IconButton(
-                                    tooltip: 'Oynat',
-                                    icon: const Icon(Icons.play_arrow, size: 20),
-                                    padding: EdgeInsets.zero,
-                                    visualDensity: VisualDensity.compact,
-                                    constraints: const BoxConstraints.tightFor(
-                                        width: 34, height: 34),
-                                    onPressed: () => _playVideo(
-                                        v.relFor(dir, c.clip, skin: _skinArg),
-                                        '$dir / ${c.clip} / ${v.v}'),
-                                  ),
-                                  IconButton(
-                                    tooltip: 'Kabul et',
-                                    icon: const Icon(Icons.check, size: 20),
-                                    padding: EdgeInsets.zero,
-                                    visualDensity: VisualDensity.compact,
-                                    constraints: const BoxConstraints.tightFor(
-                                        width: 34, height: 34),
-                                    onPressed: v.hasWan
-                                        ? () {
-                                            Navigator.pop(sheet);
-                                            _accept(dir, c.clip, v.v);
-                                          }
-                                        : null,
-                                  ),
-                                  IconButton(
-                                    tooltip: 'Sil',
-                                    icon: Icon(Icons.delete_outline,
-                                        size: 20, color: AppColors.error),
-                                    padding: EdgeInsets.zero,
-                                    visualDensity: VisualDensity.compact,
-                                    constraints: const BoxConstraints.tightFor(
-                                        width: 34, height: 34),
-                                    onPressed: () {
-                                      Navigator.pop(sheet);
-                                      _deleteVersion(dir, c.clip, v.v);
-                                    },
-                                  ),
+                                  for (final v in c.versions)
+                                    ListTile(
+                                      dense: true,
+                                      contentPadding: EdgeInsets.zero,
+                                      leading: Icon(
+                                        c.accepted == v.v
+                                            ? Icons.check_circle
+                                            : Icons.radio_button_unchecked,
+                                        color:
+                                            c.accepted == v.v
+                                                ? Colors.green
+                                                : Colors.grey,
+                                      ),
+                                      title: Text(
+                                        v.v,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      subtitle: Text(
+                                        '${v.hasWan ? "wan" : "yalniz manken"}'
+                                        '${v.seed == null ? "" : "  -  seed ${v.seed}"}',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(fontSize: 11),
+                                      ),
+                                      // #294: uc dugme dar ekranda ListTile'i tasiriyordu.
+                                      trailing: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          IconButton(
+                                            tooltip: 'Oynat',
+                                            icon: const Icon(
+                                              Icons.play_arrow,
+                                              size: 20,
+                                            ),
+                                            padding: EdgeInsets.zero,
+                                            visualDensity:
+                                                VisualDensity.compact,
+                                            constraints:
+                                                const BoxConstraints.tightFor(
+                                                  width: 34,
+                                                  height: 34,
+                                                ),
+                                            onPressed:
+                                                () => _playVideo(
+                                                  v.relFor(
+                                                    dir,
+                                                    c.clip,
+                                                    skin: _skinArg,
+                                                  ),
+                                                  '$dir / ${c.clip} / ${v.v}',
+                                                ),
+                                          ),
+                                          IconButton(
+                                            tooltip: 'Kabul et',
+                                            icon: const Icon(
+                                              Icons.check,
+                                              size: 20,
+                                            ),
+                                            padding: EdgeInsets.zero,
+                                            visualDensity:
+                                                VisualDensity.compact,
+                                            constraints:
+                                                const BoxConstraints.tightFor(
+                                                  width: 34,
+                                                  height: 34,
+                                                ),
+                                            onPressed:
+                                                v.hasWan
+                                                    ? () {
+                                                      Navigator.pop(sheet);
+                                                      _accept(dir, c.clip, v.v);
+                                                    }
+                                                    : null,
+                                          ),
+                                          IconButton(
+                                            tooltip: 'Sil',
+                                            icon: Icon(
+                                              Icons.delete_outline,
+                                              size: 20,
+                                              color: AppColors.error,
+                                            ),
+                                            padding: EdgeInsets.zero,
+                                            visualDensity:
+                                                VisualDensity.compact,
+                                            constraints:
+                                                const BoxConstraints.tightFor(
+                                                  width: 34,
+                                                  height: 34,
+                                                ),
+                                            onPressed: () {
+                                              Navigator.pop(sheet);
+                                              _deleteVersion(dir, c.clip, v.v);
+                                            },
+                                          ),
+                                        ],
+                                      ),
+                                    ),
                                 ],
                               ),
                             ),
+                          const SizedBox(height: 8),
+                          // #295: burada da uretim var - yastiklama dugmenin hemen ustunde.
+                          _paddingRow((v) {
+                            setState(() => _padding = v);
+                            setS(() {});
+                          }),
+                          const SizedBox(height: 6),
+                          FilledButton.icon(
+                            onPressed: () {
+                              Navigator.pop(sheet);
+                              _run(
+                                '${c.clip} animasyonu',
+                                () => CharacterFlowService.animate(
+                                  name: _name,
+                                  dir: dir,
+                                  skin: _skinArg, // #306
+                                  mode: _animMode,
+                                  clips:
+                                      _animMode == 'mixamo'
+                                          ? [c.clip]
+                                          : const [],
+                                  clip: _animMode == 'i2v' ? c.clip : '',
+                                  prompt:
+                                      _animMode == 'i2v'
+                                          ? _i2vPrompt.text.trim()
+                                          : '',
+                                  n: _animCount,
+                                  padding: _padding,
+                                ),
+                                adet: _animCount,
+                              );
+                            },
+                            icon: const Icon(Icons.add, size: 18),
+                            label: Text('+ Uret ($_animCount)'),
+                            style: FilledButton.styleFrom(
+                              minimumSize: const Size.fromHeight(44),
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                  const SizedBox(height: 8),
-                  // #295: burada da uretim var - yastiklama dugmenin hemen ustunde.
-                  _paddingRow((v) {
-                    setState(() => _padding = v);
-                    setS(() {});
-                  }),
-                  const SizedBox(height: 6),
-                  FilledButton.icon(
-                    onPressed: () {
-                      Navigator.pop(sheet);
-                      _run(
-                          '${c.clip} animasyonu',
-                          () => CharacterFlowService.animate(
-                                name: _name,
-                                dir: dir,
-                                skin: _skinArg,      // #306
-                                mode: _animMode,
-                                clips:
-                                    _animMode == 'mixamo' ? [c.clip] : const [],
-                                clip: _animMode == 'i2v' ? c.clip : '',
-                                prompt: _animMode == 'i2v'
-                                    ? _i2vPrompt.text.trim()
-                                    : '',
-                                n: _animCount,
-                                padding: _padding,
-                              ),
-                          adet: _animCount);
-                    },
-                    icon: const Icon(Icons.add, size: 18),
-                    label: Text('+ Uret ($_animCount)'),
-                    style:
-                        FilledButton.styleFrom(minimumSize: const Size.fromHeight(44)),
                   ),
-                ],
-              ),
-            ),
+                ),
           ),
-        ),
-      ),
     );
   }
 
   Future<void> _accept(String dir, String clip, String v) async {
     try {
       await CharacterFlowService.accept(
-          name: _name, dir: dir, clip: clip, version: v, skin: _skinArg);
+        name: _name,
+        dir: dir,
+        clip: clip,
+        version: v,
+        skin: _skinArg,
+      );
       _snack('$clip -> $v kabul edildi');
       await _loadClips(dir);
     } catch (e) {
@@ -4662,7 +5438,12 @@ class _SkinDetailPageState extends State<SkinDetailPage>
     if (!await _confirm('Surumu sil', '$dir / $clip / $v silinecek.')) return;
     try {
       await CharacterFlowService.deleteVersion(
-          name: _name, dir: dir, clip: clip, version: v, skin: _skinArg);
+        name: _name,
+        dir: dir,
+        clip: clip,
+        version: v,
+        skin: _skinArg,
+      );
       await _loadClips(dir);
     } catch (e) {
       _snack(e.toString().replaceFirst('Exception: ', ''));
@@ -4672,13 +5453,19 @@ class _SkinDetailPageState extends State<SkinDetailPage>
   /// Klibi bu yonden kaldirir: butun surumleri silinir. Klip seti anims.json'da
   /// durur - baska yonde/skinde kullanilabilir.
   Future<void> _deleteClip(String dir, CharacterClip c) async {
-    if (!await _confirm('Klibi sil',
-        '$dir / ${c.clip} altindaki ${c.versions.length} surum silinecek.')) {
+    if (!await _confirm(
+      'Klibi sil',
+      '$dir / ${c.clip} altindaki ${c.versions.length} surum silinecek.',
+    )) {
       return;
     }
     try {
       await CharacterFlowService.deleteClip(
-          name: _name, dir: dir, clip: c.clip, skin: _skinArg);
+        name: _name,
+        dir: dir,
+        clip: c.clip,
+        skin: _skinArg,
+      );
       _snack('${c.clip} silindi');
     } catch (e) {
       _snack(e.toString().replaceFirst('Exception: ', ''));
@@ -4702,91 +5489,118 @@ class _SkinDetailPageState extends State<SkinDetailPage>
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (sheet) => StatefulBuilder(
-        builder: (sheet2, setS) => SafeArea(
-          // Liste + dugme satiri yatay ekranda tasiyordu (gorev #289).
-          child: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Klip seti (anims.json - butun skinler ortak)',
-                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxHeight: 300),
-                    child: ListView(
-                      shrinkWrap: true,
-                      children: [
-                        for (final e in clips.entries)
-                          ListTile(
-                            dense: true,
-                            contentPadding: EdgeInsets.zero,
-                            // #294: uzun klip adi tasmasin.
-                            title: Text(e.key,
-                                maxLines: 1, overflow: TextOverflow.ellipsis),
-                            subtitle: Text(
-                                '${(e.value is Map ? (e.value as Map)['fbx'] : '') ?? ''}',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(fontSize: 11)),
-                            trailing: IconButton(
-                              icon: Icon(Icons.remove_circle_outline,
-                                  color: AppColors.error, size: 20),
-                              onPressed: () => setS(() => clips.remove(e.key)),
+      builder:
+          (sheet) => StatefulBuilder(
+            builder:
+                (sheet2, setS) => SafeArea(
+                  // Liste + dugme satiri yatay ekranda tasiyordu (gorev #289).
+                  child: SingleChildScrollView(
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Klip seti (anims.json - butun skinler ortak)',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
-                      ],
+                          const SizedBox(height: 8),
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(maxHeight: 300),
+                            child: ListView(
+                              shrinkWrap: true,
+                              children: [
+                                for (final e in clips.entries)
+                                  ListTile(
+                                    dense: true,
+                                    contentPadding: EdgeInsets.zero,
+                                    // #294: uzun klip adi tasmasin.
+                                    title: Text(
+                                      e.key,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    subtitle: Text(
+                                      '${(e.value is Map ? (e.value as Map)['fbx'] : '') ?? ''}',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(fontSize: 11),
+                                    ),
+                                    trailing: IconButton(
+                                      icon: Icon(
+                                        Icons.remove_circle_outline,
+                                        color: AppColors.error,
+                                        size: 20,
+                                      ),
+                                      onPressed:
+                                          () => setS(() => clips.remove(e.key)),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              // #314: Mixamo arsivi yalniz insan turlerinde acilir -
+                              // hayvan/makinede klip seti yalniz duzenlenir.
+                              if (_mixamoOn) ...[
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: () async {
+                                      final yeni = await _clipFromMixamo();
+                                      if (yeni != null) {
+                                        setS(
+                                          () =>
+                                              clips[yeni.$1] = {
+                                                'fbx': yeni.$2,
+                                                'pose': yeni.$3,
+                                              },
+                                        );
+                                      }
+                                    },
+                                    icon: const Icon(Icons.search, size: 18),
+                                    label: const Text('Mixamo ara / ekle'),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                              ] else
+                                const Spacer(),
+                              FilledButton(
+                                onPressed: () async {
+                                  Navigator.pop(sheet);
+                                  try {
+                                    data['clips'] = clips;
+                                    await CharacterFlowService.saveAnims(
+                                      _name,
+                                      data,
+                                    );
+                                    _snack('Klip seti kaydedildi');
+                                    if (_animDir != null)
+                                      await _loadClips(_animDir!);
+                                  } catch (e) {
+                                    _snack(
+                                      e.toString().replaceFirst(
+                                        'Exception: ',
+                                        '',
+                                      ),
+                                    );
+                                  }
+                                },
+                                child: const Text('Kaydet'),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      // #314: Mixamo arsivi yalniz insan turlerinde acilir -
-                      // hayvan/makinede klip seti yalniz duzenlenir.
-                      if (_mixamoOn) ...[
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () async {
-                              final yeni = await _clipFromMixamo();
-                              if (yeni != null) {
-                                setS(() => clips[yeni.$1] = {
-                                      'fbx': yeni.$2,
-                                      'pose': yeni.$3,
-                                    });
-                              }
-                            },
-                            icon: const Icon(Icons.search, size: 18),
-                            label: const Text('Mixamo ara / ekle'),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                      ] else
-                        const Spacer(),
-                      FilledButton(
-                        onPressed: () async {
-                          Navigator.pop(sheet);
-                          try {
-                            data['clips'] = clips;
-                            await CharacterFlowService.saveAnims(_name, data);
-                            _snack('Klip seti kaydedildi');
-                            if (_animDir != null) await _loadClips(_animDir!);
-                          } catch (e) {
-                            _snack(e.toString().replaceFirst('Exception: ', ''));
-                          }
-                        },
-                        child: const Text('Kaydet'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
+                ),
           ),
-        ),
-      ),
     );
   }
 
@@ -4796,111 +5610,143 @@ class _SkinDetailPageState extends State<SkinDetailPage>
     var sonuc = <MixamoClip>[];
     final secilen = await showDialog<MixamoClip>(
       context: context,
-      builder: (c) => StatefulBuilder(
-        builder: (c2, setS) => AlertDialog(
-          // Otomatik odakli arama kutusu + 280px sonuc listesi klavyeyle
-          // tasiyordu (gorev #289).
-          scrollable: true,
-          title: const Text('Mixamo arsivi'),
-          content: SizedBox(
-            width: 460,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: q,
-                  autofocus: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Ara',
-                    hintText: 'orn. great sword slash',
-                    border: OutlineInputBorder(),
-                  ),
-                  onSubmitted: (v) async {
-                    try {
-                      final r = await CharacterFlowService.mixamo(v);
-                      setS(() => sonuc = r);
-                    } catch (e) {
-                      _snack(e.toString().replaceFirst('Exception: ', ''));
-                    }
-                  },
-                ),
-                const SizedBox(height: 8),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 280),
-                  child: sonuc.isEmpty
-                      ? const Text('Arama yap.',
-                          style: TextStyle(fontSize: 12, color: Colors.grey))
-                      : ListView(
-                          shrinkWrap: true,
-                          children: [
-                            for (final m in sonuc)
-                              ListTile(
-                                dense: true,
-                                title: Text(m.name,
-                                    style: const TextStyle(fontSize: 13)),
-                                subtitle: Text(m.hash,
-                                    style: const TextStyle(fontSize: 10)),
-                                onTap: () => Navigator.pop(c, m),
-                              ),
-                          ],
+      builder:
+          (c) => StatefulBuilder(
+            builder:
+                (c2, setS) => AlertDialog(
+                  // Otomatik odakli arama kutusu + 280px sonuc listesi klavyeyle
+                  // tasiyordu (gorev #289).
+                  scrollable: true,
+                  title: const Text('Mixamo arsivi'),
+                  content: SizedBox(
+                    width: 460,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TextField(
+                          controller: q,
+                          autofocus: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Ara',
+                            hintText: 'orn. great sword slash',
+                            border: OutlineInputBorder(),
+                          ),
+                          onSubmitted: (v) async {
+                            try {
+                              final r = await CharacterFlowService.mixamo(v);
+                              setS(() => sonuc = r);
+                            } catch (e) {
+                              _snack(
+                                e.toString().replaceFirst('Exception: ', ''),
+                              );
+                            }
+                          },
                         ),
+                        const SizedBox(height: 8),
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxHeight: 280),
+                          child:
+                              sonuc.isEmpty
+                                  ? const Text(
+                                    'Arama yap.',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey,
+                                    ),
+                                  )
+                                  : ListView(
+                                    shrinkWrap: true,
+                                    children: [
+                                      for (final m in sonuc)
+                                        ListTile(
+                                          dense: true,
+                                          title: Text(
+                                            m.name,
+                                            style: const TextStyle(
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                          subtitle: Text(
+                                            m.hash,
+                                            style: const TextStyle(
+                                              fontSize: 10,
+                                            ),
+                                          ),
+                                          onTap: () => Navigator.pop(c, m),
+                                        ),
+                                    ],
+                                  ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(c),
+                      child: const Text('Vazgec'),
+                    ),
+                  ],
                 ),
-              ],
-            ),
           ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(c), child: const Text('Vazgec')),
-          ],
-        ),
-      ),
     );
     if (secilen == null || !mounted) return null;
-    final ad =
-        TextEditingController(text: secilen.name.toLowerCase().replaceAll(' ', '_'));
+    final ad = TextEditingController(
+      text: secilen.name.toLowerCase().replaceAll(' ', '_'),
+    );
     final poz = TextEditingController();
     final ok = await showDialog<bool>(
       context: context,
-      builder: (c) => AlertDialog(
-        // Iki metin kutusu (biri 3 satir) klavyeyle tasiyordu (gorev #289).
-        scrollable: true,
-        title: const Text('Klip ekle'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(secilen.fbx, style: const TextStyle(fontSize: 11, color: Colors.grey)),
-            const SizedBox(height: 8),
-            TextField(
-              controller: ad,
-              decoration: const InputDecoration(
-                  labelText: 'Klip adi', border: OutlineInputBorder()),
+      builder:
+          (c) => AlertDialog(
+            // Iki metin kutusu (biri 3 satir) klavyeyle tasiyordu (gorev #289).
+            scrollable: true,
+            title: const Text('Klip ekle'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  secilen.fbx,
+                  style: const TextStyle(fontSize: 11, color: Colors.grey),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: ad,
+                  decoration: const InputDecoration(
+                    labelText: 'Klip adi',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: poz,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Poz cumlesi (Wan prompt)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: poz,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'Poz cumlesi (Wan prompt)',
-                border: OutlineInputBorder(),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(c, false),
+                child: const Text('Vazgec'),
               ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(c, false), child: const Text('Vazgec')),
-          FilledButton(
-              onPressed: () => Navigator.pop(c, true), child: const Text('Ekle')),
-        ],
-      ),
+              FilledButton(
+                onPressed: () => Navigator.pop(c, true),
+                child: const Text('Ekle'),
+              ),
+            ],
+          ),
     );
     if (ok != true || ad.text.trim().isEmpty) return null;
     return (ad.text.trim(), secilen.fbx, poz.text.trim());
   }
 
   Widget _rozet(String t, Color c) => Container(
-        margin: const EdgeInsets.only(left: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-        decoration: BoxDecoration(color: c, borderRadius: BorderRadius.circular(4)),
-        child: Text(t, style: const TextStyle(fontSize: 9, color: Colors.white)),
-      );
+    margin: const EdgeInsets.only(left: 4),
+    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+    decoration: BoxDecoration(color: c, borderRadius: BorderRadius.circular(4)),
+    child: Text(t, style: const TextStyle(fontSize: 9, color: Colors.white)),
+  );
 }

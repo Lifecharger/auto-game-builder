@@ -5,6 +5,7 @@ import 'package:open_filex/open_filex.dart';
 import '../services/api_service.dart';
 import '../theme.dart';
 import '../l10n/app_localizations.dart';
+import 'app_toast.dart';
 
 const String _pdfMimeType = 'application/pdf';
 
@@ -43,19 +44,30 @@ class TaskItemCard extends StatelessWidget {
     final finished = _parseServerTime(item['completed_at']);
     final updated = _parseServerTime(item['updated_at']);
     final parts = <String>[];
-    if (created != null) parts.add(l10n.createdAgo(formatRelativeAge(context, created)));
+    if (created != null)
+      parts.add(l10n.createdAgo(formatRelativeAge(context, created)));
     final isFinished = _finishedStatuses.contains(status);
     if (isFinished && finished != null) {
-      parts.add(status == 'failed'
-          ? l10n.finishedFailedAgo(formatRelativeAge(context, finished))
-          : l10n.finishedDoneAgo(formatRelativeAge(context, finished)));
-    } else if (updated != null && (created == null || updated.difference(created) >= _sameMomentTolerance)) {
+      parts.add(
+        status == 'failed'
+            ? l10n.finishedFailedAgo(formatRelativeAge(context, finished))
+            : l10n.finishedDoneAgo(formatRelativeAge(context, finished)),
+      );
+    } else if (updated != null &&
+        (created == null ||
+            updated.difference(created) >= _sameMomentTolerance)) {
       parts.add(l10n.updatedAgo(formatRelativeAge(context, updated)));
     }
     return parts.join(' · ');
   }
 
-  static const Set<String> _finishedStatuses = {'completed', 'built', 'divided', 'archived', 'failed'};
+  static const Set<String> _finishedStatuses = {
+    'completed',
+    'built',
+    'divided',
+    'archived',
+    'failed',
+  };
   static const Duration _sameMomentTolerance = Duration(minutes: 1);
 
   static DateTime? _parseServerTime(dynamic raw) {
@@ -63,16 +75,25 @@ class TaskItemCard extends StatelessWidget {
     return DateTime.tryParse(raw);
   }
 
-  void _showCopyMenu(BuildContext context, String title, String description, String aiResponse) {
+  void _showCopyMenu(
+    BuildContext context,
+    String title,
+    String description,
+    String aiResponse,
+  ) {
     final l10n = AppLocalizations.of(context)!;
     final items = <PopupMenuEntry<String>>[
       PopupMenuItem(value: 'title', child: Text(l10n.copyTitle)),
     ];
     if (description.isNotEmpty) {
-      items.add(PopupMenuItem(value: 'desc', child: Text(l10n.copyDescription)));
+      items.add(
+        PopupMenuItem(value: 'desc', child: Text(l10n.copyDescription)),
+      );
     }
     if (aiResponse.isNotEmpty) {
-      items.add(PopupMenuItem(value: 'response', child: Text(l10n.copyAiResponse)));
+      items.add(
+        PopupMenuItem(value: 'response', child: Text(l10n.copyAiResponse)),
+      );
     }
 
     final RenderBox box = context.findRenderObject() as RenderBox;
@@ -92,16 +113,21 @@ class TaskItemCard extends StatelessWidget {
       if (value == null) return;
       String text;
       switch (value) {
-        case 'title': text = title; break;
-        case 'desc': text = description; break;
-        case 'response': text = aiResponse; break;
-        default: return;
+        case 'title':
+          text = title;
+          break;
+        case 'desc':
+          text = description;
+          break;
+        case 'response':
+          text = aiResponse;
+          break;
+        default:
+          return;
       }
       Clipboard.setData(ClipboardData(text: text));
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.copiedToClipboard), duration: Duration(seconds: 1)),
-      );
+      AppToast.of(context).show(l10n.copiedToClipboard);
     });
   }
 
@@ -110,69 +136,81 @@ class TaskItemCard extends StatelessWidget {
   /// work through any tunnel host. Responses without `attachment_types` (older
   /// servers) are treated as images, which is what they were.
   List<({String url, bool isPdf})> get _attachments {
-    final urls = (item['attachment_urls'] as List<dynamic>?)
+    final urls =
+        (item['attachment_urls'] as List<dynamic>?)
             ?.whereType<String>()
             .toList() ??
         const <String>[];
-    final types = (item['attachment_types'] as List<dynamic>?)
+    final types =
+        (item['attachment_types'] as List<dynamic>?)
             ?.whereType<String>()
             .toList() ??
         const <String>[];
     return [
       for (var i = 0; i < urls.length; i++)
         (
-          url: urls[i].startsWith('http')
-              ? urls[i]
-              : '${ApiService.baseUrl}${urls[i]}',
+          url:
+              urls[i].startsWith('http')
+                  ? urls[i]
+                  : '${ApiService.baseUrl}${urls[i]}',
           isPdf: i < types.length && types[i] == _pdfMimeType,
         ),
     ];
   }
 
-  Widget _networkImage(String url, {BoxFit fit = BoxFit.cover, double? height}) {
+  Widget _networkImage(
+    String url, {
+    BoxFit fit = BoxFit.cover,
+    double? height,
+  }) {
     return Image.network(
       url,
       headers: ApiService.authHeaders,
       height: height,
       fit: fit,
-      loadingBuilder: (ctx, child, progress) => progress == null
-          ? child
-          : Container(
-              height: height ?? 120,
-              width: height ?? 120,
-              alignment: Alignment.center,
-              color: AppColors.bgDark,
-              child: const SizedBox(
-                width: 20, height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            ),
-      errorBuilder: (ctx, e, st) => Container(
-        height: height ?? 120,
-        width: height ?? 120,
-        alignment: Alignment.center,
-        color: AppColors.bgDark,
-        child: Icon(Icons.broken_image, color: Colors.grey.shade600),
-      ),
+      loadingBuilder:
+          (ctx, child, progress) =>
+              progress == null
+                  ? child
+                  : Container(
+                    height: height ?? 120,
+                    width: height ?? 120,
+                    alignment: Alignment.center,
+                    color: AppColors.bgDark,
+                    child: const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ),
+      errorBuilder:
+          (ctx, e, st) => Container(
+            height: height ?? 120,
+            width: height ?? 120,
+            alignment: Alignment.center,
+            color: AppColors.bgDark,
+            child: Icon(Icons.broken_image, color: Colors.grey.shade600),
+          ),
     );
   }
 
   void _showFullImage(BuildContext context, String url) {
     showDialog(
       context: context,
-      builder: (ctx) => Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.all(16),
-        child: GestureDetector(
-          onTap: () => Navigator.pop(ctx),
-          child: InteractiveViewer(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: _networkImage(url, fit: BoxFit.contain),
+      builder:
+          (ctx) => Dialog(
+            backgroundColor: Colors.transparent,
+            insetPadding: const EdgeInsets.all(16),
+            child: GestureDetector(
+              onTap: () => Navigator.pop(ctx),
+              child: InteractiveViewer(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: _networkImage(url, fit: BoxFit.contain),
+                ),
+              ),
             ),
           ),
-        ),
-      ),
     );
   }
 
@@ -182,28 +220,19 @@ class TaskItemCard extends StatelessWidget {
   Future<void> _openPdf(BuildContext context, String url, int index) async {
     final l10n = AppLocalizations.of(context)!;
     HapticFeedback.lightImpact();
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.showSnackBar(SnackBar(
-      content: Text(l10n.openingPdf),
-      duration: Duration(seconds: 1),
-    ));
+    final messenger = AppToast.of(context);
+    messenger.show(l10n.openingPdf);
     final result = await ApiService.downloadAttachment(
       url,
       filename: 'task_${item['id']}_$index.pdf',
     );
     if (!result.ok) {
-      messenger.showSnackBar(SnackBar(
-        content: Text(result.error ?? l10n.couldNotDownloadPdf),
-        backgroundColor: AppColors.error,
-      ));
+      messenger.show(result.error ?? l10n.couldNotDownloadPdf, error: true);
       return;
     }
     final opened = await OpenFilex.open(result.data!, type: _pdfMimeType);
     if (opened.type != ResultType.done) {
-      messenger.showSnackBar(SnackBar(
-        content: Text(l10n.couldNotOpenPdf(opened.message)),
-        backgroundColor: AppColors.error,
-      ));
+      messenger.show(l10n.couldNotOpenPdf(opened.message), error: true);
     }
   }
 
@@ -220,75 +249,90 @@ class TaskItemCard extends StatelessWidget {
         children: [
           Icon(Icons.picture_as_pdf, size: size * 0.35, color: AppColors.error),
           const SizedBox(height: 6),
-          Text(l10n.openPdf,
-              style: TextStyle(fontSize: 11, color: Colors.grey.shade300)),
+          Text(
+            l10n.openPdf,
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade300),
+          ),
         ],
       ),
     );
   }
 
   Widget _attachmentThumb(
-      BuildContext context, ({String url, bool isPdf}) attachment, int index) {
+    BuildContext context,
+    ({String url, bool isPdf}) attachment,
+    int index,
+  ) {
     return GestureDetector(
-      onTap: () => attachment.isPdf
-          ? _openPdf(context, attachment.url, index)
-          : _showFullImage(context, attachment.url),
+      onTap:
+          () =>
+              attachment.isPdf
+                  ? _openPdf(context, attachment.url, index)
+                  : _showFullImage(context, attachment.url),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(8),
-        child: attachment.isPdf
-            ? _pdfTile(context)
-            : _networkImage(attachment.url, height: 120),
+        child:
+            attachment.isPdf
+                ? _pdfTile(context)
+                : _networkImage(attachment.url, height: 120),
       ),
     );
   }
 
   void _showAttachmentsViewer(
-      BuildContext context, List<({String url, bool isPdf})> attachments) {
+    BuildContext context,
+    List<({String url, bool isPdf})> attachments,
+  ) {
     showDialog(
       context: context,
-      builder: (ctx) => Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.all(16),
-        child: SizedBox(
-          height: MediaQuery.of(ctx).size.height * 0.7,
-          child: PageView.builder(
-            itemCount: attachments.length,
-            itemBuilder: (_, i) => attachments[i].isPdf
-                ? Center(
-                    child: SizedBox(
-                      height: 160,
-                      width: 160,
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(12),
-                          onTap: () {
-                            // Close the viewer first: the PDF opens in another
-                            // app, and any error lands on the card's snackbar.
-                            Navigator.pop(ctx);
-                            _openPdf(context, attachments[i].url, i);
-                          },
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: _pdfTile(ctx, size: 160),
-                          ),
-                        ),
-                      ),
-                    ),
-                  )
-                : GestureDetector(
-                    onTap: () => Navigator.pop(ctx),
-                    child: InteractiveViewer(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: _networkImage(attachments[i].url,
-                            fit: BoxFit.contain),
-                      ),
-                    ),
-                  ),
+      builder:
+          (ctx) => Dialog(
+            backgroundColor: Colors.transparent,
+            insetPadding: const EdgeInsets.all(16),
+            child: SizedBox(
+              height: MediaQuery.of(ctx).size.height * 0.7,
+              child: PageView.builder(
+                itemCount: attachments.length,
+                itemBuilder:
+                    (_, i) =>
+                        attachments[i].isPdf
+                            ? Center(
+                              child: SizedBox(
+                                height: 160,
+                                width: 160,
+                                child: Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(12),
+                                    onTap: () {
+                                      // Close the viewer first: the PDF opens in another
+                                      // app, and any error lands on the card's snackbar.
+                                      Navigator.pop(ctx);
+                                      _openPdf(context, attachments[i].url, i);
+                                    },
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: _pdfTile(ctx, size: 160),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            )
+                            : GestureDetector(
+                              onTap: () => Navigator.pop(ctx),
+                              child: InteractiveViewer(
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: _networkImage(
+                                    attachments[i].url,
+                                    fit: BoxFit.contain,
+                                  ),
+                                ),
+                              ),
+                            ),
+              ),
+            ),
           ),
-        ),
-      ),
     );
   }
 
@@ -302,21 +346,25 @@ class TaskItemCard extends StatelessWidget {
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.bgCard,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: blockedBy
-              .map((id) => ListTile(
-                    leading: const Icon(Icons.lock_outline, size: 20),
-                    title: Text(l10n.blockedByTask(id)),
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      onBlockerTap!(id);
-                    },
-                  ))
-              .toList(),
-        ),
-      ),
+      builder:
+          (ctx) => SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children:
+                  blockedBy
+                      .map(
+                        (id) => ListTile(
+                          leading: const Icon(Icons.lock_outline, size: 20),
+                          title: Text(l10n.blockedByTask(id)),
+                          onTap: () {
+                            Navigator.pop(ctx);
+                            onBlockerTap!(id);
+                          },
+                        ),
+                      )
+                      .toList(),
+            ),
+          ),
     );
   }
 
@@ -334,7 +382,8 @@ class TaskItemCard extends StatelessWidget {
     final appName = (item['app_name'] ?? '').toString();
     final attachments = _attachments;
     final isArchived = item['archived'] == true;
-    final blockedBy = (item['blocked_by'] as List<dynamic>?)
+    final blockedBy =
+        (item['blocked_by'] as List<dynamic>?)
             ?.whereType<num>()
             .map((e) => e.toInt())
             .toList() ??
@@ -347,7 +396,8 @@ class TaskItemCard extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: onTap,
-        onLongPress: () => _showCopyMenu(context, title, description, aiResponse),
+        onLongPress:
+            () => _showCopyMenu(context, title, description, aiResponse),
         child: Padding(
           padding: const EdgeInsets.all(14),
           child: Column(
@@ -400,7 +450,9 @@ class TaskItemCard extends StatelessWidget {
                           children: [
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 2),
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
                               decoration: BoxDecoration(
                                 color: typeColor.withValues(alpha: 0.2),
                                 borderRadius: BorderRadius.circular(6),
@@ -417,7 +469,9 @@ class TaskItemCard extends StatelessWidget {
                             if (priority == 'urgent')
                               Container(
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 6, vertical: 2),
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
                                 decoration: BoxDecoration(
                                   color: AppColors.error.withValues(alpha: 0.2),
                                   borderRadius: BorderRadius.circular(6),
@@ -425,8 +479,11 @@ class TaskItemCard extends StatelessWidget {
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Icon(Icons.priority_high,
-                                        size: 12, color: AppColors.error),
+                                    Icon(
+                                      Icons.priority_high,
+                                      size: 12,
+                                      color: AppColors.error,
+                                    ),
                                     SizedBox(width: 2),
                                     Text(
                                       l10n.urgentLabel,
@@ -441,24 +498,39 @@ class TaskItemCard extends StatelessWidget {
                               ),
                             if (isBlocked)
                               GestureDetector(
-                                onTap: () => _showBlockerMenu(context, blockedBy),
+                                onTap:
+                                    () => _showBlockerMenu(context, blockedBy),
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(
-                                      horizontal: 6, vertical: 2),
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
                                   decoration: BoxDecoration(
-                                    color: AppColors.warning.withValues(alpha: 0.2),
+                                    color: AppColors.warning.withValues(
+                                      alpha: 0.2,
+                                    ),
                                     borderRadius: BorderRadius.circular(6),
                                     border: Border.all(
-                                        color: AppColors.warning.withValues(alpha: 0.5)),
+                                      color: AppColors.warning.withValues(
+                                        alpha: 0.5,
+                                      ),
+                                    ),
                                   ),
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Icon(Icons.lock_outline,
-                                          size: 12, color: AppColors.warning),
+                                      Icon(
+                                        Icons.lock_outline,
+                                        size: 12,
+                                        color: AppColors.warning,
+                                      ),
                                       const SizedBox(width: 2),
                                       Text(
-                                        l10n.blockedByList(blockedBy.map((id) => '#$id').join(', ')),
+                                        l10n.blockedByList(
+                                          blockedBy
+                                              .map((id) => '#$id')
+                                              .join(', '),
+                                        ),
                                         style: TextStyle(
                                           fontSize: 11,
                                           color: AppColors.warning,
@@ -472,7 +544,9 @@ class TaskItemCard extends StatelessWidget {
                             if (isArchived)
                               Container(
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 6, vertical: 2),
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
                                 decoration: BoxDecoration(
                                   color: Colors.grey.withValues(alpha: 0.2),
                                   borderRadius: BorderRadius.circular(6),
@@ -480,8 +554,11 @@ class TaskItemCard extends StatelessWidget {
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Icon(Icons.inventory_2_outlined,
-                                        size: 12, color: Colors.grey.shade400),
+                                    Icon(
+                                      Icons.inventory_2_outlined,
+                                      size: 12,
+                                      color: Colors.grey.shade400,
+                                    ),
                                     const SizedBox(width: 2),
                                     Text(
                                       l10n.archivedLabel,
@@ -497,9 +574,13 @@ class TaskItemCard extends StatelessWidget {
                             if (agent.isNotEmpty)
                               Container(
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 6, vertical: 2),
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: AppColors.agentColor(agent).withValues(alpha: 0.2),
+                                  color: AppColors.agentColor(
+                                    agent,
+                                  ).withValues(alpha: 0.2),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Text(
@@ -514,7 +595,10 @@ class TaskItemCard extends StatelessWidget {
                             if (appName.isNotEmpty)
                               Text(
                                 appName,
-                                style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey.shade500,
+                                ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -525,7 +609,10 @@ class TaskItemCard extends StatelessWidget {
                             padding: const EdgeInsets.only(top: 4),
                             child: Text(
                               timestampLine,
-                              style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey.shade600,
+                              ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -538,8 +625,10 @@ class TaskItemCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Container(
-                        padding:
-                            const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: statusColor.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(6),
@@ -549,9 +638,11 @@ class TaskItemCard extends StatelessWidget {
                           children: [
                             if (status == 'in_progress') ...[
                               SizedBox(
-                                width: 10, height: 10,
+                                width: 10,
+                                height: 10,
                                 child: CircularProgressIndicator(
-                                  strokeWidth: 1.5, color: statusColor,
+                                  strokeWidth: 1.5,
+                                  color: statusColor,
                                 ),
                               ),
                               const SizedBox(width: 4),
@@ -587,7 +678,11 @@ class TaskItemCard extends StatelessWidget {
                   const SizedBox(height: 12),
                   Text(
                     description,
-                    style: TextStyle(fontSize: 13, color: Colors.grey.shade300, height: 1.4),
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey.shade300,
+                      height: 1.4,
+                    ),
                   ),
                 ],
                 if (attachments.isNotEmpty)
@@ -599,8 +694,9 @@ class TaskItemCard extends StatelessWidget {
                         scrollDirection: Axis.horizontal,
                         itemCount: attachments.length,
                         separatorBuilder: (_, __) => const SizedBox(width: 8),
-                        itemBuilder: (ctx, i) =>
-                            _attachmentThumb(ctx, attachments[i], i),
+                        itemBuilder:
+                            (ctx, i) =>
+                                _attachmentThumb(ctx, attachments[i], i),
                       ),
                     ),
                   ),
@@ -622,9 +718,11 @@ class TaskItemCard extends StatelessWidget {
                             child: FilledButton.icon(
                               onPressed: onFixNow,
                               style: FilledButton.styleFrom(
-                                backgroundColor: status == 'in_progress' || status == 'failed'
-                                    ? AppColors.error
-                                    : AppColors.warning,
+                                backgroundColor:
+                                    status == 'in_progress' ||
+                                            status == 'failed'
+                                        ? AppColors.error
+                                        : AppColors.warning,
                               ),
                               icon: Icon(
                                 status == 'in_progress' || status == 'failed'
@@ -650,7 +748,9 @@ class TaskItemCard extends StatelessWidget {
                             label: Text(l10n.reset),
                             style: OutlinedButton.styleFrom(
                               foregroundColor: AppColors.warning,
-                              side: BorderSide(color: AppColors.warning.withValues(alpha: 0.5)),
+                              side: BorderSide(
+                                color: AppColors.warning.withValues(alpha: 0.5),
+                              ),
                             ),
                           ),
                         ),
@@ -664,9 +764,15 @@ class TaskItemCard extends StatelessWidget {
                           child: IconButton(
                             onPressed: onDelete,
                             style: IconButton.styleFrom(
-                              backgroundColor: AppColors.error.withValues(alpha: 0.15),
+                              backgroundColor: AppColors.error.withValues(
+                                alpha: 0.15,
+                              ),
                             ),
-                            icon: Icon(Icons.delete_outline, size: 20, color: AppColors.error),
+                            icon: Icon(
+                              Icons.delete_outline,
+                              size: 20,
+                              color: AppColors.error,
+                            ),
                           ),
                         ),
                     ],
@@ -678,14 +784,15 @@ class TaskItemCard extends StatelessWidget {
                     width: double.infinity,
                     height: 48,
                     child: OutlinedButton.icon(
-                      onPressed: () => _showAttachmentsViewer(context, attachments),
+                      onPressed:
+                          () => _showAttachmentsViewer(context, attachments),
                       icon: const Icon(Icons.attach_file, size: 18),
-                      label: Text(
-                        l10n.attachmentsCount(attachments.length),
-                      ),
+                      label: Text(l10n.attachmentsCount(attachments.length)),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppColors.info,
-                        side: BorderSide(color: AppColors.info.withValues(alpha: 0.5)),
+                        side: BorderSide(
+                          color: AppColors.info.withValues(alpha: 0.5),
+                        ),
                       ),
                     ),
                   ),
@@ -718,17 +825,28 @@ class TaskItemCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(children: [
-            Icon(Icons.smart_toy, size: 14, color: AppColors.info),
-            const SizedBox(width: 6),
-            Text(l10n.aiResponse,
-                style: TextStyle(fontSize: 12, color: AppColors.info,
-                    fontWeight: FontWeight.w600)),
-          ]),
+          Row(
+            children: [
+              Icon(Icons.smart_toy, size: 14, color: AppColors.info),
+              const SizedBox(width: 6),
+              Text(
+                l10n.aiResponse,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppColors.info,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 8),
           SelectableText(
             aiResponse,
-            style: TextStyle(fontSize: 13, color: Colors.grey.shade200, height: 1.5),
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.grey.shade200,
+              height: 1.5,
+            ),
           ),
         ],
       ),
@@ -761,26 +879,47 @@ class TaskItemCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(children: [
-            Icon(Icons.fact_check, size: 14, color: AppColors.info),
-            const SizedBox(width: 6),
-            Text(l10n.codeCheckResults,
-                style: TextStyle(fontSize: 12, color: AppColors.info,
-                    fontWeight: FontWeight.w600)),
-            const Spacer(),
-            Text(l10n.findingsCount(total),
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade400)),
-          ]),
+          Row(
+            children: [
+              Icon(Icons.fact_check, size: 14, color: AppColors.info),
+              const SizedBox(width: 6),
+              Text(
+                l10n.codeCheckResults,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppColors.info,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                l10n.findingsCount(total),
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade400),
+              ),
+            ],
+          ),
           if (criticalCount > 0 || highCount > 0 || mediumCount > 0) ...[
             const SizedBox(height: 8),
-            Wrap(spacing: 6, children: [
-              if (criticalCount > 0)
-                _severityBadge(l10n.criticalCount(criticalCount), const Color(0xFFE74C3C)),
-              if (highCount > 0)
-                _severityBadge(l10n.highCount(highCount), const Color(0xFFE67E22)),
-              if (mediumCount > 0)
-                _severityBadge(l10n.mediumCount(mediumCount), const Color(0xFFF39C12)),
-            ]),
+            Wrap(
+              spacing: 6,
+              children: [
+                if (criticalCount > 0)
+                  _severityBadge(
+                    l10n.criticalCount(criticalCount),
+                    const Color(0xFFE74C3C),
+                  ),
+                if (highCount > 0)
+                  _severityBadge(
+                    l10n.highCount(highCount),
+                    const Color(0xFFE67E22),
+                  ),
+                if (mediumCount > 0)
+                  _severityBadge(
+                    l10n.mediumCount(mediumCount),
+                    const Color(0xFFF39C12),
+                  ),
+              ],
+            ),
           ],
           const SizedBox(height: 12),
           ...sections.map((s) => _buildCategorySection(s)),
@@ -796,8 +935,14 @@ class TaskItemCard extends StatelessWidget {
         color: color.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(4),
       ),
-      child: Text(label,
-          style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.w600)),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10,
+          color: color,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     );
   }
 
@@ -807,16 +952,25 @@ class TaskItemCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(children: [
-            Icon(section.icon, size: 14, color: section.color),
-            const SizedBox(width: 6),
-            Text(section.name,
-                style: TextStyle(fontSize: 12, color: section.color,
-                    fontWeight: FontWeight.w600)),
-            const SizedBox(width: 6),
-            Text('(${section.findings.length})',
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
-          ]),
+          Row(
+            children: [
+              Icon(section.icon, size: 14, color: section.color),
+              const SizedBox(width: 6),
+              Text(
+                section.name,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: section.color,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                '(${section.findings.length})',
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+              ),
+            ],
+          ),
           const SizedBox(height: 6),
           ...section.findings.map((f) => _buildFindingRow(f)),
         ],
@@ -833,7 +987,8 @@ class TaskItemCard extends StatelessWidget {
         children: [
           Container(
             margin: const EdgeInsets.only(top: 6),
-            width: 6, height: 6,
+            width: 6,
+            height: 6,
             decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
           const SizedBox(width: 8),
@@ -845,14 +1000,26 @@ class TaskItemCard extends StatelessWidget {
                 color: color.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(3),
               ),
-              child: Text(finding.severity.toUpperCase(),
-                  style: TextStyle(fontSize: 9, color: color, fontWeight: FontWeight.w700)),
+              child: Text(
+                finding.severity.toUpperCase(),
+                style: TextStyle(
+                  fontSize: 9,
+                  color: color,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ),
             const SizedBox(width: 4),
           ],
           Expanded(
-            child: SelectableText(finding.text,
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade300, height: 1.4)),
+            child: SelectableText(
+              finding.text,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade300,
+                height: 1.4,
+              ),
+            ),
           ),
         ],
       ),
@@ -861,16 +1028,23 @@ class TaskItemCard extends StatelessWidget {
 
   static Color _severityColor(String severity) {
     switch (severity) {
-      case 'critical': return const Color(0xFFE74C3C);
-      case 'high': return const Color(0xFFE67E22);
-      case 'medium': return const Color(0xFFF39C12);
-      case 'low': return const Color(0xFF3498DB);
-      default: return const Color(0xFF95A5A6);
+      case 'critical':
+        return const Color(0xFFE74C3C);
+      case 'high':
+        return const Color(0xFFE67E22);
+      case 'medium':
+        return const Color(0xFFF39C12);
+      case 'low':
+        return const Color(0xFF3498DB);
+      default:
+        return const Color(0xFF95A5A6);
     }
   }
 
   static List<_CodeCheckSection> _parseCodeCheckSections(
-      AppLocalizations l10n, String response) {
+    AppLocalizations l10n,
+    String response,
+  ) {
     final lines = response.split('\n');
     final sections = <_CodeCheckSection>[];
     String? currentName;
@@ -885,18 +1059,27 @@ class TaskItemCard extends StatelessWidget {
       final headerMatch = RegExp(
         r'^#{1,3}\s+(.*?)(?::?\s*$)'
         r'|^(?:\d+\.\s+)?\*\*(.*?)\*\*:?\s*$'
-        r'|^([A-Z][A-Za-z &/]{2,50}):\s*$'
+        r'|^([A-Z][A-Za-z &/]{2,50}):\s*$',
       ).firstMatch(trimmed);
 
       if (headerMatch != null) {
-        final headerText = (headerMatch.group(1) ?? headerMatch.group(2) ?? headerMatch.group(3) ?? '').trim();
+        final headerText =
+            (headerMatch.group(1) ??
+                    headerMatch.group(2) ??
+                    headerMatch.group(3) ??
+                    '')
+                .trim();
         if (headerText.isEmpty) continue;
 
         if (currentName != null && currentFindings.isNotEmpty) {
-          sections.add(_CodeCheckSection(
-            name: currentName, icon: currentIcon,
-            color: currentColor, findings: List.from(currentFindings),
-          ));
+          sections.add(
+            _CodeCheckSection(
+              name: currentName,
+              icon: currentIcon,
+              color: currentColor,
+              findings: List.from(currentFindings),
+            ),
+          );
         }
         final config = _matchCategory(l10n, headerText);
         currentName = config.name;
@@ -911,26 +1094,61 @@ class TaskItemCard extends StatelessWidget {
             .replaceFirst(RegExp(r'^[-*\u2022]\s*'), '')
             .replaceFirst(RegExp(r'^\d+\.\s*'), '');
         if (text.isEmpty) continue;
-        if (RegExp(r'^no\s+(issues?|findings?|problems?)\s+found', caseSensitive: false).hasMatch(text)) continue;
+        if (RegExp(
+          r'^no\s+(issues?|findings?|problems?)\s+found',
+          caseSensitive: false,
+        ).hasMatch(text))
+          continue;
 
         final severity = _detectSeverity(text);
-        text = text
-            .replaceAll(RegExp(r'\*?\*?\[(?:CRITICAL|HIGH|MEDIUM|LOW|INFO)\]\*?\*?\s*', caseSensitive: false), '')
-            .replaceAll(RegExp(r'\((?:critical|high|medium|low|info)\)\s*', caseSensitive: false), '')
-            .replaceFirst(RegExp(r'^(?:CRITICAL|HIGH|MEDIUM|LOW|INFO):\s*', caseSensitive: false), '')
-            .replaceFirst(RegExp(r'^Severity:\s*\w+\s*[-\u2013\u2014]\s*', caseSensitive: false), '')
-            .trim();
+        text =
+            text
+                .replaceAll(
+                  RegExp(
+                    r'\*?\*?\[(?:CRITICAL|HIGH|MEDIUM|LOW|INFO)\]\*?\*?\s*',
+                    caseSensitive: false,
+                  ),
+                  '',
+                )
+                .replaceAll(
+                  RegExp(
+                    r'\((?:critical|high|medium|low|info)\)\s*',
+                    caseSensitive: false,
+                  ),
+                  '',
+                )
+                .replaceFirst(
+                  RegExp(
+                    r'^(?:CRITICAL|HIGH|MEDIUM|LOW|INFO):\s*',
+                    caseSensitive: false,
+                  ),
+                  '',
+                )
+                .replaceFirst(
+                  RegExp(
+                    r'^Severity:\s*\w+\s*[-\u2013\u2014]\s*',
+                    caseSensitive: false,
+                  ),
+                  '',
+                )
+                .trim();
         if (text.isNotEmpty) {
-          currentFindings.add(_CodeCheckFinding(text: text, severity: severity));
+          currentFindings.add(
+            _CodeCheckFinding(text: text, severity: severity),
+          );
         }
       }
     }
 
     if (currentName != null && currentFindings.isNotEmpty) {
-      sections.add(_CodeCheckSection(
-        name: currentName, icon: currentIcon,
-        color: currentColor, findings: List.from(currentFindings),
-      ));
+      sections.add(
+        _CodeCheckSection(
+          name: currentName,
+          icon: currentIcon,
+          color: currentColor,
+          findings: List.from(currentFindings),
+        ),
+      );
     }
     return sections;
   }
@@ -945,30 +1163,64 @@ class TaskItemCard extends StatelessWidget {
   }
 
   static ({String name, IconData icon, Color color}) _matchCategory(
-      AppLocalizations l10n, String header) {
+    AppLocalizations l10n,
+    String header,
+  ) {
     final lower = header.toLowerCase();
     if (RegExp(r'bug|crash|fault').hasMatch(lower)) {
-      return (name: l10n.catBugsCrashes, icon: Icons.bug_report, color: const Color(0xFFE74C3C));
+      return (
+        name: l10n.catBugsCrashes,
+        icon: Icons.bug_report,
+        color: const Color(0xFFE74C3C),
+      );
     }
     if (RegExp(r'secur|vulnerab|injection|xss').hasMatch(lower)) {
-      return (name: l10n.categorySecurity, icon: Icons.security, color: const Color(0xFFE67E22));
+      return (
+        name: l10n.categorySecurity,
+        icon: Icons.security,
+        color: const Color(0xFFE67E22),
+      );
     }
     if (RegExp(r'perform|speed|slow|optim|efficien').hasMatch(lower)) {
-      return (name: l10n.categoryPerformance, icon: Icons.speed, color: const Color(0xFFF39C12));
+      return (
+        name: l10n.categoryPerformance,
+        icon: Icons.speed,
+        color: const Color(0xFFF39C12),
+      );
     }
     if (RegExp(r'style|format|naming|convention|lint|readab').hasMatch(lower)) {
-      return (name: l10n.catCodeStyle, icon: Icons.brush, color: const Color(0xFF3498DB));
+      return (
+        name: l10n.catCodeStyle,
+        icon: Icons.brush,
+        color: const Color(0xFF3498DB),
+      );
     }
     if (RegExp(r'dead.?code|unused|unreachable|deprecat').hasMatch(lower)) {
-      return (name: l10n.catDeadCode, icon: Icons.delete_outline, color: const Color(0xFF95A5A6));
+      return (
+        name: l10n.catDeadCode,
+        icon: Icons.delete_outline,
+        color: const Color(0xFF95A5A6),
+      );
     }
     if (RegExp(r'error.?handl|exception.?handl|try.?catch').hasMatch(lower)) {
-      return (name: l10n.catErrorHandling, icon: Icons.warning_amber, color: const Color(0xFFF1C40F));
+      return (
+        name: l10n.catErrorHandling,
+        icon: Icons.warning_amber,
+        color: const Color(0xFFF1C40F),
+      );
     }
     if (RegExp(r'memory|leak|dispose').hasMatch(lower)) {
-      return (name: l10n.catMemory, icon: Icons.memory, color: const Color(0xFFAB47BC));
+      return (
+        name: l10n.catMemory,
+        icon: Icons.memory,
+        color: const Color(0xFFAB47BC),
+      );
     }
-    return (name: header, icon: Icons.info_outline, color: const Color(0xFF95A5A6));
+    return (
+      name: header,
+      icon: Icons.info_outline,
+      color: const Color(0xFF95A5A6),
+    );
   }
 }
 
@@ -999,10 +1251,12 @@ String formatRelativeAge(BuildContext context, DateTime time) {
   final l10n = AppLocalizations.of(context)!;
   final diff = DateTime.now().difference(time);
   if (diff < const Duration(minutes: 1)) return l10n.timeJustNow;
-  if (diff < const Duration(hours: 1)) return l10n.timeMinutesAgo(diff.inMinutes);
+  if (diff < const Duration(hours: 1))
+    return l10n.timeMinutesAgo(diff.inMinutes);
   if (diff < const Duration(days: 1)) return l10n.timeHoursAgo(diff.inHours);
   if (diff < const Duration(days: 14)) return l10n.timeDaysAgo(diff.inDays);
-  if (diff < const Duration(days: 60)) return l10n.timeWeeksAgo(diff.inDays ~/ 7);
+  if (diff < const Duration(days: 60))
+    return l10n.timeWeeksAgo(diff.inDays ~/ 7);
   return l10n.timeMonthsAgo(diff.inDays ~/ 30);
 }
 
@@ -1043,9 +1297,10 @@ class _ElapsedTimerState extends State<ElapsedTimer> {
     final m = elapsed.inMinutes.remainder(60).toString().padLeft(2, '0');
     final s = elapsed.inSeconds.remainder(60).toString().padLeft(2, '0');
     final text = h > 0 ? '$h:$m:$s' : '$m:$s';
-    final color = elapsed.inMinutes >= 20
-        ? AppColors.error
-        : elapsed.inMinutes >= 10
+    final color =
+        elapsed.inMinutes >= 20
+            ? AppColors.error
+            : elapsed.inMinutes >= 10
             ? AppColors.warning
             : Colors.orange.shade300;
     final label = elapsed.inMinutes >= 20 ? l10n.stuckSuffix(text) : text;

@@ -32,6 +32,27 @@ IOS_TRACK_MAP = {
 }
 
 
+
+def _clear_old_ipas(folder: str) -> None:
+    """Delete every .ipa an earlier export left in ``folder``.
+
+    The exported file is named after CFBundleName, so renaming an app leaves
+    the old IPA (with an already-uploaded build number) next to the new one,
+    and picking "the first .ipa" could upload the stale one."""
+    if not os.path.isdir(folder):
+        return
+    for name in os.listdir(folder):
+        if name.endswith(".ipa"):
+            os.remove(os.path.join(folder, name))
+
+
+def _newest_ipa(folder: str) -> str:
+    """The most recently written .ipa in ``folder`` ('' when there is none)."""
+    if not os.path.isdir(folder):
+        return ""
+    ipas = [os.path.join(folder, n) for n in os.listdir(folder) if n.endswith(".ipa")]
+    return max(ipas, key=os.path.getmtime) if ipas else ""
+
 class AppleManager:
     def __init__(self, settings: dict):
         self.settings = settings
@@ -374,12 +395,38 @@ class AppleManager:
     # We never ask for App Tracking Transparency. If this key is in the binary, App Store Connect
     # requires "tracking" privacy declarations, so it is removed (2026-11-24).
     REMOVE_KEYS = ("NSUserTrackingUsageDescription",)
-    # Google's published sample iOS AdMob app id: shows test ads only. Real per-app iOS AdMob
-    # ids must replace it before an App Store release.
+    # Google's published sample iOS AdMob app id: shows test ads only. Only a fallback when a
+    # project sets no GADApplicationIdentifier at all; the games set their own (Flutter:
+    # $(ADMOB_APP_ID) from ios/Flutter/*.xcconfig; Godot: admob/general/ios/app_id).
     ADMOB_SAMPLE_IOS_APP_ID = "ca-app-pub-3940256099942544~1458002511"
-    # Google's SKAdNetwork id; extend with Google's published third-party buyer list when mediation
-    # or more buyers are used.
-    ADMOB_SKADNETWORK_IDS = ["cstr6suwn9.skadnetwork"]
+    # Google's SKAdNetwork list for AdMob on iOS: Google's own id first, then Google's published
+    # third-party buyers (developers.google.com/admob/ios/3p-skadnetworks, copied 2026-11-24).
+    ADMOB_SKADNETWORK_IDS = [
+        "cstr6suwn9.skadnetwork", "4fzdc2evr5.skadnetwork", "2fnua5tdw4.skadnetwork", "ydx93a7ass.skadnetwork", "p78axxw29g.skadnetwork",
+        "v72qych5uu.skadnetwork", "ludvb6z3bs.skadnetwork", "cp8zw746q7.skadnetwork", "3sh42y64q3.skadnetwork", "c6k4g5qg8m.skadnetwork",
+        "s39g8k73mm.skadnetwork", "wg4vff78zm.skadnetwork", "3qy4746246.skadnetwork", "f38h382jlk.skadnetwork", "hs6bdukanm.skadnetwork",
+        "mlmmfzh3r3.skadnetwork", "v4nxqhlyqp.skadnetwork", "wzmmz9fp6w.skadnetwork", "su67r6k2v3.skadnetwork", "yclnxrl5pm.skadnetwork",
+        "t38b2kh725.skadnetwork", "7ug5zh24hu.skadnetwork", "gta9lk7p23.skadnetwork", "vutu7akeur.skadnetwork", "y5ghdn5j9k.skadnetwork",
+        "v9wttpbfk9.skadnetwork", "n38lu8286q.skadnetwork", "47vhws6wlr.skadnetwork", "kbd757ywx3.skadnetwork", "9t245vhmpl.skadnetwork",
+        "a2p9lx4jpn.skadnetwork", "22mmun2rn5.skadnetwork", "44jx6755aq.skadnetwork", "k674qkevps.skadnetwork", "4468km3ulz.skadnetwork",
+        "2u9pt9hc89.skadnetwork", "8s468mfl3y.skadnetwork", "klf5c3l5u5.skadnetwork", "ppxm28t8ap.skadnetwork", "kbmxgpxpgc.skadnetwork",
+        "uw77j35x4d.skadnetwork", "578prtvx9j.skadnetwork", "4dzt52r2t5.skadnetwork", "tl55sbb4fm.skadnetwork", "c3frkrj4fj.skadnetwork",
+        "e5fvkxwrpn.skadnetwork", "8c4e2ghe7u.skadnetwork", "3rd42ekr43.skadnetwork", "97r2b46745.skadnetwork", "3qcr597p9d.skadnetwork",
+    ]
+
+    def admob_skadnetwork_plist_xml(self) -> str:
+        """SKAdNetworkItems as one-line plist XML (for Godot's additional_plist_content)."""
+        return "<key>SKAdNetworkItems</key><array>" + "".join(
+            f"<dict><key>SKAdNetworkIdentifier</key><string>{sk}</string></dict>"
+            for sk in self.ADMOB_SKADNETWORK_IDS) + "</array>"
+
+    @staticmethod
+    def godot_uses_admob(project_path: str) -> bool:
+        try:
+            pg = open(os.path.join(project_path, "project.godot"), encoding="utf-8").read()
+        except OSError:
+            return False
+        return "addons/admob/plugin.cfg" in pg or "addons/AdmobPlugin" in pg
 
     GODOT_PRIVACY = {
         "privacy/camera_usage_description": "This game does not use the camera.",
@@ -466,6 +513,17 @@ storyboard/use_launch_screen_storyboard=true
                     sec = re.sub(r'^application/version=.*$', f'application/version="{code}"', sec, flags=re.M)
                     for k, v in self.GODOT_PRIVACY.items():
                         sec = re.sub(rf'^{re.escape(k)}=""$', f'{k}="{v}"', sec, flags=re.M)
+                    # AdMob games: Google's SKAdNetwork list in the Info.plist (refreshed every build)
+                    if self.godot_uses_admob(project_path):
+                        skad = self.admob_skadnetwork_plist_xml()
+                        m = re.search(r'^application/additional_plist_content="(.*)"$', sec, flags=re.M)
+                        if m:
+                            extra = re.sub(r"<key>SKAdNetworkItems</key><array>.*?</array>", "", m.group(1))
+                            line = f'application/additional_plist_content="{extra}{skad}"'
+                            sec = sec[:m.start()] + line + sec[m.end():]
+                        else:
+                            sec = sec.replace("\napplication/bundle_identifier=",
+                                              f'\napplication/additional_plist_content="{skad}"\napplication/bundle_identifier=', 1)
                     # iPhone only (0); Godot's default 2 = iPhone + iPad
                     if re.search(r'^application/targeted_device_family=', sec, flags=re.M):
                         sec = re.sub(r'^application/targeted_device_family=.*$', 'application/targeted_device_family=0', sec, flags=re.M)
@@ -533,15 +591,15 @@ storyboard/use_launch_screen_storyboard=true
         _log("Exporting signed IPA...")
         self.unlock_keychain()
         out_dir = os.path.join(ios_dir, "ipa")
+        _clear_old_ipas(out_dir)
         e = subprocess.run(["xcodebuild", "-exportArchive", "-archivePath", archive, "-exportPath", out_dir,
                             "-exportOptionsPlist", opts, "-allowProvisioningUpdates",
                             "-authenticationKeyPath", self.key_file, "-authenticationKeyID", self.key_id,
                             "-authenticationKeyIssuerID", self.issuer_id],
                            cwd=project_path, capture_output=True, text=True, timeout=900)
-        ipas = [x for x in os.listdir(out_dir) if x.endswith(".ipa")] if os.path.isdir(out_dir) else []
-        if e.returncode != 0 or not ipas:
+        ipa = _newest_ipa(out_dir)
+        if e.returncode != 0 or not ipa:
             return False, "", "\n".join(logs) + "\nexportArchive failed:\n" + (e.stdout + e.stderr)[-3000:]
-        ipa = os.path.join(out_dir, ipas[0])
         _log(f"IPA successfully built: {ipa}")
         return True, ipa, "\n".join(logs)
 
@@ -661,6 +719,7 @@ storyboard/use_launch_screen_storyboard=true
         # Step 3: Export archive to signed IPA using ExportOptions.plist
         _log("Exporting signed IPA...")
         self.unlock_keychain()
+        _clear_old_ipas(export_path)
         export_cmd = [
             "xcodebuild", "-exportArchive",
             "-archivePath", archive_path,
@@ -674,11 +733,9 @@ storyboard/use_launch_screen_storyboard=true
             return False, "", "\n".join(logs) + "\n" + err
 
         # Step 4: Find the generated .ipa file
-        ipa_files = [f for f in os.listdir(export_path) if f.endswith(".ipa")]
-        if not ipa_files:
+        ipa_path = _newest_ipa(export_path)
+        if not ipa_path:
             return False, "", "No .ipa file generated in " + export_path
-
-        ipa_path = os.path.join(export_path, ipa_files[0])
         _log(f"IPA successfully built: {ipa_path}")
         return True, ipa_path, "\n".join(logs)
 

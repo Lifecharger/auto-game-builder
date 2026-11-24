@@ -14,6 +14,7 @@ import '../services/usage_events.dart';
 import '../main.dart';
 import '../l10n/app_localizations.dart';
 import '../widgets/demo_entry_button.dart';
+import '../widgets/app_toast.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -83,8 +84,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           final url = 'http://$connectHost:$port';
 
           // Extract worker URL from cloudflare section if available
-          final workerUrl =
-              json['cloudflare']?['worker_url'] as String? ?? '';
+          final workerUrl = json['cloudflare']?['worker_url'] as String? ?? '';
           if (workerUrl.isNotEmpty && mounted) {
             setState(() {
               _detectedWorkerUrl = workerUrl;
@@ -94,7 +94,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
           // Test if server is actually running
           try {
-            final resp = await http.get(Uri.parse('$url/api/health'))
+            final resp = await http
+                .get(Uri.parse('$url/api/health'))
                 .timeout(const Duration(seconds: 2));
             if (resp.statusCode == 200) {
               // Server is running! Auto-connect
@@ -145,7 +146,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   bool _isValidUrl(String url) {
     if (!url.startsWith('http://') && !url.startsWith('https://')) return false;
-    final host = url.replaceFirst(RegExp(r'https?://'), '').split(':').first.split('/').first;
+    final host =
+        url
+            .replaceFirst(RegExp(r'https?://'), '')
+            .split(':')
+            .first
+            .split('/')
+            .first;
     return host == 'localhost' || host.contains('.');
   }
 
@@ -163,7 +170,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     }
 
     // Normalize: remove trailing slash
-    final normalized = url.endsWith('/') ? url.substring(0, url.length - 1) : url;
+    final normalized =
+        url.endsWith('/') ? url.substring(0, url.length - 1) : url;
 
     setState(() {
       _testing = true;
@@ -376,11 +384,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         children: [
           const SizedBox(height: 32),
           Center(
-            child: Icon(
-              Icons.dns_outlined,
-              size: 56,
-              color: AppColors.accent,
-            ),
+            child: Icon(Icons.dns_outlined, size: 56, color: AppColors.accent),
           ),
           const SizedBox(height: 24),
           Center(
@@ -397,10 +401,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           Center(
             child: Text(
               l10n.enterServerUrlDesc,
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey.shade400,
-              ),
+              style: TextStyle(fontSize: 14, color: Colors.grey.shade400),
             ),
           ),
           if (_detecting) ...[
@@ -408,9 +409,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
                 const SizedBox(width: 8),
-                Text(l10n.detectingServer, style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
+                Text(
+                  l10n.detectingServer,
+                  style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
+                ),
               ],
             ),
           ],
@@ -435,9 +443,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             width: double.infinity,
             height: 48,
             child: ElevatedButton.icon(
-              onPressed: _testing
-                  ? null
-                  : () => _testConnection(_urlController.text),
+              onPressed:
+                  _testing ? null : () => _testConnection(_urlController.text),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.bgCard,
                 foregroundColor: Colors.white,
@@ -446,16 +453,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   side: BorderSide(color: Colors.grey.shade700),
                 ),
               ),
-              icon: _testing
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Icon(Icons.wifi_tethering, size: 20),
+              icon:
+                  _testing
+                      ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                      : const Icon(Icons.wifi_tethering, size: 20),
               label: Text(_testing ? l10n.testing : l10n.testConnection),
             ),
           ),
@@ -505,10 +513,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           Center(
             child: Text(
               l10n.enterWorkerUrlDesc,
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey.shade400,
-              ),
+              style: TextStyle(fontSize: 14, color: Colors.grey.shade400),
             ),
           ),
           const SizedBox(height: 32),
@@ -523,18 +528,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             ),
             keyboardType: TextInputType.url,
             textInputAction: TextInputAction.done,
-            onSubmitted: (_) =>
-                _testConnection(_workerUrlController.text),
+            onSubmitted: (_) => _testConnection(_workerUrlController.text),
           ),
           const SizedBox(height: 8),
           Padding(
             padding: const EdgeInsets.only(left: 4),
             child: Text(
               l10n.workerUrlHelp,
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey.shade500,
-              ),
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
             ),
           ),
           const SizedBox(height: 16),
@@ -547,10 +548,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: Text(
                   l10n.orSeparator,
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
-                    fontSize: 12,
-                  ),
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
                 ),
               ),
               Expanded(child: Divider(color: Colors.grey.shade700)),
@@ -577,18 +575,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             width: double.infinity,
             height: 48,
             child: ElevatedButton.icon(
-              onPressed: _testing
-                  ? null
-                  : () {
-                      // Prefer worker URL if filled, otherwise use direct URL
-                      final workerUrl = _workerUrlController.text.trim();
-                      final directUrl = _urlController.text.trim();
-                      if (workerUrl.isNotEmpty) {
-                        _testConnection(workerUrl);
-                      } else if (directUrl.isNotEmpty) {
-                        _testConnection(directUrl);
-                      }
-                    },
+              onPressed:
+                  _testing
+                      ? null
+                      : () {
+                        // Prefer worker URL if filled, otherwise use direct URL
+                        final workerUrl = _workerUrlController.text.trim();
+                        final directUrl = _urlController.text.trim();
+                        if (workerUrl.isNotEmpty) {
+                          _testConnection(workerUrl);
+                        } else if (directUrl.isNotEmpty) {
+                          _testConnection(directUrl);
+                        }
+                      },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.bgCard,
                 foregroundColor: Colors.white,
@@ -597,16 +596,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   side: BorderSide(color: Colors.grey.shade700),
                 ),
               ),
-              icon: _testing
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Icon(Icons.wifi_tethering, size: 20),
+              icon:
+                  _testing
+                      ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                      : const Icon(Icons.wifi_tethering, size: 20),
               label: Text(_testing ? l10n.testing : l10n.testConnection),
             ),
           ),
@@ -645,13 +645,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(height: 16),
-          Center(
-            child: Icon(
-              Icons.terminal,
-              size: 56,
-              color: AppColors.info,
-            ),
-          ),
+          Center(child: Icon(Icons.terminal, size: 56, color: AppColors.info)),
           const SizedBox(height: 20),
           Center(
             child: Text(
@@ -667,10 +661,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           Center(
             child: Text(
               l10n.setupServerFirst,
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey.shade400,
-              ),
+              style: TextStyle(fontSize: 14, color: Colors.grey.shade400),
             ),
           ),
           const SizedBox(height: 24),
@@ -678,12 +669,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           // GitHub link
           Center(
             child: InkWell(
-              onTap: () => _openExternalUrl(
-                  'https://github.com/Lifecharger/auto-game-builder'),
+              onTap:
+                  () => _openExternalUrl(
+                    'https://github.com/Lifecharger/auto-game-builder',
+                  ),
               borderRadius: BorderRadius.circular(8),
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.bgDark,
                   borderRadius: BorderRadius.circular(8),
@@ -703,8 +698,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       ),
                     ),
                     const SizedBox(width: 4),
-                    Icon(Icons.open_in_new,
-                        size: 14, color: Colors.grey.shade500),
+                    Icon(
+                      Icons.open_in_new,
+                      size: 14,
+                      color: Colors.grey.shade500,
+                    ),
                   ],
                 ),
               ),
@@ -715,16 +713,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           _buildStep(1, l10n.setupStepInstallPython),
           _buildStep(2, l10n.setupStepCloneRepo),
           _buildCodeBlock(
-              'git clone https://github.com/Lifecharger/auto-game-builder.git'),
+            'git clone https://github.com/Lifecharger/auto-game-builder.git',
+          ),
           _buildStep(3, l10n.setupStepInstallDeps),
           _buildCodeBlock(
-              'cd auto-game-builder\npip install -r server/requirements.txt'),
+            'cd auto-game-builder\npip install -r server/requirements.txt',
+          ),
           _buildStep(4, l10n.setupStepRunWizard),
           _buildCodeBlock('python setup_wizard.py'),
           _buildStep(5, l10n.setupStepStartServer),
           _buildCodeBlock('python server/main.py'),
-          _buildStep(6,
-              l10n.setupStepEnterUrl),
+          _buildStep(6, l10n.setupStepEnterUrl),
 
           const SizedBox(height: 16),
 
@@ -747,9 +746,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             width: double.infinity,
             height: 48,
             child: ElevatedButton.icon(
-              onPressed: _testing
-                  ? null
-                  : () => _testConnection(_setupUrlController.text),
+              onPressed:
+                  _testing
+                      ? null
+                      : () => _testConnection(_setupUrlController.text),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.bgCard,
                 foregroundColor: Colors.white,
@@ -758,16 +758,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   side: BorderSide(color: Colors.grey.shade700),
                 ),
               ),
-              icon: _testing
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Icon(Icons.wifi_tethering, size: 20),
+              icon:
+                  _testing
+                      ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                      : const Icon(Icons.wifi_tethering, size: 20),
               label: Text(_testing ? l10n.testing : l10n.testConnection),
             ),
           ),
@@ -778,8 +779,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             _buildConnectionResult(
               success: _connectionResult!,
               error: _connectionError,
-              onContinue: () =>
-                  _onConnectSuccess(_setupUrlController.text.trim()),
+              onContinue:
+                  () => _onConnectSuccess(_setupUrlController.text.trim()),
             ),
         ],
       ),
@@ -823,10 +824,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           const SizedBox(height: 12),
           Text(
             l10n.connectedTo(_connectedServerName),
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey.shade400,
-            ),
+            style: TextStyle(fontSize: 14, color: Colors.grey.shade400),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 32),
@@ -846,8 +844,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.phone_android,
-                          color: AppColors.info, size: 22),
+                      Icon(
+                        Icons.phone_android,
+                        color: AppColors.info,
+                        size: 22,
+                      ),
                       const SizedBox(width: 8),
                       Text(
                         l10n.connectYourPhone,
@@ -875,7 +876,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 12),
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
                       decoration: BoxDecoration(
                         color: AppColors.bgDark,
                         borderRadius: BorderRadius.circular(8),
@@ -898,14 +901,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           IconButton(
                             onPressed: () {
                               Clipboard.setData(
-                                  ClipboardData(text: _detectedWorkerUrl));
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(l10n.workerUrlCopied),
-                                  backgroundColor: AppColors.success,
-                                  duration: Duration(seconds: 2),
-                                ),
+                                ClipboardData(text: _detectedWorkerUrl),
                               );
+                              AppToast.of(context).show(l10n.workerUrlCopied);
                             },
                             icon: const Icon(Icons.copy, size: 18),
                             color: Colors.grey.shade400,
@@ -943,10 +941,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   // Play Store section
                   Text(
                     l10n.scanToInstall,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.white70,
-                    ),
+                    style: TextStyle(fontSize: 13, color: Colors.white70),
                   ),
                   const SizedBox(height: 12),
                   InkWell(
@@ -954,7 +949,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     borderRadius: BorderRadius.circular(8),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 10),
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
                       decoration: BoxDecoration(
                         color: AppColors.bgDark,
                         borderRadius: BorderRadius.circular(8),
@@ -963,8 +960,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.open_in_new,
-                              size: 16, color: AppColors.info),
+                          Icon(
+                            Icons.open_in_new,
+                            size: 16,
+                            color: AppColors.info,
+                          ),
                           const SizedBox(width: 8),
                           Flexible(
                             child: Text(
@@ -1003,10 +1003,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ),
               child: Text(
                 l10n.getStarted,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
               ),
             ),
           ),
@@ -1022,12 +1019,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     } catch (e) {
       debugPrint('Failed to open URL: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(l10n.couldNotOpenLink),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        AppToast.of(context).show(l10n.couldNotOpenLink, error: true);
       }
     }
   }
@@ -1045,14 +1037,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       duration: const Duration(milliseconds: 300),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: success
-            ? AppColors.success.withOpacity(0.12)
-            : AppColors.error.withOpacity(0.12),
+        color:
+            success
+                ? AppColors.success.withOpacity(0.12)
+                : AppColors.error.withOpacity(0.12),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
-          color: success
-              ? AppColors.success.withOpacity(0.4)
-              : AppColors.error.withOpacity(0.4),
+          color:
+              success
+                  ? AppColors.success.withOpacity(0.4)
+                  : AppColors.error.withOpacity(0.4),
         ),
       ),
       child: Column(
@@ -1132,10 +1126,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               padding: const EdgeInsets.only(top: 4),
               child: Text(
                 text,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                ),
+                style: const TextStyle(color: Colors.white, fontSize: 14),
               ),
             ),
           ),

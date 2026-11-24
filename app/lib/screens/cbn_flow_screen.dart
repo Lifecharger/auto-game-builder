@@ -11,6 +11,7 @@ import '../widgets/bottom_inset.dart';
 import '../widgets/network_video.dart';
 import '../widgets/flow_kind_switch.dart' show kindSwitchBottom;
 import '../theme.dart';
+import '../widgets/app_toast.dart';
 
 /// Asset Mod - CBN (Color-By-Number) yayin hatti (2-3-4. akis).
 ///
@@ -35,8 +36,11 @@ class _CbnFlowScreenState extends State<CbnFlowScreen>
 
   AppLocalizations get l10n => AppLocalizations.of(context)!;
 
-  List<String> get _titles =>
-      [l10n.cbnFlowTabIncoming, l10n.cbnFlowTabReady, l10n.flowTabPushed];
+  List<String> get _titles => [
+    l10n.cbnFlowTabIncoming,
+    l10n.cbnFlowTabReady,
+    l10n.flowTabPushed,
+  ];
 
   late final TabController _tabs;
   String _rating = 'hot';
@@ -59,16 +63,15 @@ class _CbnFlowScreenState extends State<CbnFlowScreen>
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 3, vsync: this)
-      ..addListener(() {
-        if (!_tabs.indexIsChanging) {
-          setState(() {
-            _sel.clear();
-            _collection = '';
-          });
-          _load();
-        }
-      });
+    _tabs = TabController(length: 3, vsync: this)..addListener(() {
+      if (!_tabs.indexIsChanging) {
+        setState(() {
+          _sel.clear();
+          _collection = '';
+        });
+        _load();
+      }
+    });
     _load();
   }
 
@@ -88,7 +91,11 @@ class _CbnFlowScreenState extends State<CbnFlowScreen>
     try {
       final c = await CbnFlowService.collections(_rating);
       final r = await CbnFlowService.list(
-          rating: _rating, stage: _stage, collection: _collection, limit: 300);
+        rating: _rating,
+        stage: _stage,
+        collection: _collection,
+        limit: 300,
+      );
       if (!mounted) return;
       setState(() {
         _colls = c;
@@ -121,13 +128,15 @@ class _CbnFlowScreenState extends State<CbnFlowScreen>
         tick++;
         if (!o.running) {
           t.cancel();
-          _snack(o.status == 'error'
-              ? l10n.flowOpError(o.message)
-              : o.status == 'cancelled'
-                  ? l10n.flowOpCancelled
-                  : o.failed > 0
-                      ? l10n.flowOpDoneWithFailed(o.ok, o.failed)
-                      : l10n.flowOpDone(o.ok));
+          _snack(
+            o.status == 'error'
+                ? l10n.flowOpError(o.message)
+                : o.status == 'cancelled'
+                ? l10n.flowOpCancelled
+                : o.failed > 0
+                ? l10n.flowOpDoneWithFailed(o.ok, o.failed)
+                : l10n.flowOpDone(o.ok),
+          );
           _load();
         } else if (o.kind.startsWith('cbn-') && tick % 10 == 0) {
           _load();
@@ -144,84 +153,103 @@ class _CbnFlowScreenState extends State<CbnFlowScreen>
 
   void _snack(String m) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+    AppToast.of(context).show(m);
   }
 
-  Future<bool> _confirm(String baslik, String metin, {required String onay}) async =>
+  Future<bool> _confirm(
+    String baslik,
+    String metin, {
+    required String onay,
+  }) async =>
       await showDialog<bool>(
         context: context,
-        builder: (c) => AlertDialog(
-          // Uzun onay metni kucuk ekranda tasiyordu (gorev #289).
-          scrollable: true,
-          title: Text(baslik),
-          content: Text(metin),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(c, false),
-                child: Text(l10n.cancel)),
-            FilledButton(onPressed: () => Navigator.pop(c, true), child: Text(onay)),
-          ],
-        ),
+        builder:
+            (c) => AlertDialog(
+              // Uzun onay metni kucuk ekranda tasiyordu (gorev #289).
+              scrollable: true,
+              title: Text(baslik),
+              content: Text(metin),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(c, false),
+                  child: Text(l10n.cancel),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(c, true),
+                  child: Text(onay),
+                ),
+              ],
+            ),
       ) ??
       false;
 
   // -------------------------------------------------------------- eylem
   Future<void> _build() async {
     final ids = _sel.toList();
-    final mevcut = (_colls['staging'] ?? const [])
-        .map((c) => c.name)
-        .toList()
-      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    final mevcut =
+        (_colls['staging'] ?? const []).map((c) => c.name).toList()
+          ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
     final ctl = TextEditingController(text: 'Generic');
     final coll = await showDialog<String>(
       context: context,
-      builder: (c) => AlertDialog(
-        // Uzun aciklama + koleksiyon kutusu + chip listesi klavyeyle tasiyordu
-        // (gorev #289).
-        scrollable: true,
-        title: Text(l10n.cbnFlowBuildTitle(ids.length)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              _rating == 'hot'
-                  ? l10n.cbnFlowBuildBodyHot
-                  : l10n.cbnFlowBuildBodyKid,
-              style: const TextStyle(fontSize: 12, color: Colors.grey),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: ctl,
-              decoration: InputDecoration(
-                labelText: l10n.flowCollection,
-                border: const OutlineInputBorder(),
-              ),
-            ),
-            if (mevcut.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 6,
-                children: [
-                  for (final m in mevcut)
-                    ActionChip(label: Text(m), onPressed: () => ctl.text = m),
+      builder:
+          (c) => AlertDialog(
+            // Uzun aciklama + koleksiyon kutusu + chip listesi klavyeyle tasiyordu
+            // (gorev #289).
+            scrollable: true,
+            title: Text(l10n.cbnFlowBuildTitle(ids.length)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _rating == 'hot'
+                      ? l10n.cbnFlowBuildBodyHot
+                      : l10n.cbnFlowBuildBodyKid,
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: ctl,
+                  decoration: InputDecoration(
+                    labelText: l10n.flowCollection,
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+                if (mevcut.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    children: [
+                      for (final m in mevcut)
+                        ActionChip(
+                          label: Text(m),
+                          onPressed: () => ctl.text = m,
+                        ),
+                    ],
+                  ),
                 ],
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(c),
+                child: Text(l10n.cancel),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(c, ctl.text.trim()),
+                child: Text(l10n.cbnFlowBuild),
               ),
             ],
-          ],
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(c), child: Text(l10n.cancel)),
-          FilledButton(
-              onPressed: () => Navigator.pop(c, ctl.text.trim()),
-              child: Text(l10n.cbnFlowBuild)),
-        ],
-      ),
+          ),
     );
     if (coll == null || coll.isEmpty) return;
     try {
-      final op = await CbnFlowService.build(rating: _rating, ids: ids, collection: coll);
+      final op = await CbnFlowService.build(
+        rating: _rating,
+        ids: ids,
+        collection: coll,
+      );
       setState(_sel.clear);
       _watch(op);
       _snack(l10n.cbnFlowBuildStarted);
@@ -233,7 +261,10 @@ class _CbnFlowScreenState extends State<CbnFlowScreen>
   /// Asamali hat (gorev #281): her asama secili varliklarin HEPSINDE
   /// arka arkaya kosar - model bir kez yuklenir. Sira: nesneler -> SAM ->
   /// (hot) cizgi -> insa.
-  Future<void> _runStage(String ad, Future<String> Function(List<String>) f) async {
+  Future<void> _runStage(
+    String ad,
+    Future<String> Function(List<String>) f,
+  ) async {
     final ids = _sel.toList();
     try {
       final op = await f(ids);
@@ -261,9 +292,10 @@ class _CbnFlowScreenState extends State<CbnFlowScreen>
   Future<void> _push() async {
     final ids = _sel.toList();
     final ok = await _confirm(
-        l10n.cbnFlowPushTitle(ids.length),
-        l10n.cbnFlowPushBody,
-        onay: l10n.flowPush);
+      l10n.cbnFlowPushTitle(ids.length),
+      l10n.cbnFlowPushBody,
+      onay: l10n.flowPush,
+    );
     if (!ok) return;
     try {
       final op = await CbnFlowService.push(rating: _rating, ids: ids);
@@ -276,10 +308,18 @@ class _CbnFlowScreenState extends State<CbnFlowScreen>
 
   Future<void> _delete() async {
     final ids = _sel.toList();
-    final ok = await _confirm(l10n.delete, l10n.cbnFlowDeleteBody(ids.length), onay: l10n.delete);
+    final ok = await _confirm(
+      l10n.delete,
+      l10n.cbnFlowDeleteBody(ids.length),
+      onay: l10n.delete,
+    );
     if (!ok) return;
     try {
-      final n = await CbnFlowService.remove(rating: _rating, stage: _stage, ids: ids);
+      final n = await CbnFlowService.remove(
+        rating: _rating,
+        stage: _stage,
+        ids: ids,
+      );
       setState(_sel.clear);
       _snack(l10n.cbnFlowDeleted(n));
       _load();
@@ -293,12 +333,18 @@ class _CbnFlowScreenState extends State<CbnFlowScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        leading: _selecting
-            ? IconButton(
-                icon: const Icon(Icons.close),
-                onPressed: () => setState(_sel.clear))
-            : null,
-        title: Text(_selecting ? l10n.bucketsSelectedCount(_sel.length) : l10n.cbnFlowTitle),
+        leading:
+            _selecting
+                ? IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => setState(_sel.clear),
+                )
+                : null,
+        title: Text(
+          _selecting
+              ? l10n.bucketsSelectedCount(_sel.length)
+              : l10n.cbnFlowTitle,
+        ),
         actions: [
           if (!_selecting)
             IconButton(
@@ -307,7 +353,10 @@ class _CbnFlowScreenState extends State<CbnFlowScreen>
               onPressed: () => ModeService.set(false),
             ),
           IconButton(
-              icon: const Icon(Icons.refresh), tooltip: l10n.refresh, onPressed: _load),
+            icon: const Icon(Icons.refresh),
+            tooltip: l10n.refresh,
+            onPressed: _load,
+          ),
         ],
         // #353: hat anahtari app bar'in altinda tam genislikte (Uretilenler kalibi).
         bottom: kindSwitchBottom(
@@ -323,9 +372,10 @@ class _CbnFlowScreenState extends State<CbnFlowScreen>
           _ratingBar(),
           if (_op != null && _op!.running) _opBar(),
           Expanded(
-            child: _loading
-                ? const Center(child: CircularProgressIndicator())
-                : _error != null
+            child:
+                _loading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _error != null
                     ? _errorView()
                     : _grid(),
           ),
@@ -336,37 +386,41 @@ class _CbnFlowScreenState extends State<CbnFlowScreen>
   }
 
   Widget _ratingBar() => Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-        child: Row(
-          children: [
-            Expanded(
-              child: SegmentedButton<String>(
-                segments: CbnFlowService.ratings.entries
-                    .map((e) => ButtonSegment(value: e.key, label: Text(e.value)))
+    padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+    child: Row(
+      children: [
+        Expanded(
+          child: SegmentedButton<String>(
+            segments:
+                CbnFlowService.ratings.entries
+                    .map(
+                      (e) => ButtonSegment(value: e.key, label: Text(e.value)),
+                    )
                     .toList(),
-                selected: {_rating},
-                showSelectedIcon: false,
-                onSelectionChanged: (v) {
-                  HapticFeedback.selectionClick();
-                  setState(() {
-                    _rating = v.first;
-                    _sel.clear();
-                    _collection = '';
-                  });
-                  _load();
-                },
-              ),
-            ),
-            if (_stage != 'incoming') ...[
-              const SizedBox(width: 8),
-              _collectionMenu(),
-            ],
-          ],
+            selected: {_rating},
+            showSelectedIcon: false,
+            onSelectionChanged: (v) {
+              HapticFeedback.selectionClick();
+              setState(() {
+                _rating = v.first;
+                _sel.clear();
+                _collection = '';
+              });
+              _load();
+            },
+          ),
         ),
-      );
+        if (_stage != 'incoming') ...[
+          const SizedBox(width: 8),
+          _collectionMenu(),
+        ],
+      ],
+    ),
+  );
 
   Widget _collectionMenu() {
-    final liste = _colls[_stage == 'staging' ? 'staging' : 'pushed'] ?? const [];
+    final liste =
+        _colls[_stage == 'staging' ? 'staging' : 'pushed'] ?? const [];
     return PopupMenuButton<String>(
       tooltip: l10n.flowCollection,
       onSelected: (v) {
@@ -376,37 +430,43 @@ class _CbnFlowScreenState extends State<CbnFlowScreen>
         });
         _load();
       },
-      itemBuilder: (_) => [
-        PopupMenuItem(value: '', child: Text(l10n.flowAllParen)),
-        for (final k in liste)
-          PopupMenuItem(value: k.name, child: Text('${k.name}  (${k.count})')),
-      ],
+      itemBuilder:
+          (_) => [
+            PopupMenuItem(value: '', child: Text(l10n.flowAllParen)),
+            for (final k in liste)
+              PopupMenuItem(
+                value: k.name,
+                child: Text('${k.name}  (${k.count})'),
+              ),
+          ],
       child: Chip(
         avatar: const Icon(Icons.folder_outlined, size: 16),
-        label: Text(_collection.isEmpty ? l10n.flowAll : _collection,
-            overflow: TextOverflow.ellipsis),
+        label: Text(
+          _collection.isEmpty ? l10n.flowAll : _collection,
+          overflow: TextOverflow.ellipsis,
+        ),
       ),
     );
   }
 
   Widget _opBar() => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              _op!.message.isEmpty
-                  ? '${_op!.kind}: ${_op!.done}/${_op!.total}'
-                  : _op!.message,
-              style: const TextStyle(fontSize: 11, color: Colors.grey),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 4),
-            LinearProgressIndicator(value: _op!.progress),
-          ],
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          _op!.message.isEmpty
+              ? '${_op!.kind}: ${_op!.done}/${_op!.total}'
+              : _op!.message,
+          style: const TextStyle(fontSize: 11, color: Colors.grey),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
         ),
-      );
+        const SizedBox(height: 4),
+        LinearProgressIndicator(value: _op!.progress),
+      ],
+    ),
+  );
 
   Widget _grid() {
     if (_cur.isEmpty) {
@@ -415,8 +475,8 @@ class _CbnFlowScreenState extends State<CbnFlowScreen>
           _stage == 'incoming'
               ? l10n.cbnFlowEmptyIncoming
               : _stage == 'staging'
-                  ? l10n.cbnFlowEmptyStaging
-                  : l10n.cbnFlowEmptyPushed,
+              ? l10n.cbnFlowEmptyStaging
+              : l10n.cbnFlowEmptyPushed,
           textAlign: TextAlign.center,
           style: const TextStyle(color: Colors.grey),
         ),
@@ -430,12 +490,14 @@ class _CbnFlowScreenState extends State<CbnFlowScreen>
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
             child: Row(
               children: [
-                Text('${_cur.length} / ${_totals[_stage] ?? _cur.length}',
-                    style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                Text(
+                  '${_cur.length} / ${_totals[_stage] ?? _cur.length}',
+                  style: const TextStyle(fontSize: 11, color: Colors.grey),
+                ),
                 const Spacer(),
                 TextButton(
-                  onPressed: () =>
-                      setState(() => _sel.addAll(_cur.map((i) => i.id))),
+                  onPressed:
+                      () => setState(() => _sel.addAll(_cur.map((i) => i.id))),
                   child: Text(l10n.flowSelectAll),
                 ),
               ],
@@ -465,15 +527,20 @@ class _CbnFlowScreenState extends State<CbnFlowScreen>
     final kind = _stage == 'incoming' ? 'image' : 'numbered';
     return GestureDetector(
       // Tek dokunus acar, basili tutma secer; secim acikken dokunus secer/birakir.
-      onTap: () => _selecting
-          ? setState(() => on ? _sel.remove(it.id) : _sel.add(it.id))
-          : _preview(it),
-      onLongPress: () => setState(() => on ? _sel.remove(it.id) : _sel.add(it.id)),
+      onTap:
+          () =>
+              _selecting
+                  ? setState(() => on ? _sel.remove(it.id) : _sel.add(it.id))
+                  : _preview(it),
+      onLongPress:
+          () => setState(() => on ? _sel.remove(it.id) : _sel.add(it.id)),
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
-          border:
-              Border.all(color: on ? AppColors.accent : Colors.transparent, width: 3),
+          border: Border.all(
+            color: on ? AppColors.accent : Colors.transparent,
+            width: 3,
+          ),
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(10),
@@ -495,8 +562,11 @@ class _CbnFlowScreenState extends State<CbnFlowScreen>
                   it.label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 9, color: Colors.white,
-                      shadows: [Shadow(blurRadius: 3, color: Colors.black)]),
+                  style: const TextStyle(
+                    fontSize: 9,
+                    color: Colors.white,
+                    shadows: [Shadow(blurRadius: 3, color: Colors.black)],
+                  ),
                 ),
               ),
               Positioned(
@@ -504,13 +574,21 @@ class _CbnFlowScreenState extends State<CbnFlowScreen>
                 top: 4,
                 child: Row(
                   children: [
-                    if (it.tagged == false) _rozet(l10n.flowBadgeNoTags, AppColors.error),
-                    if (it.tagged == true) _rozet(l10n.cbnFlowBadgeTagged, Colors.teal),
-                    if (it.objects) _rozet(l10n.cbnFlowBadgeObjects, Colors.blueGrey),
+                    if (it.tagged == false)
+                      _rozet(l10n.flowBadgeNoTags, AppColors.error),
+                    if (it.tagged == true)
+                      _rozet(l10n.cbnFlowBadgeTagged, Colors.teal),
+                    if (it.objects)
+                      _rozet(l10n.cbnFlowBadgeObjects, Colors.blueGrey),
                     if (it.masks) _rozet('SAM', Colors.deepOrange),
                     if (it.lineart) _rozet('C', Colors.brown),
-                    if (it.built) _rozet(l10n.cbnFlowBadgeBuilt(it.regions, it.colors),
-                        it.verdict == 'pass' ? Colors.green.shade700 : Colors.orange.shade800),
+                    if (it.built)
+                      _rozet(
+                        l10n.cbnFlowBadgeBuilt(it.regions, it.colors),
+                        it.verdict == 'pass'
+                            ? Colors.green.shade700
+                            : Colors.orange.shade800,
+                      ),
                     if (it.video) _rozet('video', Colors.purple),
                     if (it.svg) _rozet('svg', Colors.indigo),
                   ],
@@ -520,9 +598,10 @@ class _CbnFlowScreenState extends State<CbnFlowScreen>
                 right: 4,
                 top: 4,
                 child: Icon(
-                    on ? Icons.check_circle : Icons.radio_button_unchecked,
-                    size: 20,
-                    color: on ? AppColors.accent : Colors.white70),
+                  on ? Icons.check_circle : Icons.radio_button_unchecked,
+                  size: 20,
+                  color: on ? AppColors.accent : Colors.white70,
+                ),
               ),
             ],
           ),
@@ -532,12 +611,11 @@ class _CbnFlowScreenState extends State<CbnFlowScreen>
   }
 
   Widget _rozet(String t, Color c) => Container(
-        margin: const EdgeInsets.only(right: 3),
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-        decoration:
-            BoxDecoration(color: c, borderRadius: BorderRadius.circular(4)),
-        child: Text(t, style: const TextStyle(fontSize: 8, color: Colors.white)),
-      );
+    margin: const EdgeInsets.only(right: 3),
+    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+    decoration: BoxDecoration(color: c, borderRadius: BorderRadius.circular(4)),
+    child: Text(t, style: const TextStyle(fontSize: 8, color: Colors.white)),
+  );
 
   /// Onizleme: 2. akista kaynak; 3-4. akista katmanlar arasinda gecis
   /// (numarali / bitmis / cizgi / kaynak / SAM bolumleri) + hot'ta reveal video.
@@ -561,66 +639,89 @@ class _CbnFlowScreenState extends State<CbnFlowScreen>
     var video = false;
     showDialog(
       context: context,
-      builder: (_) => StatefulBuilder(
-        builder: (c, setD) => Dialog(
-          insetPadding: const EdgeInsets.all(12),
-          backgroundColor: video ? Colors.black : null,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Flexible(
-                child: video
-                    ? NetworkVideo(
-                        url: CbnFlowService.fileUrl(_rating, _stage, it.id, kind: 'video'),
-                        headers: CbnFlowService.authHeaders,
-                      )
-                    : Image.network(
-                        CbnFlowService.thumbUrl(_rating, _stage, it.id,
-                            kind: kind, size: 1024),
-                        headers: CbnFlowService.authHeaders,
-                        errorBuilder: (_, _, _) => const SizedBox(height: 120),
+      builder:
+          (_) => StatefulBuilder(
+            builder:
+                (c, setD) => Dialog(
+                  insetPadding: const EdgeInsets.all(12),
+                  backgroundColor: video ? Colors.black : null,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child:
+                            video
+                                ? NetworkVideo(
+                                  url: CbnFlowService.fileUrl(
+                                    _rating,
+                                    _stage,
+                                    it.id,
+                                    kind: 'video',
+                                  ),
+                                  headers: CbnFlowService.authHeaders,
+                                )
+                                : Image.network(
+                                  CbnFlowService.thumbUrl(
+                                    _rating,
+                                    _stage,
+                                    it.id,
+                                    kind: kind,
+                                    size: 1024,
+                                  ),
+                                  headers: CbnFlowService.authHeaders,
+                                  errorBuilder:
+                                      (_, _, _) => const SizedBox(height: 120),
+                                ),
                       ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
-                child: Wrap(
-                  spacing: 6,
-                  alignment: WrapAlignment.center,
-                  children: [
-                    for (final k in katmanlar)
-                      ChoiceChip(
-                        label: Text(k.$2, style: const TextStyle(fontSize: 11)),
-                        selected: !video && kind == k.$1,
-                        onSelected: (_) => setD(() {
-                          kind = k.$1;
-                          video = false;
-                        }),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
+                        child: Wrap(
+                          spacing: 6,
+                          alignment: WrapAlignment.center,
+                          children: [
+                            for (final k in katmanlar)
+                              ChoiceChip(
+                                label: Text(
+                                  k.$2,
+                                  style: const TextStyle(fontSize: 11),
+                                ),
+                                selected: !video && kind == k.$1,
+                                onSelected:
+                                    (_) => setD(() {
+                                      kind = k.$1;
+                                      video = false;
+                                    }),
+                              ),
+                            if (it.video)
+                              ChoiceChip(
+                                label: const Text(
+                                  'Reveal',
+                                  style: TextStyle(fontSize: 11),
+                                ),
+                                selected: video,
+                                onSelected: (_) => setD(() => video = true),
+                              ),
+                          ],
+                        ),
                       ),
-                    if (it.video)
-                      ChoiceChip(
-                        label: const Text('Reveal', style: TextStyle(fontSize: 11)),
-                        selected: video,
-                        onSelected: (_) => setD(() => video = true),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+                        child: Text(
+                          '${l10n.cbnFlowInfo(it.label, it.regions, it.colors, it.verdict.toUpperCase())}'
+                          '${it.tags.isEmpty ? "" : "\n${it.tags}"}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: video ? Colors.white70 : null,
+                          ),
+                          textAlign: TextAlign.center,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-                child: Text(
-                  '${l10n.cbnFlowInfo(it.label, it.regions, it.colors, it.verdict.toUpperCase())}'
-                  '${it.tags.isEmpty ? "" : "\n${it.tags}"}',
-                  style: TextStyle(
-                      fontSize: 12, color: video ? Colors.white70 : null),
-                  textAlign: TextAlign.center,
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
           ),
-        ),
-      ),
     );
   }
 
@@ -639,15 +740,46 @@ class _CbnFlowScreenState extends State<CbnFlowScreen>
     if (_stage == 'incoming') {
       butonlar.addAll([
         // #318: insa etmeden once A/B/C ciktilarini goster (ilk secili varlik).
-        _act(Icons.visibility_outlined, l10n.flowPreview, l10n.flowPreview, _previewSelected),
-        _act(Icons.new_label_outlined, l10n.flowRetagShort, l10n.flowRetag, _retag),
-        _act(Icons.manage_search, 'A)', l10n.cbnFlowFindObjects,
-            () => _runStage(l10n.cbnFlowStageObjects, (ids) => CbnFlowService.objects(rating: _rating, ids: ids))),
-        _act(Icons.blur_on, 'B)', l10n.cbnFlowSamMasks,
-            () => _runStage('SAM', (ids) => CbnFlowService.sam(rating: _rating, ids: ids))),
+        _act(
+          Icons.visibility_outlined,
+          l10n.flowPreview,
+          l10n.flowPreview,
+          _previewSelected,
+        ),
+        _act(
+          Icons.new_label_outlined,
+          l10n.flowRetagShort,
+          l10n.flowRetag,
+          _retag,
+        ),
+        _act(
+          Icons.manage_search,
+          'A)',
+          l10n.cbnFlowFindObjects,
+          () => _runStage(
+            l10n.cbnFlowStageObjects,
+            (ids) => CbnFlowService.objects(rating: _rating, ids: ids),
+          ),
+        ),
+        _act(
+          Icons.blur_on,
+          'B)',
+          l10n.cbnFlowSamMasks,
+          () => _runStage(
+            'SAM',
+            (ids) => CbnFlowService.sam(rating: _rating, ids: ids),
+          ),
+        ),
         if (_rating == 'hot')
-          _act(Icons.gesture, 'C)', l10n.cbnFlowLineartPage,
-              () => _runStage(l10n.cbnFlowLineart, (ids) => CbnFlowService.lineart(rating: _rating, ids: ids))),
+          _act(
+            Icons.gesture,
+            'C)',
+            l10n.cbnFlowLineartPage,
+            () => _runStage(
+              l10n.cbnFlowLineart,
+              (ids) => CbnFlowService.lineart(rating: _rating, ids: ids),
+            ),
+          ),
         _act(Icons.auto_awesome, 'D)', l10n.cbnFlowBuildStep, _build),
         _act(Icons.delete_outline, l10n.delete, l10n.delete, _delete),
       ]);
@@ -657,7 +789,9 @@ class _CbnFlowScreenState extends State<CbnFlowScreen>
         _act(Icons.delete_outline, l10n.delete, l10n.delete, _delete),
       ]);
     } else {
-      butonlar.add(_act(Icons.info_outline, l10n.flowReadOnly, l10n.flowReadOnly, null));
+      butonlar.add(
+        _act(Icons.info_outline, l10n.flowReadOnly, l10n.flowReadOnly, null),
+      );
     }
     return SafeArea(
       child: Container(
@@ -671,41 +805,44 @@ class _CbnFlowScreenState extends State<CbnFlowScreen>
   // #317: ikonun altinda kisa etiket (A) / B) / C) / D) ...) - asama hangisi
   // belli olsun. Kisa etiket [kisa], tam aciklama [t] (tooltip).
   Widget _act(IconData i, String kisa, String t, VoidCallback? f) => Expanded(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-                onPressed: f,
-                tooltip: t,
-                icon: Icon(i, size: 22),
-                padding: EdgeInsets.zero,
-                visualDensity: VisualDensity.compact),
-            Text(
-              kisa,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                  fontSize: 9, color: f == null ? Colors.grey : Colors.white70),
-            ),
-          ],
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          onPressed: f,
+          tooltip: t,
+          icon: Icon(i, size: 22),
+          padding: EdgeInsets.zero,
+          visualDensity: VisualDensity.compact,
         ),
-      );
-
-  Widget _errorView() => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.error_outline, color: AppColors.error, size: 36),
-              const SizedBox(height: 10),
-              Text(_error!, textAlign: TextAlign.center),
-              const SizedBox(height: 12),
-              FilledButton(onPressed: _load, child: Text(l10n.retry)),
-            ],
+        Text(
+          kisa,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 9,
+            color: f == null ? Colors.grey : Colors.white70,
           ),
         ),
-      );
+      ],
+    ),
+  );
+
+  Widget _errorView() => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.error_outline, color: AppColors.error, size: 36),
+          const SizedBox(height: 10),
+          Text(_error!, textAlign: TextAlign.center),
+          const SizedBox(height: 12),
+          FilledButton(onPressed: _load, child: Text(l10n.retry)),
+        ],
+      ),
+    ),
+  );
 }
 
 /// #318: Gelen (2. akis) on izlemesi - "İnşa et"e basmadan ONCE A/B/C
@@ -742,7 +879,11 @@ class _IncomingPreviewState extends State<_IncomingPreview> {
 
   Future<void> _load() async {
     try {
-      final m = await CbnFlowService.meta(widget.rating, 'incoming', widget.item.id);
+      final m = await CbnFlowService.meta(
+        widget.rating,
+        'incoming',
+        widget.item.id,
+      );
       if (mounted) setState(() => _meta = m);
     } catch (e) {
       if (mounted) {
@@ -768,7 +909,12 @@ class _IncomingPreviewState extends State<_IncomingPreview> {
     ];
     return Dialog(
       // #289: alt gezinme cubugunun altinda kalmasin.
-      insetPadding: EdgeInsets.fromLTRB(12, 12, 12, 12 + systemBottomInset(context)),
+      insetPadding: EdgeInsets.fromLTRB(
+        12,
+        12,
+        12,
+        12 + systemBottomInset(context),
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -784,8 +930,10 @@ class _IncomingPreviewState extends State<_IncomingPreview> {
               children: [
                 for (final g in gorunumler)
                   ChoiceChip(
-                    label: Text(_etiket(g.$1, g.$2),
-                        style: const TextStyle(fontSize: 11)),
+                    label: Text(
+                      _etiket(g.$1, g.$2),
+                      style: const TextStyle(fontSize: 11),
+                    ),
                     selected: _view == g.$1,
                     onSelected: (_) => setState(() => _view = g.$1),
                   ),
@@ -834,16 +982,23 @@ class _IncomingPreviewState extends State<_IncomingPreview> {
     return InteractiveViewer(
       maxScale: 5,
       child: Image.network(
-        CbnFlowService.thumbUrl(widget.rating, 'incoming', widget.item.id,
-            kind: _view, size: 900),
+        CbnFlowService.thumbUrl(
+          widget.rating,
+          'incoming',
+          widget.item.id,
+          kind: _view,
+          size: 900,
+        ),
         headers: CbnFlowService.authHeaders,
         fit: BoxFit.contain,
-        loadingBuilder: (_, child, p) => p == null
-            ? child
-            : const Padding(
-                padding: EdgeInsets.all(40),
-                child: Center(child: CircularProgressIndicator()),
-              ),
+        loadingBuilder:
+            (_, child, p) =>
+                p == null
+                    ? child
+                    : const Padding(
+                      padding: EdgeInsets.all(40),
+                      child: Center(child: CircularProgressIndicator()),
+                    ),
         errorBuilder: (_, _, _) => _bos(l10n.cbnFlowImageFailed),
       ),
     );
@@ -855,9 +1010,10 @@ class _IncomingPreviewState extends State<_IncomingPreview> {
       return Padding(
         padding: const EdgeInsets.all(30),
         child: Center(
-          child: _err == null
-              ? const CircularProgressIndicator()
-              : Text(_err!, textAlign: TextAlign.center),
+          child:
+              _err == null
+                  ? const CircularProgressIndicator()
+                  : Text(_err!, textAlign: TextAlign.center),
         ),
       );
     }
@@ -894,11 +1050,13 @@ class _IncomingPreviewState extends State<_IncomingPreview> {
   }
 
   Widget _bos(String m) => Padding(
-        padding: const EdgeInsets.all(40),
-        child: Center(
-          child: Text(m,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 12, color: Colors.grey)),
-        ),
-      );
+    padding: const EdgeInsets.all(40),
+    child: Center(
+      child: Text(
+        m,
+        textAlign: TextAlign.center,
+        style: const TextStyle(fontSize: 12, color: Colors.grey),
+      ),
+    ),
+  );
 }

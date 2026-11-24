@@ -4,14 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../l10n/app_localizations.dart';
-import '../services/character_flow_service.dart';  // #329
+import '../services/character_flow_service.dart'; // #329
 import '../services/jigsaw_flow_service.dart';
-import '../widgets/outfit_extract_dialog.dart';  // #329
+import '../widgets/outfit_extract_dialog.dart'; // #329
 import '../services/jigsaw_profiles.dart';
 import '../services/mode_service.dart';
 import '../widgets/network_video.dart';
 import '../widgets/flow_kind_switch.dart' show kindSwitchBottom;
 import '../theme.dart';
+import '../widgets/app_toast.dart';
 
 /// Asset Mod - Jigsaw yayin hatti (2-3-4. akis).
 ///
@@ -41,14 +42,17 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
 
   AppLocalizations get l10n => AppLocalizations.of(context)!;
 
-  List<String> get _titles =>
-      [l10n.jigsawFlowTabTagged, l10n.jigsawFlowTabToPush, l10n.flowTabPushed];
+  List<String> get _titles => [
+    l10n.jigsawFlowTabTagged,
+    l10n.jigsawFlowTabToPush,
+    l10n.flowTabPushed,
+  ];
 
   String _yesNo(bool v) => v ? l10n.flowYes : l10n.flowNo;
 
   late final TabController _tabs;
   String _rating = 'hot';
-  String _collection = 'Generic';          // varsayilan koleksiyon; '' = hepsi
+  String _collection = 'Generic'; // varsayilan koleksiyon; '' = hepsi
 
   final Map<String, List<FlowItem>> _items = {};
   final Map<String, int> _totals = {};
@@ -65,7 +69,7 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
   final _vp1 = TextEditingController();
   final _vp2 = TextEditingController();
   final _vneg = TextEditingController();
-  int _vSablon = 0;          // 0 = (sirayla dagit)
+  int _vSablon = 0; // 0 = (sirayla dagit)
   int _vDuration = 5;
 
   String get _stage => _stages[_tabs.index];
@@ -75,16 +79,15 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 3, vsync: this)
-      ..addListener(() {
-        if (!_tabs.indexIsChanging) {
-          setState(() {
-            _sel.clear();
-            _collection = 'Generic';
-          });
-          _load();
-        }
-      });
+    _tabs = TabController(length: 3, vsync: this)..addListener(() {
+      if (!_tabs.indexIsChanging) {
+        setState(() {
+          _sel.clear();
+          _collection = 'Generic';
+        });
+        _load();
+      }
+    });
     _load();
   }
 
@@ -123,7 +126,11 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
       if (_vd.templates.isEmpty) unawaited(_loadVideoDefaults());
       final c = await JigsawFlowService.collections(_rating);
       final r = await JigsawFlowService.list(
-          rating: _rating, stage: _stage, collection: _collection, limit: 300);
+        rating: _rating,
+        stage: _stage,
+        collection: _collection,
+        limit: 300,
+      );
       if (!mounted) return;
       setState(() {
         _colls = c;
@@ -153,13 +160,15 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
         setState(() => _op = o);
         if (!o.running) {
           t.cancel();
-          _snack(o.status == 'error'
-              ? l10n.flowOpError(o.message)
-              : o.status == 'cancelled'
-                  ? l10n.flowOpCancelled
-                  : o.failed > 0
-                      ? l10n.flowOpDoneWithFailed(o.ok, o.failed)
-                      : l10n.flowOpDone(o.ok));
+          _snack(
+            o.status == 'error'
+                ? l10n.flowOpError(o.message)
+                : o.status == 'cancelled'
+                ? l10n.flowOpCancelled
+                : o.failed > 0
+                ? l10n.flowOpDoneWithFailed(o.ok, o.failed)
+                : l10n.flowOpDone(o.ok),
+          );
           _load();
         }
       } catch (_) {
@@ -175,26 +184,29 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
 
   void _snack(String m) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+    AppToast.of(context).show(m);
   }
 
   Future<bool> _confirm(String baslik, String metin, {String? onay}) async =>
       await showDialog<bool>(
         context: context,
-        builder: (c) => AlertDialog(
-          // Uzun onay metni (orn. Muzik) kucuk ekranda tasiyordu (gorev #289).
-          scrollable: true,
-          title: Text(baslik),
-          content: Text(metin),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(c, false),
-                child: Text(l10n.cancel)),
-            FilledButton(
-                onPressed: () => Navigator.pop(c, true),
-                child: Text(onay ?? l10n.continueLabel)),
-          ],
-        ),
+        builder:
+            (c) => AlertDialog(
+              // Uzun onay metni (orn. Muzik) kucuk ekranda tasiyordu (gorev #289).
+              scrollable: true,
+              title: Text(baslik),
+              content: Text(metin),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(c, false),
+                  child: Text(l10n.cancel),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(c, true),
+                  child: Text(onay ?? l10n.continueLabel),
+                ),
+              ],
+            ),
       ) ??
       false;
 
@@ -203,7 +215,10 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
   ///
   /// Pozitif 2 bos birakilirsa ve "Que All" secildiyse hazir sablonlar
   /// siradaki varliga sirayla dagitilir - parti tek tip olmaz.
-  Future<bool> _videoAyarSayfasi({required int adet, required bool queAll}) async {
+  Future<bool> _videoAyarSayfasi({
+    required int adet,
+    required bool queAll,
+  }) async {
     final onay = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
@@ -211,114 +226,152 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
       // (3 tus ~48px) ARKASINA uzanir, `viewInsets` yalnizca klavyeyi verir.
       // `padding.bottom` eklenmezse Vazgec / QUE ALL cubugun altinda kalir
       // (gorev #288). Kod tabaninin kalibi: viewInsets + padding + N.
-      builder: (c) => Padding(
-        padding: EdgeInsets.only(
-          left: 16, right: 16, top: 16,
-          bottom: MediaQuery.of(c).viewInsets.bottom +
-              MediaQuery.of(c).padding.bottom + 16,
-        ),
-        child: StatefulBuilder(
-          builder: (c, setSheet) => SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(queAll ? l10n.jigsawFlowQueueAllTitle(adet) : l10n.jigsawFlowVideoTitle(adet),
-                    style: Theme.of(c).textTheme.titleMedium),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _vp1,
-                  maxLines: 2,
-                  decoration: InputDecoration(
-                    labelText: l10n.jigsawFlowPositive1,
-                    helperText: l10n.jigsawFlowPositive1Help,
-                    helperMaxLines: 2,
-                    border: const OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                DropdownButtonFormField<int>(
-                  initialValue: _vSablon,
-                  isExpanded: true,
-                  decoration: InputDecoration(
-                    labelText: l10n.jigsawFlowMotionPreset,
-                    border: const OutlineInputBorder(),
-                  ),
-                  items: [
-                    DropdownMenuItem(value: 0, child: Text(l10n.jigsawFlowSpreadInTurn)),
-                    for (var i = 0; i < _vd.templates.length; i++)
-                      DropdownMenuItem(
-                          value: i + 1,
-                          child: Text(_vd.templates[i].name,
-                              overflow: TextOverflow.ellipsis)),
-                  ],
-                  onChanged: (v) => setSheet(() {
-                    _vSablon = v ?? 0;
-                    _vp2.text = (_vSablon == 0)
-                        ? ''
-                        : _vd.templates[_vSablon - 1].prompt;
-                  }),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: _vp2,
-                  maxLines: 3,
-                  decoration: InputDecoration(
-                    labelText: l10n.jigsawFlowPositive2,
-                    helperText: l10n.jigsawFlowPositive2Help('{}'),
-                    helperMaxLines: 3,
-                    border: const OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: _vneg,
-                  maxLines: 2,
-                  decoration: InputDecoration(
-                    labelText: l10n.flowNegative,
-                    border: const OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Text(l10n.flowDuration),
-                    Expanded(
-                      child: Slider(
-                        value: _vDuration.toDouble(),
-                        min: 1, max: 10, divisions: 9,
-                        label: l10n.durSeconds(_vDuration),
-                        onChanged: (v) => setSheet(() => _vDuration = v.round()),
-                      ),
+      builder:
+          (c) => Padding(
+            padding: EdgeInsets.only(
+              left: 16,
+              right: 16,
+              top: 16,
+              bottom:
+                  MediaQuery.of(c).viewInsets.bottom +
+                  MediaQuery.of(c).padding.bottom +
+                  16,
+            ),
+            child: StatefulBuilder(
+              builder:
+                  (c, setSheet) => SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          queAll
+                              ? l10n.jigsawFlowQueueAllTitle(adet)
+                              : l10n.jigsawFlowVideoTitle(adet),
+                          style: Theme.of(c).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _vp1,
+                          maxLines: 2,
+                          decoration: InputDecoration(
+                            labelText: l10n.jigsawFlowPositive1,
+                            helperText: l10n.jigsawFlowPositive1Help,
+                            helperMaxLines: 2,
+                            border: const OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        DropdownButtonFormField<int>(
+                          initialValue: _vSablon,
+                          isExpanded: true,
+                          decoration: InputDecoration(
+                            labelText: l10n.jigsawFlowMotionPreset,
+                            border: const OutlineInputBorder(),
+                          ),
+                          items: [
+                            DropdownMenuItem(
+                              value: 0,
+                              child: Text(l10n.jigsawFlowSpreadInTurn),
+                            ),
+                            for (var i = 0; i < _vd.templates.length; i++)
+                              DropdownMenuItem(
+                                value: i + 1,
+                                child: Text(
+                                  _vd.templates[i].name,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                          ],
+                          onChanged:
+                              (v) => setSheet(() {
+                                _vSablon = v ?? 0;
+                                _vp2.text =
+                                    (_vSablon == 0)
+                                        ? ''
+                                        : _vd.templates[_vSablon - 1].prompt;
+                              }),
+                        ),
+                        const SizedBox(height: 10),
+                        TextField(
+                          controller: _vp2,
+                          maxLines: 3,
+                          decoration: InputDecoration(
+                            labelText: l10n.jigsawFlowPositive2,
+                            helperText: l10n.jigsawFlowPositive2Help('{}'),
+                            helperMaxLines: 3,
+                            border: const OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        TextField(
+                          controller: _vneg,
+                          maxLines: 2,
+                          decoration: InputDecoration(
+                            labelText: l10n.flowNegative,
+                            border: const OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Text(l10n.flowDuration),
+                            Expanded(
+                              child: Slider(
+                                value: _vDuration.toDouble(),
+                                min: 1,
+                                max: 10,
+                                divisions: 9,
+                                label: l10n.durSeconds(_vDuration),
+                                onChanged:
+                                    (v) =>
+                                        setSheet(() => _vDuration = v.round()),
+                              ),
+                            ),
+                            Text(l10n.durSeconds(_vDuration)),
+                          ],
+                        ),
+                        if (queAll &&
+                            _vp2.text.trim().isEmpty &&
+                            _vd.templates.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Text(
+                              l10n.jigsawFlowPresetsSpread(
+                                _vd.templates.length,
+                              ),
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ),
+                        Row(
+                          children: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(c, false),
+                              child: Text(l10n.cancel),
+                            ),
+                            const Spacer(),
+                            FilledButton.icon(
+                              onPressed: () => Navigator.pop(c, true),
+                              icon: const Icon(
+                                Icons.movie_creation_outlined,
+                                size: 18,
+                              ),
+                              label: Text(
+                                queAll
+                                    ? l10n.jigsawFlowQueueAll
+                                    : l10n.flowAddToQueue,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-                    Text(l10n.durSeconds(_vDuration)),
-                  ],
-                ),
-                if (queAll && _vp2.text.trim().isEmpty && _vd.templates.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Text(
-                        l10n.jigsawFlowPresetsSpread(_vd.templates.length),
-                        style: const TextStyle(fontSize: 12, color: Colors.grey)),
                   ),
-                Row(
-                  children: [
-                    TextButton(
-                        onPressed: () => Navigator.pop(c, false),
-                        child: Text(l10n.cancel)),
-                    const Spacer(),
-                    FilledButton.icon(
-                      onPressed: () => Navigator.pop(c, true),
-                      icon: const Icon(Icons.movie_creation_outlined, size: 18),
-                      label: Text(queAll ? l10n.jigsawFlowQueueAll : l10n.flowAddToQueue),
-                    ),
-                  ],
-                ),
-              ],
             ),
           ),
-        ),
-      ),
     );
     return onay == true;
   }
@@ -339,9 +392,11 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
         negative: _vneg.text.trim(),
         rotateTemplates: queAll,
       );
-      _snack(r.skipped > 0
-          ? l10n.jigsawFlowVideosQueuedSkipped(r.queued, r.skipped)
-          : l10n.jigsawFlowVideosQueued(r.queued));
+      _snack(
+        r.skipped > 0
+            ? l10n.jigsawFlowVideosQueuedSkipped(r.queued, r.skipped)
+            : l10n.jigsawFlowVideosQueued(r.queued),
+      );
       setState(_sel.clear);
     } catch (e) {
       _snack(e.toString().replaceFirst('Exception: ', ''));
@@ -349,10 +404,11 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
   }
 
   Future<void> _makeVideos() async {
-    final ids = _sel.where((id) {
-      final i = _cur.where((x) => x.id == id).firstOrNull;
-      return i != null && !i.video;
-    }).toList();
+    final ids =
+        _sel.where((id) {
+          final i = _cur.where((x) => x.id == id).firstOrNull;
+          return i != null && !i.video;
+        }).toList();
     if (ids.isEmpty) {
       _snack(l10n.jigsawFlowSelectWithoutVideo);
       return;
@@ -370,18 +426,24 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
     if (_sel.isEmpty) return;
     final coll = await _pickCollection();
     if (coll == null) return;
-    final videosuz = _sel.where((id) {
-      final i = _cur.where((x) => x.id == id).firstOrNull;
-      return i != null && !i.video;
-    }).length;
+    final videosuz =
+        _sel.where((id) {
+          final i = _cur.where((x) => x.id == id).firstOrNull;
+          return i != null && !i.video;
+        }).length;
     if (videosuz > 0 &&
-        !await _confirm(l10n.jigsawFlowNoVideoTitle,
-            l10n.jigsawFlowNoVideoBody(videosuz))) {
+        !await _confirm(
+          l10n.jigsawFlowNoVideoTitle,
+          l10n.jigsawFlowNoVideoBody(videosuz),
+        )) {
       return;
     }
     try {
       final op = await JigsawFlowService.accept(
-          rating: _rating, ids: _sel.toList(), collection: coll);
+        rating: _rating,
+        ids: _sel.toList(),
+        collection: coll,
+      );
       setState(_sel.clear);
       _watch(op);
     } catch (e) {
@@ -404,40 +466,52 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
       if (!mounted) return;
       await showDialog<void>(
         context: context,
-        builder: (c) => AlertDialog(
-          title: Text(l10n.jigsawFlowMusicNotReady),
-          content: Text(st.modelError),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(c), child: Text(l10n.close)),
-          ],
-        ),
+        builder:
+            (c) => AlertDialog(
+              title: Text(l10n.jigsawFlowMusicNotReady),
+              content: Text(st.modelError),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(c),
+                  child: Text(l10n.close),
+                ),
+              ],
+            ),
       );
       return;
     }
-    final eksik = st.collections
-        .where((c) => !c.hasMusic && c.stage == 'staging')
-        .map((c) => c.name)
-        .toList();
-    final secili = _collection.isEmpty
-        ? eksik
-        : eksik.where((n) => n == _collection).toList();
+    final eksik =
+        st.collections
+            .where((c) => !c.hasMusic && c.stage == 'staging')
+            .map((c) => c.name)
+            .toList();
+    final secili =
+        _collection.isEmpty
+            ? eksik
+            : eksik.where((n) => n == _collection).toList();
     if (secili.isEmpty) {
-      _snack(_collection.isEmpty
-          ? l10n.jigsawFlowNoMusicMissing
-          : l10n.jigsawFlowHasMusic(_collection));
+      _snack(
+        _collection.isEmpty
+            ? l10n.jigsawFlowNoMusicMissing
+            : l10n.jigsawFlowHasMusic(_collection),
+      );
       return;
     }
     if (!await _confirm(
-        l10n.queueKindMusic,
-        l10n.jigsawFlowMusicBody(secili.length,
-            '${secili.take(6).join(", ")}${secili.length > 6 ? " ..." : ""}'),
-        onay: l10n.generate)) {
+      l10n.queueKindMusic,
+      l10n.jigsawFlowMusicBody(
+        secili.length,
+        '${secili.take(6).join(", ")}${secili.length > 6 ? " ..." : ""}',
+      ),
+      onay: l10n.generate,
+    )) {
       return;
     }
     try {
       final op = await JigsawFlowService.makeMusic(
-          rating: _rating, collections: secili);
+        rating: _rating,
+        collections: secili,
+      );
       _watch(op);
     } catch (e) {
       _snack(e.toString().replaceFirst('Exception: ', ''));
@@ -447,13 +521,17 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
   Future<void> _push() async {
     if (_sel.isEmpty) return;
     if (!await _confirm(
-        l10n.flowPush,
-        l10n.jigsawFlowPushBody(_sel.length),
-        onay: l10n.flowUpload)) {
+      l10n.flowPush,
+      l10n.jigsawFlowPushBody(_sel.length),
+      onay: l10n.flowUpload,
+    )) {
       return;
     }
     try {
-      final op = await JigsawFlowService.push(rating: _rating, ids: _sel.toList());
+      final op = await JigsawFlowService.push(
+        rating: _rating,
+        ids: _sel.toList(),
+      );
       setState(_sel.clear);
       _watch(op);
     } catch (e) {
@@ -463,14 +541,19 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
 
   Future<void> _delete() async {
     if (_sel.isEmpty) return;
-    if (!await _confirm(l10n.delete,
-        l10n.jigsawFlowDeleteBody(_sel.length),
-        onay: l10n.delete)) {
+    if (!await _confirm(
+      l10n.delete,
+      l10n.jigsawFlowDeleteBody(_sel.length),
+      onay: l10n.delete,
+    )) {
       return;
     }
     try {
       final n = await JigsawFlowService.remove(
-          rating: _rating, stage: _stage, ids: _sel.toList());
+        rating: _rating,
+        stage: _stage,
+        ids: _sel.toList(),
+      );
       setState(_sel.clear);
       _snack(l10n.flowFilesDeleted(n));
       _load();
@@ -482,7 +565,9 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
   Future<void> _webp() async {
     try {
       final op = await JigsawFlowService.encodeWebp(
-          rating: _rating, collection: _collection);
+        rating: _rating,
+        collection: _collection,
+      );
       _watch(op);
       _snack(l10n.jigsawFlowWebpStarted);
     } catch (e) {
@@ -502,62 +587,81 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
       final v = gorulen[c.name];
       if (v == null || c.total > v.total) gorulen[c.name] = c;
     }
-    final liste = gorulen.values.where((c) => !c.full).toList()
-      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    final liste =
+        gorulen.values.where((c) => !c.full).toList()..sort(
+          (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+        );
     final dolu = gorulen.values.where((c) => c.full).length;
     final ctrl = TextEditingController(
-        text: liste.any((c) => c.name == 'Generic') ? 'Generic' : '');
+      text: liste.any((c) => c.name == 'Generic') ? 'Generic' : '',
+    );
     return showDialog<String>(
       context: context,
-      builder: (c) => AlertDialog(
-        // Metin kutusu + 180px liste klavye acilinca sigmiyordu (gorev #289).
-        scrollable: true,
-        title: Text(l10n.jigsawFlowCollectionTitle('${JigsawProfiles.ratings[_rating]}')),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: ctrl,
-              decoration: InputDecoration(
-                labelText: l10n.flowCollection,
-                helperText: dolu == 0
-                    ? l10n.jigsawFlowCollectionHelp
-                    : l10n.jigsawFlowCollectionHelpFull(dolu),
-                helperMaxLines: 2,
-                border: const OutlineInputBorder(),
+      builder:
+          (c) => AlertDialog(
+            // Metin kutusu + 180px liste klavye acilinca sigmiyordu (gorev #289).
+            scrollable: true,
+            title: Text(
+              l10n.jigsawFlowCollectionTitle(
+                '${JigsawProfiles.ratings[_rating]}',
               ),
             ),
-            const SizedBox(height: 10),
-            SizedBox(
-              height: 180,
-              width: double.maxFinite,
-              child: ListView(
-                children: liste
-                    .map((k) => ListTile(
-                          dense: true,
-                          title: Text(k.name),
-                          subtitle: Text(l10n.jigsawFlowCollectionRow(k.total, k.next)),
-                          onTap: () => ctrl.text = k.name,
-                        ))
-                    .toList(),
-              ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: ctrl,
+                  decoration: InputDecoration(
+                    labelText: l10n.flowCollection,
+                    helperText:
+                        dolu == 0
+                            ? l10n.jigsawFlowCollectionHelp
+                            : l10n.jigsawFlowCollectionHelpFull(dolu),
+                    helperMaxLines: 2,
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  height: 180,
+                  width: double.maxFinite,
+                  child: ListView(
+                    children:
+                        liste
+                            .map(
+                              (k) => ListTile(
+                                dense: true,
+                                title: Text(k.name),
+                                subtitle: Text(
+                                  l10n.jigsawFlowCollectionRow(k.total, k.next),
+                                ),
+                                onTap: () => ctrl.text = k.name,
+                              ),
+                            )
+                            .toList(),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(c), child: Text(l10n.cancel)),
-          TextButton(
-              onPressed: () => Navigator.pop(c, 'Generic'),
-              child: const Text('Generic')),
-          TextButton(
-              onPressed: () => ctrl.clear(),
-              child: Text(l10n.flowNew)),
-          FilledButton(
-              onPressed: () => Navigator.pop(c, ctrl.text.trim()),
-              child: Text(l10n.flowAccept)),
-        ],
-      ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(c),
+                child: Text(l10n.cancel),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(c, 'Generic'),
+                child: const Text('Generic'),
+              ),
+              TextButton(
+                onPressed: () => ctrl.clear(),
+                child: Text(l10n.flowNew),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(c, ctrl.text.trim()),
+                child: Text(l10n.flowAccept),
+              ),
+            ],
+          ),
     );
   }
 
@@ -566,12 +670,18 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        leading: _selecting
-            ? IconButton(
-                icon: const Icon(Icons.close),
-                onPressed: () => setState(_sel.clear))
-            : null,
-        title: Text(_selecting ? l10n.bucketsSelectedCount(_sel.length) : l10n.jigsawFlowTitle),
+        leading:
+            _selecting
+                ? IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => setState(_sel.clear),
+                )
+                : null,
+        title: Text(
+          _selecting
+              ? l10n.bucketsSelectedCount(_sel.length)
+              : l10n.jigsawFlowTitle,
+        ),
         actions: [
           if (!_selecting)
             IconButton(
@@ -580,7 +690,10 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
               onPressed: () => ModeService.set(false),
             ),
           IconButton(
-              icon: const Icon(Icons.refresh), tooltip: l10n.refresh, onPressed: _load),
+            icon: const Icon(Icons.refresh),
+            tooltip: l10n.refresh,
+            onPressed: _load,
+          ),
         ],
         // #353: hat anahtari app bar'in altinda tam genislikte (Uretilenler kalibi).
         bottom: kindSwitchBottom(
@@ -596,9 +709,10 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
           _ratingBar(),
           if (_op != null && _op!.running) _opBar(),
           Expanded(
-            child: _loading
-                ? const Center(child: CircularProgressIndicator())
-                : _error != null
+            child:
+                _loading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _error != null
                     ? _errorView()
                     : _grid(),
           ),
@@ -609,39 +723,43 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
   }
 
   Widget _ratingBar() => Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-        child: Row(
-          children: [
-            Expanded(
-              child: SegmentedButton<String>(
-                segments: JigsawProfiles.ratings.entries
-                    .map((e) => ButtonSegment(value: e.key, label: Text(e.value)))
+    padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+    child: Row(
+      children: [
+        Expanded(
+          child: SegmentedButton<String>(
+            segments:
+                JigsawProfiles.ratings.entries
+                    .map(
+                      (e) => ButtonSegment(value: e.key, label: Text(e.value)),
+                    )
                     .toList(),
-                selected: {_rating},
-                showSelectedIcon: false,
-                onSelectionChanged: (v) {
-                  HapticFeedback.selectionClick();
-                  setState(() {
-                    _rating = v.first;
-                    _sel.clear();
-                    _collection = 'Generic';
-                    _vd = VideoDefaults.empty;
-                  });
-                  _loadVideoDefaults();
-                  _load();
-                },
-              ),
-            ),
-            if (_stage != 'incoming') ...[
-              const SizedBox(width: 8),
-              _collectionMenu(),
-            ],
-          ],
+            selected: {_rating},
+            showSelectedIcon: false,
+            onSelectionChanged: (v) {
+              HapticFeedback.selectionClick();
+              setState(() {
+                _rating = v.first;
+                _sel.clear();
+                _collection = 'Generic';
+                _vd = VideoDefaults.empty;
+              });
+              _loadVideoDefaults();
+              _load();
+            },
+          ),
         ),
-      );
+        if (_stage != 'incoming') ...[
+          const SizedBox(width: 8),
+          _collectionMenu(),
+        ],
+      ],
+    ),
+  );
 
   Widget _collectionMenu() {
-    final liste = _colls[_stage == 'staging' ? 'staging' : 'pushed'] ?? const [];
+    final liste =
+        _colls[_stage == 'staging' ? 'staging' : 'pushed'] ?? const [];
     return PopupMenuButton<String>(
       tooltip: l10n.flowCollection,
       onSelected: (v) {
@@ -651,35 +769,41 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
         });
         _load();
       },
-      itemBuilder: (_) => [
-        PopupMenuItem(value: '', child: Text(l10n.flowAllParen)),
-        for (final k in liste)
-          PopupMenuItem(value: k.name, child: Text('${k.name}  (${k.count})')),
-      ],
+      itemBuilder:
+          (_) => [
+            PopupMenuItem(value: '', child: Text(l10n.flowAllParen)),
+            for (final k in liste)
+              PopupMenuItem(
+                value: k.name,
+                child: Text('${k.name}  (${k.count})'),
+              ),
+          ],
       child: Chip(
         avatar: const Icon(Icons.folder_outlined, size: 16),
-        label: Text(_collection.isEmpty ? l10n.flowAll : _collection,
-            overflow: TextOverflow.ellipsis),
+        label: Text(
+          _collection.isEmpty ? l10n.flowAll : _collection,
+          overflow: TextOverflow.ellipsis,
+        ),
       ),
     );
   }
 
   Widget _opBar() => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              _op!.message.isEmpty
-                  ? '${_op!.kind}: ${_op!.done}/${_op!.total}'
-                  : _op!.message,
-              style: const TextStyle(fontSize: 11, color: Colors.grey),
-            ),
-            const SizedBox(height: 4),
-            LinearProgressIndicator(value: _op!.progress),
-          ],
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          _op!.message.isEmpty
+              ? '${_op!.kind}: ${_op!.done}/${_op!.total}'
+              : _op!.message,
+          style: const TextStyle(fontSize: 11, color: Colors.grey),
         ),
-      );
+        const SizedBox(height: 4),
+        LinearProgressIndicator(value: _op!.progress),
+      ],
+    ),
+  );
 
   Widget _grid() {
     if (_cur.isEmpty) {
@@ -702,10 +826,12 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
             child: Row(
               children: [
                 Expanded(
-                  child: Text('${_cur.length} / ${_totals[_stage] ?? _cur.length}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                  child: Text(
+                    '${_cur.length} / ${_totals[_stage] ?? _cur.length}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 11, color: Colors.grey),
+                  ),
                 ),
                 // QUE ALL secime bagli degil: videosu olmayan HERKESE video
                 // acar, o yuzden "Tumunu sec"in yanindaki tek dugme (gorev #275).
@@ -716,8 +842,8 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
                     label: Text(l10n.jigsawFlowQueueAll),
                   ),
                 TextButton(
-                  onPressed: () =>
-                      setState(() => _sel.addAll(_cur.map((i) => i.id))),
+                  onPressed:
+                      () => setState(() => _sel.addAll(_cur.map((i) => i.id))),
                   child: Text(l10n.flowSelectAll),
                 ),
               ],
@@ -746,15 +872,20 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
     return GestureDetector(
       // Standart galeri davranisi (gorev #280): tek dokunus acar, basili tutma
       // secime alir; secim acikken tek dokunus digerlerini de secer/birakir.
-      onTap: () => _selecting
-          ? setState(() => on ? _sel.remove(it.id) : _sel.add(it.id))
-          : _preview(it),
-      onLongPress: () => setState(() => on ? _sel.remove(it.id) : _sel.add(it.id)),
+      onTap:
+          () =>
+              _selecting
+                  ? setState(() => on ? _sel.remove(it.id) : _sel.add(it.id))
+                  : _preview(it),
+      onLongPress:
+          () => setState(() => on ? _sel.remove(it.id) : _sel.add(it.id)),
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
-          border:
-              Border.all(color: on ? AppColors.accent : Colors.transparent, width: 3),
+          border: Border.all(
+            color: on ? AppColors.accent : Colors.transparent,
+            width: 3,
+          ),
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(10),
@@ -777,20 +908,29 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
                     onTap: () => _preview(it, video: true),
                     child: Container(
                       decoration: const BoxDecoration(
-                          color: Colors.black54, shape: BoxShape.circle),
+                        color: Colors.black54,
+                        shape: BoxShape.circle,
+                      ),
                       padding: const EdgeInsets.all(4),
-                      child: const Icon(Icons.play_arrow,
-                          size: 26, color: Colors.white),
+                      child: const Icon(
+                        Icons.play_arrow,
+                        size: 26,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ),
               Positioned(
                 left: 4,
                 top: 4,
-                child: Row(children: [
-                  if (it.tagged == false) _rozet(l10n.flowBadgeNoTags, AppColors.error),
-                  if (it.video && !it.webp) _rozet(l10n.jigsawFlowBadgeNoWebp, Colors.orange),
-                ]),
+                child: Row(
+                  children: [
+                    if (it.tagged == false)
+                      _rozet(l10n.flowBadgeNoTags, AppColors.error),
+                    if (it.video && !it.webp)
+                      _rozet(l10n.jigsawFlowBadgeNoWebp, Colors.orange),
+                  ],
+                ),
               ),
               Positioned(
                 left: 0,
@@ -804,14 +944,16 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
                       end: Alignment.bottomCenter,
                       colors: [
                         Colors.transparent,
-                        Colors.black.withValues(alpha: 0.8)
+                        Colors.black.withValues(alpha: 0.8),
                       ],
                     ),
                   ),
-                  child: Text(it.label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 9, color: Colors.white)),
+                  child: Text(
+                    it.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 9, color: Colors.white),
+                  ),
                 ),
               ),
               if (_selecting)
@@ -819,9 +961,10 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
                   right: 4,
                   bottom: 20,
                   child: Icon(
-                      on ? Icons.check_circle : Icons.radio_button_unchecked,
-                      size: 20,
-                      color: on ? AppColors.accent : Colors.white70),
+                    on ? Icons.check_circle : Icons.radio_button_unchecked,
+                    size: 20,
+                    color: on ? AppColors.accent : Colors.white70,
+                  ),
                 ),
             ],
           ),
@@ -831,12 +974,11 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
   }
 
   Widget _rozet(String t, Color c) => Container(
-        margin: const EdgeInsets.only(right: 3),
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-        decoration:
-            BoxDecoration(color: c, borderRadius: BorderRadius.circular(4)),
-        child: Text(t, style: const TextStyle(fontSize: 8, color: Colors.white)),
-      );
+    margin: const EdgeInsets.only(right: 3),
+    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+    decoration: BoxDecoration(color: c, borderRadius: BorderRadius.circular(4)),
+    child: Text(t, style: const TextStyle(fontSize: 8, color: Colors.white)),
+  );
 
   /// Onizleme. Oynat dugmesine basildiysa GERCEK videoyu oynatir - eskiden
   /// burada yalnizca kucuk resim gosteriliyordu, "video oynamiyor" hatasi
@@ -845,44 +987,58 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
     final oynat = video && it.video;
     showDialog(
       context: context,
-      builder: (_) => Dialog(
-        insetPadding: const EdgeInsets.all(12),
-        backgroundColor: oynat ? Colors.black : null,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Flexible(
-              child: oynat
-                  ? NetworkVideo(
-                      url: JigsawFlowService.fileUrl(_rating, _stage, it.id,
-                          kind: 'video'),
-                      headers: JigsawFlowService.authHeaders,
-                    )
-                  : Image.network(
-                      JigsawFlowService.thumbUrl(_rating, _stage, it.id,
-                          size: 900),
-                      headers: JigsawFlowService.authHeaders,
-                      errorBuilder: (_, _, _) => const SizedBox(height: 120),
+      builder:
+          (_) => Dialog(
+            insetPadding: const EdgeInsets.all(12),
+            backgroundColor: oynat ? Colors.black : null,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child:
+                      oynat
+                          ? NetworkVideo(
+                            url: JigsawFlowService.fileUrl(
+                              _rating,
+                              _stage,
+                              it.id,
+                              kind: 'video',
+                            ),
+                            headers: JigsawFlowService.authHeaders,
+                          )
+                          : Image.network(
+                            JigsawFlowService.thumbUrl(
+                              _rating,
+                              _stage,
+                              it.id,
+                              size: 900,
+                            ),
+                            headers: JigsawFlowService.authHeaders,
+                            errorBuilder:
+                                (_, _, _) => const SizedBox(height: 120),
+                          ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: Text(
+                    '${l10n.jigsawFlowPreviewInfo(it.label, _yesNo(it.video), _yesNo(it.webp))}'
+                    '${it.tagged == null ? "" : "   ${l10n.jigsawFlowPreviewTags(it.tagged! ? l10n.flowYes : l10n.flowMissingUpper)}"}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: oynat ? Colors.white70 : null,
                     ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ],
             ),
-            Padding(
-              padding: const EdgeInsets.all(10),
-              child: Text(
-                '${l10n.jigsawFlowPreviewInfo(it.label, _yesNo(it.video), _yesNo(it.webp))}'
-                '${it.tagged == null ? "" : "   ${l10n.jigsawFlowPreviewTags(it.tagged! ? l10n.flowYes : l10n.flowMissingUpper)}"}',
-                style: TextStyle(
-                    fontSize: 12, color: oynat ? Colors.white70 : null),
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ],
-        ),
-      ),
+          ),
     );
   }
 
   /// Secili varliklardan videosu olanlar.
-  List<String> get _selWithVideo => _sel.where((id) {
+  List<String> get _selWithVideo =>
+      _sel.where((id) {
         final i = _cur.where((x) => x.id == id).firstOrNull;
         return i != null && i.video;
       }).toList();
@@ -894,13 +1050,18 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
       _snack(l10n.jigsawFlowNoVideoInSelection);
       return;
     }
-    final ok = await _confirm(l10n.jigsawFlowDeleteVideo,
-        l10n.jigsawFlowDeleteVideoBody(ids.length),
-        onay: l10n.jigsawFlowDeleteVideo);
+    final ok = await _confirm(
+      l10n.jigsawFlowDeleteVideo,
+      l10n.jigsawFlowDeleteVideoBody(ids.length),
+      onay: l10n.jigsawFlowDeleteVideo,
+    );
     if (!ok) return;
     try {
       final n = await JigsawFlowService.removeVideo(
-          rating: _rating, stage: _stage, ids: ids);
+        rating: _rating,
+        stage: _stage,
+        ids: ids,
+      );
       setState(_sel.clear);
       _snack(l10n.flowFilesDeleted(n));
       _load();
@@ -936,13 +1097,14 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
     if (secim == null || !mounted) return;
     try {
       final op = await CharacterFlowService.outfitExtract(
-          name: secim.name,
-          category: secim.category,
-          kind: secim.kind,
-          rating: _rating,
-          stage: _stage,
-          itemId: id,
-          note: secim.note);
+        name: secim.name,
+        category: secim.category,
+        kind: secim.kind,
+        rating: _rating,
+        stage: _stage,
+        itemId: id,
+        note: secim.note,
+      );
       setState(_sel.clear);
       if (op.isNotEmpty) _watch(op);
       _snack(l10n.outfitExtractStarted(secim.name));
@@ -968,39 +1130,67 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
     final rows = <(String, String)>[
       (l10n.jigsawFlowMetaFile, '${m['file']}'),
       (l10n.jigsawFlowMetaTags, '${m['tags'] ?? ''}'),
-      if ((m['description'] ?? '').toString().isNotEmpty) (l10n.commonDescription, '${m['description']}'),
-      if ((m['subject'] as Map?)?.isNotEmpty ?? false) (l10n.jigsawFlowMetaSubject, kv((m['subject'] as Map).cast<String, dynamic>())),
-      if ((m['policy'] as Map?)?.isNotEmpty ?? false) (l10n.jigsawFlowMetaPolicy, kv((m['policy'] as Map).cast<String, dynamic>())),
+      if ((m['description'] ?? '').toString().isNotEmpty)
+        (l10n.commonDescription, '${m['description']}'),
+      if ((m['subject'] as Map?)?.isNotEmpty ?? false)
+        (
+          l10n.jigsawFlowMetaSubject,
+          kv((m['subject'] as Map).cast<String, dynamic>()),
+        ),
+      if ((m['policy'] as Map?)?.isNotEmpty ?? false)
+        (
+          l10n.jigsawFlowMetaPolicy,
+          kv((m['policy'] as Map).cast<String, dynamic>()),
+        ),
       if (sc['prompt'] != null) ('Prompt', '${sc['prompt']}'),
-      if ((sc['prompt2'] ?? '').toString().isNotEmpty) (l10n.flowPositive2, '${sc['prompt2']}'),
-      if ((sc['negative'] ?? '').toString().isNotEmpty) (l10n.flowNegative, '${sc['negative']}'),
+      if ((sc['prompt2'] ?? '').toString().isNotEmpty)
+        (l10n.flowPositive2, '${sc['prompt2']}'),
+      if ((sc['negative'] ?? '').toString().isNotEmpty)
+        (l10n.flowNegative, '${sc['negative']}'),
       if (sc['seed'] != null) ('Seed', '${sc['seed']}'),
-      ('Video', l10n.jigsawFlowMetaVideoValue(_yesNo(m['video'] == true), _yesNo(m['webp'] == true))),
+      (
+        'Video',
+        l10n.jigsawFlowMetaVideoValue(
+          _yesNo(m['video'] == true),
+          _yesNo(m['webp'] == true),
+        ),
+      ),
     ];
     await showDialog<void>(
       context: context,
-      builder: (c) => AlertDialog(
-        title: Text(id, style: const TextStyle(fontSize: 14)),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (final r in rows) ...[
-                Text(r.$1,
-                    style: const TextStyle(
-                        fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
-                SelectableText(r.$2.isEmpty ? '-' : r.$2,
-                    style: const TextStyle(fontSize: 12)),
-                const SizedBox(height: 8),
-              ],
+      builder:
+          (c) => AlertDialog(
+            title: Text(id, style: const TextStyle(fontSize: 14)),
+            content: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (final r in rows) ...[
+                    Text(
+                      r.$1,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey,
+                      ),
+                    ),
+                    SelectableText(
+                      r.$2.isEmpty ? '-' : r.$2,
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(c),
+                child: Text(l10n.close),
+              ),
             ],
           ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c), child: Text(l10n.close)),
-        ],
-      ),
     );
   }
 
@@ -1010,14 +1200,24 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
     final butonlar = <Widget>[];
     if (_stage == 'incoming') {
       butonlar.addAll([
-        _act(Icons.movie_creation_outlined, l10n.assetGenerateVideo, _makeVideos),
+        _act(
+          Icons.movie_creation_outlined,
+          l10n.assetGenerateVideo,
+          _makeVideos,
+        ),
         _act(Icons.sell_outlined, l10n.jigsawFlowTagsMetadata, _showMeta),
         _act(Icons.new_label_outlined, l10n.flowRetag, _retag),
         _act(Icons.check_circle_outline, l10n.flowAccept, _accept),
-        _act(Icons.checkroom_outlined, l10n.outfitExtractTitle,
-            _sel.length == 1 ? _extractOutfit : null),  // #329
-        _act(Icons.videocam_off_outlined, l10n.jigsawFlowDeleteVideoTooltip,
-            _selWithVideo.isEmpty ? null : _deleteVideo),
+        _act(
+          Icons.checkroom_outlined,
+          l10n.outfitExtractTitle,
+          _sel.length == 1 ? _extractOutfit : null,
+        ), // #329
+        _act(
+          Icons.videocam_off_outlined,
+          l10n.jigsawFlowDeleteVideoTooltip,
+          _selWithVideo.isEmpty ? null : _deleteVideo,
+        ),
         _act(Icons.delete_outline, l10n.flowReject, _delete),
       ]);
     } else if (_stage == 'staging') {
@@ -1025,18 +1225,27 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
         _act(Icons.animation, l10n.jigsawFlowMissingWebp, _webp),
         _act(Icons.music_note, l10n.queueKindMusic, _music),
         _act(Icons.sell_outlined, l10n.jigsawFlowTagsMetadata, _showMeta),
-        _act(Icons.videocam_off_outlined, l10n.jigsawFlowDeleteVideoTooltip,
-            _selWithVideo.isEmpty ? null : _deleteVideo),
+        _act(
+          Icons.videocam_off_outlined,
+          l10n.jigsawFlowDeleteVideoTooltip,
+          _selWithVideo.isEmpty ? null : _deleteVideo,
+        ),
         _act(Icons.cloud_upload_outlined, l10n.flowPush, _push),
-        _act(Icons.checkroom_outlined, l10n.outfitExtractTitle,
-            _sel.length == 1 ? _extractOutfit : null),  // #329
+        _act(
+          Icons.checkroom_outlined,
+          l10n.outfitExtractTitle,
+          _sel.length == 1 ? _extractOutfit : null,
+        ), // #329
         _act(Icons.delete_outline, l10n.delete, _delete),
       ]);
     } else {
       butonlar.addAll([
         _act(Icons.sell_outlined, l10n.jigsawFlowTagsMetadata, _showMeta),
-        _act(Icons.checkroom_outlined, l10n.outfitExtractTitle,
-            _sel.length == 1 ? _extractOutfit : null),  // #329
+        _act(
+          Icons.checkroom_outlined,
+          l10n.outfitExtractTitle,
+          _sel.length == 1 ? _extractOutfit : null,
+        ), // #329
       ]);
     }
     return BottomAppBar(
@@ -1047,32 +1256,32 @@ class _AssetFlowScreenState extends State<AssetFlowScreen>
     );
   }
 
-  Widget _act(IconData ikon, String tooltip, VoidCallback? fn) => IconButton(
-        onPressed: fn,
-        tooltip: tooltip,
-        icon: Icon(ikon, size: 24),
-      );
+  Widget _act(IconData ikon, String tooltip, VoidCallback? fn) =>
+      IconButton(onPressed: fn, tooltip: tooltip, icon: Icon(ikon, size: 24));
 
   Widget _errorView() => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.cloud_off, size: 44, color: AppColors.error),
-              const SizedBox(height: 10),
-              Text(l10n.flowReadFailed),
-              const SizedBox(height: 6),
-              Text(_error!,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 12, color: Colors.grey)),
-              const SizedBox(height: 14),
-              FilledButton.icon(
-                  onPressed: _load,
-                  icon: const Icon(Icons.refresh),
-                  label: Text(l10n.retry)),
-            ],
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.cloud_off, size: 44, color: AppColors.error),
+          const SizedBox(height: 10),
+          Text(l10n.flowReadFailed),
+          const SizedBox(height: 6),
+          Text(
+            _error!,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 12, color: Colors.grey),
           ),
-        ),
-      );
+          const SizedBox(height: 14),
+          FilledButton.icon(
+            onPressed: _load,
+            icon: const Icon(Icons.refresh),
+            label: Text(l10n.retry),
+          ),
+        ],
+      ),
+    ),
+  );
 }

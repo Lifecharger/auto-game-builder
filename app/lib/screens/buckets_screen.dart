@@ -7,6 +7,7 @@ import '../services/lifecharger_analytics.dart';
 import '../services/mode_service.dart';
 import '../services/r2_control_service.dart';
 import '../theme.dart';
+import '../widgets/app_toast.dart';
 
 /// #381 Kovalar: R2 kovalarinin kendisi - Dagitim'in yanindaki ikinci sekme.
 ///
@@ -53,8 +54,7 @@ class _BucketsScreenState extends State<BucketsScreen> {
     return null;
   }
 
-  void _snack(String m) => ScaffoldMessenger.of(context)
-      .showSnackBar(SnackBar(content: Text(m), duration: const Duration(seconds: 4)));
+  void _snack(String m) => AppToast.of(context).show(m);
 
   String _clean(Object e) => e.toString().replaceFirst('Exception: ', '');
 
@@ -147,141 +147,220 @@ class _BucketsScreenState extends State<BucketsScreen> {
     final c = TextEditingController();
     final onay = await showDialog<bool>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setLocal) => AlertDialog(
-          icon: Icon(takedown ? Icons.gavel : Icons.delete_forever,
-              color: AppColors.error, size: 34),
-          title: Text(takedown ? l10n.bucketsTakedownTitle : l10n.bucketsDeleteForeverTitle),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: ListView(
-              shrinkWrap: true,
-              children: [
-                Text(l10n.bucketsDeleteWarning(plan.totalKeys),
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.error)),
-                const SizedBox(height: 8),
-                _planBlok(plan.bucket, plan.keys),
-                for (final t in plan.twins) _planBlok(t.bucket, t.keys, legacy: true),
-                if (takedown && plan.unmapped.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text(
-                        l10n.bucketsUnmappedNote(plan.unmapped.length),
-                        style: const TextStyle(fontSize: 11, color: Colors.orange)),
+      builder:
+          (ctx) => StatefulBuilder(
+            builder:
+                (ctx, setLocal) => AlertDialog(
+                  icon: Icon(
+                    takedown ? Icons.gavel : Icons.delete_forever,
+                    color: AppColors.error,
+                    size: 34,
                   ),
-                const SizedBox(height: 12),
-                Text(l10n.bucketsTypeNameToConfirm(_bucket),
-                    style: const TextStyle(fontSize: 12)),
-                const SizedBox(height: 6),
-                TextField(
-                  controller: c,
-                  autocorrect: false,
-                  decoration: const InputDecoration(isDense: true, border: OutlineInputBorder()),
-                  onChanged: (_) => setLocal(() {}),
+                  title: Text(
+                    takedown
+                        ? l10n.bucketsTakedownTitle
+                        : l10n.bucketsDeleteForeverTitle,
+                  ),
+                  content: SizedBox(
+                    width: double.maxFinite,
+                    child: ListView(
+                      shrinkWrap: true,
+                      children: [
+                        Text(
+                          l10n.bucketsDeleteWarning(plan.totalKeys),
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.error,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        _planBlok(plan.bucket, plan.keys),
+                        for (final t in plan.twins)
+                          _planBlok(t.bucket, t.keys, legacy: true),
+                        if (takedown && plan.unmapped.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(
+                              l10n.bucketsUnmappedNote(plan.unmapped.length),
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Colors.orange,
+                              ),
+                            ),
+                          ),
+                        const SizedBox(height: 12),
+                        Text(
+                          l10n.bucketsTypeNameToConfirm(_bucket),
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        const SizedBox(height: 6),
+                        TextField(
+                          controller: c,
+                          autocorrect: false,
+                          decoration: const InputDecoration(
+                            isDense: true,
+                            border: OutlineInputBorder(),
+                          ),
+                          onChanged: (_) => setLocal(() {}),
+                        ),
+                      ],
+                    ),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: Text(l10n.cancel),
+                    ),
+                    FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.error,
+                      ),
+                      onPressed:
+                          c.text == _bucket
+                              ? () => Navigator.pop(ctx, true)
+                              : null,
+                      child: Text(
+                        takedown ? l10n.bucketsTakedown : l10n.delete,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
           ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(l10n.cancel)),
-            FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: AppColors.error),
-              onPressed: c.text == _bucket ? () => Navigator.pop(ctx, true) : null,
-              child: Text(takedown ? l10n.bucketsTakedown : l10n.delete),
-            ),
-          ],
-        ),
-      ),
     );
     if (onay != true) return;
     try {
-      final r = await R2ControlService.delete(_bucket, keys,
-          takedown: takedown, confirm: c.text);
+      final r = await R2ControlService.delete(
+        _bucket,
+        keys,
+        takedown: takedown,
+        confirm: c.text,
+      );
       if (!mounted) return;
-      final ikiz = (r['twins'] as List? ?? const [])
-          .whereType<Map>()
-          .fold<int>(0, (a, t) => a + ((t['deleted'] as num?)?.toInt() ?? 0));
+      final ikiz = (r['twins'] as List? ?? const []).whereType<Map>().fold<int>(
+        0,
+        (a, t) => a + ((t['deleted'] as num?)?.toInt() ?? 0),
+      );
       final silinen = (r['deleted'] as num?)?.toInt() ?? 0;
-      _snack(takedown
-          ? l10n.bucketsDeletedWithTwin(silinen, ikiz)
-          : l10n.bucketsDeleted(silinen));
+      _snack(
+        takedown
+            ? l10n.bucketsDeletedWithTwin(silinen, ikiz)
+            : l10n.bucketsDeleted(silinen),
+      );
       await _open(_bucket, _prefix);
     } catch (e) {
       if (mounted) _snack(_clean(e));
     }
   }
 
-  Widget _planBlok(String bucket, List<String> keys, {bool legacy = false}) => Padding(
+  Widget _planBlok(String bucket, List<String> keys, {bool legacy = false}) =>
+      Padding(
         padding: const EdgeInsets.only(top: 6),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Icon(legacy ? Icons.history : Icons.folder_delete,
-                    size: 14, color: legacy ? Colors.orange : AppColors.error),
+                Icon(
+                  legacy ? Icons.history : Icons.folder_delete,
+                  size: 14,
+                  color: legacy ? Colors.orange : AppColors.error,
+                ),
                 const SizedBox(width: 4),
-                Text('$bucket  (${keys.length})',
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                Text(
+                  '$bucket  (${keys.length})',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ],
             ),
             for (final k in keys.take(12))
-              Text('  $k', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+              Text(
+                '  $k',
+                style: const TextStyle(fontSize: 11, color: Colors.grey),
+              ),
             if (keys.length > 12)
-              Text('  ... +${keys.length - 12}',
-                  style: const TextStyle(fontSize: 11, color: Colors.grey)),
+              Text(
+                '  ... +${keys.length - 12}',
+                style: const TextStyle(fontSize: 11, color: Colors.grey),
+              ),
           ],
         ),
       );
 
   Future<void> _copyTo() async {
-    final hedefler = (_reg?.buckets ?? const <R2Bucket>[])
-        .where((b) => !b.isPrivate)
-        .map((b) => b.name)
-        .toList();
+    final hedefler =
+        (_reg?.buckets ?? const <R2Bucket>[])
+            .where((b) => !b.isPrivate)
+            .map((b) => b.name)
+            .toList();
     var hedef = hedefler.isEmpty ? '' : hedefler.first;
     final onek = TextEditingController(text: _prefix);
     final tek = _selected.length == 1 ? _selected.first : '';
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setLocal) => AlertDialog(
-          title: Text(l10n.copy),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                  tek.isNotEmpty
-                      ? l10n.bucketsCopySource('$_bucket/$tek')
-                      : l10n.bucketsCopySourceTree(
-                          '$_bucket/${_prefix.isEmpty ? l10n.bucketsWholeBucket : _prefix}'),
-                  style: const TextStyle(fontSize: 12)),
-              const SizedBox(height: 4),
-              Text(l10n.bucketsCopyNote,
-                  style: const TextStyle(fontSize: 11, color: Colors.grey)),
-              const SizedBox(height: 10),
-              DropdownButton<String>(
-                value: hedef.isEmpty ? null : hedef,
-                isExpanded: true,
-                items: [for (final h in hedefler) DropdownMenuItem(value: h, child: Text(h))],
-                onChanged: (v) => setLocal(() => hedef = v ?? hedef),
-              ),
-              TextField(
-                controller: onek,
-                decoration: InputDecoration(
-                    isDense: true,
-                    border: const OutlineInputBorder(),
-                    labelText: tek.isNotEmpty ? l10n.bucketsTargetKey : l10n.bucketsTargetPrefix),
-              ),
-            ],
+      builder:
+          (ctx) => StatefulBuilder(
+            builder:
+                (ctx, setLocal) => AlertDialog(
+                  title: Text(l10n.copy),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        tek.isNotEmpty
+                            ? l10n.bucketsCopySource('$_bucket/$tek')
+                            : l10n.bucketsCopySourceTree(
+                              '$_bucket/${_prefix.isEmpty ? l10n.bucketsWholeBucket : _prefix}',
+                            ),
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        l10n.bucketsCopyNote,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      DropdownButton<String>(
+                        value: hedef.isEmpty ? null : hedef,
+                        isExpanded: true,
+                        items: [
+                          for (final h in hedefler)
+                            DropdownMenuItem(value: h, child: Text(h)),
+                        ],
+                        onChanged: (v) => setLocal(() => hedef = v ?? hedef),
+                      ),
+                      TextField(
+                        controller: onek,
+                        decoration: InputDecoration(
+                          isDense: true,
+                          border: const OutlineInputBorder(),
+                          labelText:
+                              tek.isNotEmpty
+                                  ? l10n.bucketsTargetKey
+                                  : l10n.bucketsTargetPrefix,
+                        ),
+                      ),
+                    ],
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: Text(l10n.cancel),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: Text(l10n.copy),
+                    ),
+                  ],
+                ),
           ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(l10n.cancel)),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(l10n.copy)),
-          ],
-        ),
-      ),
     );
     if (ok != true || hedef.isEmpty) return;
     try {
@@ -304,17 +383,26 @@ class _BucketsScreenState extends State<BucketsScreen> {
   Future<void> _fixHeaders() async {
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l10n.bucketsFixHeadersTitle),
-        content: Text(
-            l10n.bucketsFixHeadersBody(
-                '$_bucket/${_prefix.isEmpty ? l10n.bucketsWholeBucket : _prefix}'),
-            style: const TextStyle(fontSize: 12)),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(l10n.cancel)),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(l10n.start)),
-        ],
-      ),
+      builder:
+          (ctx) => AlertDialog(
+            title: Text(l10n.bucketsFixHeadersTitle),
+            content: Text(
+              l10n.bucketsFixHeadersBody(
+                '$_bucket/${_prefix.isEmpty ? l10n.bucketsWholeBucket : _prefix}',
+              ),
+              style: const TextStyle(fontSize: 12),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(l10n.cancel),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text(l10n.start),
+              ),
+            ],
+          ),
     );
     if (ok != true) return;
     try {
@@ -333,7 +421,8 @@ class _BucketsScreenState extends State<BucketsScreen> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (ctx) => _ObjectSheet(bucket: _bucket, object: o, onSnack: _snack),
+      builder:
+          (ctx) => _ObjectSheet(bucket: _bucket, object: o, onSnack: _snack),
     );
   }
 
@@ -342,60 +431,82 @@ class _BucketsScreenState extends State<BucketsScreen> {
     if (!mounted) return;
     await showModalBottomSheet<void>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setLocal) => SafeArea(
-          child: ListView(
-            shrinkWrap: true,
-            padding: const EdgeInsets.all(12),
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                      child: Text(l10n.bucketsOperations,
-                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
-                  IconButton(
-                    icon: const Icon(Icons.refresh, size: 18),
-                    onPressed: () async {
-                      await _pollOps();
-                      setLocal(() {});
-                    },
-                  ),
-                ],
-              ),
-              if (_ops.isEmpty)
-                Text(l10n.bucketsNoOperations,
-                    style: const TextStyle(fontSize: 12, color: Colors.grey)),
-              for (final o in _ops)
-                ListTile(
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  title: Text('${o.kind}  ${o.done}/${o.total}',
-                      style: const TextStyle(fontSize: 13)),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+      builder:
+          (ctx) => StatefulBuilder(
+            builder:
+                (ctx, setLocal) => SafeArea(
+                  child: ListView(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.all(12),
                     children: [
-                      LinearProgressIndicator(value: o.running ? o.progress : 1),
-                      Text(
-                          '${l10n.bucketsOpStatus(o.status, o.ok, o.failed)}'
-                          '${o.message.isEmpty ? '' : '  ·  ${o.message}'}',
-                          style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              l10n.bucketsOperations,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.refresh, size: 18),
+                            onPressed: () async {
+                              await _pollOps();
+                              setLocal(() {});
+                            },
+                          ),
+                        ],
+                      ),
+                      if (_ops.isEmpty)
+                        Text(
+                          l10n.bucketsNoOperations,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      for (final o in _ops)
+                        ListTile(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(
+                            '${o.kind}  ${o.done}/${o.total}',
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              LinearProgressIndicator(
+                                value: o.running ? o.progress : 1,
+                              ),
+                              Text(
+                                '${l10n.bucketsOpStatus(o.status, o.ok, o.failed)}'
+                                '${o.message.isEmpty ? '' : '  ·  ${o.message}'}',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ],
+                          ),
+                          trailing:
+                              o.running
+                                  ? IconButton(
+                                    icon: const Icon(Icons.cancel, size: 18),
+                                    onPressed: () async {
+                                      await R2ControlService.cancelOp(o.id);
+                                      await _pollOps();
+                                      setLocal(() {});
+                                    },
+                                  )
+                                  : null,
+                        ),
                     ],
                   ),
-                  trailing: o.running
-                      ? IconButton(
-                          icon: const Icon(Icons.cancel, size: 18),
-                          onPressed: () async {
-                            await R2ControlService.cancelOp(o.id);
-                            await _pollOps();
-                            setLocal(() {});
-                          },
-                        )
-                      : null,
                 ),
-            ],
           ),
-        ),
-      ),
     );
   }
 
@@ -412,63 +523,107 @@ class _BucketsScreenState extends State<BucketsScreen> {
     _snack(twin ? l10n.bucketsTwinDiffRunning : l10n.bucketsLocalDiffRunning);
     Map<String, dynamic> d;
     try {
-      d = twin
-          ? await R2ControlService.twinDiff(_bucket)
-          : await R2ControlService.diff(rating: _info?.localRating ?? 'hot');
+      d =
+          twin
+              ? await R2ControlService.twinDiff(_bucket)
+              : await R2ControlService.diff(
+                rating: _info?.localRating ?? 'hot',
+              );
     } catch (e) {
       if (mounted) _snack(_clean(e));
       return;
     }
     if (!mounted) return;
     List<String> liste(String k) =>
-        (d[k] as List? ?? const []).map((e) => e is Map ? '${e['key']}' : '$e').toList();
+        (d[k] as List? ?? const [])
+            .map((e) => e is Map ? '${e['key']}' : '$e')
+            .toList();
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (ctx) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.8,
-        builder: (ctx, controller) => ListView(
-          controller: controller,
-          padding: const EdgeInsets.all(12),
-          children: [
-            Text(
-                twin
-                    ? l10n.bucketsTwinDiffTitle('${d['bucket']}', '${d['twin']}')
-                    : l10n.bucketsLocalDiffTitle('${d['bucket']}'),
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            _diffBlok(twin ? l10n.bucketsMissingInLegacy : l10n.bucketsMissingInBucket,
-                liste(twin ? 'missing_in_legacy' : 'missing_in_bucket'), AppColors.error),
-            _diffBlok(twin ? l10n.bucketsOnlyInLegacy : l10n.bucketsOnlyInBucket,
-                liste(twin ? 'only_in_legacy' : 'missing_locally'), Colors.orange),
-            _diffBlok(l10n.bucketsSizeMismatch, liste('size_mismatch'), Colors.orange),
-            if (twin)
-              _diffBlok(l10n.bucketsUnmapped, liste('unmapped'), Colors.grey)
-            else
-              // Gri thumb'lar kovada uretilir, yerelde hic olmaz - eksik degil.
-              _diffBlok(l10n.bucketsDerived, liste('derived_in_bucket'), Colors.grey),
-          ],
-        ),
-      ),
+      builder:
+          (ctx) => DraggableScrollableSheet(
+            expand: false,
+            initialChildSize: 0.8,
+            builder:
+                (ctx, controller) => ListView(
+                  controller: controller,
+                  padding: const EdgeInsets.all(12),
+                  children: [
+                    Text(
+                      twin
+                          ? l10n.bucketsTwinDiffTitle(
+                            '${d['bucket']}',
+                            '${d['twin']}',
+                          )
+                          : l10n.bucketsLocalDiffTitle('${d['bucket']}'),
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    _diffBlok(
+                      twin
+                          ? l10n.bucketsMissingInLegacy
+                          : l10n.bucketsMissingInBucket,
+                      liste(twin ? 'missing_in_legacy' : 'missing_in_bucket'),
+                      AppColors.error,
+                    ),
+                    _diffBlok(
+                      twin
+                          ? l10n.bucketsOnlyInLegacy
+                          : l10n.bucketsOnlyInBucket,
+                      liste(twin ? 'only_in_legacy' : 'missing_locally'),
+                      Colors.orange,
+                    ),
+                    _diffBlok(
+                      l10n.bucketsSizeMismatch,
+                      liste('size_mismatch'),
+                      Colors.orange,
+                    ),
+                    if (twin)
+                      _diffBlok(
+                        l10n.bucketsUnmapped,
+                        liste('unmapped'),
+                        Colors.grey,
+                      )
+                    else
+                      // Gri thumb'lar kovada uretilir, yerelde hic olmaz - eksik degil.
+                      _diffBlok(
+                        l10n.bucketsDerived,
+                        liste('derived_in_bucket'),
+                        Colors.grey,
+                      ),
+                  ],
+                ),
+          ),
     );
   }
 
   Widget _diffBlok(String baslik, List<String> satirlar, Color renk) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(l10n.bucketsDiffCount(baslik, satirlar.length),
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: renk)),
-            for (final s in satirlar.take(60))
-              Text(s, style: const TextStyle(fontSize: 11, color: Colors.grey)),
-            if (satirlar.length > 60)
-              Text('... +${satirlar.length - 60}',
-                  style: const TextStyle(fontSize: 11, color: Colors.grey)),
-          ],
+    padding: const EdgeInsets.only(bottom: 10),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          l10n.bucketsDiffCount(baslik, satirlar.length),
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.bold,
+            color: renk,
+          ),
         ),
-      );
+        for (final s in satirlar.take(60))
+          Text(s, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+        if (satirlar.length > 60)
+          Text(
+            '... +${satirlar.length - 60}',
+            style: const TextStyle(fontSize: 11, color: Colors.grey),
+          ),
+      ],
+    ),
+  );
 
   // ------------------------------------------------------------------ gorunum
   @override
@@ -481,16 +636,23 @@ class _BucketsScreenState extends State<BucketsScreen> {
       },
       child: Scaffold(
         appBar: AppBar(
-          leading: _bucket.isEmpty
-              ? null
-              : IconButton(icon: const Icon(Icons.arrow_back), onPressed: _up),
-          title: Text(_bucket.isEmpty ? l10n.navBuckets : _bucket,
-              style: const TextStyle(fontSize: 17)),
+          leading:
+              _bucket.isEmpty
+                  ? null
+                  : IconButton(
+                    icon: const Icon(Icons.arrow_back),
+                    onPressed: _up,
+                  ),
+          title: Text(
+            _bucket.isEmpty ? l10n.navBuckets : _bucket,
+            style: const TextStyle(fontSize: 17),
+          ),
           actions: [
             IconButton(
-                icon: const Icon(Icons.local_shipping_outlined),
-                tooltip: l10n.navDelivery,
-                onPressed: () => ModeService.setMode(ModeService.delivery)),
+              icon: const Icon(Icons.local_shipping_outlined),
+              tooltip: l10n.navDelivery,
+              onPressed: () => ModeService.setMode(ModeService.delivery),
+            ),
             IconButton(
               icon: const Icon(Icons.playlist_play),
               tooltip: l10n.bucketsOperations,
@@ -506,26 +668,35 @@ class _BucketsScreenState extends State<BucketsScreen> {
                 tooltip: l10n.bucketsDiffs,
                 icon: const Icon(Icons.compare_arrows),
                 onSelected: (v) => _showDiff(twin: v == 'twin'),
-                itemBuilder: (_) => [
-                  if (info.twin.isNotEmpty)
-                    PopupMenuItem(value: 'twin', child: Text(l10n.bucketsTwinDiff)),
-                  if (info.localRating.isNotEmpty)
-                    PopupMenuItem(value: 'local', child: Text(l10n.bucketsLocalDiff)),
-                ],
+                itemBuilder:
+                    (_) => [
+                      if (info.twin.isNotEmpty)
+                        PopupMenuItem(
+                          value: 'twin',
+                          child: Text(l10n.bucketsTwinDiff),
+                        ),
+                      if (info.localRating.isNotEmpty)
+                        PopupMenuItem(
+                          value: 'local',
+                          child: Text(l10n.bucketsLocalDiff),
+                        ),
+                    ],
               ),
             ],
             IconButton(
               icon: const Icon(Icons.refresh),
               tooltip: l10n.refresh,
-              onPressed: _bucket.isEmpty
-                  ? () => _loadRegistry()
-                  : () => _open(_bucket, _prefix),
+              onPressed:
+                  _bucket.isEmpty
+                      ? () => _loadRegistry()
+                      : () => _open(_bucket, _prefix),
             ),
           ],
         ),
-        body: _loading
-            ? const Center(child: CircularProgressIndicator())
-            : _error != null && _listing == null && _bucket.isEmpty
+        body:
+            _loading
+                ? const Center(child: CircularProgressIndicator())
+                : _error != null && _listing == null && _bucket.isEmpty
                 ? _hata()
                 : (_bucket.isEmpty ? _kovaListesi() : _gezgin()),
         bottomNavigationBar: _selected.isEmpty ? null : _secimCubugu(),
@@ -534,20 +705,23 @@ class _BucketsScreenState extends State<BucketsScreen> {
   }
 
   Widget _hata() => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(_error!, textAlign: TextAlign.center),
-              const SizedBox(height: 12),
-              FilledButton(
-                  onPressed: () => _bucket.isEmpty ? _loadRegistry() : _open(_bucket, _prefix),
-                  child: Text(l10n.retry)),
-            ],
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(_error!, textAlign: TextAlign.center),
+          const SizedBox(height: 12),
+          FilledButton(
+            onPressed:
+                () =>
+                    _bucket.isEmpty ? _loadRegistry() : _open(_bucket, _prefix),
+            child: Text(l10n.retry),
           ),
-        ),
-      );
+        ],
+      ),
+    ),
+  );
 
   Widget _kovaListesi() {
     final reg = _reg;
@@ -555,8 +729,10 @@ class _BucketsScreenState extends State<BucketsScreen> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(10, 8, 10, 16),
       children: [
-        Text(l10n.bucketsIntro,
-            style: const TextStyle(fontSize: 11, color: Colors.grey)),
+        Text(
+          l10n.bucketsIntro,
+          style: const TextStyle(fontSize: 11, color: Colors.grey),
+        ),
         const SizedBox(height: 8),
         for (final b in reg.buckets) _kovaKarti(b, reg.legacyRetiresOn),
       ],
@@ -564,54 +740,67 @@ class _BucketsScreenState extends State<BucketsScreen> {
   }
 
   Widget _kovaKarti(R2Bucket b, String emeklilik) => Card(
-        margin: const EdgeInsets.only(bottom: 8),
-        child: ListTile(
-          onTap: b.isPrivate ? null : () => _open(b.name, ''),
-          title: Row(
-            children: [
-              Flexible(
-                child: Text(b.name,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-              ),
-              const SizedBox(width: 6),
-              _rozet(
-                  b.isLegacy
-                      ? l10n.bucketsBadgeLegacy
-                      : (b.isPrivate ? l10n.bucketsBadgePrivate : l10n.bucketsBadgeContent),
-                  b.isLegacy ? AppColors.error : (b.isPrivate ? Colors.grey : AppColors.success)),
-              if (b.isLegacy && emeklilik.isNotEmpty) ...[
-                const SizedBox(width: 4),
-                _rozet(emeklilik, Colors.orange),
-              ],
-            ],
+    margin: const EdgeInsets.only(bottom: 8),
+    child: ListTile(
+      onTap: b.isPrivate ? null : () => _open(b.name, ''),
+      title: Row(
+        children: [
+          Flexible(
+            child: Text(
+              b.name,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+            ),
           ),
-          subtitle: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(b.holds, style: const TextStyle(fontSize: 11, color: Colors.grey)),
-              const SizedBox(height: 2),
-              Text(
-                  '${b.objects == null ? l10n.bucketsNotCounted : l10n.bucketsObjectCount(b.objects!)}'
-                  '  ·  ${r2Size(b.bytes)}'
-                  '${b.twin.isEmpty ? '' : '  ·  ${l10n.bucketsTwinLabel(b.twin)}'}',
-                  style: const TextStyle(fontSize: 11)),
-            ],
+          const SizedBox(width: 6),
+          _rozet(
+            b.isLegacy
+                ? l10n.bucketsBadgeLegacy
+                : (b.isPrivate
+                    ? l10n.bucketsBadgePrivate
+                    : l10n.bucketsBadgeContent),
+            b.isLegacy
+                ? AppColors.error
+                : (b.isPrivate ? Colors.grey : AppColors.success),
           ),
-          trailing: IconButton(
-            icon: const Icon(Icons.calculate_outlined, size: 20),
-            tooltip: l10n.bucketsCount,
-            onPressed: () => _refreshCount(b.name),
+          if (b.isLegacy && emeklilik.isNotEmpty) ...[
+            const SizedBox(width: 4),
+            _rozet(emeklilik, Colors.orange),
+          ],
+        ],
+      ),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            b.holds,
+            style: const TextStyle(fontSize: 11, color: Colors.grey),
           ),
-        ),
-      );
+          const SizedBox(height: 2),
+          Text(
+            '${b.objects == null ? l10n.bucketsNotCounted : l10n.bucketsObjectCount(b.objects!)}'
+            '  ·  ${r2Size(b.bytes)}'
+            '${b.twin.isEmpty ? '' : '  ·  ${l10n.bucketsTwinLabel(b.twin)}'}',
+            style: const TextStyle(fontSize: 11),
+          ),
+        ],
+      ),
+      trailing: IconButton(
+        icon: const Icon(Icons.calculate_outlined, size: 20),
+        tooltip: l10n.bucketsCount,
+        onPressed: () => _refreshCount(b.name),
+      ),
+    ),
+  );
 
   Widget _rozet(String metin, Color renk) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        decoration: BoxDecoration(
-            color: renk.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(10)),
-        child: Text(metin, style: TextStyle(fontSize: 10, color: renk)),
-      );
+    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+    decoration: BoxDecoration(
+      color: renk.withValues(alpha: 0.18),
+      borderRadius: BorderRadius.circular(10),
+    ),
+    child: Text(metin, style: TextStyle(fontSize: 10, color: renk)),
+  );
 
   Widget _gezgin() {
     if (_listLoading) return const Center(child: CircularProgressIndicator());
@@ -622,22 +811,33 @@ class _BucketsScreenState extends State<BucketsScreen> {
       children: [
         _izYolu(),
         Expanded(
-          child: satirlar == 0
-              ? Center(
-                  child: Text(l10n.bucketsEmptyFolder,
-                      style: const TextStyle(color: Colors.grey)))
-              : ListView.builder(
-                  itemCount: satirlar + (l.truncated ? 1 : 0),
-                  itemBuilder: (ctx, i) {
-                    if (i < l.folders.length) return _klasorSatiri(l.folders[i]);
-                    if (i < satirlar) return _nesneSatiri(l.objects[i - l.folders.length]);
-                    return Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Text(l10n.bucketsTruncated,
-                          style: const TextStyle(fontSize: 11, color: Colors.orange)),
-                    );
-                  },
-                ),
+          child:
+              satirlar == 0
+                  ? Center(
+                    child: Text(
+                      l10n.bucketsEmptyFolder,
+                      style: const TextStyle(color: Colors.grey),
+                    ),
+                  )
+                  : ListView.builder(
+                    itemCount: satirlar + (l.truncated ? 1 : 0),
+                    itemBuilder: (ctx, i) {
+                      if (i < l.folders.length)
+                        return _klasorSatiri(l.folders[i]);
+                      if (i < satirlar)
+                        return _nesneSatiri(l.objects[i - l.folders.length]);
+                      return Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Text(
+                          l10n.bucketsTruncated,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Colors.orange,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
         ),
       ],
     );
@@ -653,13 +853,19 @@ class _BucketsScreenState extends State<BucketsScreen> {
         children: [
           InkWell(
             onTap: () => _open(_bucket, ''),
-            child: Text(_bucket,
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+            child: Text(
+              _bucket,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+            ),
           ),
           for (var i = 0; i < parts.length; i++) ...[
-            const Text(' / ', style: TextStyle(fontSize: 12, color: Colors.grey)),
+            const Text(
+              ' / ',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
             InkWell(
-              onTap: () => _open(_bucket, '${parts.sublist(0, i + 1).join('/')}/'),
+              onTap:
+                  () => _open(_bucket, '${parts.sublist(0, i + 1).join('/')}/'),
               child: Text(parts[i], style: const TextStyle(fontSize: 12)),
             ),
           ],
@@ -669,37 +875,42 @@ class _BucketsScreenState extends State<BucketsScreen> {
   }
 
   Widget _klasorSatiri(R2Folder f) => ListTile(
-        dense: true,
-        leading: const Icon(Icons.folder, size: 26),
-        title: Text(f.name, style: const TextStyle(fontSize: 13)),
-        onTap: () => _open(_bucket, f.prefix),
-      );
+    dense: true,
+    leading: const Icon(Icons.folder, size: 26),
+    title: Text(f.name, style: const TextStyle(fontSize: 13)),
+    onTap: () => _open(_bucket, f.prefix),
+  );
 
   Widget _nesneSatiri(R2Object o) {
     final secili = _selected.contains(o.key);
     return ListTile(
       dense: true,
       selected: secili,
-      leading: SizedBox(
-        width: 40,
-        height: 40,
-        child: _onizleme(o),
-      ),
+      leading: SizedBox(width: 40, height: 40, child: _onizleme(o)),
       title: Text(o.name, style: const TextStyle(fontSize: 13)),
-      subtitle: Text(r2Size(o.size), style: const TextStyle(fontSize: 11, color: Colors.grey)),
+      subtitle: Text(
+        r2Size(o.size),
+        style: const TextStyle(fontSize: 11, color: Colors.grey),
+      ),
       trailing: Checkbox(
         value: secili,
-        onChanged: (v) => setState(() {
-          if (v == true) {
-            _selected.add(o.key);
-          } else {
-            _selected.remove(o.key);
-          }
-        }),
+        onChanged:
+            (v) => setState(() {
+              if (v == true) {
+                _selected.add(o.key);
+              } else {
+                _selected.remove(o.key);
+              }
+            }),
       ),
-      onTap: () => _selected.isEmpty
-          ? _showObject(o)
-          : setState(() => secili ? _selected.remove(o.key) : _selected.add(o.key)),
+      onTap:
+          () =>
+              _selected.isEmpty
+                  ? _showObject(o)
+                  : setState(
+                    () =>
+                        secili ? _selected.remove(o.key) : _selected.add(o.key),
+                  ),
       onLongPress: () => setState(() => _selected.add(o.key)),
     );
   }
@@ -712,7 +923,8 @@ class _BucketsScreenState extends State<BucketsScreen> {
       R2ControlService.thumbUrl(_bucket, o.key),
       headers: R2ControlService.thumbHeaders,
       fit: BoxFit.cover,
-      errorBuilder: (_, _, _) => Icon(_ikon(o.name), size: 24, color: Colors.grey),
+      errorBuilder:
+          (_, _, _) => Icon(_ikon(o.name), size: 24, color: Colors.grey),
     );
   }
 
@@ -728,46 +940,52 @@ class _BucketsScreenState extends State<BucketsScreen> {
   }
 
   Widget _secimCubugu() => SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(l10n.bucketsSelectedCount(_selected.length),
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-              ),
-              IconButton(
-                icon: const Icon(Icons.clear),
-                tooltip: l10n.bucketsClearSelection,
-                onPressed: () => setState(() => _selected.clear()),
-              ),
-              IconButton(
-                icon: const Icon(Icons.copy_all),
-                tooltip: l10n.copy,
-                onPressed: _copyTo,
-              ),
-              IconButton(
-                icon: Icon(Icons.gavel, color: AppColors.error),
-                tooltip: l10n.bucketsTakedownTooltip,
-                onPressed: () => _deleteSelected(takedown: true),
-              ),
-              FilledButton.icon(
-                style: FilledButton.styleFrom(backgroundColor: AppColors.error),
-                onPressed: () => _deleteSelected(takedown: false),
-                icon: const Icon(Icons.delete_forever, size: 16),
-                label: Text(l10n.delete),
-              ),
-            ],
+    top: false,
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              l10n.bucketsSelectedCount(_selected.length),
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+            ),
           ),
-        ),
-      );
+          IconButton(
+            icon: const Icon(Icons.clear),
+            tooltip: l10n.bucketsClearSelection,
+            onPressed: () => setState(() => _selected.clear()),
+          ),
+          IconButton(
+            icon: const Icon(Icons.copy_all),
+            tooltip: l10n.copy,
+            onPressed: _copyTo,
+          ),
+          IconButton(
+            icon: Icon(Icons.gavel, color: AppColors.error),
+            tooltip: l10n.bucketsTakedownTooltip,
+            onPressed: () => _deleteSelected(takedown: true),
+          ),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+            onPressed: () => _deleteSelected(takedown: false),
+            icon: const Icon(Icons.delete_forever, size: 16),
+            label: Text(l10n.delete),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 /// Nesne ayrinti sayfasi: basliklar, onbellek uygunlugu, ikiz anahtari,
 /// genel adresi kopyala / ac.
 class _ObjectSheet extends StatefulWidget {
-  const _ObjectSheet({required this.bucket, required this.object, required this.onSnack});
+  const _ObjectSheet({
+    required this.bucket,
+    required this.object,
+    required this.onSnack,
+  });
   final String bucket;
   final R2Object object;
   final void Function(String) onSnack;
@@ -809,33 +1027,49 @@ class _ObjectSheetState extends State<_ObjectSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(widget.object.key,
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+            Text(
+              widget.object.key,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 8),
             if (_error != null)
-              Text(_error!, style: TextStyle(fontSize: 12, color: AppColors.error))
+              Text(
+                _error!,
+                style: TextStyle(fontSize: 12, color: AppColors.error),
+              )
             else if (h == null)
-              const Center(child: Padding(
-                  padding: EdgeInsets.all(12), child: CircularProgressIndicator()))
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(12),
+                  child: CircularProgressIndicator(),
+                ),
+              )
             else ...[
               _satir(l10n.bucketsSize, r2Size(h.size)),
               _satir(l10n.bucketsContentType, h.contentType),
               _satir(l10n.bucketsModified, h.lastModified),
               _satir('ETag', h.etag),
-              _satir('Cache-Control', h.cacheControl.isEmpty ? l10n.bucketsNone : h.cacheControl),
+              _satir(
+                'Cache-Control',
+                h.cacheControl.isEmpty ? l10n.bucketsNone : h.cacheControl,
+              ),
               Row(
                 children: [
-                  Icon(h.headerOk ? Icons.check_circle : Icons.warning,
-                      size: 14, color: h.headerOk ? AppColors.success : Colors.orange),
+                  Icon(
+                    h.headerOk ? Icons.check_circle : Icons.warning,
+                    size: 14,
+                    color: h.headerOk ? AppColors.success : Colors.orange,
+                  ),
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
-                        h.headerKind == 'mutable'
-                            ? l10n.bucketsMutableOnPurpose
-                            : (h.headerOk
-                                ? l10n.bucketsHeaderOk(h.headerKind)
-                                : l10n.bucketsHeaderExpected(h.headerExpected)),
-                        style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                      h.headerKind == 'mutable'
+                          ? l10n.bucketsMutableOnPurpose
+                          : (h.headerOk
+                              ? l10n.bucketsHeaderOk(h.headerKind)
+                              : l10n.bucketsHeaderExpected(h.headerExpected)),
+                      style: const TextStyle(fontSize: 11, color: Colors.grey),
+                    ),
                   ),
                 ],
               ),
@@ -855,14 +1089,19 @@ class _ObjectSheetState extends State<_ObjectSheet> {
                     ),
                     const SizedBox(width: 8),
                     OutlinedButton.icon(
-                      onPressed: () => launchUrl(Uri.parse(h.url),
-                          mode: LaunchMode.externalApplication),
+                      onPressed:
+                          () => launchUrl(
+                            Uri.parse(h.url),
+                            mode: LaunchMode.externalApplication,
+                          ),
                       icon: const Icon(Icons.open_in_new, size: 16),
                       label: Text(l10n.bucketsOpen),
                     ),
                   ] else
-                    Text(l10n.bucketsPrivateNoAddress,
-                        style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                    Text(
+                      l10n.bucketsPrivateNoAddress,
+                      style: const TextStyle(fontSize: 11, color: Colors.grey),
+                    ),
                 ],
               ),
             ],
@@ -873,15 +1112,19 @@ class _ObjectSheetState extends State<_ObjectSheet> {
   }
 
   Widget _satir(String ad, String deger) => Padding(
-        padding: const EdgeInsets.only(bottom: 3),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-                width: 110,
-                child: Text(ad, style: const TextStyle(fontSize: 11, color: Colors.grey))),
-            Expanded(child: Text(deger, style: const TextStyle(fontSize: 12))),
-          ],
+    padding: const EdgeInsets.only(bottom: 3),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 110,
+          child: Text(
+            ad,
+            style: const TextStyle(fontSize: 11, color: Colors.grey),
+          ),
         ),
-      );
+        Expanded(child: Text(deger, style: const TextStyle(fontSize: 12))),
+      ],
+    ),
+  );
 }

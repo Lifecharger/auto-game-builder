@@ -9,6 +9,7 @@ import '../services/api_service.dart';
 import '../services/app_state.dart';
 import '../theme.dart';
 import '../l10n/app_localizations.dart';
+import '../widgets/app_toast.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -64,9 +65,12 @@ class _ChatScreenState extends State<ChatScreen> {
             id: '${DateTime.now().millisecondsSinceEpoch}',
             title: l10n.previousChat,
             createdAt: DateTime.now(),
-            messages: list
-                .map((e) => _ChatMessage.fromJson(e as Map<String, dynamic>))
-                .toList(),
+            messages:
+                list
+                    .map(
+                      (e) => _ChatMessage.fromJson(e as Map<String, dynamic>),
+                    )
+                    .toList(),
           );
           _sessions.add(s);
           _activeId = s.id;
@@ -83,9 +87,10 @@ class _ChatScreenState extends State<ChatScreen> {
     if (json != null) {
       try {
         final decoded = jsonDecode(json) as List;
-        _sessions = decoded
-            .map((e) => _ChatSession.fromJson(e as Map<String, dynamic>))
-            .toList();
+        _sessions =
+            decoded
+                .map((e) => _ChatSession.fromJson(e as Map<String, dynamic>))
+                .toList();
         _sessions.sort((a, b) => b.createdAt.compareTo(a.createdAt));
       } catch (e) {
         debugPrint('chat_screen: corrupted sessions store, clearing: $e');
@@ -146,30 +151,34 @@ class _ChatScreenState extends State<ChatScreen> {
   void _deleteSession(String id) {
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l10n.deleteChat),
-        content: Text(l10n.deleteChatConfirm),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text(l10n.cancel)),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              setState(() {
-                _sessions.removeWhere((s) => s.id == id);
-                if (_activeId == id) {
-                  _activeId =
-                      _sessions.isNotEmpty ? _sessions.first.id : null;
-                }
-              });
-              _save();
-            },
-            child: Text(l10n.delete,
-                style: TextStyle(color: AppColors.error)),
+      builder:
+          (ctx) => AlertDialog(
+            title: Text(l10n.deleteChat),
+            content: Text(l10n.deleteChatConfirm),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text(l10n.cancel),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  setState(() {
+                    _sessions.removeWhere((s) => s.id == id);
+                    if (_activeId == id) {
+                      _activeId =
+                          _sessions.isNotEmpty ? _sessions.first.id : null;
+                    }
+                  });
+                  _save();
+                },
+                child: Text(
+                  l10n.delete,
+                  style: TextStyle(color: AppColors.error),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 
@@ -196,9 +205,8 @@ class _ChatScreenState extends State<ChatScreen> {
     setState(() {
       session.messages.add(_ChatMessage(text: question, isUser: true));
       if (session.title == l10n.newChat) {
-        session.title = question.length > 30
-            ? '${question.substring(0, 30)}...'
-            : question;
+        session.title =
+            question.length > 30 ? '${question.substring(0, 30)}...' : question;
       }
       _sending = true;
     });
@@ -211,19 +219,27 @@ class _ChatScreenState extends State<ChatScreen> {
 
     List<Map<String, String>>? history;
     if (needsReset) {
-      final recent = session.messages
-          .where((m) => !m.isError && !m.isSystem)
-          .toList();
-      final last10 = recent.length > 10 ? recent.sublist(recent.length - 10) : recent;
-      history = last10
-          .map((m) => {'role': m.isUser ? 'user' : 'assistant', 'content': m.text})
-          .toList();
+      final recent =
+          session.messages.where((m) => !m.isError && !m.isSystem).toList();
+      final last10 =
+          recent.length > 10 ? recent.sublist(recent.length - 10) : recent;
+      history =
+          last10
+              .map(
+                (m) => {
+                  'role': m.isUser ? 'user' : 'assistant',
+                  'content': m.text,
+                },
+              )
+              .toList();
       setState(() {
-        session.messages.add(_ChatMessage(
-          text: l10n.sessionRefreshed,
-          isUser: false,
-          isSystem: true,
-        ));
+        session.messages.add(
+          _ChatMessage(
+            text: l10n.sessionRefreshed,
+            isUser: false,
+            isSystem: true,
+          ),
+        );
       });
       _scrollToBottom();
     }
@@ -234,7 +250,8 @@ class _ChatScreenState extends State<ChatScreen> {
       final apps = context.read<AppState>().apps;
       final app = apps.where((a) => a.id == _selectedAppId).firstOrNull;
       if (app != null) {
-        appContext = 'App: ${app.name} (${app.appType}), v${app.currentVersion}, status: ${app.status}, path: ${app.projectPath}';
+        appContext =
+            'App: ${app.name} (${app.appType}), v${app.currentVersion}, status: ${app.status}, path: ${app.projectPath}';
       }
     }
 
@@ -252,10 +269,9 @@ class _ChatScreenState extends State<ChatScreen> {
       setState(() {
         if (result.ok) {
           final data = result.data!;
-          session.messages.add(_ChatMessage(
-            text: data['response'] ?? '',
-            isUser: false,
-          ));
+          session.messages.add(
+            _ChatMessage(text: data['response'] ?? '', isUser: false),
+          );
           // Store session ID for future --resume (resets after 20 messages)
           if (data['session_id'] != null) {
             session.agentSessionId = data['session_id'] as String;
@@ -264,11 +280,9 @@ class _ChatScreenState extends State<ChatScreen> {
             session.agentSessionId = null;
           }
         } else {
-          session.messages.add(_ChatMessage(
-            text: result.error!,
-            isUser: false,
-            isError: true,
-          ));
+          session.messages.add(
+            _ChatMessage(text: result.error!, isUser: false, isError: true),
+          );
         }
         _sending = false;
       });
@@ -352,25 +366,30 @@ class _ChatScreenState extends State<ChatScreen> {
               onPressed: () {
                 showDialog(
                   context: context,
-                  builder: (ctx) => AlertDialog(
-                    title: Text(l10n.clearMessages),
-                    content:
-                        Text(l10n.clearMessagesConfirm(_messages.length)),
-                    actions: [
-                      TextButton(
-                          onPressed: () => Navigator.pop(ctx),
-                          child: Text(l10n.cancel)),
-                      TextButton(
-                        onPressed: () {
-                          Navigator.pop(ctx);
-                          setState(() => _active?.messages.clear());
-                          _save();
-                        },
-                        child: Text(l10n.clear,
-                            style: TextStyle(color: AppColors.error)),
+                  builder:
+                      (ctx) => AlertDialog(
+                        title: Text(l10n.clearMessages),
+                        content: Text(
+                          l10n.clearMessagesConfirm(_messages.length),
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            child: Text(l10n.cancel),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              Navigator.pop(ctx);
+                              setState(() => _active?.messages.clear());
+                              _save();
+                            },
+                            child: Text(
+                              l10n.clear,
+                              style: TextStyle(color: AppColors.error),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
                 );
               },
             ),
@@ -386,9 +405,13 @@ class _ChatScreenState extends State<ChatScreen> {
                 padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
                 child: Row(
                   children: [
-                    Text(l10n.chatHistory,
-                        style: TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.bold)),
+                    Text(
+                      l10n.chatHistory,
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     const Spacer(),
                     IconButton(
                       icon: const Icon(Icons.add, size: 22),
@@ -403,74 +426,97 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
               const Divider(height: 1),
               Expanded(
-                child: _sessions.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.chat_bubble_outline, size: 40, color: Colors.grey.shade600),
-                            const SizedBox(height: 12),
-                            Text(l10n.noChatsYet,
-                                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
-                            const SizedBox(height: 6),
-                            Text(l10n.tapPlusToStartConversation,
-                                style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
-                            const SizedBox(height: 16),
-                            FilledButton.icon(
-                              onPressed: () {
-                                Navigator.pop(context);
-                                _newChat();
-                              },
-                              icon: const Icon(Icons.add, size: 18),
-                              label: Text(l10n.newChat),
-                            ),
-                          ],
-                        ),
-                      )
-                    : ListView.builder(
-                        itemCount: _sessions.length,
-                        itemBuilder: (context, i) {
-                          final s = _sessions[i];
-                          final isActive = s.id == _activeId;
-                          return ListTile(
-                            dense: true,
-                            selected: isActive,
-                            selectedTileColor:
-                                AppColors.accent.withValues(alpha: 0.1),
-                            leading: Icon(
-                              Icons.chat_bubble_outline,
-                              size: 18,
-                              color: isActive
-                                  ? AppColors.accent
-                                  : Colors.grey,
-                            ),
-                            title: Text(
-                              s.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: isActive
-                                    ? FontWeight.bold
-                                    : FontWeight.normal,
+                child:
+                    _sessions.isEmpty
+                        ? Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.chat_bubble_outline,
+                                size: 40,
+                                color: Colors.grey.shade600,
                               ),
-                            ),
-                            subtitle: Text(
-                              l10n.chatSessionSubtitle(s.messages.length, _formatDate(context, s.createdAt)),
-                              style: TextStyle(
+                              const SizedBox(height: 12),
+                              Text(
+                                l10n.noChatsYet,
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                l10n.tapPlusToStartConversation,
+                                style: TextStyle(
+                                  color: Colors.grey.shade500,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              FilledButton.icon(
+                                onPressed: () {
+                                  Navigator.pop(context);
+                                  _newChat();
+                                },
+                                icon: const Icon(Icons.add, size: 18),
+                                label: Text(l10n.newChat),
+                              ),
+                            ],
+                          ),
+                        )
+                        : ListView.builder(
+                          itemCount: _sessions.length,
+                          itemBuilder: (context, i) {
+                            final s = _sessions[i];
+                            final isActive = s.id == _activeId;
+                            return ListTile(
+                              dense: true,
+                              selected: isActive,
+                              selectedTileColor: AppColors.accent.withValues(
+                                alpha: 0.1,
+                              ),
+                              leading: Icon(
+                                Icons.chat_bubble_outline,
+                                size: 18,
+                                color:
+                                    isActive ? AppColors.accent : Colors.grey,
+                              ),
+                              title: Text(
+                                s.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight:
+                                      isActive
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                ),
+                              ),
+                              subtitle: Text(
+                                l10n.chatSessionSubtitle(
+                                  s.messages.length,
+                                  _formatDate(context, s.createdAt),
+                                ),
+                                style: TextStyle(
                                   fontSize: 11,
-                                  color: Colors.grey.shade600),
-                            ),
-                            trailing: IconButton(
-                              icon: Icon(Icons.close,
+                                  color: Colors.grey.shade600,
+                                ),
+                              ),
+                              trailing: IconButton(
+                                icon: Icon(
+                                  Icons.close,
                                   size: 16,
-                                  color: Colors.grey.shade600),
-                              onPressed: () => _deleteSession(s.id),
-                            ),
-                            onTap: () => _switchTo(s.id),
-                          );
-                        },
-                      ),
+                                  color: Colors.grey.shade600,
+                                ),
+                                onPressed: () => _deleteSession(s.id),
+                              ),
+                              onTap: () => _switchTo(s.id),
+                            );
+                          },
+                        ),
               ),
             ],
           ),
@@ -480,8 +526,7 @@ class _ChatScreenState extends State<ChatScreen> {
         children: [
           // Agent + App selector
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             color: AppColors.bgSidebar,
             child: Row(
               children: [
@@ -491,8 +536,9 @@ class _ChatScreenState extends State<ChatScreen> {
                     padding: const EdgeInsets.only(right: 6),
                     child: ChoiceChip(
                       label: Text(
-                          agent[0].toUpperCase() + agent.substring(1),
-                          style: const TextStyle(fontSize: 12)),
+                        agent[0].toUpperCase() + agent.substring(1),
+                        style: const TextStyle(fontSize: 12),
+                      ),
                       selected: selected,
                       selectedColor: AppColors.agentColor(agent),
                       visualDensity: VisualDensity.compact,
@@ -511,8 +557,10 @@ class _ChatScreenState extends State<ChatScreen> {
                     isExpanded: true,
                     decoration: InputDecoration(
                       hintText: l10n.allAppsHint,
-                      contentPadding:
-                          EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       isDense: true,
                       border: OutlineInputBorder(),
                     ),
@@ -520,15 +568,20 @@ class _ChatScreenState extends State<ChatScreen> {
                     style: const TextStyle(fontSize: 12),
                     items: [
                       DropdownMenuItem<int>(
-                          value: null, child: Text(l10n.allApps)),
-                      ...apps.map((app) => DropdownMenuItem(
-                            value: app.id,
-                            child: Text(app.name,
-                                overflow: TextOverflow.ellipsis),
-                          )),
+                        value: null,
+                        child: Text(l10n.allApps),
+                      ),
+                      ...apps.map(
+                        (app) => DropdownMenuItem(
+                          value: app.id,
+                          child: Text(
+                            app.name,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
                     ],
-                    onChanged: (val) =>
-                        setState(() => _selectedAppId = val),
+                    onChanged: (val) => setState(() => _selectedAppId = val),
                   ),
                 ),
               ],
@@ -538,69 +591,84 @@ class _ChatScreenState extends State<ChatScreen> {
           Expanded(
             child: RefreshIndicator(
               onRefresh: _load,
-              child: _messages.isEmpty
-                ? ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    children: [
-                      SizedBox(height: MediaQuery.of(context).size.height * 0.25),
-                      Icon(Icons.chat_bubble_outline,
-                          size: 48, color: Colors.grey.shade600),
-                      const SizedBox(height: 12),
-                      Center(
-                        child: Text(
-                          l10n.askAnythingAboutYourApps,
-                          style: TextStyle(
-                              color: Colors.grey.shade500, fontSize: 15),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Center(
-                        child: Text(
-                          l10n.selectAppForContext,
-                          style: TextStyle(
-                              color: Colors.grey.shade600, fontSize: 12),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Center(
-                        child: Text(
-                          l10n.agentRunsOnServer,
-                          style: TextStyle(
-                              color: Colors.grey.shade700, fontSize: 11),
-                        ),
-                      ),
-                    ],
-                  )
-                : ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.all(12),
-                    itemCount: _messages.length + (_sending ? 1 : 0),
-                    itemBuilder: (context, index) {
-                      if (index == _messages.length && _sending) {
-                        return Padding(
-                          padding: EdgeInsets.symmetric(vertical: 12),
-                          child: Row(
-                            children: [
-                              SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                    strokeWidth: 2),
-                              ),
-                              SizedBox(width: 10),
-                              Text(l10n.thinking,
-                                  style: TextStyle(color: Colors.grey)),
-                            ],
+              child:
+                  _messages.isEmpty
+                      ? ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        children: [
+                          SizedBox(
+                            height: MediaQuery.of(context).size.height * 0.25,
                           ),
-                        );
-                      }
-                      final msg = _messages[index];
-                      return _MessageBubble(
-                        message: msg,
-                        onRetry: msg.isError ? () => _retry(index) : null,
-                      );
-                    },
-                  ),
+                          Icon(
+                            Icons.chat_bubble_outline,
+                            size: 48,
+                            color: Colors.grey.shade600,
+                          ),
+                          const SizedBox(height: 12),
+                          Center(
+                            child: Text(
+                              l10n.askAnythingAboutYourApps,
+                              style: TextStyle(
+                                color: Colors.grey.shade500,
+                                fontSize: 15,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Center(
+                            child: Text(
+                              l10n.selectAppForContext,
+                              style: TextStyle(
+                                color: Colors.grey.shade600,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Center(
+                            child: Text(
+                              l10n.agentRunsOnServer,
+                              style: TextStyle(
+                                color: Colors.grey.shade700,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ),
+                        ],
+                      )
+                      : ListView.builder(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.all(12),
+                        itemCount: _messages.length + (_sending ? 1 : 0),
+                        itemBuilder: (context, index) {
+                          if (index == _messages.length && _sending) {
+                            return Padding(
+                              padding: EdgeInsets.symmetric(vertical: 12),
+                              child: Row(
+                                children: [
+                                  SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
+                                  SizedBox(width: 10),
+                                  Text(
+                                    l10n.thinking,
+                                    style: TextStyle(color: Colors.grey),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
+                          final msg = _messages[index];
+                          return _MessageBubble(
+                            message: msg,
+                            onRetry: msg.isError ? () => _retry(index) : null,
+                          );
+                        },
+                      ),
             ),
           ),
           // Input
@@ -616,8 +684,7 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
             decoration: BoxDecoration(
               color: AppColors.bgSidebar,
-              border:
-                  Border(top: BorderSide(color: Colors.grey.shade800)),
+              border: Border(top: BorderSide(color: Colors.grey.shade800)),
             ),
             child: Row(
               children: [
@@ -634,7 +701,9 @@ class _ChatScreenState extends State<ChatScreen> {
                         borderRadius: BorderRadius.circular(20),
                       ),
                       contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 10),
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
                     ),
                   ),
                 ),
@@ -669,22 +738,23 @@ class _ChatSession {
   }) : messages = messages ?? [];
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'title': title,
-        'createdAt': createdAt.toIso8601String(),
-        'messages': messages.map((m) => m.toJson()).toList(),
-        if (agentSessionId != null) 'agentSessionId': agentSessionId,
-      };
+    'id': id,
+    'title': title,
+    'createdAt': createdAt.toIso8601String(),
+    'messages': messages.map((m) => m.toJson()).toList(),
+    if (agentSessionId != null) 'agentSessionId': agentSessionId,
+  };
 
   factory _ChatSession.fromJson(Map<String, dynamic> json) => _ChatSession(
-        id: json['id'] as String,
-        title: json['title'] as String,
-        createdAt: DateTime.parse(json['createdAt'] as String),
-        messages: (json['messages'] as List)
+    id: json['id'] as String,
+    title: json['title'] as String,
+    createdAt: DateTime.parse(json['createdAt'] as String),
+    messages:
+        (json['messages'] as List)
             .map((e) => _ChatMessage.fromJson(e as Map<String, dynamic>))
             .toList(),
-        agentSessionId: json['agentSessionId'] as String?,
-      );
+    agentSessionId: json['agentSessionId'] as String?,
+  );
 }
 
 class _ChatMessage {
@@ -692,27 +762,32 @@ class _ChatMessage {
   final bool isUser;
   final bool isError;
   final bool isSystem;
-  _ChatMessage(
-      {required this.text, required this.isUser, this.isError = false, this.isSystem = false});
+  _ChatMessage({
+    required this.text,
+    required this.isUser,
+    this.isError = false,
+    this.isSystem = false,
+  });
 
-  Map<String, dynamic> toJson() =>
-      {'text': text, 'isUser': isUser, 'isError': isError, 'isSystem': isSystem};
+  Map<String, dynamic> toJson() => {
+    'text': text,
+    'isUser': isUser,
+    'isError': isError,
+    'isSystem': isSystem,
+  };
 
   factory _ChatMessage.fromJson(Map<String, dynamic> json) => _ChatMessage(
-        text: json['text'] as String,
-        isUser: json['isUser'] as bool,
-        isError: json['isError'] as bool? ?? false,
-        isSystem: json['isSystem'] as bool? ?? false,
-      );
+    text: json['text'] as String,
+    isUser: json['isUser'] as bool,
+    isError: json['isError'] as bool? ?? false,
+    isSystem: json['isSystem'] as bool? ?? false,
+  );
 }
 
 class _MessageBubble extends StatelessWidget {
   final _ChatMessage message;
   final VoidCallback? onRetry;
-  const _MessageBubble({
-    required this.message,
-    this.onRetry,
-  });
+  const _MessageBubble({required this.message, this.onRetry});
 
   @override
   Widget build(BuildContext context) {
@@ -729,11 +804,19 @@ class _MessageBubble extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.info_outline, size: 14, color: Colors.blueGrey.shade300),
+              Icon(
+                Icons.info_outline,
+                size: 14,
+                color: Colors.blueGrey.shade300,
+              ),
               const SizedBox(width: 6),
               Text(
                 message.text,
-                style: TextStyle(fontSize: 12, color: Colors.blueGrey.shade300, fontStyle: FontStyle.italic),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.blueGrey.shade300,
+                  fontStyle: FontStyle.italic,
+                ),
               ),
             ],
           ),
@@ -748,105 +831,137 @@ class _MessageBubble extends StatelessWidget {
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
         constraints: BoxConstraints(
-            maxWidth: MediaQuery.of(context).size.width * 0.8),
+          maxWidth: MediaQuery.of(context).size.width * 0.8,
+        ),
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: isUser
-              ? AppColors.accent.withValues(alpha: 0.2)
-              : message.isError
+          color:
+              isUser
+                  ? AppColors.accent.withValues(alpha: 0.2)
+                  : message.isError
                   ? AppColors.error.withValues(alpha: 0.15)
                   : AppColors.bgCard,
           borderRadius: BorderRadius.circular(12),
-          border: message.isError
-              ? Border.all(
-                  color: AppColors.error.withValues(alpha: 0.3))
-              : null,
+          border:
+              message.isError
+                  ? Border.all(color: AppColors.error.withValues(alpha: 0.3))
+                  : null,
         ),
-        child: isUser
-            ? SelectableText(
-                message.text,
-                style: TextStyle(
-                  fontSize: 14,
-                  height: 1.4,
-                  color: textColor,
-                ),
-              )
-            : message.isError && onRetry != null
+        child:
+            isUser
+                ? SelectableText(
+                  message.text,
+                  style: TextStyle(fontSize: 14, height: 1.4, color: textColor),
+                )
+                : message.isError && onRetry != null
                 ? Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SelectableText(
-                        message.text,
-                        style: TextStyle(
-                          fontSize: 14,
-                          height: 1.4,
-                          color: textColor,
-                        ),
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SelectableText(
+                      message.text,
+                      style: TextStyle(
+                        fontSize: 14,
+                        height: 1.4,
+                        color: textColor,
                       ),
-                      const SizedBox(height: 8),
-                      Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(8),
-                          onTap: onRetry,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.refresh, size: 16, color: AppColors.error),
-                                const SizedBox(width: 4),
-                                Text(
-                                  l10n.retry,
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: AppColors.error,
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                    ),
+                    const SizedBox(height: 8),
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(8),
+                        onTap: onRetry,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.refresh,
+                                size: 16,
+                                color: AppColors.error,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                l10n.retry,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: AppColors.error,
+                                  fontWeight: FontWeight.w600,
                                 ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
-                    ],
-                  )
+                    ),
+                  ],
+                )
                 : MarkdownBody(
-                    data: message.text,
-                    selectable: true,
-                    styleSheet: MarkdownStyleSheet(
-                      p: TextStyle(fontSize: 14, height: 1.4, color: textColor),
-                      h1: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textColor),
-                      h2: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textColor),
-                      h3: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textColor),
-                      code: TextStyle(
-                        fontSize: 13,
-                        fontFamily: 'monospace',
-                        color: Colors.amber.shade200,
-                        backgroundColor: Colors.white.withValues(alpha: 0.08),
-                      ),
-                      codeblockDecoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.3),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      codeblockPadding: const EdgeInsets.all(12),
-                      listBullet: TextStyle(fontSize: 14, color: textColor),
-                      strong: TextStyle(fontWeight: FontWeight.bold, color: textColor),
-                      em: TextStyle(fontStyle: FontStyle.italic, color: textColor),
-                      blockquoteDecoration: BoxDecoration(
-                        border: Border(
-                          left: BorderSide(color: AppColors.accent.withValues(alpha: 0.5), width: 3),
+                  data: message.text,
+                  selectable: true,
+                  styleSheet: MarkdownStyleSheet(
+                    p: TextStyle(fontSize: 14, height: 1.4, color: textColor),
+                    h1: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: textColor,
+                    ),
+                    h2: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: textColor,
+                    ),
+                    h3: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: textColor,
+                    ),
+                    code: TextStyle(
+                      fontSize: 13,
+                      fontFamily: 'monospace',
+                      color: Colors.amber.shade200,
+                      backgroundColor: Colors.white.withValues(alpha: 0.08),
+                    ),
+                    codeblockDecoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    codeblockPadding: const EdgeInsets.all(12),
+                    listBullet: TextStyle(fontSize: 14, color: textColor),
+                    strong: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: textColor,
+                    ),
+                    em: TextStyle(
+                      fontStyle: FontStyle.italic,
+                      color: textColor,
+                    ),
+                    blockquoteDecoration: BoxDecoration(
+                      border: Border(
+                        left: BorderSide(
+                          color: AppColors.accent.withValues(alpha: 0.5),
+                          width: 3,
                         ),
                       ),
-                      blockquotePadding: const EdgeInsets.only(left: 12, top: 4, bottom: 4),
-                      a: TextStyle(color: AppColors.accent, decoration: TextDecoration.underline),
                     ),
-                    builders: {
-                      'code': _CodeBlockBuilder(),
-                    },
+                    blockquotePadding: const EdgeInsets.only(
+                      left: 12,
+                      top: 4,
+                      bottom: 4,
+                    ),
+                    a: TextStyle(
+                      color: AppColors.accent,
+                      decoration: TextDecoration.underline,
+                    ),
                   ),
+                  builders: {'code': _CodeBlockBuilder()},
+                ),
       ),
     );
   }
@@ -867,10 +982,7 @@ class _CodeBlockBuilder extends MarkdownElementBuilder {
     // Inline code is handled by the default styleSheet.code
     if (parent == null && !element.textContent.contains('\n')) {
       return Text.rich(
-        TextSpan(
-          text: element.textContent,
-          style: preferredStyle,
-        ),
+        TextSpan(text: element.textContent, style: preferredStyle),
       );
     }
 
@@ -904,27 +1016,15 @@ class _CodeBlockBuilder extends MarkdownElementBuilder {
                   padding: const EdgeInsets.only(right: 4),
                   child: Text(
                     language,
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: Colors.grey.shade500,
-                    ),
+                    style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
                   ),
                 ),
               GestureDetector(
                 onTap: () {
                   Clipboard.setData(ClipboardData(text: code));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(l10n.copiedToClipboard),
-                      duration: Duration(seconds: 1),
-                    ),
-                  );
+                  AppToast.of(context).show(l10n.copiedToClipboard);
                 },
-                child: Icon(
-                  Icons.copy,
-                  size: 14,
-                  color: Colors.grey.shade500,
-                ),
+                child: Icon(Icons.copy, size: 14, color: Colors.grey.shade500),
               ),
             ],
           ),

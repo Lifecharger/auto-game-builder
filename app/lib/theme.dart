@@ -80,35 +80,54 @@ class AppColors {
 
   static Color agentColor(String agent) {
     switch (agent.toLowerCase()) {
-      case 'claude': return accent;
-      case 'gemini': return info;
-      case 'codex': return success;
-      case 'local': return warning;
-      default: return Colors.grey;
+      case 'claude':
+        return accent;
+      case 'gemini':
+        return info;
+      case 'codex':
+        return success;
+      case 'local':
+        return warning;
+      default:
+        return Colors.grey;
     }
   }
 
   static Color taskStatusColor(String status) {
     switch (status.toLowerCase()) {
-      case 'pending': return warning;
-      case 'in_progress': return info;
-      case 'completed': return success;
-      case 'done': return success;
-      case 'built': return const Color(0xFF9B59B6);
-      case 'failed': return error;
-      case 'divided': return const Color(0xFF3498DB);
-      default: return Colors.grey;
+      case 'pending':
+        return warning;
+      case 'in_progress':
+        return info;
+      case 'completed':
+        return success;
+      case 'done':
+        return success;
+      case 'built':
+        return const Color(0xFF9B59B6);
+      case 'failed':
+        return error;
+      case 'divided':
+        return const Color(0xFF3498DB);
+      default:
+        return Colors.grey;
     }
   }
 
   static Color taskTypeColor(String type) {
     switch (type.toLowerCase()) {
-      case 'issue': return warning;
-      case 'bug': return error;
-      case 'fix': return info;
-      case 'feature': return success;
-      case 'idea': return Color(0xFFAB47BC);
-      default: return Colors.grey;
+      case 'issue':
+        return warning;
+      case 'bug':
+        return error;
+      case 'fix':
+        return info;
+      case 'feature':
+        return success;
+      case 'idea':
+        return Color(0xFFAB47BC);
+      default:
+        return Colors.grey;
     }
   }
 
@@ -188,12 +207,6 @@ ThemeData buildAppTheme() {
         borderRadius: BorderRadius.circular(8),
         borderSide: BorderSide(color: AppColors.accent),
       ),
-    ),
-    snackBarTheme: SnackBarThemeData(
-      backgroundColor: AppColors.bgCard,
-      contentTextStyle: TextStyle(color: onBg),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      behavior: SnackBarBehavior.floating,
     ),
   );
 }

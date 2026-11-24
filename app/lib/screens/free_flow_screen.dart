@@ -9,6 +9,7 @@ import '../theme.dart';
 import '../widgets/flow_kind_switch.dart' show kindSwitchBottom;
 import '../widgets/network_video.dart';
 import '../widgets/generated_audio.dart';
+import '../widgets/app_toast.dart';
 
 /// #353: Asset Mod - FREE hatti (basit).
 ///
@@ -80,7 +81,7 @@ class _FreeFlowScreenState extends State<FreeFlowScreen> {
 
   void _snack(String m) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+    AppToast.of(context).show(m);
   }
 
   /// Gorseller kart, videolar kaynak gorselin uzerinde oynatma isareti.
@@ -98,21 +99,31 @@ class _FreeFlowScreenState extends State<FreeFlowScreen> {
     final ctl = TextEditingController();
     final ok = await showDialog<bool>(
       context: context,
-      builder: (c) => AlertDialog(
-        scrollable: true,
-        title: Text(baslik),
-        content: TextField(
-          controller: ctl,
-          autofocus: true,
-          maxLines: 4,
-          decoration: InputDecoration(
-              labelText: etiket, hintText: ipucu, border: const OutlineInputBorder()),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c, false), child: Text(l10n.cancel)),
-          FilledButton(onPressed: () => Navigator.pop(c, true), child: Text(l10n.generate)),
-        ],
-      ),
+      builder:
+          (c) => AlertDialog(
+            scrollable: true,
+            title: Text(baslik),
+            content: TextField(
+              controller: ctl,
+              autofocus: true,
+              maxLines: 4,
+              decoration: InputDecoration(
+                labelText: etiket,
+                hintText: ipucu,
+                border: const OutlineInputBorder(),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(c, false),
+                child: Text(l10n.cancel),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(c, true),
+                child: Text(l10n.generate),
+              ),
+            ],
+          ),
     );
     if (ok != true) return null;
     final t = ctl.text.trim();
@@ -126,12 +137,20 @@ class _FreeFlowScreenState extends State<FreeFlowScreen> {
       _snack(l10n.assetPickFinishedImage);
       return;
     }
-    final p = await _ask(l10n.freeFlowEditTitle, l10n.freeFlowEditLabel,
-        l10n.freeFlowEditHint);
+    final p = await _ask(
+      l10n.freeFlowEditTitle,
+      l10n.freeFlowEditLabel,
+      l10n.freeFlowEditHint,
+    );
     if (p == null) return;
     setState(() => _busy = true);
     try {
-      await GenerateService.submit(task: 'edit_qwen', prompt: p, sourceJob: j.id, mode: 'free');
+      await GenerateService.submit(
+        task: 'edit_qwen',
+        prompt: p,
+        sourceJob: j.id,
+        mode: 'free',
+      );
       _snack(l10n.freeFlowEditQueued);
       _load(silent: true);
     } catch (e) {
@@ -153,13 +172,21 @@ class _FreeFlowScreenState extends State<FreeFlowScreen> {
       _snack(l10n.freeFlowNoVideoTask);
       return;
     }
-    final p = await _ask(l10n.freeFlowVideoTitle(vt.label),
-        l10n.freeFlowMotionLabel, l10n.freeFlowMotionHint);
+    final p = await _ask(
+      l10n.freeFlowVideoTitle(vt.label),
+      l10n.freeFlowMotionLabel,
+      l10n.freeFlowMotionHint,
+    );
     if (p == null) return;
     setState(() => _busy = true);
     try {
       await GenerateService.submit(
-          task: vt.id, prompt: p, sourceJob: j.id, mode: 'free', duration: vt.duration);
+        task: vt.id,
+        prompt: p,
+        sourceJob: j.id,
+        mode: 'free',
+        duration: vt.duration,
+      );
       _snack(l10n.freeFlowVideoQueued);
       _load(silent: true);
     } catch (e) {
@@ -174,16 +201,25 @@ class _FreeFlowScreenState extends State<FreeFlowScreen> {
     if (j == null) return;
     final ok = await showDialog<bool>(
       context: context,
-      builder: (c) => AlertDialog(
-        title: Text(l10n.delete),
-        content: Text(_videosOf(j).isNotEmpty
-            ? l10n.freeFlowDeleteWithVideosConfirm
-            : l10n.freeFlowDeleteConfirm),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c, false), child: Text(l10n.cancel)),
-          FilledButton(onPressed: () => Navigator.pop(c, true), child: Text(l10n.delete)),
-        ],
-      ),
+      builder:
+          (c) => AlertDialog(
+            title: Text(l10n.delete),
+            content: Text(
+              _videosOf(j).isNotEmpty
+                  ? l10n.freeFlowDeleteWithVideosConfirm
+                  : l10n.freeFlowDeleteConfirm,
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(c, false),
+                child: Text(l10n.cancel),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(c, true),
+                child: Text(l10n.delete),
+              ),
+            ],
+          ),
     );
     if (ok != true) return;
     try {
@@ -203,31 +239,44 @@ class _FreeFlowScreenState extends State<FreeFlowScreen> {
     final v = video ? _videosOf(j).firstOrNull ?? (j.isVideo ? j : null) : null;
     showDialog<void>(
       context: context,
-      builder: (_) => Dialog(
-        insetPadding: const EdgeInsets.all(12),
-        backgroundColor: v != null ? Colors.black : null,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Flexible(
-              child: j.isAudio
-                  ? GeneratedAudio(job: j)
-                  : v != null
-                  ? NetworkVideo(url: v.fileUrl, headers: GenerateService.authHeaders)
-                  : InteractiveViewer(
-                      child: Image.network(j.fileUrl, headers: GenerateService.authHeaders),
+      builder:
+          (_) => Dialog(
+            insetPadding: const EdgeInsets.all(12),
+            backgroundColor: v != null ? Colors.black : null,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child:
+                      j.isAudio
+                          ? GeneratedAudio(job: j)
+                          : v != null
+                          ? NetworkVideo(
+                            url: v.fileUrl,
+                            headers: GenerateService.authHeaders,
+                          )
+                          : InteractiveViewer(
+                            child: Image.network(
+                              j.fileUrl,
+                              headers: GenerateService.authHeaders,
+                            ),
+                          ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: Text(
+                    j.combined.isNotEmpty ? j.combined : j.prompt,
+                    maxLines: 4,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: v != null ? Colors.white70 : null,
                     ),
+                  ),
+                ),
+              ],
             ),
-            Padding(
-              padding: const EdgeInsets.all(10),
-              child: Text(j.combined.isNotEmpty ? j.combined : j.prompt,
-                  maxLines: 4,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 12, color: v != null ? Colors.white70 : null)),
-            ),
-          ],
-        ),
-      ),
+          ),
     );
   }
 
@@ -244,36 +293,44 @@ class _FreeFlowScreenState extends State<FreeFlowScreen> {
             tooltip: l10n.assetCodeMode,
             onPressed: () => ModeService.set(false),
           ),
-          IconButton(icon: const Icon(Icons.refresh), tooltip: l10n.refresh, onPressed: _load),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: l10n.refresh,
+            onPressed: _load,
+          ),
         ],
       ),
       bottomNavigationBar: _sel == null ? null : _actionBar(),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
+      body:
+          _loading
+              ? const Center(child: CircularProgressIndicator())
+              : _error != null
               ? Center(child: Text(_error!))
               : cards.isEmpty
-                  ? Center(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: Text(l10n.freeFlowEmpty,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(color: Colors.grey)),
-                      ))
-                  : RefreshIndicator(
-                      onRefresh: _load,
-                      child: GridView.builder(
-                        padding: const EdgeInsets.all(10),
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 3,
-                          childAspectRatio: 9 / 16,
-                          crossAxisSpacing: 8,
-                          mainAxisSpacing: 8,
-                        ),
-                        itemCount: cards.length,
-                        itemBuilder: (_, i) => _tile(cards[i]),
-                      ),
-                    ),
+              ? Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Text(
+                    l10n.freeFlowEmpty,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                ),
+              )
+              : RefreshIndicator(
+                onRefresh: _load,
+                child: GridView.builder(
+                  padding: const EdgeInsets.all(10),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3,
+                    childAspectRatio: 9 / 16,
+                    crossAxisSpacing: 8,
+                    mainAxisSpacing: 8,
+                  ),
+                  itemCount: cards.length,
+                  itemBuilder: (_, i) => _tile(cards[i]),
+                ),
+              ),
     );
   }
 
@@ -286,7 +343,10 @@ class _FreeFlowScreenState extends State<FreeFlowScreen> {
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: on ? AppColors.accent : Colors.transparent, width: 3),
+          border: Border.all(
+            color: on ? AppColors.accent : Colors.transparent,
+            width: 3,
+          ),
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(10),
@@ -297,24 +357,39 @@ class _FreeFlowScreenState extends State<FreeFlowScreen> {
               if (j.isDone && j.isAudio)
                 const Center(child: Icon(Icons.music_note, size: 48))
               else if (j.isDone)
-                Image.network(j.thumbUrl(),
-                    headers: GenerateService.authHeaders,
-                    fit: BoxFit.contain,
-                    errorBuilder: (_, _, _) => Container(color: Colors.white10))
+                Image.network(
+                  j.thumbUrl(),
+                  headers: GenerateService.authHeaders,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, _, _) => Container(color: Colors.white10),
+                )
               else
                 Center(
-                  child: Text(j.isBusy ? (j.isRunning ? l10n.percentValue(j.progress) : l10n.appStatusQueued) : (j.error ?? j.status),
-                      style: const TextStyle(fontSize: 10, color: Colors.grey),
-                      textAlign: TextAlign.center),
+                  child: Text(
+                    j.isBusy
+                        ? (j.isRunning
+                            ? l10n.percentValue(j.progress)
+                            : l10n.appStatusQueued)
+                        : (j.error ?? j.status),
+                    style: const TextStyle(fontSize: 10, color: Colors.grey),
+                    textAlign: TextAlign.center,
+                  ),
                 ),
               if (j.isDone && video)
                 Center(
                   child: GestureDetector(
                     onTap: () => _big(j, video: true),
                     child: Container(
-                      decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+                      decoration: const BoxDecoration(
+                        color: Colors.black54,
+                        shape: BoxShape.circle,
+                      ),
                       padding: const EdgeInsets.all(4),
-                      child: const Icon(Icons.play_arrow, size: 26, color: Colors.white),
+                      child: const Icon(
+                        Icons.play_arrow,
+                        size: 26,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ),
@@ -325,10 +400,12 @@ class _FreeFlowScreenState extends State<FreeFlowScreen> {
                 child: Container(
                   padding: const EdgeInsets.fromLTRB(6, 12, 6, 4),
                   color: Colors.black54,
-                  child: Text(j.prompt.isEmpty ? j.task : j.prompt,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 9, color: Colors.white)),
+                  child: Text(
+                    j.prompt.isEmpty ? j.task : j.prompt,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 9, color: Colors.white),
+                  ),
                 ),
               ),
             ],
@@ -339,35 +416,53 @@ class _FreeFlowScreenState extends State<FreeFlowScreen> {
   }
 
   Widget _actionBar() => SafeArea(
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-          color: Theme.of(context).colorScheme.surface,
-          child: Row(
-            children: [
-              _act(Icons.auto_fix_high, l10n.edit, _busy || _sel?.isImage != true ? null : _edit),
-              _act(Icons.movie_creation_outlined, l10n.assetGenerateVideo, _busy || _sel?.isImage != true ? null : _video),
-              _act(Icons.zoom_in, l10n.assetEnlarge, _sel == null ? null : () => _big(_sel!)),
-              _act(Icons.delete_outline, l10n.delete, _delete),
-            ],
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      color: Theme.of(context).colorScheme.surface,
+      child: Row(
+        children: [
+          _act(
+            Icons.auto_fix_high,
+            l10n.edit,
+            _busy || _sel?.isImage != true ? null : _edit,
           ),
-        ),
-      );
+          _act(
+            Icons.movie_creation_outlined,
+            l10n.assetGenerateVideo,
+            _busy || _sel?.isImage != true ? null : _video,
+          ),
+          _act(
+            Icons.zoom_in,
+            l10n.assetEnlarge,
+            _sel == null ? null : () => _big(_sel!),
+          ),
+          _act(Icons.delete_outline, l10n.delete, _delete),
+        ],
+      ),
+    ),
+  );
 
   Widget _act(IconData i, String t, VoidCallback? f) => Expanded(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-                onPressed: f,
-                tooltip: t,
-                icon: Icon(i, size: 22),
-                padding: EdgeInsets.zero,
-                visualDensity: VisualDensity.compact),
-            Text(t,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 9, color: f == null ? Colors.grey : Colors.white70)),
-          ],
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          onPressed: f,
+          tooltip: t,
+          icon: Icon(i, size: 22),
+          padding: EdgeInsets.zero,
+          visualDensity: VisualDensity.compact,
         ),
-      );
+        Text(
+          t,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 9,
+            color: f == null ? Colors.grey : Colors.white70,
+          ),
+        ),
+      ],
+    ),
+  );
 }
