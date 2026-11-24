@@ -258,75 +258,31 @@ class _StoreStatusPanelState extends State<StoreStatusPanel> {
 
   // ── Apple ──────────────────────────────────────────────────
 
-  Future<void> _attach(StoreInfo apple) async {
-    final builds = apple.attachableBuilds;
-    if (builds.isEmpty) {
-      await showDialog<void>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          content: Text(l10n.attachNoBuild),
-          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: Text(l10n.close))],
-        ),
-      );
-      return;
+  /// The newest TestFlight build that Apple can take (processed, not expired).
+  AppleBuild? _newestBuild(StoreInfo apple) {
+    AppleBuild? best;
+    for (final b in apple.attachableBuilds) {
+      if (best == null ||
+          compareVersions(StoreEntry(track: 'testflight', version: b.version, build: b.build),
+                  StoreEntry(track: 'testflight', version: best.version, build: best.build)) >
+              0) {
+        best = b;
+      }
     }
-    String buildId = builds.first.buildId;
-    final chosen = await showDialog<String>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setD) => AlertDialog(
-          title: Text(l10n.attachToAppStore),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(l10n.attachChooseBuild),
-                RadioGroup<String>(
-                  groupValue: buildId,
-                  onChanged: (v) => setD(() => buildId = v ?? buildId),
-                  child: Column(
-                    children: [
-                      for (final b in builds)
-                        RadioListTile<String>(
-                          value: b.buildId,
-                          contentPadding: EdgeInsets.zero,
-                          title: Text('${b.version} (${b.build})'),
-                          subtitle: Text(humanStatus(b.externalState.isNotEmpty ? b.externalState : b.internalState)),
-                        ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(l10n.attachBody, style: TextStyle(color: AppColors.info, fontSize: 13)),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: Text(l10n.cancel)),
-            FilledButton(onPressed: () => Navigator.pop(ctx, buildId), child: Text(l10n.attachConfirm)),
-          ],
-        ),
-      ),
-    );
-    if (chosen == null || !mounted) return;
-    await _run(
-      () => ApiService.promote(widget.appId, store: 'apple', buildId: chosen),
-      (r) {
-        final res = (r['result'] as Map?) ?? const {};
-        return l10n.attachDone('${res['build'] ?? ''}', '${res['version'] ?? ''}');
-      },
-    );
+    return best;
   }
 
-  Future<void> _submit(Map<String, dynamic> editable) async {
-    final version = '${editable['version'] ?? ''}';
+  /// Like Play's promote: one tap sends the newest TestFlight build to App
+  /// Review. Apple needs the build put on an App Store version first; the
+  /// server does that (creating or renaming the version) and then submits.
+  Future<void> _sendToReview(AppleBuild build) async {
+    final version = build.version;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         icon: Icon(Icons.warning_amber_rounded, color: AppColors.warning, size: 36),
         title: Text(l10n.submitReviewTitle),
-        content: Text(l10n.submitReviewBody(version)),
+        content: Text(l10n.submitReviewBody('$version (${build.build})')),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(l10n.cancel)),
           FilledButton(
@@ -339,7 +295,11 @@ class _StoreStatusPanelState extends State<StoreStatusPanel> {
     );
     if (ok != true || !mounted) return;
     await _run(
-      () => ApiService.submitForReview(widget.appId),
+      () async {
+        final attached = await ApiService.promote(widget.appId, store: 'apple', buildId: build.buildId);
+        if (!attached.ok) return attached;
+        return ApiService.submitForReview(widget.appId);
+      },
       (r) => l10n.submitReviewDone('${(r['result'] as Map?)?['version'] ?? version}'),
     );
   }
@@ -436,8 +396,9 @@ class _StoreStatusPanelState extends State<StoreStatusPanel> {
   Widget build(BuildContext context) {
     final play = _status.play;
     final apple = _status.apple;
-    final editable = apple?.editableVersion;
-    final canSubmit = editable != null && (editable['build_id'] ?? '').toString().isNotEmpty;
+    final newest = apple == null ? null : _newestBuild(apple);
+    final appleRows = apple == null ? const <StoreEntry>[] : visibleEntries('apple', apple.entries);
+    final canSend = newest != null && appleRows.any((e) => e.track == 'testflight');
     final canPromote = play != null &&
         visibleEntries('play', play.entries).any((e) => e.track != 'production');
     return Padding(
@@ -464,10 +425,8 @@ class _StoreStatusPanelState extends State<StoreStatusPanel> {
           ),
           const SizedBox(height: 8),
           _section(l10n.storeAppStore, apple, [
-            if (apple != null && apple.attachableBuilds.isNotEmpty)
-              _action(Icons.link, l10n.attachToAppStore, () => _attach(apple)),
-            if (canSubmit)
-              _action(Icons.send_outlined, l10n.submitForReview, () => _submit(editable),
+            if (canSend)
+              _action(Icons.rocket_launch_outlined, l10n.submitForReview, () => _sendToReview(newest),
                   color: AppColors.warning),
           ]),
         ],

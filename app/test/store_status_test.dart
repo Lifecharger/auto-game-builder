@@ -128,7 +128,7 @@ void main() {
       expect(find.text('Play: 1.0.171 (Production)'), findsOneWidget);
       expect(find.text('App Store: 1.0.12 (TestFlight)'), findsOneWidget);
       expect(find.text('Live 1.0.10'), findsOneWidget);
-      expect(find.text('Attach to App Store version'), findsNothing);
+      expect(find.text('Submit for review'), findsNothing);
 
       await tester.tap(find.byTooltip('Show store details'));
       await tester.pumpAndSettle();
@@ -138,12 +138,13 @@ void main() {
       expect(find.text('Alpha'), findsNothing);
       expect(find.text('Internal'), findsNothing);
       expect(find.text('Promote to production'), findsNothing);
-      expect(find.text('Attach to App Store version'), findsOneWidget);
+      // One Apple action: the newest TestFlight build straight to review.
+      expect(find.text('Attach to App Store version'), findsNothing);
       expect(find.text('Submit for review'), findsOneWidget);
 
       await tester.tap(find.byTooltip('Hide store details'));
       await tester.pumpAndSettle();
-      expect(find.text('Attach to App Store version'), findsNothing);
+      expect(find.text('Submit for review'), findsNothing);
     });
 
     testWidgets('submit for review asks first and cancelling sends nothing', (tester) async {
@@ -151,7 +152,7 @@ void main() {
       await tester.tap(find.text('Submit for review'));
       await tester.pumpAndSettle();
       expect(find.text('Submit to App Review?'), findsOneWidget);
-      expect(find.textContaining('Version 1.0.12 is sent to Apple'), findsOneWidget);
+      expect(find.textContaining('Version 1.0.12 (34) is sent to Apple'), findsOneWidget);
       await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();
       expect(find.text('Submit to App Review?'), findsNothing);
