@@ -47,8 +47,6 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
 
   /// Max time a task can stay in_progress before auto-reset (30 min).
   /// Measured from the server-stamped `started_at`, never a phone-local clock.
-  static const _stuckThreshold = Duration(minutes: 30);
-
   /// Server-stamped moment a task entered in_progress, or null if the task is
   /// not running or the server has not stamped it yet.
   static DateTime? _inProgressSince(dynamic item) {
@@ -459,9 +457,6 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
         if (!silent) _expandedTaskId = null;
       });
 
-      // Auto-reset stuck tasks (in_progress longer than threshold)
-      _autoResetStuckTasks();
-
       // Update pending count in AppState for badge
       final pendingCount = _allItems.where((i) {
         final s = (i['status'] ?? 'pending').toString().toLowerCase();
@@ -471,35 +466,6 @@ class _IssuesScreenState extends State<IssuesScreen> with WidgetsBindingObserver
     }
     } finally {
       _loadInFlight = false;
-    }
-  }
-
-  /// Auto-reset tasks stuck in_progress beyond [_stuckThreshold], measured
-  /// from the server's `started_at` so a phone restart cannot reset the clock.
-  void _autoResetStuckTasks() {
-    final now = DateTime.now();
-    final stuck = _allItems.where((item) {
-      final since = _inProgressSince(item);
-      return item['id'] is int && since != null && now.difference(since) > _stuckThreshold;
-    }).toList();
-    if (stuck.isEmpty) return;
-
-    for (final item in stuck) {
-      final appId = item['app_id'] as int? ?? _selectedAppId;
-      if (appId == null) continue;
-      // Fire-and-forget reset on server
-      ApiService.updateAppTask(appId, item['id'] as int, {'status': 'failed', 'response': 'Auto-failed: task stuck for over 30 minutes'});
-      // Update locally immediately
-      item['status'] = 'failed';
-    }
-    if (mounted) {
-      setState(() {});
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(l10n.stuckTasksAutoFailed(stuck.length)),
-          backgroundColor: AppColors.warning,
-        ),
-      );
     }
   }
 

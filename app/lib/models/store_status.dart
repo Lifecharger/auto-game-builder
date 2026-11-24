@@ -211,6 +211,31 @@ bool _isOut(String store, StoreEntry e) => store == 'play'
     ? playLiveStatuses.contains(e.status)
     : const ['live', 'review', 'testflight'].contains(e.track);
 
+/// The rows the expanded card shows for a store: one per channel, most public
+/// first, and a channel only when it carries something NEWER than every more
+/// public channel above it. A closed or stopped test track that still holds
+/// an old release, the pile of older TestFlight builds, halted and draft Play
+/// releases all drop out. Apple's "being prepared" App Store version is not a
+/// row: it is only the draft release a TestFlight build gets attached to (the
+/// Attach / Submit buttons cover it).
+List<StoreEntry> visibleEntries(String store, List<StoreEntry> entries) {
+  final candidates = entries.where((e) => _isOut(store, e)).toList()
+    ..sort((a, b) {
+      final p = trackPriority(store, b.track).compareTo(trackPriority(store, a.track));
+      return p != 0 ? p : compareVersions(b, a);
+    });
+  final shown = <StoreEntry>[];
+  StoreEntry? top; // highest version among the rows already shown
+  for (final e in candidates) {
+    if (shown.any((s) => s.track == e.track)) continue; // newest per channel only
+    if (top == null || compareVersions(e, top) > 0) {
+      shown.add(e);
+      top = e;
+    }
+  }
+  return shown; // already most public first
+}
+
 /// The entry to show for a store: highest version first, then most public
 /// track. Entries that are not out (drafts, versions being prepared) count
 /// only when nothing else exists.

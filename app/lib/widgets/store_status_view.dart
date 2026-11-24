@@ -355,60 +355,79 @@ class _StoreStatusPanelState extends State<StoreStatusPanel> {
 
   Widget _entryRow(String store, StoreEntry e) {
     final color = storeTrackColor(e.track);
-    final extra = [
-      humanStatus(e.status),
-      if (e.fraction != null) '${(e.fraction! * 100).round()}%',
-    ].where((s) => s.isNotEmpty).join(' · ');
+    final noBuild = store == 'apple' && e.track == 'prepare' && e.build.isEmpty;
+    final extra = noBuild
+        ? l10n.storeNoBuildAttached
+        : [
+            if (e.status != 'completed') humanStatus(e.status),
+            if (e.fraction != null) '${(e.fraction! * 100).round()}%',
+          ].where((s) => s.isNotEmpty).join(' · ');
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
+      padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
         children: [
-          Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+          Container(width: 7, height: 7, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
           const SizedBox(width: 8),
-          SizedBox(
-            width: 96,
-            child: Text(storeTrackLabel(l10n, store, e.track),
-                style: TextStyle(fontSize: 13, color: color, fontWeight: FontWeight.w600),
-                overflow: TextOverflow.ellipsis),
-          ),
-          Expanded(
-            child: Text(e.label, style: const TextStyle(fontSize: 13), overflow: TextOverflow.ellipsis),
-          ),
-          if (extra.isNotEmpty)
-            Flexible(
+          Text(storeTrackLabel(l10n, store, e.track),
+              style: TextStyle(fontSize: 13, color: color, fontWeight: FontWeight.w600)),
+          const SizedBox(width: 8),
+          Text(e.label, style: const TextStyle(fontSize: 13)),
+          if (extra.isNotEmpty) ...[
+            const SizedBox(width: 8),
+            Expanded(
               child: Text(extra,
                   style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.end),
             ),
+          ],
         ],
       ),
     );
   }
 
-  Widget _section(String title, StoreInfo? info, List<Widget> actions) {
+  Widget _action(IconData icon, String label, VoidCallback onTap, {Color? color}) => TextButton.icon(
+        style: TextButton.styleFrom(
+          foregroundColor: color,
+          visualDensity: VisualDensity.compact,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+        ),
+        onPressed: _busy ? null : onTap,
+        icon: Icon(icon, size: 16),
+        label: Text(label),
+      );
+
+  Widget _section(String title, StoreInfo? info, List<Widget> actions, {Widget? trailing}) {
+    final rows = info == null ? const <StoreEntry>[] : visibleEntries(info.store, info.entries);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 4),
-        if (info == null || info.entries.isEmpty)
+        Row(
+          children: [
+            Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+            const SizedBox(width: 8),
+            if (info != null)
+              Expanded(
+                child: Text(_checked(info),
+                    style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                    overflow: TextOverflow.ellipsis),
+              )
+            else
+              const Spacer(),
+            if (trailing != null) trailing,
+          ],
+        ),
+        if (rows.isEmpty)
           Text(info == null ? l10n.storeNotChecked : l10n.storeNotOnStore,
               style: TextStyle(fontSize: 12, color: Colors.grey.shade500))
         else
-          ...info.entries.map((e) => _entryRow(info.store, e)),
-        if (info != null) ...[
-          const SizedBox(height: 2),
-          Text(_checked(info), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-          if (info.error.isNotEmpty)
-            Text(l10n.storeCheckFailed(info.error),
-                style: TextStyle(fontSize: 11, color: AppColors.error), maxLines: 3,
-                overflow: TextOverflow.ellipsis),
-        ],
-        if (actions.isNotEmpty) ...[
-          const SizedBox(height: 6),
-          Wrap(spacing: 8, runSpacing: 4, children: actions),
-        ],
+          ...rows.map((e) => _entryRow(info!.store, e)),
+        if (info != null && info.error.isNotEmpty)
+          Text(l10n.storeCheckFailed(info.error),
+              style: TextStyle(fontSize: 11, color: AppColors.error), maxLines: 2,
+              overflow: TextOverflow.ellipsis),
+        if (actions.isNotEmpty) Wrap(spacing: 4, children: actions),
       ],
     );
   }
@@ -419,58 +438,38 @@ class _StoreStatusPanelState extends State<StoreStatusPanel> {
     final apple = _status.apple;
     final editable = apple?.editableVersion;
     final canSubmit = editable != null && (editable['build_id'] ?? '').toString().isNotEmpty;
+    final canPromote = play != null &&
+        visibleEntries('play', play.entries).any((e) => e.track != 'production');
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Divider(height: 1),
-          if (_busy) const LinearProgressIndicator(minHeight: 2) else const SizedBox(height: 2),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton.icon(
+          if (_busy) const LinearProgressIndicator(minHeight: 2) else const SizedBox(height: 8),
+          _section(
+            l10n.storePlay,
+            play,
+            [
+              if (canPromote)
+                _action(Icons.rocket_launch_outlined, l10n.promoteToProduction, () => _promote(play)),
+            ],
+            trailing: IconButton(
+              tooltip: l10n.storeRefreshStatus,
+              visualDensity: VisualDensity.compact,
+              iconSize: 18,
               onPressed: _busy ? null : _refresh,
-              icon: const Icon(Icons.sync, size: 18),
-              label: Text(l10n.storeRefreshStatus),
+              icon: const Icon(Icons.sync),
             ),
           ),
-          _section(l10n.storePlayTracksTitle, play, [
-            if (play != null && play.entries.isNotEmpty)
-              OutlinedButton.icon(
-                onPressed: _busy ? null : () => _promote(play),
-                icon: const Icon(Icons.rocket_launch_outlined, size: 18),
-                label: Text(l10n.promoteToProduction),
-              ),
-          ]),
-          const SizedBox(height: 14),
-          _section(l10n.storeAppleTitle, apple, [
-            if (apple != null && apple.builds.isNotEmpty)
-              OutlinedButton.icon(
-                onPressed: _busy ? null : () => _attach(apple),
-                icon: const Icon(Icons.link, size: 18),
-                label: Text(l10n.attachToAppStore),
-              ),
+          const SizedBox(height: 8),
+          _section(l10n.storeAppStore, apple, [
+            if (apple != null && apple.attachableBuilds.isNotEmpty)
+              _action(Icons.link, l10n.attachToAppStore, () => _attach(apple)),
             if (canSubmit)
-              OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(foregroundColor: AppColors.warning),
-                onPressed: _busy ? null : () => _submit(editable),
-                icon: const Icon(Icons.send_outlined, size: 18),
-                label: Text(l10n.submitForReview),
-              ),
+              _action(Icons.send_outlined, l10n.submitForReview, () => _submit(editable),
+                  color: AppColors.warning),
           ]),
-          if (editable != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Text(
-                l10n.storeAppStoreVersion(
-                  '${editable['version'] ?? ''}',
-                  (editable['build'] ?? '').toString().isNotEmpty
-                      ? '${humanStatus('${editable['state'] ?? ''}')} · ${editable['build']}'
-                      : '${humanStatus('${editable['state'] ?? ''}')} · ${l10n.storeNoBuildAttached}',
-                ),
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
-              ),
-            ),
         ],
       ),
     );

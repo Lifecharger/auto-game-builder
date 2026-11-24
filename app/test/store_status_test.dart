@@ -109,7 +109,7 @@ void main() {
   });
 
   group('collapsible app card', () {
-    testWidgets('collapsed shows one line per store; expanded shows every track and the actions',
+    testWidgets('collapsed shows one line per store; expanded shows only channels ahead of the ones above them',
         (tester) async {
       final app = AppModel.fromJson(_appJson(storeStatus: _status));
       var expanded = false;
@@ -128,21 +128,22 @@ void main() {
       expect(find.text('Play: 1.0.171 (Production)'), findsOneWidget);
       expect(find.text('App Store: 1.0.12 (TestFlight)'), findsOneWidget);
       expect(find.text('Live 1.0.10'), findsOneWidget);
-      expect(find.text('Google Play tracks'), findsNothing);
-      expect(find.text('Promote to production'), findsNothing);
+      expect(find.text('Attach to App Store version'), findsNothing);
 
       await tester.tap(find.byTooltip('Show store details'));
       await tester.pumpAndSettle();
-      expect(find.text('Google Play tracks'), findsOneWidget);
-      expect(find.text('App Store and TestFlight'), findsOneWidget);
-      expect(find.text('Promote to production'), findsOneWidget);
+      expect(find.text('Production'), findsOneWidget);
+      // Alpha (1.0.170) and internal (same as production) are not ahead: hidden,
+      // so nothing to promote either.
+      expect(find.text('Alpha'), findsNothing);
+      expect(find.text('Internal'), findsNothing);
+      expect(find.text('Promote to production'), findsNothing);
       expect(find.text('Attach to App Store version'), findsOneWidget);
       expect(find.text('Submit for review'), findsOneWidget);
-      expect(find.text('Alpha'), findsOneWidget);
 
       await tester.tap(find.byTooltip('Hide store details'));
       await tester.pumpAndSettle();
-      expect(find.text('Google Play tracks'), findsNothing);
+      expect(find.text('Attach to App Store version'), findsNothing);
     });
 
     testWidgets('submit for review asks first and cancelling sends nothing', (tester) async {
