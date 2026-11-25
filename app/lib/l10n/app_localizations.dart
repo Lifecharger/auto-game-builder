@@ -8068,6 +8068,18 @@ abstract class AppLocalizations {
   /// **'Live'**
   String get trackLive;
 
+  /// No description provided for @trackApproved.
+  ///
+  /// In en, this message translates to:
+  /// **'Approved, ready to release'**
+  String get trackApproved;
+
+  /// No description provided for @storeNotReleasedYet.
+  ///
+  /// In en, this message translates to:
+  /// **'Not released yet'**
+  String get storeNotReleasedYet;
+
   /// No description provided for @trackReview.
   ///
   /// In en, this message translates to:

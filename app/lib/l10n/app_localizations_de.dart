@@ -4740,6 +4740,12 @@ class AppLocalizationsDe extends AppLocalizations {
   String get trackLive => 'Live';
 
   @override
+  String get trackApproved => 'Genehmigt, bereit zur Veröffentlichung';
+
+  @override
+  String get storeNotReleasedYet => 'Noch nicht veröffentlicht';
+
+  @override
   String get trackReview => 'In Prüfung';
 
   @override

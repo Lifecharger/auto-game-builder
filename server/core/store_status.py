@@ -53,7 +53,14 @@ APPLE_EDITABLE_STATES = (
     "PREPARE_FOR_SUBMISSION", "DEVELOPER_REJECTED", "REJECTED",
     "METADATA_REJECTED", "INVALID_BINARY",
 )
-APPLE_TRACK_PRIORITY = {"live": 4, "review": 3, "testflight": 1, "prepare": 0}
+# Approved by Apple, waiting for the owner (manual release) or for Apple to
+# put it out. Still counted as "in review" for every action that must not
+# touch the version; shown as its own track so the owner sees it is ready.
+# Every App Store version goes live as soon as Apple approves it (owner
+# 2026-11-24: "make it automatic completely").
+APPLE_RELEASE_TYPE = "AFTER_APPROVAL"
+APPLE_APPROVED_STATES = ("PENDING_DEVELOPER_RELEASE", "PENDING_APPLE_RELEASE")
+APPLE_TRACK_PRIORITY = {"live": 5, "approved": 4, "review": 3, "testflight": 1, "prepare": 0}
 
 # Refresh pacing. Apple's API is sensitive to bursts: a pause between apps
 # in the periodic sweep, and a floor between two refreshes of the same app
@@ -63,6 +70,8 @@ REFRESH_INTERVAL_S = 6 * 3600
 # REFRESH_INTERVAL_S, so a server restart neither loses the 6 h rhythm nor
 # re-reads every store at once.
 STALE_CHECK_EVERY_S = 15 * 60
+# An app with a version in App Review is read this often instead.
+IN_REVIEW_REFRESH_S = 30 * 60
 FIRST_CHECK_AFTER_S = 120
 MIN_REFRESH_GAP_S = 300
 SWEEP_PAUSE_S = 2.0
@@ -113,7 +122,7 @@ def pick_display(store: str, entries: list[dict]) -> Optional[dict]:
     def out(e: dict) -> bool:
         if store == "play":
             return e.get("status") in PLAY_LIVE_STATUSES
-        return e.get("track") in ("live", "review", "testflight")
+        return e.get("track") in ("live", "approved", "review", "testflight")
 
     pool = [e for e in entries if out(e)] or list(entries)
     if not pool:
@@ -359,6 +368,8 @@ def parse_apple_versions(resp: dict) -> list[dict]:
 def apple_track_for_state(state: str) -> str:
     if state in APPLE_LIVE_STATES:
         return "live"
+    if state in APPLE_APPROVED_STATES:
+        return "approved"
     if state in APPLE_REVIEW_STATES:
         return "review"
     return "prepare"
@@ -409,9 +420,32 @@ def fetch_apple_versions(asc, apple_app_id: str) -> list[dict]:
     return parse_apple_versions(resp)
 
 
+def release_approved_versions(asc, versions: list[dict]) -> list[str]:
+    """Owner 2026-11-24: App Store releases are fully automatic. A version
+    Apple approved but that waits for a manual release (set on the website,
+    or submitted before the rule) is released here. Returns the versions."""
+    released = []
+    for v in versions:
+        if v["state"] != "PENDING_DEVELOPER_RELEASE":
+            continue
+        try:
+            asc.post("appStoreVersionReleaseRequests", {"data": {
+                "type": "appStoreVersionReleaseRequests",
+                "relationships": {"appStoreVersion": {"data": {
+                    "type": "appStoreVersions", "id": v["version_id"]}}},
+            }})
+            released.append(v["version"])
+            logger.info("store_status: released approved App Store version %s", v["version"])
+        except AscError as e:
+            logger.warning("store_status: release of %s refused: %s", v["version"], e)
+    return released
+
+
 def fetch_apple_status(asc, apple_app_id: str) -> dict:
     builds = fetch_apple_builds(asc, apple_app_id)
     versions = fetch_apple_versions(asc, apple_app_id)
+    if release_approved_versions(asc, versions):
+        versions = fetch_apple_versions(asc, apple_app_id)
     entries = build_apple_entries(builds, versions)
     live = [e for e in entries if e["track"] == "live"]
     editable = [v for v in versions if v["state"] in APPLE_EDITABLE_STATES]
@@ -455,7 +489,8 @@ def attach_apple_build(asc, apple_app_id: str, build_id: Optional[str] = None) -
     if editable is None:
         resp = asc.post("appStoreVersions", {"data": {
             "type": "appStoreVersions",
-            "attributes": {"platform": "IOS", "versionString": chosen["version"]},
+            "attributes": {"platform": "IOS", "versionString": chosen["version"],
+                           "releaseType": APPLE_RELEASE_TYPE},
             "relationships": {"app": {"data": {"type": "apps", "id": apple_app_id}}},
         }})
         version_id = resp["data"]["id"]
@@ -482,6 +517,13 @@ APPLE_UNSOLD_PRODUCTS: dict[str, set[str]] = {
 }
 
 
+FIRST_PRODUCTS_WEB_ONLY = (
+    "This is the app's first release with in-app purchases. Apple accepts the first "
+    "products only together with the version, and only on the App Store Connect "
+    "website: open the version page, add every product under 'In-App Purchases and "
+    "Subscriptions', then press Submit for Review there. Nothing was submitted.")
+
+
 def submit_apple_products(asc, apple_app_id: str, exclude: Optional[set] = None) -> list[str]:
     """Queue every in-app purchase and subscription that is READY_TO_SUBMIT
     (and sold by the game) for review together with the app version.
@@ -498,6 +540,13 @@ def submit_apple_products(asc, apple_app_id: str, exclude: Optional[set] = None)
     groups = asc.get(f"apps/{apple_app_id}/subscriptionGroups", params={
         "include": "subscriptions", "limit": 50,
         "fields[subscriptions]": "productId,state"}).get("included", []) or []
+    states = [(x.get("attributes") or {}).get("state") for x in iaps]
+    states += [(g.get("attributes") or {}).get("state") for g in groups if g.get("type") == "subscriptions"]
+    if "READY_TO_SUBMIT" in states and not any(
+            st in ("APPROVED", "WAITING_FOR_REVIEW", "IN_REVIEW") for st in states):
+        # Apple: an app's FIRST products can only go to review together with a
+        # version, and the API cannot attach them (FIRST_*_MUST_BE_SUBMITTED_ON_VERSION).
+        raise ValueError(FIRST_PRODUCTS_WEB_ONLY)
     todo = [("inAppPurchaseSubmissions", "inAppPurchaseV2", "inAppPurchases", i) for i in iaps]
     todo += [("subscriptionSubmissions", "subscription", "subscriptions", g) for g in groups
              if g.get("type") == "subscriptions"]
@@ -520,6 +569,57 @@ def submit_apple_products(asc, apple_app_id: str, exclude: Optional[set] = None)
     return sent
 
 
+def _game_center_detail_id(asc, apple_app_id: str) -> Optional[str]:
+    try:
+        return (asc.get(f"apps/{apple_app_id}/gameCenterDetail").get("data") or {}).get("id")
+    except AscError as e:
+        if e.status == 404:
+            return None
+        raise
+
+
+def submit_game_center_items(asc, apple_app_id: str, version_id: str, sub_id: str) -> list[str]:
+    """Game Center goes to review WITH the app version: switch it on for the
+    version and add every achievement / leaderboard version that is still
+    being prepared to the same review submission. Without this, Apple
+    approves the app but the achievements and leaderboards never go live
+    (Pixel Adventurer 1.0.116, 2026-11-24). Returns the vendor ids added."""
+    detail = _game_center_detail_id(asc, apple_app_id)
+    if not detail:
+        return []
+    gc_ver = asc.get(f"appStoreVersions/{version_id}/gameCenterAppVersion").get("data")
+    if not gc_ver:
+        asc.post("gameCenterAppVersions", {"data": {
+            "type": "gameCenterAppVersions",
+            "relationships": {"appStoreVersion": {"data": {"type": "appStoreVersions", "id": version_id}}},
+        }})
+    added = []
+    for kind, rel in (("Achievements", "gameCenterAchievementVersion"),
+                      ("Leaderboards", "gameCenterLeaderboardVersion")):
+        items = asc.get(f"gameCenterDetails/{detail}/gameCenter{kind}", params={"limit": 200}).get("data") or []
+        for item in items:
+            attrs = item.get("attributes") or {}
+            if attrs.get("archived"):
+                continue
+            versions = asc.get(f"v2/gameCenter{kind}/{item['id']}/versions").get("data") or []
+            for v in versions:
+                if (v.get("attributes") or {}).get("state") != "PREPARE_FOR_SUBMISSION":
+                    continue
+                try:
+                    asc.post("reviewSubmissionItems", {"data": {
+                        "type": "reviewSubmissionItems",
+                        "relationships": {
+                            "reviewSubmission": {"data": {"type": "reviewSubmissions", "id": sub_id}},
+                            rel: {"data": {"type": f"{rel}s", "id": v["id"]}},
+                        },
+                    }})
+                except AscError as e:
+                    if e.status != 409:  # 409 = already in this submission
+                        raise
+                added.append(attrs.get("vendorIdentifier") or item["id"])
+    return added
+
+
 def submit_apple_for_review(asc, apple_app_id: str, bundle_id: str = "") -> dict:
     """Submit the editable App Store version (with its build) for App Review.
 
@@ -531,6 +631,10 @@ def submit_apple_for_review(asc, apple_app_id: str, bundle_id: str = "") -> dict
         raise ValueError("No App Store version waiting to be submitted")
     if not editable["build_id"]:
         raise ValueError(f"Version {editable['version']} has no build attached")
+    asc.patch(f"appStoreVersions/{editable['version_id']}", {"data": {
+        "type": "appStoreVersions", "id": editable["version_id"],
+        "attributes": {"releaseType": APPLE_RELEASE_TYPE},
+    }})
 
     open_subs = asc.get("reviewSubmissions", params={
         "filter[app]": apple_app_id, "filter[platform]": "IOS",
@@ -560,12 +664,26 @@ def submit_apple_for_review(asc, apple_app_id: str, bundle_id: str = "") -> dict
         logger.warning("store_status: version %s already in review submission %s: %s",
                        editable["version_id"], sub_id, e)
     products = submit_apple_products(asc, apple_app_id, APPLE_UNSOLD_PRODUCTS.get(bundle_id, set()))
+    game_center = submit_game_center_items(asc, apple_app_id, editable["version_id"], sub_id)
     asc.patch(f"reviewSubmissions/{sub_id}", {"data": {
         "type": "reviewSubmissions", "id": sub_id, "attributes": {"submitted": True},
     }})
     return {"version": editable["version"], "build": editable["build"],
             "version_id": editable["version_id"], "submission_id": sub_id,
-            "products": products}
+            "products": products, "game_center": game_center}
+
+
+def _parse_ts(value) -> "datetime":
+    """Apple dates carry their own UTC offset ("2026-11-24T06:08:28-08:00");
+    compare them as real instants, never as text. A naive value is UTC."""
+    from datetime import datetime, timezone
+    if not value:
+        return datetime.min.replace(tzinfo=timezone.utc)
+    try:
+        dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return datetime.min.replace(tzinfo=timezone.utc)
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
 
 def auto_attach_newest_build(asc, apple_app_id: str, uploaded_after: str = "") -> dict:
@@ -580,8 +698,8 @@ def auto_attach_newest_build(asc, apple_app_id: str, uploaded_after: str = "") -
     builds = fetch_apple_builds(asc, apple_app_id)
     if not builds:
         return {"state": "skipped", "why": "no builds"}
-    newest = max(builds, key=lambda b: b.get("uploaded_at") or "")
-    if uploaded_after and (newest.get("uploaded_at") or "") < uploaded_after:
+    newest = max(builds, key=lambda b: _parse_ts(b.get("uploaded_at")))
+    if uploaded_after and _parse_ts(newest.get("uploaded_at")) < _parse_ts(uploaded_after):
         return {"state": "waiting"}  # our upload is not listed yet
     if newest["processing"] in ("PROCESSING", ""):
         return {"state": "waiting"}
@@ -613,6 +731,14 @@ def auto_attach_newest_build(asc, apple_app_id: str, uploaded_after: str = "") -
 
 # ── Service: persistence, pacing, scheduling ────────────────────────────
 
+def play_live_entry(entries: list[dict]) -> Optional[dict]:
+    """The release players get from Google Play: the newest production
+    release that is out (completed or a staged rollout)."""
+    prod = [e for e in entries
+            if e.get("track") == "production" and e.get("status") in PLAY_LIVE_STATUSES]
+    return dict(max(prod, key=entry_sort_key)) if prod else None
+
+
 def compact(store_rows: dict) -> dict:
     """DB rows -> what the API / app dict carries per store."""
     out = {}
@@ -625,6 +751,8 @@ def compact(store_rows: dict) -> dict:
             "error": row.get("error", ""),
             "error_at": row.get("error_at"),
         }
+        if store == "play":
+            item["live"] = play_live_entry(item["entries"])
         if store == "apple":
             item["live"] = data.get("live")
             item["editable_version"] = data.get("editable_version")
@@ -752,7 +880,7 @@ class StoreStatusService:
             if getattr(app, "is_archived", False):
                 continue
             stale = tuple(s for s, on in (("play", _play_enabled(app)), ("apple", _apple_enabled(app)))
-                          if on and not self._recent(app.id, s, REFRESH_INTERVAL_S))
+                          if on and not self._recent(app.id, s, self._interval(app.id, s)))
             if not stale:
                 continue
             self.refresh_app(app, force=True, stores=stale)
@@ -760,6 +888,16 @@ class StoreStatusService:
             if self._stop.wait(SWEEP_PAUSE_S):
                 break
         return n
+
+    def _interval(self, app_id: int, store: str) -> float:
+        """6 h normally; 30 min for the App Store while a version is in
+        review or approved, so the release follows the approval quickly."""
+        if store != "apple":
+            return REFRESH_INTERVAL_S
+        data = ((self.db.get_store_status(app_id) or {}).get("apple") or {}).get("data") or {}
+        if any(e.get("track") in ("review", "approved") for e in data.get("entries", [])):
+            return IN_REVIEW_REFRESH_S
+        return REFRESH_INTERVAL_S
 
     def refresh_all(self, apps, force: bool = False) -> int:
         """Sweep every given app, pacing the calls. Returns apps refreshed."""

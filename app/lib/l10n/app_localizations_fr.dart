@@ -4762,6 +4762,12 @@ class AppLocalizationsFr extends AppLocalizations {
   String get trackLive => 'En ligne';
 
   @override
+  String get trackApproved => 'Approuvée, prête à publier';
+
+  @override
+  String get storeNotReleasedYet => 'Pas encore publiée';
+
+  @override
   String get trackReview => 'En examen';
 
   @override

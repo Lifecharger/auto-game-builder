@@ -1324,6 +1324,8 @@
   "storeNotChecked": "aún sin comprobar",
   "trackProduction": "Producción",
   "trackLive": "Publicada",
+  "trackApproved": "Aprobada, lista para publicar",
+  "storeNotReleasedYet": "Aún no publicada",
   "trackReview": "En revisión",
   "trackTestflight": "TestFlight",
   "trackPrepare": "En preparación",

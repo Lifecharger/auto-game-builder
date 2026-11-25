@@ -21,6 +21,8 @@ String storeTrackLabel(AppLocalizations l10n, String store, String track) {
       return l10n.trackInternal;
     case 'live':
       return l10n.trackLive;
+    case 'approved':
+      return l10n.trackApproved;
     case 'review':
       return l10n.trackReview;
     case 'testflight':
@@ -36,6 +38,7 @@ Color storeTrackColor(String track) {
   switch (track) {
     case 'production':
     case 'live':
+    case 'approved':
       return AppColors.success;
     case 'beta':
     case 'alpha':
@@ -56,7 +59,9 @@ String humanStatus(String code) {
       .toLowerCase();
 }
 
-/// One collapsed-card line per store: "Play: 1.0.171 (production)".
+/// One collapsed-card line per store: "Play: 1.0.171 (production)", plus
+/// the version players have when the newest one is not out to them yet
+/// ("Live 1.0.170", or "Not released yet").
 class StoreStatusChip extends StatelessWidget {
   final String store; // play | apple
   final StoreInfo info;
@@ -74,10 +79,13 @@ class StoreStatusChip extends StatelessWidget {
         ? '$name: ${info.refreshedAt == null && info.error.isEmpty ? l10n.storeNotChecked : l10n.storeNotOnStore}'
         : '$name: ${l10n.storeLineVersion(d.version, storeTrackLabel(l10n, store, d.track))}';
     final live = info.live;
-    final showLive = store == 'apple' && live != null && d != null && d.track != 'live';
+    final newestIsLive = d != null && (d.track == 'live' || d.track == 'production');
     final chips = <Widget>[
       _chip(text, color, warn: info.error.isNotEmpty),
-      if (showLive) _chip(l10n.storeLiveVersion(live.version), AppColors.success),
+      if (d != null && !newestIsLive)
+        live != null
+            ? _chip(l10n.storeLiveVersion(live.version), AppColors.success)
+            : _chip(l10n.storeNotReleasedYet, Colors.grey.shade500),
     ];
     final row = Wrap(spacing: 4, runSpacing: 4, children: chips);
     if (onTap == null) return row;

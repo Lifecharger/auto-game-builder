@@ -4693,6 +4693,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get trackLive => 'Live';
 
   @override
+  String get trackApproved => 'Approved, ready to release';
+
+  @override
+  String get storeNotReleasedYet => 'Not released yet';
+
+  @override
   String get trackReview => 'In review';
 
   @override

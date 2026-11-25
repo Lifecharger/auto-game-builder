@@ -10,7 +10,7 @@ library;
 
 class StoreEntry {
   /// Play: production | beta | alpha | internal | (custom track).
-  /// Apple: live | review | testflight | prepare.
+  /// Apple: live | approved | review | testflight | prepare.
   final String track;
   final String version;
 
@@ -104,7 +104,8 @@ class StoreInfo {
   final String? refreshedAt;
   final String error;
 
-  /// Apple: the version that is live on the App Store.
+  /// The version players get: Apple's live App Store version, Play's newest
+  /// production release that is out.
   final StoreEntry? live;
 
   /// Apple: the App Store version that can still take a build
@@ -138,7 +139,7 @@ class StoreInfo {
       entries: entries,
       refreshedAt: j['refreshed_at'] as String?,
       error: j['error'] as String? ?? '',
-      live: entry(j['live']),
+      live: entry(j['live']) ?? liveEntry(store, entries),
       editableVersion: j['editable_version'] is Map
           ? Map<String, dynamic>.from(j['editable_version'] as Map)
           : null,
@@ -185,7 +186,7 @@ class StoreStatus {
 const playTracks = ['production', 'beta', 'alpha', 'internal'];
 const playLiveStatuses = ['completed', 'inProgress'];
 const _playPriority = {'production': 4, 'beta': 3, 'alpha': 2, 'internal': 1};
-const _applePriority = {'live': 4, 'review': 3, 'testflight': 1, 'prepare': 0};
+const _applePriority = {'live': 5, 'approved': 4, 'review': 3, 'testflight': 1, 'prepare': 0};
 
 int trackPriority(String store, String track) =>
     (store == 'play' ? _playPriority[track] : _applePriority[track]) ?? 0;
@@ -209,7 +210,20 @@ int compareVersions(StoreEntry a, StoreEntry b) {
 
 bool _isOut(String store, StoreEntry e) => store == 'play'
     ? playLiveStatuses.contains(e.status)
-    : const ['live', 'review', 'testflight'].contains(e.track);
+    : const ['live', 'approved', 'review', 'testflight'].contains(e.track);
+
+/// The release players get (when the server did not send one): Play's
+/// newest production release that is out, Apple's newest live version.
+StoreEntry? liveEntry(String store, List<StoreEntry> entries) {
+  final live = entries.where((e) => store == 'play'
+      ? e.track == 'production' && playLiveStatuses.contains(e.status)
+      : e.track == 'live');
+  StoreEntry? best;
+  for (final e in live) {
+    if (best == null || compareVersions(e, best) > 0) best = e;
+  }
+  return best;
+}
 
 /// The rows the expanded card shows for a store: one per channel, most public
 /// first, and a channel only when it carries something NEWER than every more

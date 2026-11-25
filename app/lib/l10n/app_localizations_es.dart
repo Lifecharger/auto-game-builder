@@ -4750,6 +4750,12 @@ class AppLocalizationsEs extends AppLocalizations {
   String get trackLive => 'Publicada';
 
   @override
+  String get trackApproved => 'Aprobada, lista para publicar';
+
+  @override
+  String get storeNotReleasedYet => 'Aún no publicada';
+
+  @override
   String get trackReview => 'En revisión';
 
   @override

@@ -178,4 +178,19 @@ void main() {
       expect(await StoreCardMemory.load(), {3, 7});
     });
   });
+
+  test('live version: Play production that is out, Apple approved is not live', () {
+    final play = [
+      const StoreEntry(track: 'internal', version: '1.0.20', code: 20, status: 'completed'),
+      const StoreEntry(track: 'production', version: '1.0.18', code: 18, status: 'completed'),
+      const StoreEntry(track: 'production', version: '1.0.19', code: 19, status: 'draft'),
+    ];
+    expect(liveEntry('play', play)!.version, '1.0.18');
+    final apple = [
+      const StoreEntry(track: 'approved', version: '1.0.12', build: '34', status: 'PENDING_DEVELOPER_RELEASE'),
+    ];
+    expect(liveEntry('apple', apple), isNull);
+    expect(pickDisplay('apple', apple)!.track, 'approved');
+    expect(visibleEntries('apple', apple).map((e) => e.track), ['approved']);
+  });
 }

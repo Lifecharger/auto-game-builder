@@ -1324,6 +1324,8 @@
   "storeNotChecked": "未確認",
   "trackProduction": "製品版",
   "trackLive": "公開中",
+  "trackApproved": "承認済み・公開待ち",
+  "storeNotReleasedYet": "未公開",
   "trackReview": "審査中",
   "trackTestflight": "TestFlight",
   "trackPrepare": "準備中",

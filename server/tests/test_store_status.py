@@ -109,7 +109,9 @@ def _version(vid, version, state, build_id=None, build=""):
 
 class FakeAsc:
     def __init__(self, builds_resp: dict, versions: list[tuple], open_subs=None, item_status=None,
-                 iaps=None, subs=None, product_error=None):
+                 iaps=None, subs=None, product_error=None, gc=None):
+        # gc: {"achievements": [(id, vendor, state)], "leaderboards": [...], "app_version": bool}
+        self.gc = gc
         self.iaps = iaps or []
         self.subs = subs or []
         self.product_error = product_error
@@ -133,6 +135,17 @@ class FakeAsc:
             return {"data": self.iaps}
         if path.endswith("/subscriptionGroups"):
             return {"data": [{"id": "g1"}], "included": self.subs}
+        if path.endswith("/gameCenterDetail"):
+            return {"data": {"id": "gcd"} if self.gc else None}
+        if path.endswith("/gameCenterAppVersion"):
+            return {"data": {"id": "gcv"} if self.gc and self.gc.get("app_version") else None}
+        for kind in ("Achievements", "Leaderboards"):
+            rows = (self.gc or {}).get(kind.lower(), [])
+            if path == f"gameCenterDetails/gcd/gameCenter{kind}":
+                return {"data": [{"id": i, "attributes": {"vendorIdentifier": vid}} for i, vid, _ in rows]}
+            for i, vid, state in rows:
+                if path == f"v2/gameCenter{kind}/{i}/versions":
+                    return {"data": [{"id": f"{i}-v1", "attributes": {"state": state}}]}
         raise AssertionError(f"unexpected GET {path}")
 
     def post(self, path, data):
@@ -141,6 +154,8 @@ class FakeAsc:
             return {"data": {"id": "new-ver"}}
         if path == "reviewSubmissions":
             return {"data": {"id": "sub-new"}}
+        if path == "gameCenterAppVersions":
+            return {"data": {"id": "gcv-new"}}
         if path == "reviewSubmissionItems":
             if self.item_status:
                 raise ss.AscError(self.item_status, "already added")
@@ -324,8 +339,9 @@ class AppleTest(unittest.TestCase):
         asc = FakeAsc(self._builds(), [prep])
         res = ss.submit_apple_for_review(asc, "999")
         w = asc.writes()
-        self.assertEqual([c[1] for c in w], ["reviewSubmissions", "reviewSubmissionItems",
-                                             "reviewSubmissions/sub-new"])
+        self.assertEqual([c[1] for c in w], ["appStoreVersions/v12", "reviewSubmissions",
+                                             "reviewSubmissionItems", "reviewSubmissions/sub-new"])
+        self.assertEqual(w[0][2]["data"]["attributes"]["releaseType"], "AFTER_APPROVAL")
         self.assertTrue(w[-1][2]["data"]["attributes"]["submitted"])
         self.assertEqual(res["version"], "1.0.12")
 
@@ -345,13 +361,14 @@ class AppleTest(unittest.TestCase):
         asc = FakeAsc(self._builds(), [prep], iaps=iaps, subs=subs)
         res = ss.submit_apple_for_review(asc, "999", "com.lifecharger.arcadesnake")
         w = [c[1] for c in asc.writes()]
-        self.assertEqual(w, ["reviewSubmissions", "reviewSubmissionItems", "inAppPurchaseSubmissions",
+        self.assertEqual(w, ["appStoreVersions/v12", "reviewSubmissions", "reviewSubmissionItems",
+                             "inAppPurchaseSubmissions",
                              "subscriptionSubmissions", "reviewSubmissions/sub-new"])
         self.assertEqual(res["products"], ["coins_100", "vip_month"])
 
     def test_submit_stops_when_a_product_is_refused(self):
         prep = _version("v12", "1.0.12", "PREPARE_FOR_SUBMISSION", "b34", "34")
-        iaps = [{"id": "i1", "attributes": {"productId": "coins_100", "state": "READY_TO_SUBMIT"}}]
+        iaps = [{"id": "i1", "attributes": {"productId": "coins_100", "state": "READY_TO_SUBMIT"}}, {"id": "i0", "attributes": {"productId": "old", "state": "APPROVED"}}]
         asc = FakeAsc(self._builds(), [prep], iaps=iaps, product_error=(409, "missing review screenshot"))
         with self.assertRaises(ValueError) as cm:
             ss.submit_apple_for_review(asc, "999")
@@ -582,8 +599,109 @@ class AutoAttachTest(unittest.TestCase):
         self.assertIn("betaGroups/g2/relationships/builds", paths)
         self.assertNotIn("betaGroups/g1/relationships/builds", paths)
 
+    def test_apple_dates_with_their_own_offset_are_compared_as_instants(self):
+        # 06:08 in California is 14:08 UTC: later than 13:50 UTC.
+        prep = _version("v12", "1.0.12", "PREPARE_FOR_SUBMISSION", "b34", "34")
+        b = self._builds()
+        b["data"][0]["attributes"]["uploadedDate"] = "2026-11-24T06:08:28-08:00"
+        asc = self.Asc(b, [prep], self.GROUPS)
+        self.assertEqual(ss.auto_attach_newest_build(asc, "999", "2026-11-24T13:50:00")["state"], "attached")
+        asc2 = self.Asc(b, [prep], self.GROUPS)
+        self.assertEqual(ss.auto_attach_newest_build(asc2, "999", "2026-11-24T14:30:00")["state"], "waiting")
+
     def test_never_touches_a_version_in_review(self):
         rev = _version("v12", "1.0.12", "WAITING_FOR_REVIEW", "b34", "34")
         asc = self.Asc(self._builds(), [rev], self.GROUPS)
         self.assertEqual(ss.auto_attach_newest_build(asc, "999")["state"], "skipped")
         self.assertEqual(asc.calls, [])
+
+
+class FirstProductsTest(unittest.TestCase):
+    class Asc:
+        def __init__(self, iap_states):
+            self.iap_states = iap_states
+            self.posts = []
+        def get(self, path, params=None):
+            if path.endswith("inAppPurchasesV2"):
+                return {"data": [{"id": str(i), "attributes": {"productId": f"p{i}", "state": st}}
+                                 for i, st in enumerate(self.iap_states)]}
+            return {"included": []}
+        def post(self, path, body):
+            self.posts.append(path)
+            return {}
+
+    def test_first_products_stop_with_website_instructions(self):
+        asc = self.Asc(["READY_TO_SUBMIT", "READY_TO_SUBMIT"])
+        with self.assertRaises(ValueError) as cm:
+            ss.submit_apple_products(asc, "1")
+        self.assertIn("website", str(cm.exception))
+        self.assertEqual(asc.posts, [])
+
+    def test_later_products_are_sent_by_api(self):
+        asc = self.Asc(["APPROVED", "READY_TO_SUBMIT"])
+        self.assertEqual(ss.submit_apple_products(asc, "1"), ["p1"])
+
+
+class LiveVersionTest(unittest.TestCase):
+    def test_approved_versions_get_their_own_track(self):
+        self.assertEqual(ss.apple_track_for_state("PENDING_DEVELOPER_RELEASE"), "approved")
+        self.assertEqual(ss.apple_track_for_state("WAITING_FOR_REVIEW"), "review")
+        self.assertEqual(ss.apple_track_for_state("READY_FOR_SALE"), "live")
+        # Still "in review" for every guard that must not touch the version.
+        self.assertIn("PENDING_DEVELOPER_RELEASE", ss.APPLE_REVIEW_STATES)
+
+    def test_play_live_is_the_newest_production_release_that_is_out(self):
+        rows = {"play": {"data": {"entries": [
+            {"track": "internal", "version": "1.0.20", "code": 20, "status": "completed"},
+            {"track": "production", "version": "1.0.18", "code": 18, "status": "completed"},
+            {"track": "production", "version": "1.0.19", "code": 19, "status": "draft"},
+        ]}}}
+        self.assertEqual(ss.compact(rows)["play"]["live"]["version"], "1.0.18")
+        rows["play"]["data"]["entries"] = rows["play"]["data"]["entries"][:1]
+        self.assertIsNone(ss.compact(rows)["play"]["live"])
+
+
+class AutoReleaseTest(unittest.TestCase):
+    class Asc:
+        def __init__(self):
+            self.posts = []
+        def post(self, path, data):
+            self.posts.append((path, data))
+            return {"data": {"id": "r1"}}
+
+    def test_only_approved_versions_waiting_for_manual_release_go_out(self):
+        asc = self.Asc()
+        versions = [
+            {"version": "1.0.5", "state": "PENDING_DEVELOPER_RELEASE", "version_id": "v5"},
+            {"version": "1.0.4", "state": "READY_FOR_SALE", "version_id": "v4"},
+            {"version": "1.0.6", "state": "WAITING_FOR_REVIEW", "version_id": "v6"},
+        ]
+        self.assertEqual(ss.release_approved_versions(asc, versions), ["1.0.5"])
+        self.assertEqual(len(asc.posts), 1)
+        path, body = asc.posts[0]
+        self.assertEqual(path, "appStoreVersionReleaseRequests")
+        self.assertEqual(body["data"]["relationships"]["appStoreVersion"]["data"]["id"], "v5")
+
+    def test_release_type_is_automatic(self):
+        self.assertEqual(ss.APPLE_RELEASE_TYPE, "AFTER_APPROVAL")
+
+
+class GameCenterSubmitTest(unittest.TestCase):
+    def test_submit_switches_game_center_on_and_sends_unreleased_items(self):
+        prep = _version("v12", "1.0.12", "PREPARE_FOR_SUBMISSION", "b34", "34")
+        gc = {"achievements": [("a1", "snake.first", "PREPARE_FOR_SUBMISSION"), ("a2", "snake.old", "APPROVED")],
+              "leaderboards": [("l1", "snake.best", "PREPARE_FOR_SUBMISSION")]}
+        asc = FakeAsc(_builds_resp(), [prep], gc=gc)
+        res = ss.submit_apple_for_review(asc, "999")
+        w = asc.writes()
+        self.assertIn("gameCenterAppVersions", [c[1] for c in w])
+        items = [c[2]["data"]["relationships"] for c in w if c[1] == "reviewSubmissionItems"]
+        gc_items = [r for r in items if "appStoreVersion" not in r]
+        self.assertEqual([list(r)[1] for r in gc_items], ["gameCenterAchievementVersion", "gameCenterLeaderboardVersion"])
+        self.assertEqual(res["game_center"], ["snake.first", "snake.best"])
+        self.assertEqual(w[-1][1], "reviewSubmissions/sub-new")  # submitted last
+
+    def test_no_game_center_means_nothing_extra(self):
+        prep = _version("v12", "1.0.12", "PREPARE_FOR_SUBMISSION", "b34", "34")
+        asc = FakeAsc(_builds_resp(), [prep])
+        self.assertEqual(ss.submit_apple_for_review(asc, "999")["game_center"], [])

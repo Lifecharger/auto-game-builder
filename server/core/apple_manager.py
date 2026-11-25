@@ -108,6 +108,8 @@ class AppleManager:
 
     def _normalize_url(self, path: str) -> str:
         clean = path.lstrip('/')
+        if clean.startswith("v2/"):  # newer endpoints (Game Center versions)
+            return f"https://api.appstoreconnect.apple.com/{clean}"
         if clean.startswith("v1/"):
             clean = clean[3:]
         return f"https://api.appstoreconnect.apple.com/v1/{clean}"
@@ -582,6 +584,11 @@ storyboard/use_launch_screen_storyboard=true
                            cwd=project_path, capture_output=True, text=True, timeout=1800)
         if a.returncode != 0:
             return False, "", "\n".join(logs) + "\nxcodebuild archive failed:\n" + (a.stdout + a.stderr)[-3000:]
+        # Capabilities: the archive is unsigned, so the entitlements Godot wrote (Game Center via the
+        # preset's entitlements/game_center, ...) would vanish at export. Same fix as the Flutter path.
+        godot_ent = os.path.join(ios_dir, scheme, f"{scheme}.entitlements")
+        if not self.embed_entitlements(project_path, archive, _log, entitlements_path=godot_ent):
+            return False, "", "\n".join(logs)
         opts = os.path.join(ios_dir, "ExportOptions.plist")
         with open(opts, "w", encoding="utf-8") as f:
             f.write(f'''<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -716,6 +723,13 @@ storyboard/use_launch_screen_storyboard=true
             _log(f"xcodebuild archive failed: {err[-500:]}")
             return False, "", "\n".join(logs) + "\n" + err
 
+        # Step 2b: capabilities. The archive is built unsigned, and exportArchive keeps only the
+        # entitlements the archived app is signed with (it re-signs with the profile and drops the
+        # rest), so Sign in with Apple / Game Center would vanish from the IPA. Signing the archived
+        # app ad hoc with the project's entitlements carries them into the export.
+        if not self.embed_entitlements(project_path, archive_path, _log):
+            return False, "", "\n".join(logs)
+
         # Step 3: Export archive to signed IPA using ExportOptions.plist
         _log("Exporting signed IPA...")
         self.unlock_keychain()
@@ -738,6 +752,40 @@ storyboard/use_launch_screen_storyboard=true
             return False, "", "No .ipa file generated in " + export_path
         _log(f"IPA successfully built: {ipa_path}")
         return True, ipa_path, "\n".join(logs)
+
+    @staticmethod
+    def embed_entitlements(project_path: str, archive_path: str,
+                           log: Optional[Callable[[str], None]] = None,
+                           entitlements_path: Optional[str] = None) -> bool:
+        """Ad hoc signs the archived .app with ios/Runner/Runner.entitlements (Flutter) or
+        [entitlements_path] (Godot: <export dir>/<scheme>/<scheme>.entitlements) when that file
+        exists, so exportArchive keeps those capabilities. True when there is nothing to do or it
+        worked; False (logged) when the entitlements could not be embedded - the build must stop
+        rather than ship an app whose Sign in with Apple / Game Center silently fails."""
+        say = log or (lambda m: logger.info("[AppleManager] %s", m))
+        ent = entitlements_path or os.path.join(project_path, "ios", "Runner", "Runner.entitlements")
+        if not os.path.isfile(ent):
+            return True
+        with open(ent, encoding="utf-8") as f:
+            text = f.read()
+        if "$(" in text:
+            say(f"{os.path.basename(ent)} uses build variables ($(...)); write literal values so they can be embedded")
+            return False
+        apps_dir = os.path.join(archive_path, "Products", "Applications")
+        apps = sorted(a for a in os.listdir(apps_dir) if a.endswith(".app")) if os.path.isdir(apps_dir) else []
+        if not apps:
+            say(f"No .app in {apps_dir}; entitlements not embedded")
+            return False
+        for app in apps:
+            res = subprocess.run(
+                ["codesign", "--force", "--sign", "-", "--entitlements", ent,
+                 "--preserve-metadata=identifier", os.path.join(apps_dir, app)],
+                capture_output=True, text=True, timeout=120)
+            if res.returncode != 0:
+                say(f"Embedding entitlements into {app} failed: {(res.stderr or res.stdout)[-300:]}")
+                return False
+        say(f"Entitlements embedded for export ({', '.join(apps)})")
+        return True
 
     def upload_to_app_store(self, ipa_path: str, track: str = "internal") -> dict:
         """Upload IPA to App Store Connect / TestFlight via xcrun altool.

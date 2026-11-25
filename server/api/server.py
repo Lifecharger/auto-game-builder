@@ -446,6 +446,10 @@ class DeployRequest(BaseModel):
     build_target: str = "aab"  # flutter: apk|aab|exe|web|ios|dual / godot: apk|aab|windows|web|linux
                                # unity: apk|aab|debug / phaser: apk|aab|debug|web
     upload: bool = False  # upload to stores after build
+    # False (default): an app that is on both Google Play and the App Store is
+    # always built for both, so the two stores never drift to different
+    # versions. True: build only the requested store.
+    single_store: bool = False
 
 
 def deploy_engine() -> DeployEngine:
@@ -2349,11 +2353,26 @@ def get_build_targets(app_id: int):
     return {"app_type": a.app_type, "targets": {k: v["label"] for k, v in targets.items()}}
 
 
+def _both_stores_target(a, build_target: str, upload: bool, single_store: bool) -> str:
+    """An upload for only Android or only iOS of an app that is on BOTH stores
+    becomes a dual build: every build bumps the version, so single-store
+    uploads made Play and the App Store drift apart (owner 2026-11-24:
+    "each highest always the same version")."""
+    if single_store or not upload or build_target not in ("aab", "ios"):
+        return build_target
+    if not getattr(a, "apple_app_id", "") or not getattr(a, "package_name", ""):
+        return build_target
+    if "dual" not in deploy_engine().get_targets(a.app_type):
+        return build_target
+    return "dual"
+
+
 @app.post("/api/apps/{app_id}/deploy")
 def deploy_app(app_id: int, body: DeployRequest, request: Request):
     a = _require_own_app(request, app_id)
+    build_target = _both_stores_target(a, body.build_target, body.upload, body.single_store)
     result = deploy_engine().deploy(
-        a, track=body.track, build_target=body.build_target, upload=body.upload,
+        a, track=body.track, build_target=build_target, upload=body.upload,
         started_by_user_id=_current_user(request).id,
     )
     if "error" in result:

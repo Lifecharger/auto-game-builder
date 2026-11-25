@@ -1324,6 +1324,8 @@
   "storeNotChecked": "henüz kontrol edilmedi",
   "trackProduction": "Yayın",
   "trackLive": "Yayında",
+  "trackApproved": "Onaylandı, yayına hazır",
+  "storeNotReleasedYet": "Henüz yayında değil",
   "trackReview": "İncelemede",
   "trackTestflight": "TestFlight",
   "trackPrepare": "Hazırlanıyor",

@@ -4698,6 +4698,12 @@ class AppLocalizationsTr extends AppLocalizations {
   String get trackLive => 'Yayında';
 
   @override
+  String get trackApproved => 'Onaylandı, yayına hazır';
+
+  @override
+  String get storeNotReleasedYet => 'Henüz yayında değil';
+
+  @override
   String get trackReview => 'İncelemede';
 
   @override

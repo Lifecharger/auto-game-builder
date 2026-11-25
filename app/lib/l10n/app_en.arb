@@ -2830,6 +2830,8 @@
   "storeNotChecked": "not checked yet",
   "trackProduction": "Production",
   "trackLive": "Live",
+  "trackApproved": "Approved, ready to release",
+  "storeNotReleasedYet": "Not released yet",
   "trackReview": "In review",
   "trackTestflight": "TestFlight",
   "trackPrepare": "Being prepared",

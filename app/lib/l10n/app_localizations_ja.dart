@@ -4590,6 +4590,12 @@ class AppLocalizationsJa extends AppLocalizations {
   String get trackLive => '公開中';
 
   @override
+  String get trackApproved => '承認済み・公開待ち';
+
+  @override
+  String get storeNotReleasedYet => '未公開';
+
+  @override
   String get trackReview => '審査中';
 
   @override
